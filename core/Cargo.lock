@@ -8059,6 +8059,7 @@ version = "0.59.5"
 dependencies = [
  "base64 0.23.1",
  "bytes",
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",

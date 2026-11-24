@@ -397,6 +397,11 @@ impl MixedPart {
         self
     }
 
+    /// Return the multipart part headers for this mixed part.
+    pub fn part_headers(&self) -> &HeaderMap {
+        &self.part_headers
+    }
+
     /// Set the method for request in this part.
     pub fn method(mut self, method: Method) -> Self {
         self.method = Some(method);
@@ -1116,7 +1121,7 @@ Content-Length: 846
 
         assert_eq!(multipart.parts.len(), 3);
 
-        assert_eq!(multipart.parts[0].part_headers, {
+        assert_eq!(multipart.parts[0].part_headers(), &{
             let mut h = HeaderMap::new();
             h.insert("Content-Type", "application/http".parse().unwrap());
             h.insert(

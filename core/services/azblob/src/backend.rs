@@ -44,8 +44,7 @@ use super::core::AzblobCore;
 use super::core::ErrorContext;
 use super::core::constants::AZBLOB_COPY_MAX_BLOCK_SIZE;
 use super::core::constants::AZBLOB_COPY_MIN_BLOCK_SIZE;
-use super::core::constants::X_MS_META_PREFIX;
-use super::core::constants::X_MS_VERSION_ID;
+use super::core::parse_blob_metadata;
 use super::core::parse_error;
 use super::deleter::AzblobDeleter;
 use super::lister::AzblobLister;
@@ -373,7 +372,7 @@ impl Builder for AzblobBuilder {
 }
 
 impl AzblobBuilder {
-    fn build_backend(self) -> Result<AzblobBackend> {
+    pub(crate) fn build_backend(self) -> Result<AzblobBackend> {
         debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
@@ -672,20 +671,7 @@ impl Service for AzblobBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                let headers = resp.headers();
-                let mut meta = parse_into_metadata(path, headers)?.into_builder();
-                if let Some(version_id) = parse_header_to_str(headers, X_MS_VERSION_ID)? {
-                    meta.version(version_id);
-                }
-
-                let user_meta = parse_prefixed_headers(headers, X_MS_META_PREFIX);
-                if !user_meta.is_empty() {
-                    meta.user_metadata(user_meta);
-                }
-
-                Ok(RpStat::new(meta.build()))
-            }
+            StatusCode::OK => Ok(RpStat::new(parse_blob_metadata(path, resp.headers())?)),
             _ => Err(parse_error(error_ctx, resp)),
         }
     }

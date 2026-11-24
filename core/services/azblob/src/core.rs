@@ -320,8 +320,7 @@ impl AzblobCore {
         // the resource does not exist, and fail the operation if it does exist.
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
-        }
-        if let Some(v) = args.if_none_match() {
+        } else if let Some(v) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, v);
         }
 
@@ -377,6 +376,7 @@ impl AzblobCore {
     /// The following custom header could be set:
     /// - `content-type`
     /// - `x-ms-blob-cache-control`
+    /// - `x-ms-meta-*`
     ///
     /// # Reference
     ///
@@ -401,6 +401,8 @@ impl AzblobCore {
 
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
+        } else if let Some(v) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, v);
         }
 
         if let Some(ty) = args.content_type() {
@@ -409,6 +411,12 @@ impl AzblobCore {
 
         if let Some(cache_control) = args.cache_control() {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
+        }
+
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_MS_META_PREFIX}{key}"), value);
+            }
         }
 
         let req = req
@@ -447,6 +455,8 @@ impl AzblobCore {
         path: &str,
         position: u64,
         size: u64,
+        args: &OpWrite,
+        include_conditions: bool,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
         let url = format!("{}?comp=appendblock", self.build_path_url(path));
@@ -458,6 +468,15 @@ impl AzblobCore {
         // Set SSE headers.
         req = self.insert_sse_headers(req);
 
+        if include_conditions {
+            if let Some(v) = args.if_match() {
+                req = req.header(IF_MATCH, v);
+            }
+            if let Some(v) = args.if_none_match() {
+                req = req.header(IF_NONE_MATCH, v);
+            }
+        }
+
         let req = req
             .extension(Operation::Write)
             .extension(ServiceOperation("AppendBlock"))
@@ -467,15 +486,19 @@ impl AzblobCore {
         Ok(req)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn azblob_append_blob(
         &self,
         ctx: &OperationContext,
         path: &str,
         position: u64,
         size: u64,
+        args: &OpWrite,
+        include_conditions: bool,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let req = self.azblob_append_blob_request(path, position, size, body)?;
+        let req =
+            self.azblob_append_blob_request(path, position, size, args, include_conditions, body)?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
@@ -630,9 +653,7 @@ impl AzblobCore {
         // write's preconditions have to be evaluated here rather than on Put Block.
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
-        }
-
-        if let Some(v) = args.if_none_match() {
+        } else if let Some(v) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, v);
         }
 
@@ -686,12 +707,11 @@ impl AzblobCore {
 
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
+        } else if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
         }
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
-        }
-        if let Some(if_none_match) = args.if_none_match() {
-            req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
         let content = quick_xml::se::to_string(&PutBlockListRequest {
@@ -794,13 +814,12 @@ impl AzblobCore {
         self.send(ctx, req).await
     }
 
-    pub async fn azblob_copy_blob(
+    pub(crate) fn azblob_copy_blob_request(
         &self,
-        ctx: &OperationContext,
         from: &str,
         to: &str,
-        args: OpCopy,
-    ) -> Result<Response<Buffer>> {
+        args: &OpCopy,
+    ) -> Result<Request<Buffer>> {
         let mut source = self.build_path_url(from);
         if let Some(version) = args.source_version() {
             source = QueryPairsWriter::new(&source)
@@ -813,15 +832,17 @@ impl AzblobCore {
             .header(constants::X_MS_COPY_SOURCE, source)
             .header(CONTENT_LENGTH, 0);
 
+        // Set SSE headers.
+        req = self.insert_sse_headers(req);
+
         // Add if_not_exists condition using If-None-Match header
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
+        } else if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
         }
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
-        }
-        if let Some(if_none_match) = args.if_none_match() {
-            req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
         let req = req
@@ -830,6 +851,17 @@ impl AzblobCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
+        Ok(req)
+    }
+
+    pub async fn azblob_copy_blob(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+    ) -> Result<Response<Buffer>> {
+        let req = self.azblob_copy_blob_request(from, to, &args)?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
@@ -1222,6 +1254,162 @@ mod tests {
     }
 
     #[test]
+    fn init_appendable_blob_carries_user_metadata_and_if_none_match() {
+        let core = test_core();
+        let mut meta = HashMap::new();
+        meta.insert("author".to_string(), "alice".to_string());
+        let (args, _) = OpWrite::from_options(
+            &Capability {
+                write_with_if_none_match: true,
+                write_with_user_metadata: true,
+                ..Default::default()
+            },
+            options::WriteOptions {
+                if_none_match: Some("\"etag-1\"".to_owned()),
+                user_metadata: Some(meta),
+                ..Default::default()
+            },
+        )
+        .expect("options must lower");
+
+        let req = core
+            .azblob_init_appendable_blob_request("a.txt", &args)
+            .expect("request must build");
+
+        assert_eq!(
+            req.headers().get(IF_NONE_MATCH),
+            Some(&HeaderValue::from_static("\"etag-1\""))
+        );
+        assert_eq!(
+            req.headers().get("x-ms-meta-author"),
+            Some(&HeaderValue::from_static("alice"))
+        );
+    }
+
+    #[test]
+    fn append_blob_request_attaches_conditions_only_when_requested() {
+        let core = test_core();
+        let (args, _) = OpWrite::from_options(
+            &Capability {
+                write_with_if_match: true,
+                write_with_if_none_match: true,
+                ..Default::default()
+            },
+            options::WriteOptions {
+                if_match: Some("\"etag-1\"".to_owned()),
+                if_none_match: Some("\"etag-2\"".to_owned()),
+                ..Default::default()
+            },
+        )
+        .expect("options must lower");
+
+        let first = core
+            .azblob_append_blob_request("a.txt", 0, 5, &args, true, Buffer::from("hello"))
+            .expect("first append request must build");
+        assert_eq!(
+            first.headers().get(IF_MATCH),
+            Some(&HeaderValue::from_static("\"etag-1\""))
+        );
+        assert_eq!(
+            first.headers().get(IF_NONE_MATCH),
+            Some(&HeaderValue::from_static("\"etag-2\""))
+        );
+
+        let second = core
+            .azblob_append_blob_request("a.txt", 5, 5, &args, false, Buffer::from("world"))
+            .expect("second append request must build");
+        assert!(second.headers().get(IF_MATCH).is_none());
+        assert!(second.headers().get(IF_NONE_MATCH).is_none());
+    }
+
+    #[test]
+    fn copy_blob_request_includes_sse_headers() {
+        let mut core = test_core();
+        core.encryption_key = Some(HeaderValue::from_static("dGVzdGtleQ=="));
+        core.encryption_key_sha256 = Some(HeaderValue::from_static("c2hhMjU2"));
+        core.encryption_algorithm = Some(HeaderValue::from_static("AES256"));
+
+        let req = core
+            .azblob_copy_blob_request("src.txt", "dst.txt", &OpCopy::default())
+            .expect("copy request must build");
+
+        let key = req
+            .headers()
+            .get(constants::X_MS_ENCRYPTION_KEY)
+            .expect("encryption key header must be set");
+        assert_eq!(key, "dGVzdGtleQ==");
+        assert!(key.is_sensitive());
+
+        let sha = req
+            .headers()
+            .get(constants::X_MS_ENCRYPTION_KEY_SHA256)
+            .expect("encryption key sha256 header must be set");
+        assert_eq!(sha, "c2hhMjU2");
+        assert!(sha.is_sensitive());
+
+        let alg = req
+            .headers()
+            .get(constants::X_MS_ENCRYPTION_ALGORITHM)
+            .expect("encryption algorithm header must be set");
+        assert_eq!(alg, "AES256");
+        assert!(alg.is_sensitive());
+    }
+
+    #[test]
+    fn if_not_exists_and_if_none_match_do_not_emit_duplicate_header() {
+        let core = test_core();
+        let (write_args, _) = OpWrite::from_options(
+            &Capability {
+                write_with_if_not_exists: true,
+                write_with_if_none_match: true,
+                ..Default::default()
+            },
+            options::WriteOptions {
+                if_not_exists: true,
+                if_none_match: Some("\"etag-1\"".to_owned()),
+                ..Default::default()
+            },
+        )
+        .expect("write options must lower");
+
+        for req in [
+            core.azblob_put_blob_request("a.txt", Some(0), &write_args, Buffer::new())
+                .expect("put blob request must build"),
+            core.azblob_init_appendable_blob_request("a.txt", &write_args)
+                .expect("init append request must build"),
+            core.azblob_complete_put_block_list_request("a.txt", vec![Uuid::nil()], &write_args)
+                .expect("put block list request must build"),
+        ] {
+            let values: Vec<_> = req.headers().get_all(IF_NONE_MATCH).iter().collect();
+            assert_eq!(values, vec![&HeaderValue::from_static("*")]);
+        }
+
+        let copy_args = OpCopy::from_options(
+            &Capability {
+                copy_with_if_not_exists: true,
+                copy_with_if_none_match: true,
+                ..Default::default()
+            },
+            options::CopyOptions {
+                if_not_exists: true,
+                if_none_match: Some("\"etag-1\"".to_owned()),
+                ..Default::default()
+            },
+        )
+        .expect("copy options must lower");
+
+        for req in [
+            core.azblob_copy_blob_request("a.txt", "b.txt", &copy_args)
+                .expect("copy blob request must build"),
+            core.azblob_complete_copy_block_list_request("b.txt", vec![Uuid::nil()], &copy_args)
+                .expect("copy block list request must build"),
+        ] {
+            let values: Vec<_> = req.headers().get_all(IF_NONE_MATCH).iter().collect();
+            assert_eq!(values, vec![&HeaderValue::from_static("*")]);
+        }
+    }
+
+    #[test]
     fn test_serialize_put_block_list_request() {
         let req = PutBlockListRequest {
             latest: vec!["1".to_string(), "2".to_string(), "3".to_string()],
@@ -1329,8 +1517,30 @@ impl ErrorContext {
     }
 }
 
+pub(crate) fn parse_blob_metadata(path: &str, headers: &http::HeaderMap) -> Result<Metadata> {
+    let mut meta = parse_into_metadata(path, headers)?.into_builder();
+    if let Some(version_id) = parse_header_to_str(headers, constants::X_MS_VERSION_ID)? {
+        meta.version(version_id);
+    }
+
+    let user_meta = parse_prefixed_headers(headers, X_MS_META_PREFIX);
+    if !user_meta.is_empty() {
+        meta.user_metadata(user_meta);
+    }
+
+    Ok(meta.build())
+}
+
 /// Parse error response into Error.
 pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    parse_error_with_code(ctx, resp).0
+}
+
+/// Parse error response into Error together with its Azure error code if present.
+pub(crate) fn parse_error_with_code(
+    ctx: ErrorContext,
+    resp: Response<Buffer>,
+) -> (Error, Option<String>) {
     let (parts, body) = resp.into_parts();
     let bs = body.to_bytes();
 
@@ -1363,11 +1573,14 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    if let Some(azblob_error) = &azblob_error
-        && !azblob_error.code.is_empty()
-    {
-        if let Some(classification) = parse_azblob_error_code(ctx, &azblob_error.code, parts.status)
-        {
+    let error_code = azblob_error
+        .as_ref()
+        .map(|err| err.code.as_str())
+        .filter(|code| !code.is_empty())
+        .map(str::to_owned);
+
+    if let Some(code) = error_code.as_deref() {
+        if let Some(classification) = parse_azblob_error_code(ctx, code, parts.status) {
             (kind, retryable) = classification;
         } else if matches!(
             parts.status,
@@ -1390,7 +1603,7 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         err = err.set_temporary();
     }
 
-    err
+    (err, error_code)
 }
 
 /// Classify documented Blob Storage state errors by native code and status.
@@ -1402,6 +1615,9 @@ fn parse_azblob_error_code(
     status: StatusCode,
 ) -> Option<(ErrorKind, bool)> {
     match code {
+        // Although the status code is 404, ContainerNotFound indicates a missing
+        // or misconfigured container rather than a missing blob.
+        "ContainerNotFound" => Some((ErrorKind::ConfigInvalid, false)),
         "ConditionNotMet" | "SourceConditionNotMet" | "TargetConditionNotMet"
             if ctx.caller_condition
                 && matches!(
@@ -1534,5 +1750,36 @@ mod error_tests {
             assert_eq!(err.kind(), ErrorKind::PermissionDenied, "status {status}");
             assert!(!err.is_temporary(), "status {status}");
         }
+    }
+
+    #[test]
+    fn container_not_found_is_config_invalid() {
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+<Error>
+  <Code>ContainerNotFound</Code>
+  <Message>The specified container does not exist.</Message>
+</Error>"#;
+        let resp = Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .header("x-ms-error-code", "ContainerNotFound")
+            .body(Buffer::from(xml))
+            .unwrap();
+        let (err, code) =
+            parse_error_with_code(ErrorContext::new(ServiceOperation("DeleteBlob")), resp);
+        assert_eq!(code.as_deref(), Some("ContainerNotFound"));
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        assert!(!err.is_temporary());
+
+        let header_only_resp = Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .header("x-ms-error-code", "ContainerNotFound")
+            .body(Buffer::new())
+            .unwrap();
+        let err = parse_error(
+            ErrorContext::new(ServiceOperation("GetBlobProperties")),
+            header_only_resp,
+        );
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        assert!(!err.is_temporary());
     }
 }

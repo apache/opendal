@@ -52,6 +52,7 @@ uuid = { workspace = true, features = ["v4", "serde"] }
 reqsign-command-execute-tokio = { version = "3.0.9", default-features = false }
 
 [dev-dependencies]
+futures = { workspace = true }
 pretty_assertions = "1"
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

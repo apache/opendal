@@ -15,6 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::{Future, poll_fn};
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::pin::pin;
+use std::task::Poll;
 use std::time::Duration;
 
 use jni::Env;
@@ -35,7 +39,7 @@ use opendal::blocking;
 
 use crate::Result;
 use crate::convert::{bytes_to_jbytearray, jmap_to_hashmap, jstring_to_string};
-use crate::error::ThrowException;
+use crate::error::{ThrowException, panic_exception};
 use crate::executor::Executor;
 use crate::executor::executor_or_default;
 use crate::make_metadata;
@@ -79,12 +83,15 @@ fn intern_constructor(
 /// This function should not be called before the Operator is ready.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_duplicate<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     op: *const Operator,
 ) -> jlong {
-    let op = unsafe { &*op };
-    Box::into_raw(Box::new(op.clone())) as jlong
+    env.with_env(|_| -> Result<_> {
+        let op = unsafe { &*op };
+        Ok(Box::into_raw(Box::new(op.clone())) as jlong)
+    })
+    .resolve::<ThrowException>()
 }
 
 /// # Safety
@@ -92,13 +99,15 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_duplicate<'l
 /// This function should not be called before the Operator is ready.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_disposeInternal<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JObject<'local>,
     op: *mut Operator,
 ) {
-    unsafe {
-        drop(Box::from_raw(op));
-    }
+    env.with_env(|_| -> Result<()> {
+        unsafe { drop(Box::from_raw(op)) };
+        Ok(())
+    })
+    .resolve::<ThrowException>()
 }
 
 /// # Safety
@@ -132,17 +141,12 @@ fn intern_write(
     let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
 
-    let executor = executor_or_default(env, executor)?;
-    let id = request_id(env)?;
-    executor.spawn(async move {
-        let result = op.write_options(&path, content, write_opts).await;
-        complete_future(id, move |_env| {
-            result?;
-            Ok(JObject::null())
-        });
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.write_options(&path, content, write_opts).await },
+        |_, _| Ok(JObject::null()),
+    )
 }
 
 /// # Safety
@@ -173,14 +177,12 @@ fn intern_stat(
     let path = jstring_to_string(env, &path)?;
     let stat_opts = make_stat_options(env, &options)?;
 
-    let executor = executor_or_default(env, executor)?;
-    let id = request_id(env)?;
-    executor.spawn(async move {
-        let result = op.stat_options(&path, stat_opts).await;
-        complete_future(id, move |env| make_metadata(env, result?));
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.stat_options(&path, stat_opts).await },
+        make_metadata,
+    )
 }
 
 /// # Safety
@@ -206,24 +208,16 @@ fn intern_read(
     path: JString,
     options: JObject,
 ) -> Result<jlong> {
-    // Prepare inputs before spawning
-    let path_str = jstring_to_string(env, &path)?;
+    let path = jstring_to_string(env, &path)?;
     let read_opts = make_read_options(env, &options)?;
+    let op = unsafe { &*op }.clone();
 
-    // Clone operator handle to move into the task
-    let op_cloned = unsafe { &*op }.clone();
-
-    let executor = executor_or_default(env, executor)?;
-    let id = request_id(env)?;
-    executor.spawn(async move {
-        let result = op_cloned.read_options(&path_str, read_opts).await;
-        complete_future(id, move |env| {
-            let buffer = result?;
-            Ok(bytes_to_jbytearray(env, buffer.to_bytes())?.into())
-        });
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.read_options(&path, read_opts).await },
+        |env, buffer| Ok(bytes_to_jbytearray(env, buffer.to_bytes())?.into()),
+    )
 }
 
 /// # Safety
@@ -253,17 +247,12 @@ fn intern_delete(
     let options = make_delete_options(env, &options)?;
     let op = unsafe { &*op }.clone();
 
-    let executor = executor_or_default(env, executor)?;
-    let id = request_id(env)?;
-    executor.spawn(async move {
-        let result = op.delete_options(&path, options).await;
-        complete_future(id, move |_env| {
-            result?;
-            Ok(JObject::null())
-        });
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.delete_options(&path, options).await },
+        |_, _| Ok(JObject::null()),
+    )
 }
 
 /// # Safety
@@ -337,17 +326,12 @@ fn intern_create_dir(
 
     let path = jstring_to_string(env, &path)?;
 
-    let executor = executor_or_default(env, executor)?;
-    let id = request_id(env)?;
-    executor.spawn(async move {
-        let result = op.create_dir(&path).await;
-        complete_future(id, move |_env| {
-            result?;
-            Ok(JObject::null())
-        });
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.create_dir(&path).await },
+        |_, _| Ok(JObject::null()),
+    )
 }
 
 /// # Safety
@@ -378,17 +362,12 @@ fn intern_copy(
     let source_path = jstring_to_string(env, &source_path)?;
     let target_path = jstring_to_string(env, &target_path)?;
 
-    let executor = executor_or_default(env, executor)?;
-    let id = request_id(env)?;
-    executor.spawn(async move {
-        let result = op.copy(&source_path, &target_path).await;
-        complete_future(id, move |_env| {
-            result?;
-            Ok(JObject::null())
-        });
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.copy(&source_path, &target_path).await },
+        |_, _| Ok(JObject::null()),
+    )
 }
 
 /// # Safety
@@ -419,17 +398,12 @@ fn intern_rename(
     let source_path = jstring_to_string(env, &source_path)?;
     let target_path = jstring_to_string(env, &target_path)?;
 
-    let executor = executor_or_default(env, executor)?;
-    let id = request_id(env)?;
-    executor.spawn(async move {
-        let result = op.rename(&source_path, &target_path).await;
-        complete_future(id, move |_env| {
-            result?;
-            Ok(JObject::null())
-        });
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.rename(&source_path, &target_path).await },
+        |_, _| Ok(JObject::null()),
+    )
 }
 
 /// # Safety
@@ -457,17 +431,12 @@ fn intern_remove_all(
 
     let path = jstring_to_string(env, &path)?;
 
-    let executor = executor_or_default(env, executor)?;
-    let id = request_id(env)?;
-    executor.spawn(async move {
-        let result = op.delete_with(&path).recursive(true).await;
-        complete_future(id, move |_env| {
-            result?;
-            Ok(JObject::null())
-        });
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.delete_with(&path).recursive(true).await },
+        |_, _| Ok(JObject::null()),
+    )
 }
 
 /// # Safety
@@ -497,15 +466,12 @@ fn intern_list(
 
     let path = jstring_to_string(env, &path)?;
     let list_opts = make_list_options(env, &options)?;
-
-    let executor = executor_or_default(env, executor)?;
-    let id = request_id(env)?;
-    executor.spawn(async move {
-        let result = op.list_options(&path, list_opts).await;
-        complete_future(id, move |env| make_entries(env, result?));
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.list_options(&path, list_opts).await },
+        make_entries,
+    )
 }
 
 fn make_entries<'local>(env: &mut Env<'local>, entries: Vec<Entry>) -> Result<JObject<'local>> {
@@ -560,14 +526,12 @@ fn intern_presign_read(
 
     let path = jstring_to_string(env, &path)?;
 
-    let executor = executor_or_default(env, executor)?;
-    let id = request_id(env)?;
-    executor.spawn(async move {
-        let result = op.presign_read_options(&path, expire, read_opts).await;
-        complete_future(id, move |env| make_presigned_request(env, result?));
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.presign_read_options(&path, expire, read_opts).await },
+        make_presigned_request,
+    )
 }
 /// # Safety
 ///
@@ -600,14 +564,12 @@ fn intern_presign_write(
 
     let path = jstring_to_string(env, &path)?;
 
-    let executor = executor_or_default(env, executor)?;
-    let id = request_id(env)?;
-    executor.spawn(async move {
-        let result = op.presign_write_options(&path, expire, write_opts).await;
-        complete_future(id, move |env| make_presigned_request(env, result?));
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.presign_write_options(&path, expire, write_opts).await },
+        make_presigned_request,
+    )
 }
 
 /// # Safety
@@ -641,55 +603,90 @@ fn intern_presign_stat(
 
     let path = jstring_to_string(env, &path)?;
 
+    spawn_operation(
+        env,
+        executor,
+        async move { op.presign_stat_options(&path, expire, stat_opts).await },
+        make_presigned_request,
+    )
+}
+
+/// Run a storage operation and complete the Java future with its result.
+fn spawn_operation<T, F, B>(
+    env: &mut Env,
+    executor: *const Executor,
+    operation: F,
+    build: B,
+) -> Result<jlong>
+where
+    T: Send + 'static,
+    F: Future<Output = opendal::Result<T>> + Send + 'static,
+    B: for<'a> FnOnce(&mut Env<'a>, T) -> Result<JObject<'a>> + Send + 'static,
+{
     let executor = executor_or_default(env, executor)?;
     let id = request_id(env)?;
     executor.spawn(async move {
-        let result = op.presign_stat_options(&path, expire, stat_opts).await;
-        complete_future(id, move |env| make_presigned_request(env, result?));
+        let mut operation = pin!(operation);
+        let result =
+            poll_fn(
+                |cx| match catch_unwind(AssertUnwindSafe(|| operation.as_mut().poll(cx))) {
+                    Ok(poll) => poll.map(Ok),
+                    Err(payload) => Poll::Ready(Err(payload)),
+                },
+            )
+            .await;
+        complete_future(id, result, build);
     });
-
     Ok(id)
 }
 
-/// Complete the Java `CompletableFuture` identified by `id`.
-///
-/// This runs on a `tokio` worker thread that was permanently attached to the
-/// JVM in `on_thread_start`, so `attach_current_thread` only pushes a scoped
-/// JNI frame here. The `build` closure turns the awaited operation result into a
-/// Java object within that frame; on error the future is completed
-/// exceptionally. All local references created during completion live and die
-/// within the frame.
-fn complete_future<F>(id: jlong, build: F)
-where
-    F: for<'a> FnOnce(&mut Env<'a>) -> Result<JObject<'a>>,
-{
+/// Complete the future in a scoped JNI frame on a JVM-attached worker thread.
+fn complete_future<T>(
+    id: jlong,
+    result: std::thread::Result<opendal::Result<T>>,
+    build: impl for<'a> FnOnce(&mut Env<'a>, T) -> Result<JObject<'a>>,
+) {
     let vm = JavaVM::singleton().expect("JavaVM singleton must be initialized");
-    vm.attach_current_thread(|env| -> Result<()> {
+    vm.attach_current_thread(|env| -> jni::errors::Result<()> {
         let future = get_future(env, id)?;
         if future.is_null() {
             // The Java future was cancelled or completed before the native
             // operation finished, so the registry no longer holds an entry.
             return Ok(());
         }
-        match build(env) {
-            Ok(object) => {
-                env.call_method(
-                    &future,
-                    jni_str!("complete"),
-                    jni_sig!("(Ljava/lang/Object;)Z"),
-                    &[JValue::Object(&object)],
-                )?;
+        let result =
+            result.and_then(|result| catch_unwind(AssertUnwindSafe(|| build(env, result?))));
+        let exception = if env.exception_check() {
+            Err(jni::errors::Error::JavaException)
+        } else {
+            match result {
+                Ok(Ok(object)) => {
+                    env.call_method(
+                        &future,
+                        jni_str!("complete"),
+                        jni_sig!("(Ljava/lang/Object;)Z"),
+                        &[JValue::Object(&object)],
+                    )?;
+                    return Ok(());
+                }
+                Ok(Err(err)) => err.to_exception(env),
+                Err(payload) => panic_exception(env, payload.as_ref()),
             }
-            Err(err) => {
-                let exception = err.to_exception(env)?;
-                env.call_method(
-                    &future,
-                    jni_str!("completeExceptionally"),
-                    jni_sig!("(Ljava/lang/Throwable;)Z"),
-                    &[JValue::Object(&exception)],
-                )?;
+        };
+        // JNI requires clearing a pending Java exception before calling completeExceptionally.
+        let exception = match env.exception_occurred() {
+            Some(pending) => {
+                env.exception_clear();
+                pending
             }
-        }
+            None => exception?,
+        };
+        env.call_method(
+            &future,
+            jni_str!("completeExceptionally"),
+            jni_sig!("(Ljava/lang/Throwable;)Z"),
+            &[JValue::Object(&exception)],
+        )?;
         Ok(())
     })
     .expect("complete future must succeed");
@@ -711,13 +708,12 @@ fn request_id(env: &mut Env) -> Result<jlong> {
         .j()?)
 }
 
-fn get_future<'local>(env: &mut Env<'local>, id: jlong) -> Result<JObject<'local>> {
-    Ok(env
-        .call_static_method(
-            jni_str!("org/apache/opendal/AsyncOperator$AsyncRegistry"),
-            jni_str!("get"),
-            jni_sig!("(J)Ljava/util/concurrent/CompletableFuture;"),
-            &[JValue::Long(id)],
-        )?
-        .l()?)
+fn get_future<'local>(env: &mut Env<'local>, id: jlong) -> jni::errors::Result<JObject<'local>> {
+    env.call_static_method(
+        jni_str!("org/apache/opendal/AsyncOperator$AsyncRegistry"),
+        jni_str!("get"),
+        jni_sig!("(J)Ljava/util/concurrent/CompletableFuture;"),
+        &[JValue::Long(id)],
+    )?
+    .l()
 }

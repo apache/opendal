@@ -40,13 +40,15 @@ use crate::{
 /// This function should not be called before the Operator is ready.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_disposeInternal<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JObject<'local>,
     op: *mut blocking::Operator,
 ) {
-    unsafe {
-        drop(Box::from_raw(op));
-    }
+    env.with_env(|_| -> Result<()> {
+        unsafe { drop(Box::from_raw(op)) };
+        Ok(())
+    })
+    .resolve::<ThrowException>()
 }
 
 /// # Safety
@@ -54,12 +56,15 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_disposeInternal<'
 /// This function should not be called before the Operator is ready.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_duplicate<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JObject<'local>,
     op: *const blocking::Operator,
 ) -> jlong {
-    let op = unsafe { &*op };
-    Box::into_raw(Box::new(op.clone())) as jlong
+    env.with_env(|_| -> Result<_> {
+        let op = unsafe { &*op };
+        Ok(Box::into_raw(Box::new(op.clone())) as jlong)
+    })
+    .resolve::<ThrowException>()
 }
 
 /// # Safety

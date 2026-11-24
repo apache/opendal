@@ -41,6 +41,9 @@ import java.util.function.LongUnaryOperator;
  * operator creates a new default executor.</p>
  *
  * <p>The default executor uses the same worker context class loader behavior as {@link AsyncExecutor}.</p>
+ *
+ * <p>If an asynchronous operation panics on the native executor, its future completes exceptionally
+ * with an {@link OpenDALPanicException}. A panic during the native call itself is thrown directly.</p>
  */
 public class AsyncOperator extends NativeObject {
 

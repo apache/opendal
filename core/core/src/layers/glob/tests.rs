@@ -196,12 +196,142 @@ async fn native_glob_receives_the_original_list_options() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn recursive_services_filter_one_listing() -> Result<()> {
+    let inner = Arc::new(ListFixture {
+        recursive: true,
+        ..ListFixture::new(&[
+            "t/p=1/a.parquet",
+            "t/p=1/b.json",
+            "t/p=2/x/c.parquet",
+            "t/q=3/d.parquet",
+        ])
+    });
+    let op = Operator::from_parts(OperationContext::default(), inner.clone()).layer(GlobLayer);
+
+    let entries = op.list_with("/").glob("t/*/**/*.parquet").limit(2).await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        ["t/p=1/a.parquet", "t/p=2/x/c.parquet", "t/q=3/d.parquet"]
+    );
+    let entries = op.list_with("/").glob("*/**/").await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        ["t/", "t/p=1/", "t/p=2/", "t/p=2/x/", "t/q=3/"]
+    );
+    let entries = op.list_with("t/").glob("**").await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        [
+            "t/p=1/",
+            "t/p=1/a.parquet",
+            "t/p=1/b.json",
+            "t/p=2/",
+            "t/p=2/x/",
+            "t/p=2/x/c.parquet",
+            "t/q=3/",
+            "t/q=3/d.parquet",
+        ]
+    );
+
+    let requests = inner.requests.lock().unwrap();
+    assert_eq!(requests.len(), 3);
+    for ((path, args), expected) in requests.iter().zip(["t/", "/", "t/"]) {
+        assert_eq!(path, expected);
+        assert!(args.recursive());
+        assert_eq!(args.glob(), None);
+    }
+    assert_eq!(requests[0].1.limit(), Some(2));
+    Ok(())
+}
+
+#[tokio::test]
+async fn recursive_listing_returns_each_directory_once() -> Result<()> {
+    let inner = Arc::new(ListFixture {
+        recursive: true,
+        entries: vec![
+            oio::Entry::new("t/a/x", MetadataBuilder::file(0).build()),
+            oio::Entry::new("t/a/", MetadataBuilder::dir().build()),
+            oio::Entry::new("t/", MetadataBuilder::dir().build()),
+        ],
+        ..ListFixture::new(&[])
+    });
+    let op = Operator::from_parts(OperationContext::default(), inner).layer(GlobLayer);
+    let entries = op.list_with("/").glob("**/").await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        ["t/", "t/a/"]
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn services_without_recursive_listing_keep_the_walk() -> Result<()> {
+    let inner = Arc::new(ListFixture {
+        recursive: true,
+        ..ListFixture::new(&["t/a.parquet"])
+    });
+    let no_recursion = crate::layers::CapabilityOverrideLayer::new(|mut capability| {
+        capability.list_with_recursive = false;
+        capability
+    });
+    let op = Operator::from_parts(OperationContext::default(), inner.clone())
+        .layer(no_recursion)
+        .layer(GlobLayer);
+    op.list_with("/").glob("t/**/*.parquet").await?;
+    let requests = inner.requests.lock().unwrap();
+    assert!(requests.iter().all(|(_, args)| !args.recursive()));
+    Ok(())
+}
+
+#[tokio::test]
+async fn recursive_services_walk_patterns_that_skip_directories() -> Result<()> {
+    let inner = Arc::new(ListFixture {
+        recursive: true,
+        ..ListFixture::new(&["t/a.parquet", "t/b.json"])
+    });
+    let op = Operator::from_parts(OperationContext::default(), inner.clone()).layer(GlobLayer);
+    let entries = op.list_with("t/").glob("*.parquet").await?;
+    assert_eq!(entries[0].path(), "t/a.parquet");
+    for pattern in ["t/*", "t/*/*.parquet", "t/p=*/**", "t/*/x/**"] {
+        op.list_with("/").glob(pattern).await?;
+    }
+    let requests = inner.requests.lock().unwrap();
+    assert_eq!(requests.len(), 5);
+    assert!(
+        requests
+            .iter()
+            .all(|(path, args)| path == "t/" && !args.recursive())
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn recursive_listing_keeps_the_entry_named_by_a_prefix() -> Result<()> {
+    let op = Operator::new(Memory::default())?;
+    for path in ["t/a", "t/ab/c", "v/a/b"] {
+        op.write(path, "data").await?;
+    }
+    let entries = op.list_with("t/a").glob("**").await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        ["t/a", "t/ab/", "t/ab/c"]
+    );
+    let entries = op.list_with("v/a/b").glob("**").await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        ["v/a/b"]
+    );
+    Ok(())
+}
+
 #[derive(Debug)]
 struct ListFixture {
     requests: Mutex<Vec<(String, OpList)>>,
     entries: Vec<oio::Entry>,
     native_glob: bool,
     denied: Option<&'static str>,
+    recursive: bool,
 }
 
 impl ListFixture {
@@ -214,6 +344,7 @@ impl ListFixture {
                 .collect(),
             native_glob: false,
             denied: None,
+            recursive: false,
         }
     }
 }
@@ -234,6 +365,7 @@ impl Service for ListFixture {
         Capability {
             list: true,
             list_with_glob: self.native_glob,
+            list_with_recursive: self.recursive,
             list_with_limit: true,
             list_with_start_after: true,
             list_with_versions: true,

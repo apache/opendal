@@ -19,9 +19,12 @@
 #[cfg(test)]
 mod tests {
     use futures::TryStreamExt;
+    use opendal::Builder;
     use opendal::EntryMode;
     use opendal::ErrorKind;
+    use opendal::OperationContext;
     use opendal::Operator;
+    use opendal::raw::{OpList, OpStat, Service, oio::List};
     use opendal::services::Opfs;
     use opendal::services::OpfsConfig;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -318,5 +321,177 @@ mod tests {
         let buffer = op.read_with(path).range(3..5).await.expect("read");
         assert_eq!(buffer.to_bytes(), "34".as_bytes());
         op.delete(path).await.expect("delete");
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_writer_double_close_and_abort_lifecycle() {
+        let op = new_operator();
+        let path = "writer-lifecycle.txt";
+        let content = "keep-this-content";
+
+        let mut w = op.writer(path).await.expect("writer");
+        w.write(content).await.expect("write");
+        let meta = w.close().await.expect("first close");
+        assert_eq!(meta.content_length(), content.len() as u64);
+
+        let err = w.close().await.expect_err("second close must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let err = w
+            .write("extra")
+            .await
+            .expect_err("write after close must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let buffer = op.read(path).await.expect("read back");
+        assert_eq!(buffer.to_bytes(), content.as_bytes());
+
+        // Abort after staged write must not overwrite the existing file.
+        let mut w = op.writer(path).await.expect("second writer");
+        w.write("discard").await.expect("staged write");
+        w.abort().await.expect("first abort");
+        w.abort().await.expect("second abort must be idempotent");
+        let err = w.close().await.expect_err("close after abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let buffer = op.read(path).await.expect("read back after abort");
+        assert_eq!(buffer.to_bytes(), content.as_bytes());
+
+        op.delete(path).await.expect("delete");
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_stat_and_non_recursive_delete_origin_root() {
+        let srv = Opfs::default().build().expect("build opfs service");
+        let ctx = OperationContext::default();
+        let rp = srv
+            .stat(&ctx, "/", OpStat::default())
+            .await
+            .expect("direct Service::stat on origin root must succeed");
+        assert_eq!(rp.into_metadata().mode(), EntryMode::DIR);
+
+        let op = new_operator();
+        op.write("origin-root-keep", "keep")
+            .await
+            .expect("write file under origin root");
+
+        let err = op
+            .delete("/")
+            .await
+            .expect_err("non-recursive delete on non-empty origin root must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(op.exists("origin-root-keep").await.expect("file survives"));
+
+        op.delete_with("/")
+            .recursive(true)
+            .await
+            .expect("clear origin root");
+        op.delete("/")
+            .await
+            .expect("non-recursive delete on empty origin root must succeed");
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_list_missing_dir_and_non_trailing_slash() {
+        let op = new_operator();
+
+        assert!(
+            op.list("missing-dir/")
+                .await
+                .expect("list missing dir")
+                .is_empty()
+        );
+        assert!(
+            op.list("missing-dir/nested/")
+                .await
+                .expect("list nested missing dir")
+                .is_empty()
+        );
+
+        op.write("list-prefix-dir/file.txt", "hello")
+            .await
+            .expect("write file");
+        op.create_dir("list-prefix-dir/child/")
+            .await
+            .expect("create child dir");
+
+        let srv = Opfs::default().build().expect("build opfs service");
+        let ctx = OperationContext::default();
+        let mut lister = srv
+            .list(&ctx, "list-prefix-dir", OpList::default())
+            .expect("list without trailing slash");
+        let mut paths = Vec::new();
+        while let Some(entry) = lister.next().await.expect("next entry") {
+            paths.push(entry.path().to_string());
+        }
+        paths.sort();
+        assert_eq!(
+            paths,
+            vec!["list-prefix-dir/child/", "list-prefix-dir/file.txt"]
+        );
+
+        op.delete_with("list-prefix-dir/")
+            .recursive(true)
+            .await
+            .expect("cleanup");
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_read_with_out_of_bounds_and_edge_ranges() {
+        let op = new_operator();
+        let path = "numbers-range-bounds.txt";
+        op.write(path, "0123456789").await.expect("write");
+
+        let err = op
+            .read_with(path)
+            .range(100..105)
+            .await
+            .expect_err("out-of-bounds range must fail");
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+
+        let err = op
+            .read_with(path)
+            .range(10..11)
+            .await
+            .expect_err("range at EOF must fail");
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+
+        let tail = op
+            .read_with(path)
+            .range(8..20)
+            .await
+            .expect("clamped tail range");
+        assert_eq!(tail.to_bytes(), b"89".as_slice());
+
+        let empty = op
+            .read_with(path)
+            .range(10..)
+            .await
+            .expect("open-ended range at EOF");
+        assert!(empty.is_empty());
+
+        op.delete(path).await.expect("delete");
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_from_uri_constructs_rooted_operator() {
+        let op_uri = Operator::from_uri("opfs:///from-uri-test").expect("load opfs from uri");
+        op_uri.write("hello.txt", "from uri").await.expect("write");
+
+        let root_op = new_operator();
+        let buf = root_op
+            .read("from-uri-test/hello.txt")
+            .await
+            .expect("read via root operator");
+        assert_eq!(buf.to_bytes(), b"from uri".as_slice());
+
+        root_op
+            .delete_with("from-uri-test/")
+            .recursive(true)
+            .await
+            .expect("cleanup");
     }
 }

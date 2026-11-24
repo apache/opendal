@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+#[cfg(target_arch = "wasm32")]
 use super::backend::OpfsBuilder;
 
 /// Config for OPFS.
@@ -31,6 +32,26 @@ pub struct OpfsConfig {
     pub root: Option<String>,
 }
 
+impl OpfsConfig {
+    pub(crate) fn from_uri_inner(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
+        let mut map = uri.options().clone();
+        if !map.contains_key("root")
+            && let Some(root) = uri.root().filter(|v| !v.is_empty())
+        {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        let cfg = opendal_core::raw::ConfigDeserializer::new(map);
+        Self::deserialize(cfg).map_err(|err| {
+            opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
+                "failed to deserialize config",
+            )
+            .set_source(err)
+        })
+    }
+}
+
 impl Debug for OpfsConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OpfsConfig")
@@ -39,10 +60,64 @@ impl Debug for OpfsConfig {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
 impl opendal_core::Configurator for OpfsConfig {
     type Builder = OpfsBuilder;
 
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
+        Self::from_uri_inner(uri)
+    }
+
     fn into_builder(self) -> Self::Builder {
         OpfsBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opendal_core::OperatorUri;
+
+    fn parse(uri: &OperatorUri) -> opendal_core::Result<OpfsConfig> {
+        #[cfg(target_arch = "wasm32")]
+        {
+            opendal_core::Configurator::from_uri(uri)
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            OpfsConfig::from_uri_inner(uri)
+        }
+    }
+
+    #[test]
+    fn from_uri_extracts_root() {
+        let uri = OperatorUri::new("opfs:///myapp/data", Vec::<(String, String)>::new()).unwrap();
+        let cfg = parse(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("myapp/data"));
+    }
+
+    #[test]
+    fn from_uri_handles_empty_root() {
+        let uri = OperatorUri::new("opfs:///", Vec::<(String, String)>::new()).unwrap();
+        let cfg = parse(&uri).unwrap();
+        assert_eq!(cfg.root, None);
+    }
+
+    #[test]
+    fn from_uri_preserves_explicit_root_option() {
+        let uri = OperatorUri::new(
+            "opfs:///myapp/data?root=/override",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = parse(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("/override"));
+    }
+
+    #[test]
+    fn from_uri_supports_scheme_only_with_extra_options() {
+        let uri = OperatorUri::new("opfs", [("root".to_string(), "/custom".to_string())]).unwrap();
+        let cfg = parse(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("/custom"));
     }
 }

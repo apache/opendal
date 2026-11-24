@@ -63,9 +63,20 @@ impl oio::OneShotDelete for OpfsDeleter {
         let options = FileSystemRemoveOptions::new();
         options.set_recursive(args.recursive());
 
-        // The origin root has no parent entry. Remove its children in place.
-        if name.is_empty() && args.recursive() {
+        // The origin root has no parent entry. Handle it in place.
+        if name.is_empty() {
             let keys = dir.keys();
+            if !args.recursive() {
+                let next = JsFuture::from(keys.next().map_err(parse_js_error)?)
+                    .await
+                    .map_err(parse_js_error)?;
+                let next: js_sys::IteratorNext = next.unchecked_into();
+                if next.done() {
+                    return Ok(());
+                }
+                return Err(Error::new(ErrorKind::Unexpected, "directory not empty"));
+            }
+
             loop {
                 let next = JsFuture::from(keys.next().map_err(parse_js_error)?)
                     .await

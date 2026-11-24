@@ -40,4 +40,5 @@ prost = "0.14.3"
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+futures = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

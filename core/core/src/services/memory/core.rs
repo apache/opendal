@@ -100,20 +100,45 @@ impl MemoryCore {
         Ok(())
     }
 
-    /// Returns the keys that start with `prefix` and sort strictly after `start_after`.
-    pub fn scan(&self, prefix: &str, start_after: Option<&str>) -> Result<Vec<String>> {
+    /// Returns the keys starting with `prefix` in OpenDAL path order.
+    ///
+    /// `root_key` is the stored key for the root directory marker (`"/"`).
+    /// Because the root marker is stored under `root_key` rather than
+    /// `"{root_key}/"`, it sorts before keys whose relative path starts with a
+    /// byte smaller than `'/'` (such as `'-'` or `'.'`). Handle `root_key`
+    /// separately so `"/"` is filtered and ordered by its OpenDAL path.
+    pub fn scan(
+        &self,
+        root_key: &str,
+        prefix: &str,
+        start_after: Option<&str>,
+    ) -> Result<Vec<String>> {
         let data = self.data.lock().unwrap();
 
-        let lower = match start_after {
-            Some(start_after) if start_after >= prefix => Bound::Excluded(start_after),
+        let include_root = prefix == root_key
+            && start_after.is_none_or(|marker| "/" > marker)
+            && data.contains_key(root_key);
+
+        let abs_start_after = start_after.map(|marker| format!("{root_key}{marker}"));
+        let lower = match abs_start_after.as_deref() {
+            Some(marker) if marker >= prefix => Bound::Excluded(marker),
+            _ if prefix == root_key => Bound::Excluded(root_key),
             _ => Bound::Included(prefix),
         };
 
-        Ok(data
+        let mut keys: Vec<String> = data
             .range::<str, _>((lower, Bound::Unbounded))
             .map(|(key, _)| key)
             .take_while(|key| key.starts_with(prefix))
             .cloned()
-            .collect())
+            .collect();
+
+        if include_root {
+            let pos = keys
+                .partition_point(|key| key.strip_prefix(root_key).unwrap_or(key.as_str()) < "/");
+            keys.insert(pos, root_key.to_string());
+        }
+
+        Ok(keys)
     }
 }

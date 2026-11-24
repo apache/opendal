@@ -282,6 +282,13 @@ where
             State::Running => {}
         }
 
+        if self.part_size == 0 {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "multipart copy part size must be greater than 0",
+            ));
+        }
+
         let source_size = self.source_size().await?;
 
         if self.upload_id.is_none() && source_size <= self.copy_once_threshold {
@@ -842,6 +849,53 @@ mod tests {
         assert!(metadata.is_file());
         assert_eq!(metadata.content_length(), 8);
         assert_eq!(inner.complete_copy_calls.load(Ordering::Relaxed), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_zero_part_size_returns_config_invalid() -> Result<()> {
+        let capabilities = [
+            Capability::default(),
+            Capability {
+                write_total_max_size: Some(16),
+                write_multi_max_size: Some(4),
+                ..Default::default()
+            },
+        ];
+
+        for capability in capabilities {
+            let inner = TestCopy::new(8);
+            let mut copier = MultipartCopier::new(
+                crate::test_executor(),
+                capability,
+                inner.clone(),
+                Some(8),
+                /*copy_once_threshold=*/ 0,
+                /*part_size=*/ 0,
+                /*concurrent=*/ 1,
+            );
+
+            let err = timeout(Duration::from_secs(5), copier.next())
+                .await
+                .expect("next must not hang when part_size is 0")
+                .expect_err("part_size == 0 must fail");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+            assert!(!err.is_temporary());
+
+            let err = timeout(Duration::from_secs(5), copier.close())
+                .await
+                .expect("close must not hang when part_size is 0")
+                .expect_err("part_size == 0 must fail on close");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+            assert!(!err.is_temporary());
+
+            assert_eq!(inner.source_metadata_calls.load(Ordering::Relaxed), 0);
+            assert_eq!(inner.copy_once_calls.load(Ordering::Relaxed), 0);
+            assert_eq!(inner.initiate_copy_calls.load(Ordering::Relaxed), 0);
+            assert_eq!(inner.complete_copy_calls.load(Ordering::Relaxed), 0);
+            assert_eq!(inner.abort_copy_calls.load(Ordering::Relaxed), 0);
+        }
+
         Ok(())
     }
 }

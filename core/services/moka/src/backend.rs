@@ -35,6 +35,9 @@ pub type MokaCache<K, V> = moka::future::Cache<K, V>;
 /// Type alias of [`moka::future::CacheBuilder`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html)
 pub type MokaCacheBuilder<K, V> = moka::future::CacheBuilder<K, V, MokaCache<K, V>>;
 
+/// Maximum TTL/TTI accepted by `moka::future::CacheBuilder::build` (1000 years).
+const MAX_CACHE_DURATION: Duration = Duration::from_secs(1_000 * 365 * 24 * 3600);
+
 /// [moka](https://github.com/moka-rs/moka) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
@@ -157,10 +160,10 @@ impl Builder for MokaBuilder {
 
         let mut builder = self.builder;
 
-        if let Some(v) = &self.config.name {
+        if let Some(v) = self.config.name.as_deref().filter(|v| !v.is_empty()) {
             builder = builder.name(v);
         }
-        if let Some(v) = self.config.max_capacity {
+        if let Some(v) = self.config.max_capacity.filter(|&v| v != 0) {
             builder = builder.max_capacity(v);
         }
         let time_to_live = match self.time_to_live {
@@ -170,8 +173,16 @@ impl Builder for MokaBuilder {
                 .time_to_live
                 .map(signed_duration_to_duration)
                 .transpose()?,
-        };
+        }
+        .filter(|duration| !duration.is_zero());
         if let Some(duration) = time_to_live {
+            if duration > MAX_CACHE_DURATION {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "time_to_live must not exceed 1000 years",
+                )
+                .with_context("service", MOKA_SCHEME));
+            }
             builder = builder.time_to_live(duration);
         }
         let time_to_idle = match self.time_to_idle {
@@ -181,8 +192,16 @@ impl Builder for MokaBuilder {
                 .time_to_idle
                 .map(signed_duration_to_duration)
                 .transpose()?,
-        };
+        }
+        .filter(|duration| !duration.is_zero());
         if let Some(duration) = time_to_idle {
+            if duration > MAX_CACHE_DURATION {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "time_to_idle must not exceed 1000 years",
+                )
+                .with_context("service", MOKA_SCHEME));
+            }
             builder = builder.time_to_idle(duration);
         }
 
@@ -577,5 +596,68 @@ mod tests {
             );
         }
         Ok(())
+    }
+
+    #[test]
+    fn test_expiration_duration_upper_bound() -> Result<()> {
+        // Exact 1000-year boundary succeeds without panicking.
+        let _ = MokaBuilder::default()
+            .time_to_live(MAX_CACHE_DURATION)
+            .time_to_idle(MAX_CACHE_DURATION)
+            .build()?;
+
+        let over_limit = MAX_CACHE_DURATION + Duration::from_nanos(1);
+        for duration in [over_limit, Duration::MAX] {
+            let err = MokaBuilder::default()
+                .time_to_live(duration)
+                .build()
+                .expect_err("time_to_live > 1000 years must fail");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+            let err = MokaBuilder::default()
+                .time_to_idle(duration)
+                .build()
+                .expect_err("time_to_idle > 1000 years must fail");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+
+        let over_secs = format!("{}s", MAX_CACHE_DURATION.as_secs() + 1);
+        for key in ["time_to_live", "time_to_idle"] {
+            let err = MokaConfig::from_iter([(key.to_string(), over_secs.clone())])?
+                .into_builder()
+                .build()
+                .expect_err("config duration > 1000 years must fail");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_config_zero_and_empty_values_match_builder() -> Result<()> {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let service = MokaConfig::from_iter([
+                ("name".to_string(), "".to_string()),
+                ("max_capacity".to_string(), "0".to_string()),
+                ("time_to_live".to_string(), "0s".to_string()),
+                ("time_to_idle".to_string(), "0s".to_string()),
+            ])?
+            .into_builder()
+            .build()?;
+
+            assert_eq!(&*service.info().name(), "moka");
+
+            let ctx = OperationContext::default();
+            write_file(&service, &ctx, "a/file.txt").await?;
+            let meta = service
+                .stat(&ctx, "a/file.txt", OpStat::default())
+                .await?
+                .into_metadata();
+            assert_eq!(meta.mode(), EntryMode::FILE);
+            assert_eq!(meta.content_length(), 1);
+            Ok::<_, Error>(())
+        })
+        .await
+        .expect("test timed out")
     }
 }

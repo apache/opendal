@@ -469,6 +469,7 @@ pub struct BufferStream {
     state: State,
     size: Option<u64>,
     exact: bool,
+    suffix_size: Option<u64>,
     read: u64,
     revalidated_suffix_range: Option<Range<u64>>,
 }
@@ -514,6 +515,17 @@ impl BufferStream {
         limit: Option<u64>,
     ) -> Result<Self> {
         let mut range = range.into();
+        if let BytesRange::Range {
+            offset,
+            size: Some(size),
+        } = range
+            && offset.checked_add(size).is_none()
+        {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "range end overflow: offset + size exceeds u64::MAX",
+            ));
+        }
         let mut suffix_revalidation = None;
         if ctx.options().chunk().is_some() {
             if let BytesRange::Suffix { size } = range
@@ -541,6 +553,10 @@ impl BufferStream {
     ) -> Self {
         let exact = limit.is_none() && !range.is_suffix() && range.size().is_some();
         let size = if exact { range.size() } else { limit };
+        let suffix_size = match range {
+            BytesRange::Suffix { size } if limit.is_none() => Some(size),
+            _ => None,
+        };
         let reader = if ctx.options().chunk().is_some() {
             match suffix_revalidation {
                 Some(reval) => {
@@ -562,6 +578,7 @@ impl BufferStream {
             state: State::Idle(Some(reader)),
             size,
             exact,
+            suffix_size,
             read: 0,
             revalidated_suffix_range: None,
         }
@@ -664,19 +681,67 @@ impl Stream for BufferStream {
                     return match buf {
                         Ok(buf) if buf.is_empty() => {
                             this.state = State::Done;
-                            let error = if this.exact {
-                                check_complete(this.size, this.read).err()
+                            let expected = if this.exact {
+                                this.size
                             } else {
-                                None
+                                this.suffix_size.and_then(|suffix_size| {
+                                    this.ctx
+                                        .metadata()
+                                        .filter(|meta| meta.is_file())
+                                        .map(|meta| suffix_size.min(meta.content_length()))
+                                })
                             };
+                            let error = check_complete(expected, this.read).err();
                             Poll::Ready(error.map(Err))
                         }
                         Ok(mut buf) => {
+                            let max_size = if this.exact {
+                                this.size
+                            } else {
+                                this.suffix_size.map(|suffix_size| {
+                                    this.ctx
+                                        .metadata()
+                                        .filter(|meta| meta.is_file())
+                                        .map_or(suffix_size, |meta| {
+                                            suffix_size.min(meta.content_length())
+                                        })
+                                })
+                            };
+                            if let Some(max_size) = max_size {
+                                let chunk_len = buf.len() as u64;
+                                match this.read.checked_add(chunk_len) {
+                                    Some(next_read) if next_read <= max_size => {
+                                        this.state = State::Idle(Some(reader));
+                                        this.read = next_read;
+                                        return Poll::Ready(Some(Ok(buf)));
+                                    }
+                                    Some(next_read) => {
+                                        this.state = State::Done;
+                                        return Poll::Ready(Some(Err(check_complete(
+                                            Some(max_size),
+                                            next_read,
+                                        )
+                                        .unwrap_err())));
+                                    }
+                                    None => {
+                                        this.state = State::Done;
+                                        return Poll::Ready(Some(Err(Error::new(
+                                            ErrorKind::Unexpected,
+                                            "reader got too much data",
+                                        )
+                                        .with_context("expect", max_size)
+                                        .with_context(
+                                            "actual",
+                                            u128::from(this.read) + u128::from(chunk_len),
+                                        ))));
+                                    }
+                                }
+                            }
                             this.state = State::Idle(Some(reader));
                             if let Some(remaining) = remaining {
                                 buf.truncate((buf.len() as u64).min(remaining) as usize);
                             }
-                            this.read += buf.len() as u64;
+                            this.read = this.read.saturating_add(buf.len() as u64);
                             Poll::Ready(Some(Ok(buf)))
                         }
                         Err(err) => {
@@ -1469,5 +1534,251 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    struct ChunkListReadStream {
+        chunks: std::collections::VecDeque<Bytes>,
+    }
+
+    impl oio::ReadStream for ChunkListReadStream {
+        async fn read(&mut self) -> Result<Buffer> {
+            Ok(self
+                .chunks
+                .pop_front()
+                .map(Buffer::from)
+                .unwrap_or_default())
+        }
+    }
+
+    struct FixedStreamReader {
+        chunks: Vec<Bytes>,
+        metadata: Option<Metadata>,
+        opens: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl oio::Read for FixedStreamReader {
+        async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            self.opens.fetch_add(1, Ordering::SeqCst);
+            let rp = match &self.metadata {
+                Some(meta) => RpRead::new(meta.clone()),
+                None => RpRead::default(),
+            };
+            Ok((
+                rp,
+                Box::new(ChunkListReadStream {
+                    chunks: self.chunks.iter().cloned().collect(),
+                }),
+            ))
+        }
+
+        async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
+            Err(Error::new(ErrorKind::Unsupported, "read is not supported"))
+        }
+    }
+
+    fn new_fixed_stream_read_context(
+        chunks: Vec<Bytes>,
+        metadata: Option<Metadata>,
+        opens: Arc<std::sync::atomic::AtomicUsize>,
+    ) -> Arc<ReadContext> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, []).unwrap();
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        Arc::new(ReadContext::new(
+            ctx,
+            srv,
+            "test".to_string(),
+            OpRead::new(),
+            OpReader::new(),
+            Box::new(FixedStreamReader {
+                chunks,
+                metadata,
+                opens,
+            }),
+        ))
+    }
+
+    #[tokio::test]
+    async fn test_buffer_stream_create_rejects_bounded_range_overflow() -> Result<()> {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            for range in [
+                BytesRange::new(u64::MAX, Some(1)),
+                BytesRange::new(u64::MAX, Some(2)),
+                BytesRange::new(u64::MAX - 1, Some(4)),
+            ] {
+                let opens = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+                let ctx = new_fixed_stream_read_context(
+                    vec![Bytes::from_static(b"hi")],
+                    None,
+                    opens.clone(),
+                );
+                let err = match BufferStream::create(ctx, range, None).await {
+                    Ok(_) => panic!("overflowing range {range:?} must be rejected"),
+                    Err(err) => err,
+                };
+                assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied, "{range:?}");
+                assert_eq!(opens.load(Ordering::SeqCst), 0);
+            }
+
+            // A zero-size range at u64::MAX does not overflow and yields an empty stream.
+            let opens = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let ctx =
+                new_fixed_stream_read_context(vec![Bytes::from_static(b"hi")], None, opens.clone());
+            let mut stream =
+                BufferStream::create(ctx, BytesRange::new(u64::MAX, Some(0)), None).await?;
+            assert!(stream.next().await.is_none());
+            assert_eq!(opens.load(Ordering::SeqCst), 0);
+
+            Ok(())
+        })
+        .await
+        .expect("test timed out")
+    }
+
+    #[tokio::test]
+    async fn test_buffer_stream_streaming_suffix_rejects_oversized_data() -> Result<()> {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            // Single oversized chunk must fail immediately without yielding extra bytes.
+            let opens = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let ctx = new_fixed_stream_read_context(
+                vec![Bytes::from_static(b"hello!")],
+                None,
+                opens.clone(),
+            );
+            let mut stream = BufferStream::create(ctx, BytesRange::suffix(3), None).await?;
+            let err = stream
+                .next()
+                .await
+                .expect("stream must yield error")
+                .expect_err("oversized suffix stream must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(
+                stream.next().await.is_none(),
+                "stream must terminate after oversized suffix error"
+            );
+
+            // Multi-chunk over-delivery yields valid prefix chunk then fails immediately.
+            let ctx = new_fixed_stream_read_context(
+                vec![Bytes::from_static(b"ab"), Bytes::from_static(b"cd")],
+                None,
+                opens,
+            );
+            let mut stream = BufferStream::create(ctx, BytesRange::suffix(3), None).await?;
+            let first = stream
+                .next()
+                .await
+                .expect("stream must yield first chunk")?;
+            assert_eq!(first.to_bytes().as_ref(), b"ab");
+            let err = stream
+                .next()
+                .await
+                .expect("stream must yield error")
+                .expect_err("oversized second chunk must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(stream.next().await.is_none());
+
+            Ok(())
+        })
+        .await
+        .expect("test timed out")
+    }
+
+    #[tokio::test]
+    async fn test_buffer_stream_streaming_suffix_validates_known_content_length() -> Result<()> {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let meta = Some(MetadataBuilder::file(5).build());
+
+            // Truncated suffix read (2 of expected 3 bytes) fails on EOF.
+            let opens = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let ctx = new_fixed_stream_read_context(
+                vec![Bytes::from_static(b"lo")],
+                meta.clone(),
+                opens.clone(),
+            );
+            let mut stream = BufferStream::create(ctx, BytesRange::suffix(3), None).await?;
+            let first = stream
+                .next()
+                .await
+                .expect("stream must yield partial bytes")?;
+            assert_eq!(first.to_bytes().as_ref(), b"lo");
+            let err = stream
+                .next()
+                .await
+                .expect("stream must yield truncation error")
+                .expect_err("truncated suffix read must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(stream.next().await.is_none());
+
+            // Suffix larger than known content_length: truncated (4 of 5 bytes) fails.
+            let ctx = new_fixed_stream_read_context(
+                vec![Bytes::from_static(b"ello")],
+                meta.clone(),
+                opens.clone(),
+            );
+            let mut stream = BufferStream::create(ctx, BytesRange::suffix(100), None).await?;
+            let first = stream
+                .next()
+                .await
+                .expect("stream must yield partial bytes")?;
+            assert_eq!(first.to_bytes().as_ref(), b"ello");
+            let err = stream
+                .next()
+                .await
+                .expect("stream must yield truncation error")
+                .expect_err("short suffix read with known content_length must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(stream.next().await.is_none());
+
+            // Suffix larger than known content_length: oversized (6 > min(100, 5)) fails immediately.
+            let ctx = new_fixed_stream_read_context(
+                vec![Bytes::from_static(b"hello!")],
+                meta.clone(),
+                opens.clone(),
+            );
+            let mut stream = BufferStream::create(ctx, BytesRange::suffix(100), None).await?;
+            let err = stream
+                .next()
+                .await
+                .expect("stream must yield error")
+                .expect_err("oversized suffix relative to content_length must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(stream.next().await.is_none());
+
+            // Exact known content_length match (5 bytes for suffix(100)) succeeds.
+            let ctx =
+                new_fixed_stream_read_context(vec![Bytes::from_static(b"hello")], meta, opens);
+            let mut stream = BufferStream::create(ctx, BytesRange::suffix(100), None).await?;
+            let buf = stream.next().await.expect("stream must yield data")?;
+            assert_eq!(buf.to_bytes().as_ref(), b"hello");
+            assert!(stream.next().await.is_none());
+
+            Ok(())
+        })
+        .await
+        .expect("test timed out")
+    }
+
+    #[tokio::test]
+    async fn test_buffer_stream_exact_bounded_rejects_oversized_chunk_immediately() -> Result<()> {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let opens = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+            let ctx =
+                new_fixed_stream_read_context(vec![Bytes::from_static(b"hello")], None, opens);
+            let mut stream = BufferStream::create(ctx, 0..3, None).await?;
+            let err = stream
+                .next()
+                .await
+                .expect("stream must yield error")
+                .expect_err("oversized bounded chunk must fail immediately");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(
+                stream.next().await.is_none(),
+                "stream must terminate after oversized bounded chunk error"
+            );
+
+            Ok(())
+        })
+        .await
+        .expect("test timed out")
     }
 }

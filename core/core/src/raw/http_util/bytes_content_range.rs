@@ -137,17 +137,24 @@ impl FromStr for BytesContentRange {
                 .with_context("value", value)
         })?;
 
-        let parse_int_error = |e: std::num::ParseIntError| {
-            Error::new(ErrorKind::Unexpected, "header content range is invalid")
-                .with_operation("BytesContentRange::from_str")
-                .with_context("value", value)
-                .set_source(e)
+        let parse_int = |input: &str| {
+            if input.is_empty() || !input.bytes().all(|b| b.is_ascii_digit()) {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "header content range is invalid")
+                        .with_operation("BytesContentRange::from_str")
+                        .with_context("value", value),
+                );
+            }
+            input.parse::<u64>().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "header content range is invalid")
+                    .with_operation("BytesContentRange::from_str")
+                    .with_context("value", value)
+                    .set_source(e)
+            })
         };
 
         if let Some(size) = s.strip_prefix("*/") {
-            return Ok(
-                BytesContentRange::default().with_size(size.parse().map_err(parse_int_error)?)
-            );
+            return Ok(BytesContentRange::default().with_size(parse_int(size)?));
         }
 
         let s: Vec<_> = s.split('/').collect();
@@ -167,8 +174,8 @@ impl FromStr for BytesContentRange {
                     .with_context("value", value),
             );
         }
-        let start: u64 = v[0].parse().map_err(parse_int_error)?;
-        let end: u64 = v[1].parse().map_err(parse_int_error)?;
+        let start = parse_int(v[0])?;
+        let end = parse_int(v[1])?;
         if end < start {
             return Err(Error::new(
                 ErrorKind::Unexpected,
@@ -181,7 +188,7 @@ impl FromStr for BytesContentRange {
 
         // Handle size part first.
         if s[1] != "*" {
-            let size: u64 = s[1].parse().map_err(parse_int_error)?;
+            let size = parse_int(s[1])?;
             // RFC 9110 Section 14.4 requires complete-length to be greater than last-pos.
             if size <= end {
                 return Err(Error::new(
@@ -337,5 +344,24 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn test_bytes_content_range_from_str_rejects_leading_plus() {
+        let cases = [
+            "bytes +0-10/20",
+            "bytes 0-+10/20",
+            "bytes 0-10/+20",
+            "bytes +0-+5/+10",
+            "bytes +0-10/*",
+            "bytes */+10",
+        ];
+
+        for input in cases {
+            let err = input
+                .parse::<BytesContentRange>()
+                .expect_err("leading plus sign must be rejected");
+            assert_eq!(err.kind(), ErrorKind::Unexpected, "{input}");
+        }
     }
 }

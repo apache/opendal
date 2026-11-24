@@ -92,22 +92,21 @@ impl WriteContext {
     /// Returns the chunk size and if the chunk size is exact.
     fn calculate_chunk_size(&self) -> (Option<usize>, bool) {
         let cap = self.srv.capability();
+        let min_size = cap.write_multi_min_size.filter(|&v| v > 0);
+        let max_size = cap.write_multi_max_size.filter(|&v| v > 0);
+        let option_chunk = self.options().chunk().filter(|&v| v > 0);
 
-        let exact = self.options().chunk().is_some();
-        let chunk_size = self
-            .options()
-            .chunk()
-            .or(cap.write_multi_min_size)
-            .map(|mut size| {
-                if let Some(v) = cap.write_multi_max_size {
-                    size = size.min(v);
-                }
-                if let Some(v) = cap.write_multi_min_size {
-                    size = size.max(v);
-                }
+        let exact = option_chunk.is_some();
+        let chunk_size = option_chunk.or(min_size).map(|mut size| {
+            if let Some(v) = max_size {
+                size = size.min(v);
+            }
+            if let Some(v) = min_size {
+                size = size.max(v);
+            }
 
-                size
-            });
+            size
+        });
 
         (chunk_size, exact)
     }
@@ -2148,6 +2147,58 @@ mod tests {
             write_sizes.len()
         );
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_write_multi_zero_capability_bounds() -> Result<()> {
+        let test = async {
+            let make_ctx = |overrides: &str, chunk: Option<usize>| -> Result<WriteContext> {
+                let op = Operator::new(services::Memory::default())?
+                    .layer(layers::CapabilityOverrideLayer::from_overrides(overrides)?);
+                let mut options = OpWriter::new();
+                if let Some(chunk) = chunk {
+                    options = options.with_chunk(chunk);
+                }
+                Ok(WriteContext::new(
+                    op.context().clone(),
+                    op.service().clone(),
+                    "a".to_string(),
+                    OpWrite::new(),
+                    options,
+                ))
+            };
+
+            assert_eq!(
+                make_ctx("write_multi_max_size=0", Some(4))?.calculate_chunk_size(),
+                (Some(4), true)
+            );
+            assert_eq!(
+                make_ctx("write_multi_min_size=0", None)?.calculate_chunk_size(),
+                (None, false)
+            );
+            assert_eq!(
+                make_ctx("write_multi_min_size=0,write_multi_max_size=0", Some(4))?
+                    .calculate_chunk_size(),
+                (Some(4), true)
+            );
+            assert_eq!(
+                make_ctx("write_multi_min_size=8,write_multi_max_size=0", Some(4))?
+                    .calculate_chunk_size(),
+                (Some(8), true)
+            );
+
+            let op = Operator::new(services::Memory::default())?.layer(
+                layers::CapabilityOverrideLayer::from_overrides("write_multi_max_size=0")?,
+            );
+            op.write_with("a", "hello").chunk(4).await?;
+            assert_eq!(op.read("a").await?.to_bytes(), "hello");
+            Ok::<(), Error>(())
+        };
+
+        tokio::time::timeout(std::time::Duration::from_secs(5), test)
+            .await
+            .expect("write with write_multi_max_size=0 must not hang")?;
         Ok(())
     }
 }

@@ -212,6 +212,7 @@ impl Builder for FsBuilder {
                     list: true,
                     list_with_recursive: true,
                     list_with_start_after: true,
+                    list_with_glob: true,
 
                     copy: true,
                     rename: true,
@@ -297,7 +298,7 @@ impl Service for FsBackend {
     }
 
     fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        Ok(FsLister::new(self.core.clone(), path, args))
+        FsLister::new(self.core.clone(), path, args)
     }
 
     fn copy(

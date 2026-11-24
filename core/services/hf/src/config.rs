@@ -189,7 +189,10 @@ impl opendal_core::Configurator for HfConfig {
     }
 
     fn into_builder(self) -> Self::Builder {
-        HfBuilder { config: self }
+        HfBuilder {
+            config: self,
+            ..Default::default()
+        }
     }
 }
 

@@ -36,7 +36,11 @@ pub struct CacacheBuilder {
 impl CacacheBuilder {
     /// Set the path to the cacache data directory. Will create if not exists.
     pub fn datadir(mut self, path: &str) -> Self {
-        self.config.datadir = Some(path.into());
+        self.config.datadir = if path.is_empty() {
+            None
+        } else {
+            Some(path.into())
+        };
         self
     }
 }
@@ -45,10 +49,14 @@ impl Builder for CacacheBuilder {
     type Config = CacacheConfig;
 
     fn build(self) -> Result<impl Service> {
-        let datadir_path = self.config.datadir.ok_or_else(|| {
-            Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
-                .with_context("service", CACACHE_SCHEME)
-        })?;
+        let datadir_path = self
+            .config
+            .datadir
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| {
+                Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
+                    .with_context("service", CACACHE_SCHEME)
+            })?;
 
         let core = CacacheCore {
             path: datadir_path.clone(),
@@ -110,14 +118,23 @@ impl Service for CacacheBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
+        if path.is_empty() || path == "/" {
+            return Ok(RpStat::new(MetadataBuilder::dir().build()));
+        }
+
         let metadata = self.core.metadata(path).await?;
 
         match metadata {
             Some(meta) => {
-                let mut md = MetadataBuilder::file(meta.size as u64);
+                let mut md = if path.ends_with('/') {
+                    MetadataBuilder::dir()
+                } else {
+                    MetadataBuilder::file(meta.size as u64)
+                };
                 // Convert u128 milliseconds to Timestamp
-                let millis = meta.time as i64;
-                if let Ok(dt) = Timestamp::from_millisecond(millis) {
+                if let Ok(millis) = i64::try_from(meta.time)
+                    && let Ok(dt) = Timestamp::from_millisecond(millis)
+                {
                     md.last_modified(dt);
                 }
                 Ok(RpStat::new(md.build()))
@@ -197,5 +214,146 @@ impl Service for CacacheBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+    use std::path::PathBuf;
+    use std::sync::atomic::AtomicU64;
+    use std::sync::atomic::Ordering;
+
+    use super::*;
+    use opendal_core::raw::oio::Write as _;
+
+    struct TempDir {
+        path: PathBuf,
+    }
+
+    impl TempDir {
+        fn new() -> Self {
+            static NEXT: AtomicU64 = AtomicU64::new(0);
+
+            let path = std::env::temp_dir().join(format!(
+                "opendal-cacache-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::create_dir_all(&path).expect("create temporary directory");
+
+            Self { path }
+        }
+
+        fn path(&self) -> &Path {
+            &self.path
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+
+    #[test]
+    fn test_empty_datadir_rejected() -> Result<()> {
+        let err = CacacheBuilder::default()
+            .datadir("")
+            .build()
+            .expect_err("empty datadir in builder must fail");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = CacacheBuilder::default()
+            .datadir("/valid/path")
+            .datadir("")
+            .build()
+            .expect_err("clearing datadir to empty must fail");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = CacacheConfig::from_iter([("datadir".to_string(), "".to_string())])?
+            .into_builder()
+            .build()
+            .expect_err("empty datadir in config must fail");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let uri = OperatorUri::new("cacache:///?datadir=", Vec::<(String, String)>::new())?;
+        let err = CacacheConfig::from_uri(&uri)?
+            .into_builder()
+            .build()
+            .expect_err("empty datadir in uri must fail");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_root_and_dir_marker_stat_and_writer_metadata() -> Result<()> {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let dir = TempDir::new();
+            let service = CacacheBuilder::default()
+                .datadir(dir.path().to_str().expect("valid utf-8 path"))
+                .build()?;
+            let ctx = OperationContext::default();
+
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR
+            );
+            assert_eq!(
+                service
+                    .stat(&ctx, "", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR
+            );
+
+            for root_path in ["/", ""] {
+                let mut writer = service.write(&ctx, root_path, OpWrite::default())?;
+                let meta = writer.close().await?;
+                assert_eq!(meta.mode(), EntryMode::DIR, "root_path {root_path:?}");
+            }
+
+            let mut dir_writer = service.write(&ctx, "a/", OpWrite::default())?;
+            let dir_meta = dir_writer.close().await?;
+            assert_eq!(dir_meta.mode(), EntryMode::DIR);
+            assert_eq!(
+                service
+                    .stat(&ctx, "a/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR
+            );
+
+            let mut file_writer = service.write(&ctx, "a/file.txt", OpWrite::default())?;
+            file_writer.write(Buffer::from("hello")).await?;
+            let file_meta = file_writer.close().await?;
+            assert_eq!(file_meta.mode(), EntryMode::FILE);
+            assert_eq!(file_meta.content_length(), 5);
+
+            let stat_meta = service
+                .stat(&ctx, "a/file.txt", OpStat::default())
+                .await?
+                .into_metadata();
+            assert_eq!(stat_meta.mode(), EntryMode::FILE);
+            assert_eq!(stat_meta.content_length(), 5);
+
+            // Verify Operator with SimulateLayer::with_stat_dir(false) also observes DIR.
+            let srv: Servicer = Arc::new(service);
+            let op = Operator::from_parts(OperationContext::default(), srv)
+                .layer(layers::SimulateLayer::default().with_stat_dir(false));
+            assert_eq!(op.stat("/").await?.mode(), EntryMode::DIR);
+            assert_eq!(op.stat("a/").await?.mode(), EntryMode::DIR);
+            assert_eq!(op.stat("a/file.txt").await?.mode(), EntryMode::FILE);
+            Ok::<_, Error>(())
+        })
+        .await
+        .expect("test timed out")
     }
 }

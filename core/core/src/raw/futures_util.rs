@@ -160,6 +160,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
     pub fn clear(&mut self) {
         self.tasks.clear();
         self.results.clear();
+        self.completed_but_unretrieved = Arc::default();
     }
 
     /// Check if there are remaining space to push new tasks.
@@ -167,7 +168,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
     pub fn has_remaining(&self) -> bool {
         let completed = self.completed_but_unretrieved.load(Ordering::Relaxed);
         // Allow up to `prefetch` completed tasks to be buffered
-        self.tasks.len() < self.concurrent + completed.min(self.prefetch)
+        self.tasks.len() < self.concurrent.saturating_add(completed.min(self.prefetch))
     }
 
     /// Chunk if there are remaining results to fetch.
@@ -438,5 +439,72 @@ mod tests {
 
         // Should be full again
         assert!(!tasks.has_remaining(), "Should be full again");
+    }
+
+    #[tokio::test]
+    async fn test_clear_resets_and_detaches_completed_counter() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let executor = crate::test_executor();
+            let mut tasks = ConcurrentTasks::new(
+                executor,
+                2,
+                2,
+                |(id, gate): (usize, Option<futures::channel::oneshot::Receiver<()>>)| {
+                    Box::pin(async move {
+                        if let Some(rx) = gate {
+                            let _ = rx.await;
+                        }
+                        ((id, None), Ok(id))
+                    })
+                },
+            );
+
+            // Submit two fast tasks and wait until both record completion.
+            tasks.execute((0, None)).await.unwrap();
+            tasks.execute((1, None)).await.unwrap();
+            while tasks.completed_but_unretrieved.load(Ordering::Relaxed) < 2 {
+                tokio::task::yield_now().await;
+            }
+
+            let old_counter = tasks.completed_but_unretrieved.clone();
+            tasks.clear();
+
+            assert_eq!(tasks.completed_but_unretrieved.load(Ordering::Relaxed), 0);
+            assert!(!Arc::ptr_eq(&old_counter, &tasks.completed_but_unretrieved));
+
+            // A late completion on a canceled task from before `clear()` must not
+            // inflate the new epoch's counter.
+            old_counter.fetch_add(1, Ordering::Relaxed);
+            assert_eq!(tasks.completed_but_unretrieved.load(Ordering::Relaxed), 0);
+
+            // Submitting `concurrent` blocked tasks must fill all slots without
+            // leaking prefetch capacity from cleared tasks.
+            let (tx1, rx1) = futures::channel::oneshot::channel();
+            let (tx2, rx2) = futures::channel::oneshot::channel();
+            tasks.execute((2, Some(rx1))).await.unwrap();
+            tasks.execute((3, Some(rx2))).await.unwrap();
+            assert!(!tasks.has_remaining());
+
+            let _ = tx1.send(());
+            let _ = tx2.send(());
+            assert_eq!(tasks.next().await.unwrap().unwrap(), 2);
+            assert_eq!(tasks.next().await.unwrap().unwrap(), 3);
+            assert!(tasks.next().await.is_none());
+        })
+        .await
+        .expect("test_clear_resets_and_detaches_completed_counter timed out");
+    }
+
+    #[test]
+    fn test_has_remaining_saturates_on_large_concurrent() {
+        let executor = crate::test_executor();
+        let mut tasks = ConcurrentTasks::new(executor, 2, 2, |i: usize| {
+            Box::pin(async move { (i, Ok(i)) })
+        });
+        tasks.concurrent = usize::MAX;
+        tasks
+            .completed_but_unretrieved
+            .fetch_add(1, Ordering::Relaxed);
+        assert!(tasks.has_remaining());
     }
 }

@@ -46,4 +46,10 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+futures = { workspace = true }
+tokio = { workspace = true, features = [
+  "macros",
+  "rt-multi-thread",
+  "sync",
+  "time",
+] }

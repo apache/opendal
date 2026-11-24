@@ -17,14 +17,25 @@
 
 use crate::{Error, ErrorKind, Result};
 
+/// Compiled Unix shell style glob pattern for path-component matching.
+///
+/// Services implementing native [`crate::Capability::list_with_glob`] and
+/// [`crate::layers::GlobLayer`] share this matcher to evaluate
+/// [`crate::options::ListOptions::glob`] consistently and prune directories
+/// during traversal.
 #[derive(Debug)]
-pub(crate) struct GlobPattern {
+pub struct GlobPattern {
     segments: Vec<Segment>,
     directories_only: bool,
 }
 
 impl GlobPattern {
-    pub(crate) fn new(pattern: &str) -> Result<Self> {
+    /// Parse and compile a glob pattern.
+    ///
+    /// Returns [`ErrorKind::ConfigInvalid`] if the pattern is empty, contains
+    /// malformed syntax, or uses disallowed literal components such as `.` or
+    /// `..`.
+    pub fn new(pattern: &str) -> Result<Self> {
         let mut segments = Vec::new();
         for segment in pattern.split('/').filter(|part| !part.is_empty()) {
             if segment == "**" {
@@ -52,8 +63,9 @@ impl GlobPattern {
         })
     }
 
-    /// Leading literal directories can be addressed without listing their parents.
-    pub(crate) fn literal_directories(&self) -> impl Iterator<Item = &str> {
+    /// Yield leading literal directory components that can be entered directly
+    /// without listing their parent directories.
+    pub fn literal_directories(&self) -> impl Iterator<Item = &str> {
         let terminal_components = if matches!(self.segments.last(), Some(Segment::Recursive)) {
             // The directory before a trailing `**` can itself match.
             2
@@ -69,12 +81,17 @@ impl GlobPattern {
             })
     }
 
-    pub(crate) fn spans_directories(&self) -> bool {
+    /// Return `true` if the pattern can match entries deeper than one directory level.
+    pub fn spans_directories(&self) -> bool {
         self.segments.len() > 1 || matches!(self.segments[0], Segment::Recursive)
     }
 
-    /// Advance every viable pattern position against one path component.
-    pub(crate) fn advance(&self, positions: &[usize], name: &str) -> Vec<usize> {
+    /// Advance every viable pattern position against a single path component.
+    ///
+    /// The returned positions are sorted and deduplicated. Start from `&[0]` at
+    /// the base directory, or `&[n]` after skipping `n` leading literal
+    /// directories returned by [`Self::literal_directories`].
+    pub fn advance(&self, positions: &[usize], name: &str) -> Vec<usize> {
         let mut next = Vec::new();
         for &position in positions {
             match self.segments.get(position) {
@@ -95,7 +112,10 @@ impl GlobPattern {
         next
     }
 
-    pub(crate) fn accepts(&self, positions: &[usize], is_dir: bool) -> bool {
+    /// Return `true` if `positions` represent a complete match for an entry.
+    ///
+    /// Patterns with a trailing `/` require `is_dir` to be `true`.
+    pub fn accepts(&self, positions: &[usize], is_dir: bool) -> bool {
         if self.directories_only && !is_dir {
             return false;
         }
@@ -106,13 +126,16 @@ impl GlobPattern {
                 && positions.last() == Some(&(end - 1)))
     }
 
-    pub(crate) fn can_descend(&self, positions: &[usize]) -> bool {
+    /// Return `true` if descending into a directory at `positions` can still
+    /// match descendants.
+    pub fn can_descend(&self, positions: &[usize]) -> bool {
         positions
             .first()
             .is_some_and(|&first| first < self.segments.len())
     }
 
-    pub(crate) fn matches(&self, path: &str, is_dir: bool) -> bool {
+    /// Return `true` if a relative path matches the pattern.
+    pub fn matches(&self, path: &str, is_dir: bool) -> bool {
         let mut positions = vec![0];
         for component in path.trim_end_matches('/').split('/') {
             positions = self.advance(&positions, component);

@@ -151,7 +151,9 @@ pub(crate) fn parse_error(ctx: ErrorContext, response: Response<Buffer>) -> Erro
 
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
+        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
@@ -171,4 +173,61 @@ pub(crate) fn parse_error(ctx: ErrorContext, response: Response<Buffer>) -> Erro
     }
 
     err
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_error_maps_auth_range_and_rate_limit_statuses() {
+        let cases = [
+            (
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+                ErrorKind::PermissionDenied,
+                false,
+            ),
+            (
+                StatusCode::FORBIDDEN,
+                "forbidden",
+                ErrorKind::PermissionDenied,
+                false,
+            ),
+            (
+                StatusCode::NOT_FOUND,
+                "not found",
+                ErrorKind::NotFound,
+                false,
+            ),
+            (
+                StatusCode::RANGE_NOT_SATISFIABLE,
+                "invalid range",
+                ErrorKind::RangeNotSatisfied,
+                false,
+            ),
+            (
+                StatusCode::TOO_MANY_REQUESTS,
+                "too many requests",
+                ErrorKind::RateLimited,
+                true,
+            ),
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "unavailable",
+                ErrorKind::Unexpected,
+                true,
+            ),
+        ];
+
+        for (status, body, expected_kind, expected_temporary) in cases {
+            let resp = Response::builder()
+                .status(status)
+                .body(Buffer::from(body))
+                .unwrap();
+            let err = parse_error(ErrorContext::new(ServiceOperation("Test")), resp);
+            assert_eq!(err.kind(), expected_kind, "status {status}");
+            assert_eq!(err.is_temporary(), expected_temporary, "status {status}");
+        }
+    }
 }

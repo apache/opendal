@@ -539,13 +539,36 @@ impl Part for MixedPart {
             .unwrap_or((http_response, ""));
         let body_bytes = Buffer::from(body_content.as_bytes().to_vec());
 
-        let status_line = headers_content.lines().next().unwrap_or("");
+        let mut status_line = headers_content
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .split_whitespace();
+        let version = status_line
+            .next()
+            .and_then(|value| value.strip_prefix("HTTP/"));
+        if !version.is_some_and(|version| {
+            matches!(
+                version.as_bytes(),
+                [b'0'..=b'9'] | [b'0'..=b'9', b'.', b'0'..=b'9']
+            )
+        }) {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "multipart response contains invalid status line",
+            ));
+        }
         let status_code = status_line
-            .split_whitespace()
-            .nth(1)
-            .unwrap_or("")
-            .parse::<u16>()
-            .unwrap_or(200);
+            .next()
+            .unwrap_or_default()
+            .parse::<StatusCode>()
+            .map_err(|err| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "multipart response contains invalid status code",
+                )
+                .set_source(err)
+            })?;
 
         let mut headers = HeaderMap::new();
         for line in headers_content.lines().skip(1) {
@@ -561,13 +584,7 @@ impl Part for MixedPart {
             method: None,
             uri: None,
 
-            status_code: Some(StatusCode::from_u16(status_code).map_err(|err| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "multipart response contains invalid status code",
-                )
-                .set_source(err)
-            })?),
+            status_code: Some(status_code),
         })
     }
 }
@@ -1242,6 +1259,21 @@ Content-Length: 846
             assert_eq!(multipart.parts.len(), 2);
             assert_eq!(multipart.parts[0].status_code, Some(StatusCode::ACCEPTED));
             assert_eq!(multipart.parts[1].status_code, Some(StatusCode::NOT_FOUND));
+        }
+    }
+
+    #[test]
+    fn test_multipart_mixed_response_rejects_invalid_status_line() {
+        for response in [
+            "",
+            "Content-Type: application/http\r\n\r\n",
+            "Content-Type: application/http\r\n\r\nHTTP/1.1\r\n\r\n",
+            "Content-Type: application/http\r\n\r\nHTTP/1.1 INVALID\r\n\r\n",
+        ] {
+            let err = MixedPart::parse(response)
+                .err()
+                .expect("invalid status line must be rejected");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
         }
     }
 

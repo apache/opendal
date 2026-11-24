@@ -117,19 +117,41 @@ impl Builder for UpyunBuilder {
 
         debug!("backend use bucket {}", self.config.bucket);
 
-        let operator = match &self.config.operator {
-            Some(operator) => Ok(operator.clone()),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "operator is empty")
-                .with_operation("Builder::build")
-                .with_context("service", UPYUN_SCHEME)),
-        }?;
+        let operator = self
+            .config
+            .operator
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| {
+                Error::new(ErrorKind::ConfigInvalid, "operator is empty")
+                    .with_operation("Builder::build")
+                    .with_context("service", UPYUN_SCHEME)
+            })?;
 
-        let password = match &self.config.password {
-            Some(password) => Ok(password.clone()),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "password is empty")
-                .with_operation("Builder::build")
-                .with_context("service", UPYUN_SCHEME)),
-        }?;
+        let operator_header = build_header_value(&format!("UPYUN {operator}:")).map_err(|err| {
+            err.with_operation("Builder::build")
+                .with_context("service", UPYUN_SCHEME)
+                .with_context("key", "operator")
+        })?;
+        operator_header.to_str().map_err(|err| {
+            Error::new(
+                ErrorKind::ConfigInvalid,
+                "operator contains non-ASCII characters",
+            )
+            .with_operation("Builder::build")
+            .with_context("service", UPYUN_SCHEME)
+            .with_context("key", "operator")
+            .set_source(err)
+        })?;
+
+        let password = self
+            .config
+            .password
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| {
+                Error::new(ErrorKind::ConfigInvalid, "password is empty")
+                    .with_operation("Builder::build")
+                    .with_context("service", UPYUN_SCHEME)
+            })?;
 
         let signer = UpyunSigner {
             operator: operator.clone(),
@@ -291,25 +313,33 @@ impl Service for UpyunBackend {
         let to = to.to_string();
         let source_content_length_hint = args.source_content_length_hint();
 
-        Ok(oio::OneShotCopier::new(async move {
-            let source_size = match source_content_length_hint {
-                Some(size) => size,
-                None => backend
-                    .stat(&ctx, &from, OpStat::default())
-                    .await?
-                    .into_metadata()
-                    .content_length(),
-            };
+        Ok(oio::OneShotCopier::new_with(move || {
+            let backend = backend.clone();
+            let core = core.clone();
+            let ctx = ctx.clone();
+            let from = from.clone();
+            let to = to.clone();
 
-            let resp = core.copy(&ctx, &from, &to).await?;
-            let status = resp.status();
+            async move {
+                let source_size = match source_content_length_hint {
+                    Some(size) => size,
+                    None => backend
+                        .stat(&ctx, &from, OpStat::default())
+                        .await?
+                        .into_metadata()
+                        .content_length(),
+                };
 
-            match status {
-                StatusCode::OK => Ok(MetadataBuilder::file(source_size).build()),
-                _ => Err(parse_error(
-                    ErrorContext::new(ServiceOperation("CopyFile")),
-                    resp,
-                )),
+                let resp = core.copy(&ctx, &from, &to).await?;
+                let status = resp.status();
+
+                match status {
+                    StatusCode::OK => Ok(MetadataBuilder::file(source_size).build()),
+                    _ => Err(parse_error(
+                        ErrorContext::new(ServiceOperation("CopyFile")),
+                        resp,
+                    )),
+                }
             }
         }))
     }
@@ -344,5 +374,133 @@ impl Service for UpyunBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+
+    use futures::stream;
+    use http::{Method, Request, Response, StatusCode};
+    use opendal_core::raw::oio::Copy;
+
+    use super::*;
+    use crate::core::constants::{X_UPYUN_FILE_SIZE, X_UPYUN_FILE_TYPE};
+
+    #[derive(Clone, Default)]
+    struct RetryCopyTransport {
+        put_attempts: Arc<AtomicUsize>,
+    }
+
+    impl HttpTransport for RetryCopyTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            if req.method() == Method::HEAD {
+                return Ok(Response::builder()
+                    .status(StatusCode::OK)
+                    .header(X_UPYUN_FILE_TYPE, "file")
+                    .header(X_UPYUN_FILE_SIZE, "9")
+                    .body(HttpBody::new(stream::iter([Ok(Buffer::new())]), Some(0)))
+                    .unwrap());
+            }
+
+            let attempt = self.put_attempts.fetch_add(1, Ordering::SeqCst);
+            let (status, body) = if attempt == 0 {
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    r#"{"code": 50300001, "msg": "temporarily unavailable", "id": "id1"}"#,
+                )
+            } else {
+                (StatusCode::OK, "")
+            };
+            let len = body.len() as u64;
+            Ok(Response::builder()
+                .status(status)
+                .body(HttpBody::new(
+                    stream::iter([Ok(Buffer::from(body))]),
+                    Some(len),
+                ))
+                .unwrap())
+        }
+    }
+
+    #[test]
+    fn build_rejects_empty_and_invalid_credentials() {
+        let cfg = UpyunConfig::from_iter(
+            [
+                ("bucket", "test-bucket"),
+                ("operator", ""),
+                ("password", "secret"),
+            ]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string())),
+        )
+        .unwrap();
+        let err = cfg
+            .into_builder()
+            .build()
+            .expect_err("empty operator must fail");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let cfg = UpyunConfig::from_iter(
+            [
+                ("bucket", "test-bucket"),
+                ("operator", "op"),
+                ("password", ""),
+            ]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string())),
+        )
+        .unwrap();
+        let err = cfg
+            .into_builder()
+            .build()
+            .expect_err("empty password must fail");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        for invalid_operator in ["op\r\n", "op\n", "操作员"] {
+            let err = UpyunBuilder::default()
+                .bucket("test-bucket")
+                .operator(invalid_operator)
+                .password("secret")
+                .build()
+                .expect_err("invalid header characters in operator must fail");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+    }
+
+    #[tokio::test]
+    async fn copy_retries_after_transient_error() {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let transport = RetryCopyTransport::default();
+            let backend = UpyunBuilder::default()
+                .bucket("test-bucket")
+                .operator("op")
+                .password("secret")
+                .build()
+                .unwrap();
+            let ctx = OperationContext::new()
+                .with_http_transport(HttpTransporter::new(transport.clone()));
+
+            let mut copier = backend
+                .copy(&ctx, "src/测试.txt", "dst/目标.txt", OpCopy::default())
+                .unwrap();
+
+            let first_err = copier
+                .close()
+                .await
+                .expect_err("first attempt must return transient 503");
+            assert!(first_err.is_temporary());
+
+            let meta = copier
+                .close()
+                .await
+                .expect("retry on same OneShotCopier must succeed");
+            assert_eq!(meta.content_length(), 9);
+            assert_eq!(transport.put_attempts.load(Ordering::SeqCst), 2);
+        })
+        .await
+        .expect("test timed out");
     }
 }

@@ -22,7 +22,6 @@ use asyncband::once::OnceCell;
 use surrealdb::Surreal;
 use surrealdb::engine::any::Any;
 use surrealdb::opt::auth::Database;
-use surrealdb::types::Bytes;
 use surrealdb::types::NotFoundError;
 use surrealdb::types::Number;
 use surrealdb::types::Value;
@@ -124,8 +123,7 @@ impl SurrealdbCore {
     pub async fn get_length(&self, path: &str) -> Result<Option<usize>> {
         let value_field = quote_identifier(&self.value_field);
         let content_length_expr = format!(
-            "(IF type::is_bytes({value_field}) {{ bytes::len({value_field}) }} \
-            ELSE IF type::is_array({value_field}) {{ array::len({value_field}) }} \
+            "(IF type::is_array({value_field}) {{ array::len({value_field}) }} \
             ELSE {{ bytes::len({value_field}) }})"
         );
         let query = if self.key_field == "id" {
@@ -187,7 +185,8 @@ impl SurrealdbCore {
             .await?
             .query(query)
             .bind(("path", path.to_string()))
-            .bind(("value", Bytes::from(value.to_bytes())))
+            // Vec<u8> binds as a numeric array, which older OpenDAL readers expect.
+            .bind(("value", value.to_vec()))
             .await
             .map_err(parse_surrealdb_error)?
             .check()
@@ -237,7 +236,7 @@ fn decode_value_bytes(value: Value) -> Result<Buffer> {
                         Err(_) => {
                             return Err(Error::new(
                                 ErrorKind::Unexpected,
-                                "surrealdb legacy byte array element out of range",
+                                "surrealdb byte array element out of range",
                             )
                             .with_context("value", n.to_string()));
                         }
@@ -245,7 +244,7 @@ fn decode_value_bytes(value: Value) -> Result<Buffer> {
                     other => {
                         return Err(Error::new(
                             ErrorKind::Unexpected,
-                            "surrealdb legacy byte array contains non-integer element",
+                            "surrealdb byte array contains non-integer element",
                         )
                         .with_context("kind", other.kind().to_string()));
                     }
@@ -291,40 +290,78 @@ fn parse_surrealdb_error(err: surrealdb::Error) -> Error {
 #[cfg(test)]
 mod tests {
     use surrealdb::types::Array;
+    use surrealdb::types::Bytes;
     use surrealdb::types::SurrealValue;
 
     use super::*;
 
-    #[test]
-    fn bytes_binding_serializes_as_surreal_value_bytes() {
-        let payload = Buffer::from("hello world");
-        let encoded = Bytes::from(payload.to_bytes()).into_value();
-        assert!(matches!(encoded, Value::Bytes(_)));
+    #[tokio::test]
+    #[ignore = "requires an isolated SurrealDB database and OPENDAL_SURREALDB_* configuration"]
+    async fn set_stores_numeric_arrays() {
+        let setting = |name| std::env::var(format!("OPENDAL_SURREALDB_{name}")).unwrap();
+        for (key_field, key_expression) in [("key", "key"), ("id", "record::id(id)")] {
+            let core = SurrealdbCore {
+                db: OnceCell::new(),
+                connection_string: setting("CONNECTION_STRING"),
+                username: setting("USERNAME"),
+                password: setting("PASSWORD"),
+                namespace: setting("NAMESPACE"),
+                database: setting("DATABASE"),
+                table: format!("opendal_stored_format_{key_field}"),
+                key_field: key_field.to_string(),
+                value_field: "value".to_string(),
+            };
+            for (path, payload) in [("empty", &[][..]), ("nonempty", &[0, 42, 255][..])] {
+                core.delete(path).await.unwrap();
+                core.set(path, Buffer::from(payload.to_vec()))
+                    .await
+                    .unwrap();
 
-        let decoded = Bytes::from_value(encoded).unwrap();
-        assert_eq!(decoded.into_inner().as_ref(), b"hello world");
-
-        // Regression guard: Vec<u8> serializes as Value::Array in surrealdb 3.x,
-        // which breaks bytes::len(...) in get_length.
-        let vec_encoded = vec![1_u8, 2, 3].into_value();
-        assert!(matches!(vec_encoded, Value::Array(_)));
+                let query = format!(
+                    "SELECT VALUE value FROM type::table($table) WHERE {key_expression} = $path LIMIT 1"
+                );
+                let stored: Option<Value> = core
+                    .get_connection()
+                    .await
+                    .unwrap()
+                    .query(query)
+                    .bind(("table", core.table.clone()))
+                    .bind(("path", path.to_string()))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap()
+                    .take(0)
+                    .unwrap();
+                let numbers = payload
+                    .iter()
+                    .map(|&byte| Value::Number(Number::Int(i64::from(byte))))
+                    .collect::<Vec<_>>();
+                core.delete(path).await.unwrap();
+                assert_eq!(
+                    stored,
+                    Some(Value::Array(Array::from(numbers))),
+                    "{key_field} {path}"
+                );
+            }
+        }
     }
 
     #[test]
-    fn decode_value_bytes_accepts_bytes_and_legacy_array() {
+    fn decode_value_bytes_accepts_bytes_and_numeric_arrays() {
         let bytes_val = Bytes::from(b"hello".to_vec()).into_value();
         assert_eq!(
             decode_value_bytes(bytes_val).unwrap().to_bytes().as_ref(),
             b"hello"
         );
 
-        let legacy_arr = Value::Array(Array::from(vec![
+        let numeric_arr = Value::Array(Array::from(vec![
             Value::Number(Number::Int(104)),
             Value::Number(Number::Int(105)),
             Value::Number(Number::Int(106)),
         ]));
         assert_eq!(
-            decode_value_bytes(legacy_arr).unwrap().to_bytes().as_ref(),
+            decode_value_bytes(numeric_arr).unwrap().to_bytes().as_ref(),
             b"hij"
         );
 

@@ -1292,8 +1292,10 @@ pub extern "C" fn operator_input_stream_create(
 /// mutex is defensive — the C# stream contract already forbids concurrent
 /// reads — and the `Arc` lets in-flight tasks outlive an early free safely.
 struct InputStream {
-    executor: Arc<Executor>,
+    // Declare `inner` before `executor` so the stream drops before the last
+    // `Arc<Executor>` shuts down its Tokio runtime.
     inner: Arc<Mutex<opendal::FuturesBytesStream>>,
+    executor: Arc<Executor>,
 }
 
 fn require_input_stream<'a>(stream: *mut c_void) -> Result<&'a InputStream, OpenDALError> {
@@ -1369,8 +1371,8 @@ fn operator_input_stream_create_inner(
         .map_err(OpenDALError::from_opendal_error)?;
 
     Ok(Box::into_raw(Box::new(InputStream {
-        executor,
         inner: Arc::new(Mutex::new(stream)),
+        executor,
     })) as *mut c_void)
 }
 
@@ -1573,8 +1575,10 @@ pub extern "C" fn operator_output_stream_create(
 /// writes; the mutex is defensive and the `Arc` keeps in-flight tasks safe
 /// against an early free.
 struct OutputStream {
-    executor: Arc<Executor>,
+    // Declare `inner` before `executor` so the writer drops before the last
+    // `Arc<Executor>` shuts down its Tokio runtime.
     inner: Arc<Mutex<opendal::Writer>>,
+    executor: Arc<Executor>,
 }
 
 fn require_output_stream<'a>(stream: *mut c_void) -> Result<&'a OutputStream, OpenDALError> {
@@ -1603,8 +1607,8 @@ fn operator_output_stream_create_inner(
         .map_err(OpenDALError::from_opendal_error)?;
 
     Ok(Box::into_raw(Box::new(OutputStream {
-        executor,
         inner: Arc::new(Mutex::new(writer)),
+        executor,
     })) as *mut c_void)
 }
 
@@ -2702,5 +2706,318 @@ mod tests {
             .expect("async FFI callback should complete when freeing handles on worker thread")
             .expect("async FFI read should succeed");
         assert_eq!(payload, b"hello-callback");
+    }
+
+    struct DropProbe {
+        executor: std::sync::Weak<Executor>,
+        executor_alive_on_drop: Arc<std::sync::atomic::AtomicBool>,
+        dropped: Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    impl Drop for DropProbe {
+        fn drop(&mut self) {
+            self.executor_alive_on_drop
+                .store(self.executor.upgrade().is_some(), Ordering::SeqCst);
+            self.dropped.store(true, Ordering::SeqCst);
+        }
+    }
+
+    #[derive(Debug)]
+    struct DropObserverLayer {
+        executor: std::sync::Weak<Executor>,
+        executor_alive_on_drop: Arc<std::sync::atomic::AtomicBool>,
+        dropped: Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    impl opendal::raw::Layer for DropObserverLayer {
+        fn apply_service(&self, inner: opendal::raw::Servicer) -> opendal::raw::Servicer {
+            Arc::new(DropObserverService {
+                inner,
+                executor: self.executor.clone(),
+                executor_alive_on_drop: self.executor_alive_on_drop.clone(),
+                dropped: self.dropped.clone(),
+            })
+        }
+    }
+
+    #[derive(Debug)]
+    struct DropObserverService {
+        inner: opendal::raw::Servicer,
+        executor: std::sync::Weak<Executor>,
+        executor_alive_on_drop: Arc<std::sync::atomic::AtomicBool>,
+        dropped: Arc<std::sync::atomic::AtomicBool>,
+    }
+
+    impl DropObserverService {
+        fn probe(&self) -> DropProbe {
+            DropProbe {
+                executor: self.executor.clone(),
+                executor_alive_on_drop: self.executor_alive_on_drop.clone(),
+                dropped: self.dropped.clone(),
+            }
+        }
+    }
+
+    struct DropObserverReader {
+        inner: opendal::raw::oio::Reader,
+        _probe: DropProbe,
+    }
+
+    impl opendal::raw::oio::Read for DropObserverReader {
+        async fn open(
+            &self,
+            range: opendal::BytesRange,
+        ) -> opendal::Result<(
+            opendal::raw::RpRead,
+            Box<dyn opendal::raw::oio::ReadStreamDyn>,
+        )> {
+            self.inner.open_dyn(range).await
+        }
+
+        async fn read(
+            &self,
+            range: opendal::BytesRange,
+        ) -> opendal::Result<(opendal::raw::RpRead, opendal::Buffer)> {
+            self.inner.read_dyn(range).await
+        }
+    }
+
+    struct DropObserverWriter {
+        inner: opendal::raw::oio::Writer,
+        _probe: DropProbe,
+    }
+
+    impl opendal::raw::oio::Write for DropObserverWriter {
+        async fn write(&mut self, bs: opendal::Buffer) -> opendal::Result<()> {
+            self.inner.write_dyn(bs).await
+        }
+
+        async fn close(&mut self) -> opendal::Result<opendal::Metadata> {
+            self.inner.close_dyn().await
+        }
+
+        async fn abort(&mut self) -> opendal::Result<()> {
+            self.inner.abort_dyn().await
+        }
+    }
+
+    impl opendal::raw::Service for DropObserverService {
+        type Reader = DropObserverReader;
+        type Writer = DropObserverWriter;
+        type Lister = opendal::raw::oio::Lister;
+        type Deleter = opendal::raw::oio::Deleter;
+        type Copier = opendal::raw::oio::Copier;
+        type Composer = opendal::raw::oio::Composer;
+
+        fn info(&self) -> opendal::raw::ServiceInfo {
+            self.inner.info()
+        }
+
+        fn capability(&self) -> opendal::Capability {
+            self.inner.capability()
+        }
+
+        async fn create_dir(
+            &self,
+            ctx: &opendal::OperationContext,
+            path: &str,
+            args: opendal::raw::OpCreateDir,
+        ) -> opendal::Result<opendal::raw::RpCreateDir> {
+            self.inner.create_dir(ctx, path, args).await
+        }
+
+        async fn stat(
+            &self,
+            ctx: &opendal::OperationContext,
+            path: &str,
+            args: opendal::raw::OpStat,
+        ) -> opendal::Result<opendal::raw::RpStat> {
+            self.inner.stat(ctx, path, args).await
+        }
+
+        fn read(
+            &self,
+            ctx: &opendal::OperationContext,
+            path: &str,
+            args: opendal::raw::OpRead,
+        ) -> opendal::Result<Self::Reader> {
+            let inner = self.inner.read(ctx, path, args)?;
+            Ok(DropObserverReader {
+                inner,
+                _probe: self.probe(),
+            })
+        }
+
+        fn write(
+            &self,
+            ctx: &opendal::OperationContext,
+            path: &str,
+            args: opendal::raw::OpWrite,
+        ) -> opendal::Result<Self::Writer> {
+            let inner = self.inner.write(ctx, path, args)?;
+            Ok(DropObserverWriter {
+                inner,
+                _probe: self.probe(),
+            })
+        }
+
+        fn copy(
+            &self,
+            ctx: &opendal::OperationContext,
+            from: &str,
+            to: &str,
+            args: opendal::raw::OpCopy,
+        ) -> opendal::Result<Self::Copier> {
+            self.inner.copy(ctx, from, to, args)
+        }
+
+        fn compose(
+            &self,
+            ctx: &opendal::OperationContext,
+            to: &str,
+            args: opendal::raw::OpCompose,
+        ) -> opendal::Result<Self::Composer> {
+            self.inner.compose(ctx, to, args)
+        }
+
+        async fn rename(
+            &self,
+            ctx: &opendal::OperationContext,
+            from: &str,
+            to: &str,
+            args: opendal::raw::OpRename,
+        ) -> opendal::Result<opendal::raw::RpRename> {
+            self.inner.rename(ctx, from, to, args).await
+        }
+
+        fn delete(&self, ctx: &opendal::OperationContext) -> opendal::Result<Self::Deleter> {
+            self.inner.delete(ctx)
+        }
+
+        fn list(
+            &self,
+            ctx: &opendal::OperationContext,
+            path: &str,
+            args: opendal::raw::OpList,
+        ) -> opendal::Result<Self::Lister> {
+            self.inner.list(ctx, path, args)
+        }
+
+        async fn restore(
+            &self,
+            ctx: &opendal::OperationContext,
+            path: &str,
+            args: opendal::raw::OpRestore,
+        ) -> opendal::Result<opendal::raw::RpRestore> {
+            self.inner.restore(ctx, path, args).await
+        }
+
+        async fn presign(
+            &self,
+            ctx: &opendal::OperationContext,
+            path: &str,
+            args: opendal::raw::OpPresign,
+        ) -> opendal::Result<opendal::raw::RpPresign> {
+            self.inner.presign(ctx, path, args).await
+        }
+    }
+
+    fn create_drop_observer_operator() -> (
+        *mut OperatorHandle,
+        *mut c_void,
+        std::sync::Weak<Executor>,
+        Arc<std::sync::atomic::AtomicBool>,
+        Arc<std::sync::atomic::AtomicBool>,
+    ) {
+        let exec_res = executor_create(1);
+        assert_eq!(exec_res.error.has_error, 0);
+        let executor_ptr = exec_res.ptr;
+
+        let executor = unsafe { crate::executor::executor_or_default(executor_ptr) }
+            .expect("clone dedicated executor");
+        let executor_weak = Arc::downgrade(&executor);
+        let executor_alive_on_drop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let dropped = Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+        let op = opendal::Operator::new(opendal::services::Memory::default())
+            .expect("build memory operator")
+            .layer(DropObserverLayer {
+                executor: executor_weak.clone(),
+                executor_alive_on_drop: executor_alive_on_drop.clone(),
+                dropped: dropped.clone(),
+            });
+
+        let op_ptr = Box::into_raw(Box::new(OperatorHandle { op, executor }));
+        (
+            op_ptr,
+            executor_ptr,
+            executor_weak,
+            executor_alive_on_drop,
+            dropped,
+        )
+    }
+
+    #[test]
+    fn input_stream_drops_inner_before_last_executor() {
+        let (op_ptr, executor_ptr, executor_weak, executor_alive_on_drop, dropped) =
+            create_drop_observer_operator();
+        write_test_object(op_ptr, "drop-order.txt", b"payload");
+        // Reset flags recorded during the setup write.
+        executor_alive_on_drop.store(false, Ordering::SeqCst);
+        dropped.store(false, Ordering::SeqCst);
+
+        let path_cstr = CString::new("drop-order.txt").expect("path cstr");
+        let stream_res = operator_input_stream_create(op_ptr, path_cstr.as_ptr(), ptr::null());
+        assert_eq!(stream_res.error.has_error, 0);
+        let stream_ptr = stream_res.ptr;
+
+        // Release operator and executor so the stream holds the last Arc<Executor>.
+        unsafe {
+            operator_free(op_ptr);
+            executor_free(executor_ptr);
+        }
+        assert_eq!(executor_weak.strong_count(), 1);
+        assert!(!dropped.load(Ordering::SeqCst));
+
+        unsafe {
+            operator_input_stream_free(stream_ptr);
+        }
+
+        assert!(dropped.load(Ordering::SeqCst));
+        assert!(
+            executor_alive_on_drop.load(Ordering::SeqCst),
+            "InputStream must drop its inner stream before the last Arc<Executor>"
+        );
+        assert_eq!(executor_weak.strong_count(), 0);
+    }
+
+    #[test]
+    fn output_stream_drops_inner_before_last_executor() {
+        let (op_ptr, executor_ptr, executor_weak, executor_alive_on_drop, dropped) =
+            create_drop_observer_operator();
+
+        let path_cstr = CString::new("drop-order-out.txt").expect("path cstr");
+        let stream_res = operator_output_stream_create(op_ptr, path_cstr.as_ptr(), ptr::null());
+        assert_eq!(stream_res.error.has_error, 0);
+        let stream_ptr = stream_res.ptr;
+
+        // Release operator and executor so the stream holds the last Arc<Executor>.
+        unsafe {
+            operator_free(op_ptr);
+            executor_free(executor_ptr);
+        }
+        assert_eq!(executor_weak.strong_count(), 1);
+        assert!(!dropped.load(Ordering::SeqCst));
+
+        unsafe {
+            operator_output_stream_free(stream_ptr);
+        }
+
+        assert!(dropped.load(Ordering::SeqCst));
+        assert!(
+            executor_alive_on_drop.load(Ordering::SeqCst),
+            "OutputStream must drop its inner writer before the last Arc<Executor>"
+        );
+        assert_eq!(executor_weak.strong_count(), 0);
     }
 }

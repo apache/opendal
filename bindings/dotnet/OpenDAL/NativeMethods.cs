@@ -509,12 +509,12 @@ internal partial class NativeMethods
 
     [LibraryImport(__DllName, EntryPoint = "operator_input_stream_read_next")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial OpenDALReadResult operator_input_stream_read_next(IntPtr stream);
+    internal static partial OpenDALReadResult operator_input_stream_read_next(InputStreamHandle stream);
 
     [LibraryImport(__DllName, EntryPoint = "operator_input_stream_read_next_async")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static unsafe partial OpenDALResult operator_input_stream_read_next_async(
-        IntPtr stream,
+        InputStreamHandle stream,
         delegate* unmanaged[Cdecl]<long, OpenDALReadResult, void> callback,
         long context
     );
@@ -534,7 +534,7 @@ internal partial class NativeMethods
     [LibraryImport(__DllName, EntryPoint = "operator_output_stream_write")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALResult operator_output_stream_write(
-        IntPtr stream,
+        OutputStreamHandle stream,
         [In] byte[] data,
         nuint len
     );
@@ -542,7 +542,7 @@ internal partial class NativeMethods
     [LibraryImport(__DllName, EntryPoint = "operator_output_stream_write_async")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static unsafe partial OpenDALResult operator_output_stream_write_async(
-        IntPtr stream,
+        OutputStreamHandle stream,
         [In] byte[] data,
         nuint len,
         delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
@@ -551,16 +551,16 @@ internal partial class NativeMethods
 
     [LibraryImport(__DllName, EntryPoint = "operator_output_stream_flush")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial OpenDALResult operator_output_stream_flush(IntPtr stream);
+    internal static partial OpenDALResult operator_output_stream_flush(OutputStreamHandle stream);
 
     [LibraryImport(__DllName, EntryPoint = "operator_output_stream_close")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial OpenDALResult operator_output_stream_close(IntPtr stream);
+    internal static partial OpenDALResult operator_output_stream_close(OutputStreamHandle stream);
 
     [LibraryImport(__DllName, EntryPoint = "operator_output_stream_close_async")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static unsafe partial OpenDALResult operator_output_stream_close_async(
-        IntPtr stream,
+        OutputStreamHandle stream,
         delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
         long context
     );

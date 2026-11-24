@@ -624,7 +624,7 @@ public partial class Operator : SafeHandle
             return;
         }
 
-        state.CancellationRegistration.Dispose();
+        state.DisposeCancellation();
         if (!state.Completion.TrySetResult(result))
         {
             // Cancellation won the completion race, so no awaiter will ever
@@ -1429,7 +1429,25 @@ public partial class Operator : SafeHandle
             throw new InvalidOperationException("OpenReadStream returned null stream pointer");
         }
 
-        return new OperatorInputStream(streamHandle);
+        InputStreamHandle? handle = null;
+        try
+        {
+            handle = new InputStreamHandle(streamHandle);
+            return new OperatorInputStream(handle);
+        }
+        catch
+        {
+            if (handle is not null)
+            {
+                handle.Dispose();
+            }
+            else
+            {
+                NativeMethods.operator_input_stream_free(streamHandle);
+            }
+
+            throw;
+        }
     }
 
     /// <summary>
@@ -1439,12 +1457,22 @@ public partial class Operator : SafeHandle
     /// <param name="options">Optional write options.</param>
     /// <param name="bufferSize">Buffer size used by the managed write stream.</param>
     /// <returns>A writable stream over the given path.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="bufferSize"/> is less than or equal to zero.</exception>
     public unsafe OperatorOutputStream OpenWriteStream(
         string path,
         WriteOptions? options = null,
         int bufferSize = OperatorOutputStream.DefaultBufferSize)
     {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
+
+        if (bufferSize <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(bufferSize), "Buffer size must be greater than zero.");
+        }
+
+        // Allocate the managed write buffer before creating the native writer
+        // so invalid sizes or OOM fail without leaking a backend stream.
+        var buffer = GC.AllocateUninitializedArray<byte>(bufferSize);
 
         using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
         var result = NativeMethods.operator_output_stream_create(
@@ -1459,7 +1487,25 @@ public partial class Operator : SafeHandle
             throw new InvalidOperationException("OpenWriteStream returned null stream pointer");
         }
 
-        return new OperatorOutputStream(streamHandle, bufferSize);
+        OutputStreamHandle? handle = null;
+        try
+        {
+            handle = new OutputStreamHandle(streamHandle);
+            return new OperatorOutputStream(handle, buffer);
+        }
+        catch
+        {
+            if (handle is not null)
+            {
+                handle.Dispose();
+            }
+            else
+            {
+                NativeMethods.operator_output_stream_free(streamHandle);
+            }
+
+            throw;
+        }
     }
 
     /// <summary>
@@ -1611,7 +1657,7 @@ public partial class Operator : SafeHandle
 
         try
         {
-            state.CancellationRegistration.Dispose();
+            state.DisposeCancellation();
 
             if (result.GetError().IsError)
             {
@@ -1643,7 +1689,7 @@ public partial class Operator : SafeHandle
 
         try
         {
-            state.CancellationRegistration.Dispose();
+            state.DisposeCancellation();
 
             var error = result.GetError();
             if (error.IsError)

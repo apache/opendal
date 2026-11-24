@@ -27,7 +27,8 @@ import * as esm from '../index.mjs'
 
 const require = createRequire(import.meta.url)
 const cjs = require('../index.cjs')
-const cjsEntryPath = fileURLToPath(new URL('../index.cjs', import.meta.url))
+const cjsEntryUrl = new URL('../index.cjs', import.meta.url)
+const cjsEntryPath = fileURLToPath(cjsEntryUrl)
 const generatedDtsPath = fileURLToPath(new URL('../generated.d.ts', import.meta.url))
 
 function parseRuntimeExportsFromDts() {
@@ -47,7 +48,7 @@ describe('entrypoint exports parity', () => {
   const declaredExports = parseRuntimeExportsFromDts()
   const declaredLayers = declaredExports.filter((name) => name.endsWith('Layer') && name !== 'Layer')
 
-  test('ESM and CJS export every runtime symbol declared in generated.d.ts', async () => {
+  test('ESM and CJS export every runtime symbol declared in generated.d.ts', () => {
     for (const name of declaredExports) {
       expect(esm[name], `ESM missing ${name}`).toBeDefined()
       expect(cjs[name], `CJS missing ${name}`).toBeDefined()
@@ -62,9 +63,21 @@ describe('entrypoint exports parity', () => {
     expect(cjsKeys).toEqual([...declaredExports, 'layers'].sort())
 
     // Verify Node's static CJS module lexer exposes every named export to ESM importers.
-    const cjsViaImport = await import('../index.cjs')
-    const cjsImportKeys = Object.keys(cjsViaImport)
-      .filter((key) => key !== 'default')
+    // Run in a real Node subprocess because Vite's module loader bypasses cjs-module-lexer.
+    const cjsImportKeys = JSON.parse(
+      execFileSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '-e',
+          `const mod = await import(${JSON.stringify(
+            cjsEntryUrl.href,
+          )}); console.log(JSON.stringify(Object.keys(mod)))`,
+        ],
+        { encoding: 'utf8' },
+      ),
+    )
+      .filter((key) => key !== 'default' && key !== 'module.exports')
       .sort()
     expect(cjsImportKeys).toEqual(cjsKeys)
   })

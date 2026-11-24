@@ -385,6 +385,53 @@ export function run(op) {
       expect(stream.destroyed).toBe(true)
     })
 
+    test('write stream respects string encodings with decodeStrings: false', async () => {
+      const memory = new Operator('memory')
+      const writer = await memory.writer('encoded.bin')
+      const ws = writer.createWriteStream({ decodeStrings: false })
+      ws.write('68656c6c6f', 'hex')
+      ws.write('aGVsbG8=', 'base64')
+      ws.write('hi', 'utf16le')
+      ws.write('\xff', 'latin1')
+      ws.write('utf8', 'utf8')
+      ws.write(Buffer.from('!'))
+      ws.end(new Uint8Array([63]))
+
+      await finished(ws)
+      expect(ws.writer).toBeNull()
+
+      const expected = Buffer.concat([
+        Buffer.from('hello'),
+        Buffer.from('hello'),
+        Buffer.from('hi', 'utf16le'),
+        Buffer.from([0xff]),
+        Buffer.from('utf8'),
+        Buffer.from('!?'),
+      ])
+      expect(await memory.read('encoded.bin')).toEqual(expected)
+    })
+
+    test('write stream destroy releases writer without closing', async () => {
+      const memory = new Operator('memory')
+      const writer = await memory.writer('aborted.bin')
+      let closeCalled = false
+      const originalClose = writer.close.bind(writer)
+      writer.close = () => {
+        closeCalled = true
+        return originalClose()
+      }
+
+      const ws = writer.createWriteStream()
+      const closed = once(ws, 'close')
+      ws.destroy()
+      await closed
+
+      expect(ws.destroyed).toBe(true)
+      expect(ws.writer).toBeNull()
+      expect(closeCalled).toBe(false)
+      expect(await memory.exists('aborted.bin')).toBe(false)
+    })
+
     test.each(['index.mjs', 'index.cjs'])(
       '%s releases a pending GET when its worker terminates',
       async (entry) => {

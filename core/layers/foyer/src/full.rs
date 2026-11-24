@@ -144,29 +144,13 @@ impl FullReader {
                 let read_args = self.args.clone();
                 let fetch_guard = read_guard.clone();
                 async move {
-                    if size_limit.is_empty() {
-                        return Err(FetchError::BypassCache);
-                    }
-
-                    let cap = inner.srv.capability();
-                    if !cap.stat || (read_args.version().is_some() && !cap.stat_with_version) {
-                        return Err(FetchError::BypassCache);
-                    }
-
                     let path = &fetch_guard.key().path;
-                    // Read metadata first; if stat is unsupported or the object is
-                    // not a cacheable file within `size_limit`, bypass the cache.
-                    let metadata = match inner.srv.stat(&inner.ctx, path, stat_args).await {
-                        Ok(rp) => rp.into_metadata(),
-                        Err(err) if err.kind() == ErrorKind::Unsupported => {
-                            return Err(FetchError::BypassCache);
-                        }
-                        Err(err) => return Err(FetchError::from_error(err)),
-                    };
-
-                    if !metadata.is_file() {
-                        return Err(FetchError::BypassCache);
-                    }
+                    let metadata = inner
+                        .srv
+                        .stat(&inner.ctx, path, stat_args)
+                        .await
+                        .map_err(FetchError::from_error)?
+                        .into_metadata();
 
                     let Ok(size) = usize::try_from(metadata.content_length()) else {
                         return Err(FetchError::BypassCache);

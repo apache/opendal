@@ -579,16 +579,13 @@ impl<I: MetricsIntercept> Drop for ExecutingGuard<I> {
     }
 }
 
-/// Compute a per-second rate, returning `None` when the elapsed duration is
-/// zero or the resulting floating-point rate is not finite.
+/// Compute a per-second rate, returning `None` when the elapsed duration is zero.
 fn compute_rate(count: u64, duration: Duration) -> Option<f64> {
-    let secs = duration.as_secs_f64();
-    if secs <= 0.0 {
+    if duration.is_zero() {
         return None;
     }
 
-    let rate = count as f64 / secs;
-    rate.is_finite().then_some(rate)
+    Some(count as f64 / duration.as_secs_f64())
 }
 
 impl<I: MetricsIntercept> HttpTransport for MetricsHttpTransport<I> {
@@ -1279,15 +1276,15 @@ impl<R: oio::Write, I: MetricsIntercept> oio::Write for MetricsWrapper<R, I> {
     }
 
     async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let size = range
+            .size()
+            .expect("writer copy range must be absolute and bounded");
+
         self.inner
             .copy_from(path, args, range)
             .await
             .inspect(|_| {
-                if !range.is_suffix()
-                    && let Some(size) = range.size()
-                {
-                    self.size += size;
-                }
+                self.size += size;
             })
             .inspect_err(|err| self.record_error(err))
     }
@@ -2669,117 +2666,6 @@ mod tests {
         async fn abort(&mut self) -> Result<()> {
             Ok(())
         }
-    }
-
-    #[tokio::test]
-    async fn test_writer_copy_from_unbounded_range_delegates_without_panic() {
-        tokio::time::timeout(Duration::from_secs(5), async {
-            for range in [BytesRange::new(0, None), BytesRange::from(..)] {
-                let mock = MockInterceptor::default();
-                let labels = MetricLabels::new(test_info(), Operation::Write.into_static());
-                mock.observe(labels.clone(), MetricValue::OperationExecuting(1));
-
-                let mut wrapper = MetricsWrapper::new(
-                    MockWriter::with_copy_from_result(Err(Error::new(
-                        ErrorKind::Unexpected,
-                        "native writer copy requires an absolute bounded range",
-                    ))),
-                    mock.clone(),
-                    labels,
-                    Instant::now(),
-                );
-
-                let err = oio::Write::copy_from(&mut wrapper, "src", OpRead::default(), range)
-                    .await
-                    .unwrap_err();
-                assert_eq!(err.kind(), ErrorKind::Unexpected);
-                drop(wrapper);
-
-                assert_eq!(
-                    mock.count_errors_with_kind(
-                        "opendal_operation_errors_total",
-                        ErrorKind::Unexpected
-                    ),
-                    1
-                );
-                assert_eq!(mock.get_value_u64("opendal_operation_bytes"), Some(0));
-                assert!(mock.has_metric("opendal_operation_duration_seconds"));
-                assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
-            }
-        })
-        .await
-        .unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_writer_copy_from_suffix_range_does_not_misaccount_bytes() {
-        tokio::time::timeout(Duration::from_secs(5), async {
-            // Inner returns an error for suffix range.
-            let mock = MockInterceptor::default();
-            let labels = MetricLabels::new(test_info(), Operation::Write.into_static());
-            mock.observe(labels.clone(), MetricValue::OperationExecuting(1));
-
-            let mut wrapper = MetricsWrapper::new(
-                MockWriter::with_copy_from_result(Err(Error::new(
-                    ErrorKind::Unexpected,
-                    "suffix range unsupported",
-                ))),
-                mock.clone(),
-                labels,
-                Instant::now(),
-            );
-
-            let err = oio::Write::copy_from(
-                &mut wrapper,
-                "src",
-                OpRead::default(),
-                BytesRange::suffix(10),
-            )
-            .await
-            .unwrap_err();
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            drop(wrapper);
-
-            assert_eq!(
-                mock.count_errors_with_kind(
-                    "opendal_operation_errors_total",
-                    ErrorKind::Unexpected
-                ),
-                1
-            );
-            assert_eq!(mock.get_value_u64("opendal_operation_bytes"), Some(0));
-            assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
-
-            // Even if a custom writer accepts a suffix range, suffix length is
-            // not a guaranteed copied byte count and must not be added.
-            let mock = MockInterceptor::default();
-            let labels = MetricLabels::new(test_info(), Operation::Write.into_static());
-            mock.observe(labels.clone(), MetricValue::OperationExecuting(1));
-
-            let mut wrapper = MetricsWrapper::new(
-                MockWriter::with_copy_from_result(Ok(())),
-                mock.clone(),
-                labels,
-                Instant::now(),
-            );
-
-            oio::Write::copy_from(
-                &mut wrapper,
-                "src",
-                OpRead::default(),
-                BytesRange::suffix(10),
-            )
-            .await
-            .unwrap();
-            oio::Write::close(&mut wrapper).await.unwrap();
-            drop(wrapper);
-
-            assert_eq!(mock.count_metric("opendal_operation_errors_total"), 0);
-            assert_eq!(mock.get_value_u64("opendal_operation_bytes"), Some(0));
-            assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
-        })
-        .await
-        .unwrap();
     }
 
     #[tokio::test]

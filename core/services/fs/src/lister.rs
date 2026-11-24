@@ -366,6 +366,39 @@ mod tests {
             ErrorKind::PermissionDenied
         );
     }
+
+    #[tokio::test]
+    async fn glob_skips_unreadable_child() {
+        let root = tempfile::tempdir().unwrap();
+        let locked = root.path().join("data/locked");
+        fs::create_dir_all(&locked).unwrap();
+        fs::create_dir_all(root.path().join("data/open")).unwrap();
+        fs::write(locked.join("a.jpg"), b"data").unwrap();
+        fs::write(root.path().join("data/open/b.jpg"), b"data").unwrap();
+        let op = Operator::new(Fs::default().root(root.path().to_str().unwrap())).unwrap();
+        let permissions = fs::metadata(&locked).unwrap().permissions();
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+
+        // Privileged processes can read the directory even with mode 000.
+        match fs::read_dir(&locked) {
+            Ok(_) => {
+                fs::set_permissions(&locked, permissions).unwrap();
+                return;
+            }
+            Err(err) => assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied),
+        }
+
+        let any_depth = op.list_with("/").glob("data/**/*.jpg").await;
+        let one_level = op.list_with("/").glob("data/*/*.jpg").await;
+        let direct = op.list_with("data/locked/").glob("*.jpg").await;
+        fs::set_permissions(&locked, permissions).unwrap();
+
+        for entries in [any_depth.unwrap(), one_level.unwrap()] {
+            let paths: Vec<_> = entries.iter().map(|entry| entry.path()).collect();
+            assert_eq!(paths, ["data/open/b.jpg"]);
+        }
+        assert_eq!(direct.unwrap_err().kind(), ErrorKind::PermissionDenied);
+    }
 }
 
 #[cfg(test)]

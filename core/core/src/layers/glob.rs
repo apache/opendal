@@ -179,6 +179,7 @@ impl Service for GlobService {
                 path: directory,
                 positions: vec![position],
                 lister: None,
+                discovered: false,
             }]
         } else {
             Vec::new()
@@ -198,6 +199,8 @@ struct Directory {
     path: String,
     positions: Vec<usize>,
     lister: Option<oio::Lister>,
+    /// Found while listing a parent rather than requested by the caller.
+    discovered: bool,
 }
 
 impl Directory {
@@ -242,6 +245,13 @@ impl List for GuidedLister {
                     self.directories.pop();
                     continue;
                 }
+                // Like recursive listings, skip discovered directories that cannot
+                // be read. The starting directory still reports the error.
+                Err(err) if err.kind() == ErrorKind::PermissionDenied && directory.discovered => {
+                    log::warn!("glob listing skipped directory {}: {err}", directory.path);
+                    self.directories.pop();
+                    continue;
+                }
                 Err(err) => return Err(err),
             };
             if !entry.path().starts_with(&self.prefix) {
@@ -264,6 +274,7 @@ impl List for GuidedLister {
                     path: entry.path().to_owned(),
                     positions,
                     lister: None,
+                    discovered: true,
                 });
             }
             if matches {

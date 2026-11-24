@@ -223,13 +223,20 @@ impl CompleteLister {
     }
 
     async fn complete_unknown_entry_mode(&self, entry: oio::Entry) -> Result<oio::Entry> {
-        let path = entry.path().to_string();
+        let cap = self.srv.capability();
         let version = entry.metadata().version().map(str::to_owned);
-        let op = options::StatOptions {
-            version,
-            ..Default::default()
+        if !cap.stat || (version.is_some() && !cap.stat_with_version) {
+            return Ok(entry);
         }
-        .into();
+
+        let path = entry.path().to_string();
+        let op = OpStat::from_options(
+            &cap,
+            options::StatOptions {
+                version,
+                ..Default::default()
+            },
+        )?;
 
         let stat_metadata = match self.srv.stat(&self.ctx, &path, op).await {
             Ok(rp) => rp.into_metadata(),
@@ -237,7 +244,9 @@ impl CompleteLister {
             // cannot see its target — a dangling symlink in fs, whose stat
             // follows the link — cannot refine the mode, but it does not mean
             // the entry is gone. Keep the entry as listed.
-            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(entry),
+            Err(err) if matches!(err.kind(), ErrorKind::NotFound | ErrorKind::Unsupported) => {
+                return Ok(entry);
+            }
             Err(err) => return Err(err),
         };
         if stat_metadata.mode() == EntryMode::Unknown {
@@ -965,5 +974,218 @@ mod tests {
             .await
             .expect_err("append without the final content length must fail");
         assert_eq!(err.kind(), ErrorKind::Unexpected);
+    }
+
+    #[tokio::test]
+    async fn test_complete_lister_unknown_mode_respects_stat_capabilities() -> Result<()> {
+        use std::sync::Mutex;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        #[derive(Debug)]
+        struct UnknownEntryService {
+            capability: Capability,
+            entries: Vec<oio::Entry>,
+            stat_result: Option<Result<Metadata>>,
+            stat_calls: Arc<AtomicUsize>,
+            observed_stat_versions: Arc<Mutex<Vec<Option<String>>>>,
+        }
+
+        struct VecLister(VecDeque<oio::Entry>);
+
+        impl oio::List for VecLister {
+            async fn next(&mut self) -> Result<Option<oio::Entry>> {
+                Ok(self.0.pop_front())
+            }
+        }
+
+        impl Service for UnknownEntryService {
+            type Reader = ();
+            type Writer = ();
+            type Lister = VecLister;
+            type Deleter = ();
+            type Copier = ();
+            type Composer = ();
+
+            fn info(&self) -> ServiceInfo {
+                ServiceInfo::with_scheme("mock")
+            }
+
+            fn capability(&self) -> Capability {
+                self.capability
+            }
+
+            fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+                Ok(VecLister(self.entries.clone().into()))
+            }
+
+            async fn stat(&self, _: &OperationContext, _: &str, args: OpStat) -> Result<RpStat> {
+                self.stat_calls.fetch_add(1, Ordering::SeqCst);
+                self.observed_stat_versions
+                    .lock()
+                    .expect("mutex must not poison")
+                    .push(args.version().map(str::to_owned));
+                match &self.stat_result {
+                    Some(Ok(meta)) => Ok(RpStat::new(meta.clone())),
+                    Some(Err(err)) => Err(Error::new(err.kind(), err.to_string())),
+                    None => Ok(RpStat::new(MetadataBuilder::file(999).build())),
+                }
+            }
+
+            async fn create_dir(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpCreateDir,
+            ) -> Result<RpCreateDir> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn copy(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpCopy,
+            ) -> Result<Self::Copier> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn rename(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpRename,
+            ) -> Result<RpRename> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn presign(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpPresign,
+            ) -> Result<RpPresign> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+        }
+
+        let ctx = OperationContext::new();
+
+        // 1. Without stat capability, CompleteLister skips stat and preserves EntryMode::Unknown.
+        let stat_calls = Arc::new(AtomicUsize::new(0));
+        let srv = Arc::new(UnknownEntryService {
+            capability: Capability {
+                list: true,
+                stat: false,
+                ..Default::default()
+            },
+            entries: vec![oio::Entry::new("a", MetadataBuilder::unknown().build())],
+            stat_result: Some(Err(Error::new(ErrorKind::Unsupported, "no stat"))),
+            stat_calls: stat_calls.clone(),
+            observed_stat_versions: Arc::default(),
+        }) as Servicer;
+        let completed = CompleteLayer.apply_service(srv);
+        let mut lister = completed.list_dyn(&ctx, "/", OpList::new())?;
+        let entry = oio::List::next(&mut lister)
+            .await?
+            .expect("entry must be yielded");
+        assert_eq!(entry.path(), "a");
+        assert_eq!(entry.mode(), EntryMode::Unknown);
+        assert_eq!(stat_calls.load(Ordering::SeqCst), 0);
+
+        // 2. With stat=true but stat_with_version=false, versioned unknown entry must not stat current version.
+        let mut versioned_unknown = MetadataBuilder::unknown();
+        versioned_unknown.version("v1");
+        let versioned_entry = oio::Entry::new("a", versioned_unknown.build());
+
+        let stat_calls = Arc::new(AtomicUsize::new(0));
+        let srv = Arc::new(UnknownEntryService {
+            capability: Capability {
+                list: true,
+                list_with_versions: true,
+                stat: true,
+                stat_with_version: false,
+                ..Default::default()
+            },
+            entries: vec![versioned_entry.clone()],
+            stat_result: Some(Ok(MetadataBuilder::file(999).build())),
+            stat_calls: stat_calls.clone(),
+            observed_stat_versions: Arc::default(),
+        }) as Servicer;
+        let completed = CompleteLayer.apply_service(srv);
+        let mut lister = completed.list_dyn(&ctx, "/", OpList::new())?;
+        let entry = oio::List::next(&mut lister)
+            .await?
+            .expect("entry must be yielded");
+        assert_eq!(entry.mode(), EntryMode::Unknown);
+        assert_eq!(entry.metadata().version(), Some("v1"));
+        assert_eq!(stat_calls.load(Ordering::SeqCst), 0);
+
+        // 3. With stat=true and stat_with_version=true, versioned unknown entry refines via stat(version).
+        let stat_calls = Arc::new(AtomicUsize::new(0));
+        let observed_versions = Arc::new(Mutex::new(Vec::new()));
+        let srv = Arc::new(UnknownEntryService {
+            capability: Capability {
+                list: true,
+                list_with_versions: true,
+                stat: true,
+                stat_with_version: true,
+                ..Default::default()
+            },
+            entries: vec![versioned_entry],
+            stat_result: Some(Ok(MetadataBuilder::file(42).build())),
+            stat_calls: stat_calls.clone(),
+            observed_stat_versions: observed_versions.clone(),
+        }) as Servicer;
+        let completed = CompleteLayer.apply_service(srv);
+        let mut lister = completed.list_dyn(&ctx, "/", OpList::new())?;
+        let entry = oio::List::next(&mut lister)
+            .await?
+            .expect("entry must be yielded");
+        assert_eq!(entry.mode(), EntryMode::FILE);
+        assert_eq!(entry.metadata().content_length(), 42);
+        assert_eq!(entry.metadata().version(), Some("v1"));
+        assert_eq!(stat_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            *observed_versions.lock().expect("mutex must not poison"),
+            vec![Some("v1".to_string())]
+        );
+
+        // 4. If stat unexpectedly returns Unsupported at runtime, keep the listed entry unchanged.
+        let stat_calls = Arc::new(AtomicUsize::new(0));
+        let srv = Arc::new(UnknownEntryService {
+            capability: Capability {
+                list: true,
+                stat: true,
+                ..Default::default()
+            },
+            entries: vec![oio::Entry::new("b", MetadataBuilder::unknown().build())],
+            stat_result: Some(Err(Error::new(ErrorKind::Unsupported, "stat unsupported"))),
+            stat_calls: stat_calls.clone(),
+            observed_stat_versions: Arc::default(),
+        }) as Servicer;
+        let completed = CompleteLayer.apply_service(srv);
+        let mut lister = completed.list_dyn(&ctx, "/", OpList::new())?;
+        let entry = oio::List::next(&mut lister)
+            .await?
+            .expect("entry must be yielded");
+        assert_eq!(entry.path(), "b");
+        assert_eq!(entry.mode(), EntryMode::Unknown);
+        assert_eq!(stat_calls.load(Ordering::SeqCst), 1);
+
+        Ok(())
     }
 }

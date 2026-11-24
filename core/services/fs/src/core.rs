@@ -70,9 +70,9 @@ impl FsCore {
             })?
             .to_path_buf();
 
-        tokio::fs::create_dir_all(&parent)
-            .await
-            .map_err(map_io_error)?;
+        if let Err(err) = tokio::fs::create_dir_all(&parent).await {
+            return Err(map_io_error(refine_path_error(err, &parent).await));
+        }
 
         Ok(p)
     }
@@ -142,7 +142,10 @@ impl FsCore {
         let from = self.root_join(from)?;
         // Fetch source metadata first so missing or directory sources fail
         // before creating destination parent directories.
-        let from_meta = tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
+        let from_meta = match tokio::fs::metadata(&from).await {
+            Ok(meta) => meta,
+            Err(err) => return Err(new_std_io_error(refine_path_error(err, &from).await)),
+        };
         if from_meta.is_dir() {
             return Err(Error::new(
                 ErrorKind::IsADirectory,
@@ -211,7 +214,9 @@ impl FsCore {
         };
 
         let from = self.root_join(from)?;
-        tokio::fs::metadata(&from).await.map_err(map_path_error)?;
+        if let Err(err) = tokio::fs::metadata(&from).await {
+            return Err(map_path_error(refine_path_error(err, &from).await));
+        }
 
         let to = self
             .ensure_write_abs_path_with(&self.root, to.trim_end_matches('/'), map_path_error)
@@ -224,9 +229,9 @@ impl FsCore {
                 .map_err(new_task_join_error)?;
         }
 
-        tokio::fs::rename(from, to)
-            .await
-            .map_err(parse_rename_error)?;
+        if let Err(err) = tokio::fs::rename(from, &to).await {
+            return Err(parse_rename_error(refine_path_error(err, &to).await));
+        }
         Ok(())
     }
 
@@ -464,6 +469,53 @@ fn parse_conditional_rename_directory_error(
     Error::new(kind, err.kind().to_string())
         .set_source(err)
         .with_context("service_operation", "Rename")
+}
+
+/// Classify an already-failed filesystem call on Windows.
+///
+/// The failed call is never retried. Windows reports a directory target as
+/// `ERROR_ACCESS_DENIED`, and a regular file in a parent component as
+/// `ERROR_PATH_NOT_FOUND` or, from `create_dir_all`, `ERROR_ALREADY_EXISTS`.
+/// Unix reports these as `EISDIR` and `ENOTDIR`. A read-only metadata probe
+/// after the failure tells us what the path is, so the error kind can be
+/// mapped. The original error is kept as the source.
+pub(crate) async fn refine_path_error(err: std::io::Error, path: &Path) -> std::io::Error {
+    #[cfg(windows)]
+    {
+        use std::io::ErrorKind as IoKind;
+
+        let kind = match err.kind() {
+            IoKind::PermissionDenied
+                if tokio::fs::metadata(path)
+                    .await
+                    .is_ok_and(|meta| meta.is_dir()) =>
+            {
+                Some(IoKind::IsADirectory)
+            }
+            IoKind::NotFound | IoKind::AlreadyExists if has_file_ancestor(path).await => {
+                Some(IoKind::NotADirectory)
+            }
+            _ => None,
+        };
+        if let Some(kind) = kind {
+            return std::io::Error::new(kind, err);
+        }
+    }
+
+    #[cfg(not(windows))]
+    let _ = path;
+    err
+}
+
+/// Returns whether the nearest existing ancestor of `path` is not a directory.
+#[cfg(windows)]
+async fn has_file_ancestor(path: &Path) -> bool {
+    for ancestor in path.ancestors().skip(1) {
+        if let Ok(meta) = tokio::fs::metadata(ancestor).await {
+            return !meta.is_dir();
+        }
+    }
+    false
 }
 
 /// Context needed to classify an error from this service.
@@ -939,6 +991,13 @@ mod tests {
         let err = op.write("existing_dir", "x").await.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
         assert!(!err.is_temporary(), "{err:?}");
+
+        let err = op
+            .write_with("existing_dir", "x")
+            .if_not_exists(true)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch, "{err:?}");
     }
 
     #[tokio::test]

@@ -37,4 +37,4 @@ persy = "1.7.1"
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

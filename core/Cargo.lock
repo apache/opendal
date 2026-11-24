@@ -8884,6 +8884,7 @@ version = "0.59.5"
 dependencies = [
  "base64 0.23.1",
  "bytes",
+ "futures",
  "hmac 0.13.0",
  "http 1.5.0",
  "log",

@@ -49,4 +49,5 @@ serde = { workspace = true, features = ["derive"] }
 reqsign-command-execute-tokio = { version = "3.0.9", default-features = false }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+futures = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

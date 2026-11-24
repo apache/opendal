@@ -99,7 +99,10 @@ impl opendal_core::Configurator for AzfileConfig {
             }
         }
 
-        if !map.contains_key("share_name") {
+        if map
+            .get("share_name")
+            .is_none_or(|share_name| share_name.is_empty())
+        {
             return Err(opendal_core::Error::new(
                 opendal_core::ErrorKind::ConfigInvalid,
                 "share name is required",
@@ -157,5 +160,33 @@ mod tests {
             Some("https://account.file.core.windows.net")
         );
         assert_eq!(cfg.share_name, "data".to_string());
+    }
+
+    #[test]
+    fn from_uri_rejects_missing_or_empty_share_name() {
+        let missing = OperatorUri::new(
+            "azfile://account.file.core.windows.net",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let err = AzfileConfig::from_uri(&missing).expect_err("missing share_name must fail");
+        assert_eq!(err.kind(), opendal_core::ErrorKind::ConfigInvalid);
+
+        let empty_option = OperatorUri::new(
+            "azfile://account.file.core.windows.net",
+            vec![("share_name".to_string(), String::new())],
+        )
+        .unwrap();
+        let err = AzfileConfig::from_uri(&empty_option).expect_err("empty share_name must fail");
+        assert_eq!(err.kind(), opendal_core::ErrorKind::ConfigInvalid);
+
+        let empty_query = OperatorUri::new(
+            "azfile://account.file.core.windows.net?share_name=",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let err =
+            AzfileConfig::from_uri(&empty_query).expect_err("empty query share_name must fail");
+        assert_eq!(err.kind(), opendal_core::ErrorKind::ConfigInvalid);
     }
 }

@@ -516,11 +516,19 @@ impl AzfileCore {
         let mut pop_dir_count = dirs.len();
         for dir in dirs.iter().rev() {
             let resp = self.azfile_get_directory_properties(ctx, dir).await?;
-            if resp.status() == StatusCode::NOT_FOUND {
-                pop_dir_count -= 1;
-                continue;
+            match resp.status() {
+                StatusCode::OK => break,
+                StatusCode::NOT_FOUND => {
+                    pop_dir_count -= 1;
+                    continue;
+                }
+                _ => {
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("GetDirectoryProperties")),
+                        resp,
+                    ));
+                }
             }
-            break;
         }
 
         for dir in dirs.iter().skip(pop_dir_count) {
@@ -617,7 +625,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
@@ -817,5 +825,221 @@ mod tests {
             .kind(),
             ErrorKind::Unexpected
         );
+    }
+
+    #[test]
+    fn test_parse_error_unauthorized_and_forbidden() {
+        let body = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\
+             <Error><Code>InvalidAuthenticationInfo</Code>\
+             <Message>Server failed to authenticate the request.</Message>\
+             </Error>";
+        let resp = Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .header("x-ms-error-code", "InvalidAuthenticationInfo")
+            .body(Buffer::from(body.to_string()))
+            .expect("response must build");
+        let err = parse_error(ErrorContext::new(ServiceOperation("GetFile")), resp);
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+        assert!(!err.is_temporary());
+
+        let bare_401 = Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .body(Buffer::new())
+            .expect("response must build");
+        let err = parse_error(ErrorContext::new(ServiceOperation("GetFile")), bare_401);
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+        assert!(!err.is_temporary());
+
+        let err = parse_native_error(
+            "GetFile",
+            StatusCode::FORBIDDEN,
+            "AuthorizationPermissionMismatch",
+        );
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+        assert!(!err.is_temporary());
+    }
+
+    #[derive(Clone)]
+    struct ScriptedTransport {
+        responses: Arc<std::sync::Mutex<VecDeque<Response<bytes::Bytes>>>>,
+        requests: Arc<std::sync::Mutex<Vec<(http::Method, String)>>>,
+    }
+
+    impl ScriptedTransport {
+        fn new(responses: Vec<Response<bytes::Bytes>>) -> Self {
+            Self {
+                responses: Arc::new(std::sync::Mutex::new(VecDeque::from(responses))),
+                requests: Arc::new(std::sync::Mutex::new(Vec::new())),
+            }
+        }
+    }
+
+    impl HttpTransport for ScriptedTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.requests
+                .lock()
+                .unwrap()
+                .push((req.method().clone(), req.uri().to_string()));
+            let resp = self
+                .responses
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("unexpected HTTP request");
+            let (parts, body) = resp.into_parts();
+            let size = body.len() as u64;
+            let stream_body = if body.is_empty() {
+                HttpBody::new(futures::stream::iter(std::iter::empty()), Some(0))
+            } else {
+                HttpBody::new(
+                    futures::stream::iter(vec![Ok(Buffer::from(body))]),
+                    Some(size),
+                )
+            };
+            Ok(Response::from_parts(parts, stream_body))
+        }
+    }
+
+    fn test_operator(transport: ScriptedTransport) -> Operator {
+        Operator::new(
+            crate::Azfile::default()
+                .endpoint("https://acc.file.core.windows.net")
+                .share_name("share")
+                .skip_signature(),
+        )
+        .expect("azfile operator must build")
+        .with_context(OperationContext::new().with_http_transport(HttpTransporter::new(transport)))
+    }
+
+    #[tokio::test]
+    async fn test_ensure_parent_dir_exists_propagates_probe_errors() {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let cases = [
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "ServerBusy",
+                    ErrorKind::Unexpected,
+                    true,
+                ),
+                (
+                    StatusCode::TOO_MANY_REQUESTS,
+                    "ServerBusy",
+                    ErrorKind::RateLimited,
+                    true,
+                ),
+                (
+                    StatusCode::FORBIDDEN,
+                    "AuthorizationPermissionMismatch",
+                    ErrorKind::PermissionDenied,
+                    false,
+                ),
+                (
+                    StatusCode::UNAUTHORIZED,
+                    "InvalidAuthenticationInfo",
+                    ErrorKind::PermissionDenied,
+                    false,
+                ),
+            ];
+
+            for (status, code, expected_kind, expected_temp) in cases {
+                let transport = ScriptedTransport::new(vec![
+                    Response::builder()
+                        .status(status)
+                        .header("x-ms-error-code", code)
+                        .body(bytes::Bytes::new())
+                        .unwrap(),
+                ]);
+                let requests = transport.requests.clone();
+                let op = test_operator(transport);
+
+                let err = op
+                    .write("dir/file.txt", "abc")
+                    .await
+                    .expect_err("non-200/non-404 probe must fail");
+                assert_eq!(err.kind(), expected_kind, "status={status}");
+                assert_eq!(err.is_temporary(), expected_temp, "status={status}");
+
+                let recorded = requests.lock().unwrap();
+                assert_eq!(recorded.len(), 1, "must not proceed after failed probe");
+                assert_eq!(recorded[0].0, http::Method::HEAD);
+                assert_eq!(
+                    recorded[0].1,
+                    "https://acc.file.core.windows.net/share/dir/?restype=directory"
+                );
+            }
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    #[tokio::test]
+    async fn test_ensure_parent_dir_exists_propagates_ancestor_error_for_create_dir_and_rename() {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            // create_dir: immediate parent 404, ancestor 503
+            let transport = ScriptedTransport::new(vec![
+                Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .header("x-ms-error-code", "ResourceNotFound")
+                    .body(bytes::Bytes::new())
+                    .unwrap(),
+                Response::builder()
+                    .status(StatusCode::SERVICE_UNAVAILABLE)
+                    .header("x-ms-error-code", "ServerBusy")
+                    .body(bytes::Bytes::new())
+                    .unwrap(),
+            ]);
+            let requests = transport.requests.clone();
+            let op = test_operator(transport);
+
+            let err = op
+                .create_dir("a/b/c/")
+                .await
+                .expect_err("ancestor 503 must propagate");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_temporary());
+            {
+                let recorded = requests.lock().unwrap();
+                assert_eq!(recorded.len(), 2);
+                assert_eq!(recorded[0].0, http::Method::HEAD);
+                assert_eq!(
+                    recorded[0].1,
+                    "https://acc.file.core.windows.net/share/a/b/?restype=directory"
+                );
+                assert_eq!(recorded[1].0, http::Method::HEAD);
+                assert_eq!(
+                    recorded[1].1,
+                    "https://acc.file.core.windows.net/share/a/?restype=directory"
+                );
+            }
+
+            // rename: immediate parent 404, ancestor 403
+            let transport = ScriptedTransport::new(vec![
+                Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .header("x-ms-error-code", "ResourceNotFound")
+                    .body(bytes::Bytes::new())
+                    .unwrap(),
+                Response::builder()
+                    .status(StatusCode::FORBIDDEN)
+                    .header("x-ms-error-code", "AuthorizationPermissionMismatch")
+                    .body(bytes::Bytes::new())
+                    .unwrap(),
+            ]);
+            let requests = transport.requests.clone();
+            let op = test_operator(transport);
+
+            let err = op
+                .rename("src.txt", "a/b/dst.txt")
+                .await
+                .expect_err("ancestor 403 must propagate on rename");
+            assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+            assert!(!err.is_temporary());
+            let recorded = requests.lock().unwrap();
+            assert_eq!(recorded.len(), 2);
+            assert_eq!(recorded[0].0, http::Method::HEAD);
+            assert_eq!(recorded[1].0, http::Method::HEAD);
+        })
+        .await
+        .expect("test timed out");
     }
 }

@@ -261,13 +261,30 @@ impl AzfileBuilder {
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
 
-        let endpoint = match &self.config.endpoint {
-            Some(endpoint) => Ok(endpoint.trim_end_matches('/').to_string()),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                .with_operation("Builder::build")
-                .with_context("service", AZFILE_SCHEME)),
-        }?;
+        let endpoint = match self
+            .config
+            .endpoint
+            .as_deref()
+            .map(|endpoint| endpoint.trim_end_matches('/'))
+            .filter(|endpoint| !endpoint.is_empty())
+        {
+            Some(endpoint) => endpoint.to_string(),
+            None => {
+                return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
+                    .with_operation("Builder::build")
+                    .with_context("service", AZFILE_SCHEME));
+            }
+        };
         debug!("backend use endpoint {}", endpoint);
+
+        let share_name = if self.config.share_name.is_empty() {
+            return Err(Error::new(ErrorKind::ConfigInvalid, "share_name is empty")
+                .with_operation("Builder::build")
+                .with_context("service", AZFILE_SCHEME));
+        } else {
+            self.config.share_name
+        };
+        debug!("backend use share_name {}", share_name);
 
         let account_name = self
             .config
@@ -345,7 +362,7 @@ impl AzfileBuilder {
         let credential_provider = Arc::new(credential_providers);
         let request_signer = Arc::new(RequestSigner::new());
 
-        let info = ServiceInfo::new(AZFILE_SCHEME, &root, "");
+        let info = ServiceInfo::new(AZFILE_SCHEME, &root, &share_name);
         let capability = Capability {
             stat: true,
 
@@ -378,7 +395,7 @@ impl AzfileBuilder {
                 credential_provider,
                 request_signer,
                 signers: HttpTransportCache::new(),
-                share_name: self.config.share_name.clone(),
+                share_name,
                 skip_signature: self.config.skip_signature,
             }),
         })
@@ -840,5 +857,85 @@ mod tests {
         );
         assert_eq!(az_cli.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
         assert_eq!(http.captured.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn build_rejects_missing_or_empty_share_name() {
+        let err = AzfileBuilder::default()
+            .endpoint("https://acc.file.core.windows.net")
+            .build_backend()
+            .expect_err("missing share_name must fail");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = AzfileBuilder::default()
+            .endpoint("https://acc.file.core.windows.net")
+            .share_name("")
+            .build_backend()
+            .expect_err("empty share_name must fail");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let cfg = AzfileConfig::from_iter([
+            (
+                "endpoint".to_string(),
+                "https://acc.file.core.windows.net".to_string(),
+            ),
+            ("share_name".to_string(), String::new()),
+        ])
+        .unwrap();
+        let err = cfg
+            .into_builder()
+            .build_backend()
+            .expect_err("from_iter with empty share_name must fail");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    }
+
+    #[test]
+    fn build_rejects_missing_empty_or_slash_only_endpoint() {
+        let err = AzfileBuilder::default()
+            .share_name("share")
+            .build_backend()
+            .expect_err("missing endpoint must fail");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = AzfileBuilder::default()
+            .endpoint("")
+            .share_name("share")
+            .build_backend()
+            .expect_err("empty endpoint must fail");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = AzfileBuilder::default()
+            .endpoint("///")
+            .share_name("share")
+            .build_backend()
+            .expect_err("slash-only endpoint must fail");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        for endpoint in ["", "///"] {
+            let cfg = AzfileConfig::from_iter([
+                ("endpoint".to_string(), endpoint.to_string()),
+                ("share_name".to_string(), "share".to_string()),
+            ])
+            .unwrap();
+            let err = cfg
+                .into_builder()
+                .build_backend()
+                .expect_err("from_iter with empty/slash-only endpoint must fail");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+    }
+
+    #[test]
+    fn build_sets_service_info_name_to_share_name() {
+        let op = Operator::new(
+            AzfileBuilder::default()
+                .endpoint("https://acc.file.core.windows.net/")
+                .share_name("my-share"),
+        )
+        .expect("valid azfile builder must succeed");
+
+        assert_eq!(op.info().scheme(), AZFILE_SCHEME);
+        assert_eq!(op.info().name(), "my-share");
+        assert_eq!(op.info().root(), "/");
     }
 }

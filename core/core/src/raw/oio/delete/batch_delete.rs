@@ -112,23 +112,47 @@ impl<D: BatchDelete> BatchDeleter<D> {
 
         let mut deleted = 0;
         for i in result.succeeded {
-            self.buffer.remove(&i);
+            if !self.buffer.remove(&i) {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "batch delete returned unexpected or duplicate succeeded path",
+                )
+                .with_context("path", i.0)
+                .with_context("version", i.1.version().unwrap_or("<latest>")));
+            }
             deleted += 1;
         }
 
         // Failed paths stay queued in the buffer so a later flush retries
-        // them. A permanent error stops the flush with its original kind
-        // and path context; a temporary error only aborts the flush when
-        // nothing was deleted, keeping the whole batch retryable.
+        // them. Validate every failed entry against the remaining buffer
+        // before interpreting errors so dropped, invented, or duplicate paths
+        // always fail fast.
+        let mut first_permanent_error = None;
         let mut first_temporary_error = None;
+        let mut seen_failed = HashSet::with_capacity(result.failed.len());
         for (path, op, err) in result.failed {
-            let err = err
-                .with_context("path", path)
-                .with_context("version", op.version().unwrap_or("<latest>"));
-            if !err.is_temporary() {
-                return Err(err);
+            let key = (path, op);
+            if !self.buffer.contains(&key) || seen_failed.contains(&key) {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "batch delete returned unexpected or duplicate failed path",
+                )
+                .with_context("path", key.0)
+                .with_context("version", key.1.version().unwrap_or("<latest>")));
             }
-            first_temporary_error.get_or_insert(err);
+            let err = err
+                .with_context("path", key.0.as_str())
+                .with_context("version", key.1.version().unwrap_or("<latest>"));
+            seen_failed.insert(key);
+            if !err.is_temporary() {
+                first_permanent_error.get_or_insert(err);
+            } else {
+                first_temporary_error.get_or_insert(err);
+            }
+        }
+
+        if let Some(err) = first_permanent_error {
+            return Err(err);
         }
 
         if deleted == 0 {
@@ -388,5 +412,123 @@ mod tests {
             &["c"]
         );
         assert!(deleter.buffer.is_empty());
+    }
+
+    /// Invented paths in `succeeded` must fail fast with `Unexpected` instead
+    /// of counting as progress and looping forever in `close`.
+    #[tokio::test]
+    async fn test_batch_delete_unexpected_succeeded_path_is_unexpected() {
+        let inner = MockBatchDelete::new();
+        inner.push_response(|_| BatchDeleteResult {
+            succeeded: vec![
+                ("wrong_a".to_string(), OpDelete::new()),
+                ("wrong_b".to_string(), OpDelete::new()),
+            ],
+            failed: vec![],
+        });
+        let mut deleter = BatchDeleter::new(inner, Some(10));
+
+        deleter.delete("a", OpDelete::new()).await.unwrap();
+        deleter.delete("b", OpDelete::new()).await.unwrap();
+        let err = deleter.close().await.unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+        assert!(err.to_string().contains("path: wrong_a"));
+        assert_eq!(deleter.inner.delete_batch_calls.lock().unwrap().len(), 1);
+    }
+
+    /// Duplicate paths in `succeeded` that match the input count must fail
+    /// fast with `Unexpected` instead of leaving dropped paths looping in
+    /// `close`.
+    #[tokio::test]
+    async fn test_batch_delete_duplicate_succeeded_path_is_unexpected() {
+        let inner = MockBatchDelete::new();
+        inner.push_response(|_| BatchDeleteResult {
+            succeeded: vec![
+                ("a".to_string(), OpDelete::new()),
+                ("a".to_string(), OpDelete::new()),
+            ],
+            failed: vec![],
+        });
+        let mut deleter = BatchDeleter::new(inner, Some(10));
+
+        deleter.delete("a", OpDelete::new()).await.unwrap();
+        deleter.delete("b", OpDelete::new()).await.unwrap();
+        let err = deleter.close().await.unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+        assert!(err.to_string().contains("path: a"));
+        assert_eq!(deleter.inner.delete_batch_calls.lock().unwrap().len(), 1);
+    }
+
+    /// Invented, duplicate, or succeeded-and-failed paths in `failed` must
+    /// fail fast with `Unexpected`.
+    #[tokio::test]
+    async fn test_batch_delete_unexpected_or_duplicate_failed_path_is_unexpected() {
+        // Invented path in `failed` alongside a valid `succeeded` entry.
+        let inner = MockBatchDelete::new();
+        inner.push_response(|_| BatchDeleteResult {
+            succeeded: vec![("a".to_string(), OpDelete::new())],
+            failed: vec![(
+                "wrong_b".to_string(),
+                OpDelete::new(),
+                Error::new(ErrorKind::RateLimited, "retry").set_temporary(),
+            )],
+        });
+        let mut deleter = BatchDeleter::new(inner, Some(10));
+        deleter.delete("a", OpDelete::new()).await.unwrap();
+        deleter.delete("b", OpDelete::new()).await.unwrap();
+        let err = deleter.close().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+        assert!(err.to_string().contains("path: wrong_b"));
+        assert_eq!(deleter.inner.delete_batch_calls.lock().unwrap().len(), 1);
+
+        // Same path reported in both `succeeded` and `failed`.
+        let inner = MockBatchDelete::new();
+        inner.push_response(|_| BatchDeleteResult {
+            succeeded: vec![("a".to_string(), OpDelete::new())],
+            failed: vec![(
+                "a".to_string(),
+                OpDelete::new(),
+                Error::new(ErrorKind::PermissionDenied, "denied"),
+            )],
+        });
+        let mut deleter = BatchDeleter::new(inner, Some(10));
+        deleter.delete("a", OpDelete::new()).await.unwrap();
+        deleter.delete("b", OpDelete::new()).await.unwrap();
+        let err = deleter.close().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+        assert!(err.to_string().contains("path: a"));
+        assert_eq!(deleter.inner.delete_batch_calls.lock().unwrap().len(), 1);
+
+        // Duplicate path in `failed` even when the first error is permanent.
+        let inner = MockBatchDelete::new();
+        inner.push_response(|_| BatchDeleteResult {
+            succeeded: vec![],
+            failed: vec![
+                (
+                    "a".to_string(),
+                    OpDelete::new(),
+                    Error::new(ErrorKind::PermissionDenied, "denied"),
+                ),
+                (
+                    "a".to_string(),
+                    OpDelete::new(),
+                    Error::new(ErrorKind::RateLimited, "retry").set_temporary(),
+                ),
+            ],
+        });
+        let mut deleter = BatchDeleter::new(inner, Some(10));
+        deleter.delete("a", OpDelete::new()).await.unwrap();
+        deleter.delete("b", OpDelete::new()).await.unwrap();
+        let err = deleter.close().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+        assert!(err.to_string().contains("path: a"));
+        assert_eq!(deleter.inner.delete_batch_calls.lock().unwrap().len(), 1);
     }
 }

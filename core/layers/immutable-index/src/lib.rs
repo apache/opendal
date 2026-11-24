@@ -226,9 +226,11 @@ impl Service for ImmutableIndexService {
             self.children_hierarchy(path)
         };
 
-        // Entries must be emitted in lexicographical order for `start_after`
-        // to mark a resumable position.
+        // Entries must be emitted in lexicographical order without duplicates
+        // so `start_after` marks a resumable position and recursive listings
+        // match non-recursive deduplication.
         idx.sort_unstable();
+        idx.dedup();
 
         if let Some(start_after) = args.start_after()
             && start_after != "/"
@@ -857,5 +859,67 @@ mod tests {
                 .expect_err("unsupported options must be rejected by service capability");
             assert_eq!(err.kind(), ErrorKind::Unsupported);
         }
+    }
+
+    /// Duplicate keys inserted into `ImmutableIndexLayer` must be emitted
+    /// once in both non-recursive and recursive listings, including when
+    /// validated by `SanityCheckLayer`.
+    #[tokio::test]
+    async fn test_list_deduplicates_duplicate_keys() -> Result<()> {
+        let mut iil = ImmutableIndexLayer::default();
+        iil.insert("dir/a".to_string());
+        iil.insert("dir/a".to_string());
+        iil.insert("dir/".to_string());
+        iil.extend_iter([
+            "dir/".to_string(),
+            "file".to_string(),
+            "file".to_string(),
+            "dir/b".to_string(),
+            "dir/b".to_string(),
+        ]);
+
+        let op = build_operator(iil).layer(opendal_layer_sanity_check::SanityCheckLayer);
+
+        let hierarchy: Vec<(String, EntryMode)> = op
+            .lister("/")
+            .await?
+            .map_ok(|entry| (entry.path().to_string(), entry.metadata().mode()))
+            .try_collect()
+            .await?;
+        assert_eq!(
+            hierarchy,
+            [
+                ("dir/".to_string(), EntryMode::DIR),
+                ("file".to_string(), EntryMode::Unknown),
+            ]
+        );
+
+        let recursive: Vec<(String, EntryMode)> = op
+            .lister_with("/")
+            .recursive(true)
+            .await?
+            .map_ok(|entry| (entry.path().to_string(), entry.metadata().mode()))
+            .try_collect()
+            .await?;
+        assert_eq!(
+            recursive,
+            [
+                ("dir/".to_string(), EntryMode::DIR),
+                ("dir/a".to_string(), EntryMode::Unknown),
+                ("dir/b".to_string(), EntryMode::Unknown),
+                ("file".to_string(), EntryMode::Unknown),
+            ]
+        );
+
+        let sub_recursive: Vec<String> = op
+            .lister_with("dir/")
+            .recursive(true)
+            .await?
+            .map_ok(|entry| entry.path().to_string())
+            .try_collect()
+            .await?;
+        assert_eq!(sub_recursive, ["dir/", "dir/a", "dir/b"]);
+
+        Ok(())
     }
 }

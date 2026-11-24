@@ -911,4 +911,56 @@ mod tests {
         .await
         .expect("test timed out")
     }
+
+    #[tokio::test]
+    async fn test_block_writer_abort_after_failed_close_cleans_up_and_rejects_close() -> Result<()>
+    {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let (inner, state) = RecordingWrite::new();
+            state
+                .lock()
+                .expect("test state mutex poisoned")
+                .complete_failures = 1;
+            let mut w = BlockWriter::new(crate::test_executor(), inner, 1);
+
+            w.write(Buffer::from("a")).await?;
+            w.write(Buffer::from("b")).await?;
+
+            let err = w
+                .close()
+                .await
+                .expect_err("complete_block must fail transiently");
+            assert!(err.is_temporary());
+
+            w.abort().await?;
+            assert!(w.scheduled_block_ids.is_empty());
+            assert!(w.cache.is_none());
+
+            w.abort().await?;
+
+            let err = w
+                .close()
+                .await
+                .expect_err("close after aborting failed close must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let err = w
+                .write(Buffer::from("c"))
+                .await
+                .expect_err("write after aborting failed close must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let state = state.lock().expect("test state mutex poisoned");
+            assert_eq!(state.write_once_calls, 0);
+            assert_eq!(state.complete_calls.len(), 1);
+            assert_eq!(state.abort_calls.len(), 1);
+            assert_same_block_ids(&state.abort_calls[0], &state.written);
+            assert_same_block_ids(&state.aborted, &state.written);
+            Ok::<(), Error>(())
+        })
+        .await
+        .expect("test timed out")
+    }
 }

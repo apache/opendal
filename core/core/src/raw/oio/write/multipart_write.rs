@@ -1007,4 +1007,53 @@ mod tests {
         .await
         .expect("test timed out")
     }
+
+    #[tokio::test]
+    async fn test_multipart_writer_abort_after_failed_close_cleans_up_and_rejects_close()
+    -> Result<()> {
+        timeout(Duration::from_secs(5), async {
+            let inner = TestWrite::new_stable();
+            inner.lock().await.complete_failures = 1;
+            let mut writer = MultipartWriter::new(Executor::default(), inner.clone(), 1);
+
+            writer.write(Buffer::from("first")).await?;
+            writer.write(Buffer::from("second")).await?;
+
+            let err = writer
+                .close()
+                .await
+                .expect_err("close must fail transiently");
+            assert!(err.is_temporary());
+
+            writer.abort().await?;
+            assert!(writer.upload_id.is_none());
+            assert!(writer.parts.is_empty());
+            assert_eq!(writer.next_part_number, 0);
+
+            writer.abort().await?;
+
+            let err = writer
+                .close()
+                .await
+                .expect_err("close after aborting failed close must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let err = writer
+                .write(Buffer::from("third"))
+                .await
+                .expect_err("write after aborting failed close must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let inner = inner.lock().await;
+            assert_eq!(inner.complete_calls, 1);
+            assert_eq!(inner.abort_calls, 1);
+            assert_eq!(inner.write_once_calls, 0);
+            assert!(inner.completed_parts.is_empty());
+            Ok::<(), Error>(())
+        })
+        .await
+        .expect("test timed out")
+    }
 }

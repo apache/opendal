@@ -229,8 +229,10 @@ mod tests {
             .await
             .expect("in-flight concurrent write task should be cancelled on abort");
 
-        // Closing after abort must not submit the cleared buffered chunk.
-        writer.close().await.unwrap();
+        // Closing after abort must be rejected and must not submit the cleared buffered chunk.
+        let err = writer.close().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_permanent());
         assert!(write_rx.try_recv().is_err());
         assert_eq!(std::fs::read(&target).unwrap(), b"");
     }

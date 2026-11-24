@@ -17,16 +17,38 @@
  * under the License.
  */
 
+using System.Runtime.InteropServices;
 using OpenDAL.Interop.Result;
 
 namespace OpenDAL;
+
+internal sealed class InputStreamHandle : SafeHandle
+{
+    internal InputStreamHandle(IntPtr nativeHandle) : base(IntPtr.Zero, true)
+    {
+        if (nativeHandle == IntPtr.Zero)
+        {
+            throw new ArgumentException("Native input stream handle must not be zero.", nameof(nativeHandle));
+        }
+
+        SetHandle(nativeHandle);
+    }
+
+    public override bool IsInvalid => handle == IntPtr.Zero;
+
+    protected override bool ReleaseHandle()
+    {
+        NativeMethods.operator_input_stream_free(handle);
+        return true;
+    }
+}
 
 /// <summary>
 /// Read-only stream over an OpenDAL path.
 /// </summary>
 public sealed class OperatorInputStream : Stream
 {
-    private IntPtr handle;
+    private readonly InputStreamHandle handle;
     private bool disposed;
     private bool abandoned;
 
@@ -36,14 +58,20 @@ public sealed class OperatorInputStream : Stream
     private OpenDALReadResult? currentChunk;
     private nuint chunkOffset;
 
-    internal OperatorInputStream(IntPtr handle)
+    internal OperatorInputStream(InputStreamHandle handle)
     {
-        if (handle == IntPtr.Zero)
+        ArgumentNullException.ThrowIfNull(handle);
+        if (handle.IsInvalid)
         {
             throw new ArgumentException("Native input stream handle must not be zero.", nameof(handle));
         }
 
         this.handle = handle;
+    }
+
+    ~OperatorInputStream()
+    {
+        Dispose(false);
     }
 
     public override bool CanRead => !disposed && !abandoned;
@@ -245,7 +273,7 @@ public sealed class OperatorInputStream : Stream
 
     private void ThrowIfDisposed()
     {
-        ObjectDisposedException.ThrowIf(disposed || handle == IntPtr.Zero, this);
+        ObjectDisposedException.ThrowIf(disposed || handle.IsInvalid, this);
         if (abandoned)
         {
             throw new InvalidOperationException(
@@ -257,10 +285,12 @@ public sealed class OperatorInputStream : Stream
     {
         if (!disposed)
         {
-            ReleaseCurrentChunk();
-            NativeMethods.operator_input_stream_free(handle);
-            handle = IntPtr.Zero;
             disposed = true;
+            ReleaseCurrentChunk();
+            if (disposing)
+            {
+                handle.Dispose();
+            }
         }
 
         base.Dispose(disposing);

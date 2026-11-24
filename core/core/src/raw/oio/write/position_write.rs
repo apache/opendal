@@ -66,6 +66,19 @@ struct WriteInput<W: PositionWrite> {
     bytes: Buffer,
 }
 
+enum State {
+    /// The writer is active and can accept writes, close, or abort.
+    Running,
+    /// A close has been initiated and can be retried or aborted.
+    Closing,
+    /// An abort has been requested and underlying cleanup is pending retry.
+    Aborting,
+    /// The writer completed and closed the underlying file.
+    Completed,
+    /// The writer was aborted and cleaned up.
+    Aborted,
+}
+
 /// PositionWriter will implement [`oio::Write`] based on position write.
 pub struct PositionWriter<W: PositionWrite> {
     w: Arc<W>,
@@ -73,6 +86,7 @@ pub struct PositionWriter<W: PositionWrite> {
 
     next_offset: u64,
     cache: Option<Buffer>,
+    state: State,
     tasks: ConcurrentTasks<WriteInput<W>, ()>,
 }
 
@@ -87,6 +101,7 @@ impl<W: PositionWrite> PositionWriter<W> {
             executor: executor.clone(),
             next_offset: 0,
             cache: None,
+            state: State::Running,
 
             tasks: ConcurrentTasks::new(executor, concurrent, 0, |input| {
                 Box::pin(async move {
@@ -126,6 +141,28 @@ impl<W: PositionWrite> PositionWriter<W> {
 
 impl<W: PositionWrite> oio::Write for PositionWriter<W> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
+        match self.state {
+            State::Running => {}
+            State::Closing => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "position writer is closing and can't accept more writes",
+                ));
+            }
+            State::Completed => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "position writer has already been closed",
+                ));
+            }
+            State::Aborting | State::Aborted => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "position writer has already been aborted",
+                ));
+            }
+        }
+
         if self.cache.is_none() {
             let _ = self.fill_cache(bs);
             return Ok(());
@@ -150,6 +187,24 @@ impl<W: PositionWrite> oio::Write for PositionWriter<W> {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
+        match self.state {
+            State::Running | State::Closing => {}
+            State::Completed => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "position writer has already been closed",
+                ));
+            }
+            State::Aborting | State::Aborted => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "position writer has already been aborted and can't be closed",
+                ));
+            }
+        }
+
+        self.state = State::Closing;
+
         if let Some(bytes) = self.cache.clone() {
             let length = bytes.len() as u64;
             let offset = self.next_offset;
@@ -169,13 +224,22 @@ impl<W: PositionWrite> oio::Write for PositionWriter<W> {
         while self.tasks.next().await.transpose()?.is_some() {}
 
         let final_size = self.next_offset;
-        self.w.close(final_size).await
+        let meta = self.w.close(final_size).await?;
+        self.state = State::Completed;
+        Ok(meta)
     }
 
     async fn abort(&mut self) -> Result<()> {
+        match self.state {
+            State::Completed | State::Aborted => return Ok(()),
+            State::Running | State::Closing | State::Aborting => {}
+        }
+
+        self.state = State::Aborting;
         self.tasks.clear();
         self.cache = None;
         self.w.abort().await?;
+        self.state = State::Aborted;
         Ok(())
     }
 }
@@ -470,5 +534,182 @@ mod tests {
             assert_eq!(inner.data.lock().unwrap().as_slice(), b"aabbcc");
             assert_eq!(inner.attempts.load(Ordering::SeqCst), 4);
         }
+    }
+
+    #[derive(Default)]
+    struct LifecycleState {
+        close_calls: Vec<u64>,
+        close_failures: usize,
+        abort_calls: usize,
+        abort_failures: usize,
+    }
+
+    struct LifecycleWrite {
+        state: Arc<Mutex<LifecycleState>>,
+    }
+
+    impl LifecycleWrite {
+        fn new() -> (Self, Arc<Mutex<LifecycleState>>) {
+            let state = Arc::new(Mutex::new(LifecycleState::default()));
+            (
+                Self {
+                    state: state.clone(),
+                },
+                state,
+            )
+        }
+    }
+
+    impl PositionWrite for LifecycleWrite {
+        async fn write_all_at(&self, _: u64, _: Buffer) -> Result<()> {
+            Ok(())
+        }
+
+        async fn close(&self, size: u64) -> Result<Metadata> {
+            let mut state = self.state.lock().unwrap();
+            state.close_calls.push(size);
+            if state.close_failures > 0 {
+                state.close_failures -= 1;
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "transient close failure").set_temporary()
+                );
+            }
+            Ok(MetadataBuilder::file(size).build())
+        }
+
+        async fn abort(&self) -> Result<()> {
+            let mut state = self.state.lock().unwrap();
+            state.abort_calls += 1;
+            if state.abort_failures > 0 {
+                state.abort_failures -= 1;
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "transient abort failure").set_temporary()
+                );
+            }
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_position_writer_abort_rejects_close_and_write() -> Result<()> {
+        timeout(Duration::from_secs(5), async {
+            let (inner, state) = LifecycleWrite::new();
+            let mut w = PositionWriter::new(crate::test_executor(), inner, 2);
+
+            w.write(Buffer::from("hello")).await?;
+            w.write(Buffer::from("world")).await?;
+            w.abort().await?;
+            w.abort().await?;
+
+            let err = w.close().await.expect_err("close after abort must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let err = w
+                .write(Buffer::from("!"))
+                .await
+                .expect_err("write after abort must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let state = state.lock().unwrap();
+            assert!(state.close_calls.is_empty());
+            assert_eq!(state.abort_calls, 1);
+            Ok::<(), Error>(())
+        })
+        .await
+        .expect("test timed out")
+    }
+
+    #[tokio::test]
+    async fn test_position_writer_failed_abort_is_retryable_and_blocks_close() -> Result<()> {
+        timeout(Duration::from_secs(5), async {
+            let (inner, state) = LifecycleWrite::new();
+            state.lock().unwrap().abort_failures = 1;
+            let mut w = PositionWriter::new(crate::test_executor(), inner, 2);
+
+            w.write(Buffer::from("hello")).await?;
+            w.write(Buffer::from("world")).await?;
+
+            let err = w
+                .abort()
+                .await
+                .expect_err("first abort must fail transiently");
+            assert!(err.is_temporary());
+
+            let err = w
+                .write(Buffer::from("!"))
+                .await
+                .expect_err("write after failed abort must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let err = w
+                .close()
+                .await
+                .expect_err("close after failed abort must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            w.abort().await?;
+            w.abort().await?;
+
+            let state = state.lock().unwrap();
+            assert!(state.close_calls.is_empty());
+            assert_eq!(state.abort_calls, 2);
+            Ok::<(), Error>(())
+        })
+        .await
+        .expect("test timed out")
+    }
+
+    #[tokio::test]
+    async fn test_position_writer_close_retry_and_post_close_guards() -> Result<()> {
+        timeout(Duration::from_secs(5), async {
+            let (inner, state) = LifecycleWrite::new();
+            state.lock().unwrap().close_failures = 1;
+            let mut w = PositionWriter::new(crate::test_executor(), inner, 2);
+
+            w.write(Buffer::from("hello")).await?;
+
+            let err = w
+                .close()
+                .await
+                .expect_err("first close must fail transiently");
+            assert!(err.is_temporary());
+
+            let err = w
+                .write(Buffer::from("world"))
+                .await
+                .expect_err("write while closing must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let meta = w.close().await?;
+            assert_eq!(meta.content_length(), 5);
+
+            let err = w
+                .write(Buffer::from("!"))
+                .await
+                .expect_err("write after close must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let err = w
+                .close()
+                .await
+                .expect_err("second close after close must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            w.abort().await?;
+
+            let state = state.lock().unwrap();
+            assert_eq!(state.close_calls, vec![5, 5]);
+            assert_eq!(state.abort_calls, 0);
+            Ok::<(), Error>(())
+        })
+        .await
+        .expect("test timed out")
     }
 }

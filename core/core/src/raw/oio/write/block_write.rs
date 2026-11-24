@@ -101,6 +101,19 @@ struct WriteInput<W: BlockWrite> {
     bytes: Buffer,
 }
 
+enum State {
+    /// The writer is active and can accept writes, close, or abort.
+    Running,
+    /// A close has been initiated and can be retried or aborted.
+    Closing,
+    /// An abort has been requested and server-side cleanup is pending retry.
+    Aborting,
+    /// The writer completed and committed the object.
+    Completed,
+    /// The writer was aborted and any intermediate state was cleaned up.
+    Aborted,
+}
+
 /// BlockWriter will implement [`oio::Write`] based on block
 /// uploads.
 pub struct BlockWriter<W: BlockWrite> {
@@ -109,10 +122,11 @@ pub struct BlockWriter<W: BlockWrite> {
 
     /// Block IDs scheduled for upload, in submission order.
     ///
-    /// The IDs remain here until `abort_block` succeeds, so a failed abort can
-    /// be retried with the complete list.
+    /// The IDs remain here until `complete_block` or `abort_block` succeeds, so
+    /// a failed close or abort can be retried with the complete list.
     scheduled_block_ids: Vec<Uuid>,
     cache: Option<Buffer>,
+    state: State,
     tasks: ConcurrentTasks<WriteInput<W>, Uuid>,
 }
 
@@ -126,6 +140,7 @@ impl<W: BlockWrite> BlockWriter<W> {
             executor: executor.clone(),
             scheduled_block_ids: Vec::new(),
             cache: None,
+            state: State::Running,
 
             tasks: ConcurrentTasks::new(executor, concurrent, 0, |input| {
                 Box::pin(async move {
@@ -175,6 +190,28 @@ where
     W: BlockWrite,
 {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
+        match self.state {
+            State::Running => {}
+            State::Closing => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "block writer is closing and can't accept more writes",
+                ));
+            }
+            State::Completed => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "block writer has already been closed",
+                ));
+            }
+            State::Aborting | State::Aborted => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "block writer has already been aborted",
+                ));
+            }
+        }
+
         if self.scheduled_block_ids.is_empty() && self.cache.is_none() {
             self.fill_cache(bs);
             return Ok(());
@@ -199,6 +236,24 @@ where
     }
 
     async fn close(&mut self) -> Result<Metadata> {
+        match self.state {
+            State::Running | State::Closing => {}
+            State::Completed => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "block writer has already been closed",
+                ));
+            }
+            State::Aborting | State::Aborted => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "block writer has already been aborted and can't be closed",
+                ));
+            }
+        }
+
+        self.state = State::Closing;
+
         if self.scheduled_block_ids.is_empty() {
             let (size, body) = match self.cache.clone() {
                 Some(cache) => (cache.len(), cache),
@@ -207,6 +262,7 @@ where
 
             let meta = self.w.write_once(size as u64, body).await?;
             self.cache = None;
+            self.state = State::Completed;
             return Ok(meta);
         }
 
@@ -227,20 +283,29 @@ where
         while self.tasks.next().await.transpose()?.is_some() {}
 
         let block_ids = self.scheduled_block_ids.clone();
-        self.w.complete_block(block_ids).await
+        let meta = self.w.complete_block(block_ids).await?;
+        self.scheduled_block_ids.clear();
+        self.state = State::Completed;
+        Ok(meta)
     }
 
     async fn abort(&mut self) -> Result<()> {
+        match self.state {
+            State::Completed | State::Aborted => return Ok(()),
+            State::Running | State::Closing | State::Aborting => {}
+        }
+
+        self.state = State::Aborting;
         self.tasks.clear();
         self.cache = None;
 
-        if self.scheduled_block_ids.is_empty() {
-            return Ok(());
+        if !self.scheduled_block_ids.is_empty() {
+            // Keep the IDs until the abort succeeds so a temporary failure can be retried.
+            self.w.abort_block(self.scheduled_block_ids.clone()).await?;
+            self.scheduled_block_ids.clear();
         }
 
-        // Keep the IDs until the abort succeeds so a temporary failure can be retried.
-        self.w.abort_block(self.scheduled_block_ids.clone()).await?;
-        self.scheduled_block_ids.clear();
+        self.state = State::Aborted;
         Ok(())
     }
 }
@@ -410,6 +475,10 @@ mod tests {
         aborted: Vec<Uuid>,
         abort_calls: Vec<Vec<Uuid>>,
         abort_failures: usize,
+        write_once_calls: usize,
+        write_once_content: Option<Buffer>,
+        complete_calls: Vec<Vec<Uuid>>,
+        complete_failures: usize,
         fail_write_on: Option<&'static [u8]>,
     }
 
@@ -430,7 +499,10 @@ mod tests {
     }
 
     impl BlockWrite for RecordingWrite {
-        async fn write_once(&self, _: u64, _: Buffer) -> Result<Metadata> {
+        async fn write_once(&self, _: u64, body: Buffer) -> Result<Metadata> {
+            let mut state = self.state.lock().expect("test state mutex poisoned");
+            state.write_once_calls += 1;
+            state.write_once_content = Some(body);
             Ok(MetadataBuilder::unknown().build())
         }
 
@@ -450,7 +522,15 @@ mod tests {
             Ok(())
         }
 
-        async fn complete_block(&self, _: Vec<Uuid>) -> Result<Metadata> {
+        async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<Metadata> {
+            let mut state = self.state.lock().expect("test state mutex poisoned");
+            state.complete_calls.push(block_ids);
+            if state.complete_failures > 0 {
+                state.complete_failures -= 1;
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "injected complete failure").set_temporary(),
+                );
+            }
             Ok(MetadataBuilder::unknown().build())
         }
 
@@ -623,5 +703,212 @@ mod tests {
         assert!(state.written.is_empty());
         assert!(state.abort_calls.is_empty());
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_block_writer_one_shot_double_close_does_not_overwrite() -> Result<()> {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let (inner, state) = RecordingWrite::new();
+            let mut w = BlockWriter::new(crate::test_executor(), inner, 2);
+
+            w.write(Buffer::from("hello")).await?;
+            w.close().await?;
+
+            let err = w
+                .close()
+                .await
+                .expect_err("second close must reject completed block writer");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let err = w
+                .write(Buffer::from("world"))
+                .await
+                .expect_err("write after close must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            w.abort().await?;
+
+            let state = state.lock().expect("test state mutex poisoned");
+            assert_eq!(state.write_once_calls, 1);
+            assert_eq!(
+                state.write_once_content.as_ref().map(|b| b.to_bytes()),
+                Some(bytes::Bytes::from_static(b"hello"))
+            );
+            assert!(state.complete_calls.is_empty());
+            assert!(state.abort_calls.is_empty());
+            Ok::<(), Error>(())
+        })
+        .await
+        .expect("test timed out")
+    }
+
+    #[tokio::test]
+    async fn test_block_writer_abort_rejects_close_and_write() -> Result<()> {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            // Abort before any block is scheduled (cached one-shot path).
+            let (inner, state) = RecordingWrite::new();
+            let mut w = BlockWriter::new(crate::test_executor(), inner, 2);
+            w.write(Buffer::from("cached")).await?;
+            w.abort().await?;
+            w.abort().await?;
+
+            let err = w.close().await.expect_err("close after abort must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let err = w
+                .write(Buffer::from("more"))
+                .await
+                .expect_err("write after abort must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            {
+                let state = state.lock().expect("test state mutex poisoned");
+                assert_eq!(state.write_once_calls, 0);
+                assert!(state.complete_calls.is_empty());
+                assert!(state.abort_calls.is_empty());
+            }
+
+            // Abort after scheduling blocks (multi-block path).
+            let (inner, state) = RecordingWrite::new();
+            let mut w = BlockWriter::new(crate::test_executor(), inner, 1);
+            w.write(Buffer::from("a")).await?;
+            w.write(Buffer::from("b")).await?;
+            w.abort().await?;
+            w.abort().await?;
+
+            let err = w.close().await.expect_err("close after abort must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let err = w
+                .write(Buffer::from("c"))
+                .await
+                .expect_err("write after abort must fail without panicking");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let state = state.lock().expect("test state mutex poisoned");
+            assert_eq!(state.write_once_calls, 0);
+            assert!(state.complete_calls.is_empty());
+            assert_eq!(state.abort_calls.len(), 1);
+            Ok::<(), Error>(())
+        })
+        .await
+        .expect("test timed out")
+    }
+
+    #[tokio::test]
+    async fn test_block_writer_failed_abort_blocks_write_and_close_without_panic() -> Result<()> {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let (inner, state) = RecordingWrite::new();
+            let mut w = BlockWriter::new(crate::test_executor(), inner, 1);
+
+            w.write(Buffer::from("a")).await?;
+            w.write(Buffer::from("b")).await?;
+            w.write(Buffer::from("c")).await?;
+
+            let written = state
+                .lock()
+                .expect("test state mutex poisoned")
+                .written
+                .clone();
+            assert_eq!(written.len(), 2);
+
+            state
+                .lock()
+                .expect("test state mutex poisoned")
+                .abort_failures = 1;
+
+            let err = w
+                .abort()
+                .await
+                .expect_err("first abort must fail transiently");
+            assert!(err.is_temporary());
+
+            let err = w
+                .write(Buffer::from("d"))
+                .await
+                .expect_err("write after failed abort must fail without panicking");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let err = w
+                .close()
+                .await
+                .expect_err("close after failed abort must not commit truncated blocks");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            w.abort().await?;
+            w.abort().await?;
+
+            let state = state.lock().expect("test state mutex poisoned");
+            assert!(state.complete_calls.is_empty());
+            assert_eq!(state.write_once_calls, 0);
+            assert_eq!(state.abort_calls, vec![written.clone(), written]);
+            Ok::<(), Error>(())
+        })
+        .await
+        .expect("test timed out")
+    }
+
+    #[tokio::test]
+    async fn test_block_writer_multi_block_close_retry_and_post_close_guards() -> Result<()> {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let (inner, state) = RecordingWrite::new();
+            state
+                .lock()
+                .expect("test state mutex poisoned")
+                .complete_failures = 1;
+            let mut w = BlockWriter::new(crate::test_executor(), inner, 1);
+
+            w.write(Buffer::from("a")).await?;
+            w.write(Buffer::from("b")).await?;
+
+            let err = w
+                .close()
+                .await
+                .expect_err("first complete_block must fail transiently");
+            assert!(err.is_temporary());
+
+            let err = w
+                .write(Buffer::from("c"))
+                .await
+                .expect_err("write after failed multi-block close must fail without panicking");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            w.close().await?;
+
+            let err = w
+                .write(Buffer::from("d"))
+                .await
+                .expect_err("write after completed multi-block close must fail without panicking");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let err = w
+                .close()
+                .await
+                .expect_err("second close after completed multi-block close must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            w.abort().await?;
+
+            let state = state.lock().expect("test state mutex poisoned");
+            assert_eq!(state.write_once_calls, 0);
+            assert_eq!(state.complete_calls.len(), 2);
+            assert_eq!(state.complete_calls[0].len(), 2);
+            assert_eq!(state.complete_calls[0], state.complete_calls[1]);
+            assert!(state.abort_calls.is_empty());
+            Ok::<(), Error>(())
+        })
+        .await
+        .expect("test timed out")
     }
 }

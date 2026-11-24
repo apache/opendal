@@ -156,6 +156,19 @@ struct WriteInput<W: MultipartWrite> {
     input: MultipartInput,
 }
 
+enum State {
+    /// The writer is active and can accept writes, copies, close, or abort.
+    Running,
+    /// A close has been initiated and can be retried or aborted.
+    Closing,
+    /// An abort has been requested and server-side cleanup is pending retry.
+    Aborting,
+    /// The writer completed and committed the object.
+    Completed,
+    /// The writer was aborted and any intermediate state was cleaned up.
+    Aborted,
+}
+
 /// MultipartWriter will implement [`oio::Write`] based on multipart
 /// uploads.
 pub struct MultipartWriter<W: MultipartWrite> {
@@ -166,6 +179,7 @@ pub struct MultipartWriter<W: MultipartWrite> {
     parts: Vec<MultipartPart>,
     cache: Option<Buffer>,
     next_part_number: usize,
+    state: State,
 
     tasks: ConcurrentTasks<WriteInput<W>, MultipartPart>,
 }
@@ -185,6 +199,7 @@ impl<W: MultipartWrite> MultipartWriter<W> {
             parts: Vec::new(),
             cache: None,
             next_part_number: 0,
+            state: State::Running,
 
             tasks: ConcurrentTasks::new(executor, concurrent, 0, |input| {
                 Box::pin({
@@ -281,6 +296,28 @@ where
     W: MultipartWrite,
 {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
+        match self.state {
+            State::Running => {}
+            State::Closing => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "multipart writer is closing and can't accept more writes",
+                ));
+            }
+            State::Completed => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "multipart writer has already been closed",
+                ));
+            }
+            State::Aborting | State::Aborted => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "multipart writer has already been aborted",
+                ));
+            }
+        }
+
         if self.cache.is_none() {
             self.fill_cache(bs);
             return Ok(());
@@ -296,6 +333,28 @@ where
     }
 
     async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        match self.state {
+            State::Running => {}
+            State::Closing => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "multipart writer is closing and can't accept more writes",
+                ));
+            }
+            State::Completed => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "multipart writer has already been closed",
+                ));
+            }
+            State::Aborting | State::Aborted => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "multipart writer has already been aborted",
+                ));
+            }
+        }
+
         if range.is_suffix() || range.size().is_none() {
             return Err(Error::new(
                 ErrorKind::Unexpected,
@@ -322,6 +381,24 @@ where
     }
 
     async fn close(&mut self) -> Result<Metadata> {
+        match self.state {
+            State::Running | State::Closing => {}
+            State::Completed => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "multipart writer has already been closed",
+                ));
+            }
+            State::Aborting | State::Aborted => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "multipart writer has already been aborted and can't be closed",
+                ));
+            }
+        }
+
+        self.state = State::Closing;
+
         let upload_id = match self.upload_id.clone() {
             Some(v) => v,
             None => {
@@ -332,8 +409,10 @@ where
 
                 // Call write_once if there is no upload_id.
                 let meta = self.w.write_once(size as u64, body).await?;
-                // make sure to clear the cache only after write_once succeeds; otherwise, retries may fail.
+                // Clear cache and mark completed only after write_once succeeds;
+                // otherwise a temporary failure can still be retried.
                 self.cache = None;
+                self.state = State::Completed;
                 return Ok(meta);
             }
         };
@@ -360,24 +439,34 @@ where
             .with_context("actual", self.parts.len())
             .with_context("upload_id", upload_id));
         }
-        self.w.complete_part(&upload_id, &self.parts).await
+        let meta = self.w.complete_part(&upload_id, &self.parts).await?;
+        self.upload_id = None;
+        self.parts.clear();
+        self.next_part_number = 0;
+        self.state = State::Completed;
+        Ok(meta)
     }
 
     async fn abort(&mut self) -> Result<()> {
+        match self.state {
+            State::Completed | State::Aborted => return Ok(()),
+            State::Running | State::Closing | State::Aborting => {}
+        }
+
+        self.state = State::Aborting;
         self.tasks.clear();
         self.cache = None;
 
-        let Some(upload_id) = self.upload_id.clone() else {
-            return Ok(());
-        };
-
-        // Keep the upload id and part bookkeeping until the abort succeeds so a
-        // temporary failure can be retried.
-        self.w.abort_part(&upload_id).await?;
+        if let Some(upload_id) = self.upload_id.clone() {
+            // Keep the upload id and part bookkeeping until the abort succeeds so a
+            // temporary failure can be retried.
+            self.w.abort_part(&upload_id).await?;
+        }
 
         self.upload_id = None;
         self.parts.clear();
         self.next_part_number = 0;
+        self.state = State::Aborted;
         Ok(())
     }
 }
@@ -396,9 +485,13 @@ mod tests {
     struct TestWrite {
         upload_id: String,
         part_numbers: Vec<usize>,
+        completed_parts: Vec<usize>,
         length: u64,
         content: Option<Buffer>,
         fail_randomly: bool,
+        write_once_calls: usize,
+        complete_calls: usize,
+        complete_failures: usize,
         abort_calls: usize,
         abort_failures: usize,
     }
@@ -424,9 +517,13 @@ mod tests {
             let v = Self {
                 upload_id: uuid::Uuid::new_v4().to_string(),
                 part_numbers: Vec::new(),
+                completed_parts: Vec::new(),
                 length: 0,
                 content: None,
                 fail_randomly,
+                write_once_calls: 0,
+                complete_calls: 0,
+                complete_failures: 0,
                 abort_calls: 0,
                 abort_failures,
             };
@@ -446,6 +543,7 @@ mod tests {
             }
 
             let mut this = self.lock().await;
+            this.write_once_calls += 1;
             this.length = size;
             this.content = Some(body);
             Ok({
@@ -522,9 +620,19 @@ mod tests {
             upload_id: &str,
             parts: &[MultipartPart],
         ) -> Result<Metadata> {
-            let test = self.lock().await;
+            let mut test = self.lock().await;
             assert_eq!(upload_id, test.upload_id);
             assert_eq!(parts.len(), test.part_numbers.len());
+            test.complete_calls += 1;
+
+            if test.complete_failures > 0 {
+                test.complete_failures -= 1;
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "transient complete failure").set_temporary(),
+                );
+            }
+
+            test.completed_parts = parts.iter().map(|v| v.part_number).collect();
 
             Ok({
                 let mut metadata = MetadataBuilder::unknown();
@@ -609,12 +717,12 @@ mod tests {
             }
         }
 
-        let actual_parts: Vec<_> = w.parts.into_iter().map(|v| v.part_number).collect();
+        let inner = w.w.lock().await;
         let expected_parts: Vec<_> = (0..1000).collect();
-        assert_eq!(actual_parts, expected_parts);
-
-        let actual_size = w.w.lock().await.length;
-        assert_eq!(actual_size, total_size);
+        assert_eq!(inner.completed_parts, expected_parts);
+        assert_eq!(inner.length, total_size);
+        assert!(w.upload_id.is_none());
+        assert!(w.parts.is_empty());
     }
 
     #[tokio::test]
@@ -650,23 +758,33 @@ mod tests {
 
     #[tokio::test]
     async fn test_multipart_writer_abort_clears_cache_before_upload_starts() -> Result<()> {
-        let inner = TestWrite::new_stable();
-        let mut writer = MultipartWriter::new(Executor::default(), inner.clone(), 1);
+        timeout(Duration::from_secs(5), async {
+            let inner = TestWrite::new_stable();
+            let mut writer = MultipartWriter::new(Executor::default(), inner.clone(), 1);
 
-        writer.write(Buffer::from("aborted")).await?;
-        writer.abort().await?;
+            writer.write(Buffer::from("aborted")).await?;
+            writer.abort().await?;
 
-        assert!(writer.cache.is_none(), "abort must clear buffered data");
-        assert!(writer.upload_id.is_none());
-        assert!(writer.parts.is_empty());
-        assert_eq!(writer.next_part_number, 0);
+            assert!(writer.cache.is_none(), "abort must clear buffered data");
+            assert!(writer.upload_id.is_none());
+            assert!(writer.parts.is_empty());
+            assert_eq!(writer.next_part_number, 0);
 
-        writer.close().await?;
+            let err = writer
+                .close()
+                .await
+                .expect_err("close after abort must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
 
-        let inner = inner.lock().await;
-        assert_eq!(inner.length, 0, "close must not commit aborted data");
-        assert_eq!(inner.content.as_ref().map(Buffer::len), Some(0));
-        Ok(())
+            let inner = inner.lock().await;
+            assert_eq!(inner.write_once_calls, 0);
+            assert_eq!(inner.length, 0, "close must not commit aborted data");
+            assert!(inner.content.is_none());
+            Ok::<(), Error>(())
+        })
+        .await
+        .expect("test timed out")
     }
 
     #[tokio::test]
@@ -724,5 +842,169 @@ mod tests {
         assert_eq!(metadata.content_length(), 7 + 11 + 7 + 13);
         assert_eq!(inner.lock().await.part_numbers, vec![0, 1, 2, 3]);
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_multipart_writer_one_shot_double_close_does_not_overwrite() -> Result<()> {
+        timeout(Duration::from_secs(5), async {
+            let inner = TestWrite::new_stable();
+            let mut writer = MultipartWriter::new(Executor::default(), inner.clone(), 1);
+
+            writer.write(Buffer::from("hello")).await?;
+            let meta = writer.close().await?;
+            assert_eq!(meta.content_length(), 5);
+
+            let err = writer
+                .close()
+                .await
+                .expect_err("second close must reject completed writer");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let err = writer
+                .write(Buffer::from("world"))
+                .await
+                .expect_err("write after close must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let err = writer
+                .copy_from("source", OpRead::new(), BytesRange::new(0, Some(4)))
+                .await
+                .expect_err("copy_from after close must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            writer.abort().await?;
+
+            let inner = inner.lock().await;
+            assert_eq!(inner.write_once_calls, 1);
+            assert_eq!(inner.length, 5);
+            assert_eq!(
+                inner.content.as_ref().map(|b| b.to_bytes()),
+                Some(bytes::Bytes::from_static(b"hello"))
+            );
+            assert_eq!(inner.abort_calls, 0);
+            Ok::<(), Error>(())
+        })
+        .await
+        .expect("test timed out")
+    }
+
+    #[tokio::test]
+    async fn test_multipart_writer_multipart_close_retry_and_post_close_guards() -> Result<()> {
+        timeout(Duration::from_secs(5), async {
+            let inner = TestWrite::new_stable();
+            inner.lock().await.complete_failures = 1;
+            let mut writer = MultipartWriter::new(Executor::default(), inner.clone(), 1);
+
+            writer.write(Buffer::from("first")).await?;
+            writer.write(Buffer::from("second")).await?;
+
+            let err = writer
+                .close()
+                .await
+                .expect_err("first complete_part must fail transiently");
+            assert!(err.is_temporary());
+
+            let err = writer
+                .write(Buffer::from("third"))
+                .await
+                .expect_err("write while closing must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let err = writer
+                .copy_from("source", OpRead::new(), BytesRange::new(0, Some(4)))
+                .await
+                .expect_err("copy_from while closing must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let meta = writer.close().await?;
+            assert_eq!(meta.content_length(), 11);
+            assert!(writer.upload_id.is_none());
+            assert!(writer.parts.is_empty());
+
+            let err = writer
+                .close()
+                .await
+                .expect_err("close after completed multipart upload must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let err = writer
+                .write(Buffer::from("fourth"))
+                .await
+                .expect_err("write after completed multipart upload must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            writer.abort().await?;
+
+            let inner = inner.lock().await;
+            assert_eq!(inner.write_once_calls, 0);
+            assert_eq!(inner.complete_calls, 2);
+            assert_eq!(inner.abort_calls, 0);
+            Ok::<(), Error>(())
+        })
+        .await
+        .expect("test timed out")
+    }
+
+    #[tokio::test]
+    async fn test_multipart_writer_failed_abort_rejects_write_copy_and_close() -> Result<()> {
+        timeout(Duration::from_secs(5), async {
+            let inner = TestWrite::new_stable_with_abort_failures(1);
+            let mut writer = MultipartWriter::new(Executor::default(), inner.clone(), 1);
+
+            writer.write(Buffer::from("first")).await?;
+            writer.write(Buffer::from("second")).await?;
+
+            let err = writer
+                .abort()
+                .await
+                .expect_err("first abort must fail transiently");
+            assert!(err.is_temporary());
+
+            let err = writer
+                .write(Buffer::from("third"))
+                .await
+                .expect_err("write after failed abort must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let err = writer
+                .copy_from("source", OpRead::new(), BytesRange::new(0, Some(4)))
+                .await
+                .expect_err("copy_from after failed abort must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let err = writer
+                .close()
+                .await
+                .expect_err("close after failed abort must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            writer.abort().await?;
+            writer.abort().await?;
+
+            let err = writer
+                .close()
+                .await
+                .expect_err("close after completed abort must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_permanent());
+
+            let inner = inner.lock().await;
+            assert_eq!(inner.abort_calls, 2);
+            assert_eq!(inner.complete_calls, 0);
+            assert_eq!(inner.write_once_calls, 0);
+            Ok::<(), Error>(())
+        })
+        .await
+        .expect("test timed out")
     }
 }

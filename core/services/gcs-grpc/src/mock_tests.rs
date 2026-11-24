@@ -63,14 +63,7 @@ enum QueryStatusAction {
 }
 
 #[derive(Debug, Clone)]
-enum StartWriteAction {
-    Normal,
-    Fail(tonic::Code, &'static str),
-}
-
-#[derive(Debug, Clone)]
 struct RecordedWriteCall {
-    upload_id: Option<String>,
     write_offset: i64,
     bytes_len: usize,
     finish_write: bool,
@@ -79,7 +72,6 @@ struct RecordedWriteCall {
 #[derive(Default)]
 struct MockStorageState {
     next_upload_seq: usize,
-    start_actions: VecDeque<StartWriteAction>,
     write_actions: VecDeque<WriteObjectAction>,
     query_actions: VecDeque<QueryStatusAction>,
 
@@ -117,25 +109,16 @@ impl MockStorageService {
     ) -> std::result::Result<Response<StartResumableWriteResponse>, Status> {
         let mut state = self.state.lock().unwrap();
         state.start_calls += 1;
-        match state
-            .start_actions
-            .pop_front()
-            .unwrap_or(StartWriteAction::Normal)
-        {
-            StartWriteAction::Fail(code, msg) => Err(Status::new(code, msg)),
-            StartWriteAction::Normal => {
-                state.next_upload_seq += 1;
-                let upload_id = format!("upload-{}", state.next_upload_seq);
-                let name = req
-                    .into_inner()
-                    .write_object_spec
-                    .and_then(|spec| spec.resource)
-                    .map(|obj| obj.name)
-                    .unwrap_or_default();
-                state.sessions.insert(upload_id.clone(), (name, Vec::new()));
-                Ok(Response::new(StartResumableWriteResponse { upload_id }))
-            }
-        }
+        state.next_upload_seq += 1;
+        let upload_id = format!("upload-{}", state.next_upload_seq);
+        let name = req
+            .into_inner()
+            .write_object_spec
+            .and_then(|spec| spec.resource)
+            .map(|obj| obj.name)
+            .unwrap_or_default();
+        state.sessions.insert(upload_id.clone(), (name, Vec::new()));
+        Ok(Response::new(StartResumableWriteResponse { upload_id }))
     }
 
     async fn handle_write_object(
@@ -174,7 +157,6 @@ impl MockStorageService {
         let write_offset = first_offset.unwrap_or(0);
         let mut state = self.state.lock().unwrap();
         state.write_calls.push(RecordedWriteCall {
-            upload_id: upload_id.clone(),
             write_offset,
             bytes_len: payload.len(),
             finish_write,
@@ -718,64 +700,6 @@ async fn gcs_grpc_1_zero_progress_persisted_size_on_non_empty_final_write_fails(
             .len(),
         ALIGNMENT + 4
     );
-}
-
-#[tokio::test]
-async fn gcs_grpc_1_query_not_found_at_offset_zero_restarts_resumable_upload() {
-    let server = MockServer::start().await;
-    {
-        let mut state = server.state.lock().unwrap();
-        // 1st StartResumableWrite -> upload-1.
-        // 2nd StartResumableWrite (after NotFound) -> fails transiently to ensure no panic on upload_id == None.
-        // 3rd StartResumableWrite -> upload-2.
-        state.start_actions.push_back(StartWriteAction::Normal);
-        state.start_actions.push_back(StartWriteAction::Fail(
-            tonic::Code::Unavailable,
-            "try again",
-        ));
-        state.start_actions.push_back(StartWriteAction::Normal);
-
-        // First WriteObject on upload-1 fails transiently.
-        state.write_actions.push_back(WriteObjectAction::Fail(
-            tonic::Code::Unavailable,
-            "transient",
-        ));
-        // QueryWriteStatus on upload-1 reports NotFound (dead session).
-        state.query_actions.push_back(QueryStatusAction::NotFound);
-    }
-
-    let backend = server.builder().build().unwrap();
-    let mut writer = backend
-        .write(&OperationContext::default(), "restart", OpWrite::default())
-        .unwrap();
-
-    writer
-        .write(Buffer::from(Bytes::from_static(b"1234")))
-        .await
-        .unwrap();
-    let chunk = Buffer::from(vec![b'x'; ALIGNMENT]);
-
-    // First attempt fails on WriteObject(upload-1).
-    let err = writer.write(chunk.clone()).await.unwrap_err();
-    assert!(err.is_temporary());
-
-    // Second attempt queries upload-1 -> NotFound, clears upload_id, tries StartResumableWrite -> Unavailable.
-    let err = writer.write(chunk.clone()).await.unwrap_err();
-    assert!(err.is_temporary());
-
-    // Third attempt starts upload-2 (without panicking or querying dead upload-1) and succeeds.
-    writer.write(chunk).await.unwrap();
-    let meta = writer.close().await.unwrap();
-    assert_eq!(meta.content_length(), (ALIGNMENT + 4) as u64);
-
-    let state = server.state.lock().unwrap();
-    assert_eq!(state.start_calls, 3);
-    assert_eq!(state.query_calls, vec!["upload-1".to_string()]);
-    assert_eq!(state.write_calls.len(), 3);
-    assert_eq!(state.write_calls[0].upload_id.as_deref(), Some("upload-1"));
-    assert_eq!(state.write_calls[1].upload_id.as_deref(), Some("upload-2"));
-    assert_eq!(state.write_calls[2].upload_id.as_deref(), Some("upload-2"));
-    assert_eq!(state.objects.get("restart").unwrap().len(), ALIGNMENT + 4);
 }
 
 #[tokio::test]

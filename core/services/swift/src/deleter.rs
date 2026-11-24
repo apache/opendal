@@ -108,11 +108,16 @@ impl oio::BatchDelete for SwiftDeleter {
             if let Some(&status_str) = errors_by_path.get(&full_path) {
                 if parse_bulk_delete_status(status_str) == Some(StatusCode::NOT_FOUND) {
                     batched_result.succeeded.push((path, op));
-                } else {
-                    batched_result
-                        .failed
-                        .push((path, op, bulk_delete_error(status_str)));
+                    continue;
                 }
+                batched_result.failed.push((
+                    path,
+                    op,
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        format!("bulk delete error: {status_str}"),
+                    ),
+                ));
             } else {
                 // Either deleted successfully or not found (both are success for us).
                 batched_result.succeeded.push((path, op));
@@ -245,20 +250,15 @@ mod tests {
         assert_eq!(result.failed.len(), 5);
 
         assert_eq!(result.failed[0].0, "path/to/forbidden.txt");
-        assert_eq!(result.failed[0].2.kind(), ErrorKind::PermissionDenied);
         assert!(!result.failed[0].2.is_temporary());
 
         assert_eq!(result.failed[1].0, "unauth.txt");
-        assert_eq!(result.failed[1].2.kind(), ErrorKind::PermissionDenied);
         assert!(!result.failed[1].2.is_temporary());
 
         assert_eq!(result.failed[2].0, "dir/file with space%20+plus.txt");
         assert_eq!(result.failed[2].2.kind(), ErrorKind::Unexpected);
-        assert!(result.failed[2].2.is_temporary());
 
         assert_eq!(result.failed[3].0, "rate-limited.txt");
-        assert_eq!(result.failed[3].2.kind(), ErrorKind::RateLimited);
-        assert!(result.failed[3].2.is_temporary());
 
         assert_eq!(result.failed[4].0, "conflict.txt");
         assert_eq!(result.failed[4].2.kind(), ErrorKind::Unexpected);

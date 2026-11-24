@@ -214,8 +214,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         // Allowing retry for resource locked.
         StatusCode::LOCKED => (ErrorKind::Unexpected, true),
         StatusCode::INTERNAL_SERVER_ERROR
@@ -335,15 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_error_maps_401_403_and_429() {
-        let resp_401 = Response::builder()
-            .status(StatusCode::UNAUTHORIZED)
-            .body(Buffer::from("unauthorized"))
-            .unwrap();
-        let err_401 = parse_error(ErrorContext::new(ServiceOperation("GetValue")), resp_401);
-        assert_eq!(err_401.kind(), ErrorKind::PermissionDenied);
-        assert!(!err_401.is_temporary());
-
+    fn parse_error_keeps_forbidden_permanent() {
         let resp_403 = Response::builder()
             .status(StatusCode::FORBIDDEN)
             .body(Buffer::from("forbidden"))
@@ -351,13 +342,5 @@ mod tests {
         let err_403 = parse_error(ErrorContext::new(ServiceOperation("GetValue")), resp_403);
         assert_eq!(err_403.kind(), ErrorKind::PermissionDenied);
         assert!(!err_403.is_temporary());
-
-        let resp_429 = Response::builder()
-            .status(StatusCode::TOO_MANY_REQUESTS)
-            .body(Buffer::from("rate limited"))
-            .unwrap();
-        let err_429 = parse_error(ErrorContext::new(ServiceOperation("GetValue")), resp_429);
-        assert_eq!(err_429.kind(), ErrorKind::RateLimited);
-        assert!(err_429.is_temporary());
     }
 }

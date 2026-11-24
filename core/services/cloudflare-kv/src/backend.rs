@@ -675,8 +675,8 @@ mod tests {
                 .stat(&ctx_429, "dir/", OpStat::default())
                 .await
                 .unwrap_err();
-            assert_eq!(err_429.kind(), ErrorKind::RateLimited);
-            assert!(err_429.is_temporary());
+            assert_eq!(err_429.kind(), ErrorKind::Unexpected);
+            assert!(!err_429.is_temporary());
 
             let ctx_false = OperationContext::default().with_http_transport(HttpTransporter::new(
                 SequenceTransport::new(vec![

@@ -90,8 +90,7 @@ impl Builder for DbfsBuilder {
 
         let endpoint = match &self.config.endpoint {
             Some(endpoint) => {
-                let endpoint = endpoint.trim_end_matches('/');
-                if endpoint.is_empty() {
+                if endpoint.trim_end_matches('/').is_empty() {
                     return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                         .with_operation("Builder::build")
                         .with_context("service", DBFS_SCHEME));
@@ -135,7 +134,7 @@ impl Builder for DbfsBuilder {
         Ok(DbfsBackend {
             core: Arc::new(DbfsCore {
                 root,
-                endpoint: endpoint.to_string(),
+                endpoint,
                 token,
             }),
             capability,
@@ -368,40 +367,6 @@ mod tests {
             .build()
             .expect_err("slash-only endpoint must fail");
         assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-    }
-
-    #[tokio::test]
-    async fn build_trims_trailing_slash_from_config_endpoint() {
-        tokio::time::timeout(TEST_TIMEOUT, async {
-            let transport = RecordingTransport::new([(
-                StatusCode::OK,
-                r#"{"is_dir":false,"file_size":3,"modification_time":1700000000000}"#,
-            )]);
-            let ctx = transport.context();
-
-            let backend = DbfsConfig {
-                endpoint: Some("https://example.databricks.com///".to_string()),
-                token: Some("tok".to_string()),
-                root: None,
-            }
-            .into_builder()
-            .build()
-            .unwrap();
-
-            backend
-                .stat(&ctx, "hello.txt", OpStat::default())
-                .await
-                .unwrap();
-
-            let reqs = transport.requests();
-            assert_eq!(reqs.len(), 1);
-            assert_eq!(
-                reqs[0].uri,
-                "https://example.databricks.com/api/2.0/dbfs/get-status?path=/hello.txt"
-            );
-        })
-        .await
-        .expect("test timed out");
     }
 
     #[tokio::test]

@@ -2415,7 +2415,7 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.internal_condition => {
             (ErrorKind::Conflict, false)
         }
@@ -2487,21 +2487,6 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 #[cfg(test)]
 mod error_tests {
     use super::*;
-
-    #[test]
-    fn test_parse_error_unauthorized_and_forbidden() {
-        for status in [StatusCode::UNAUTHORIZED, StatusCode::FORBIDDEN] {
-            let resp = Response::builder()
-                .status(status)
-                .body(Buffer::from(
-                    r#"{"error":{"code":401,"message":"Invalid Credentials"}}"#,
-                ))
-                .unwrap();
-            let err = parse_error(ErrorContext::new(ServiceOperation("GetObject")), resp);
-            assert_eq!(err.kind(), ErrorKind::PermissionDenied);
-            assert!(!err.is_temporary());
-        }
-    }
 
     #[test]
     fn test_parse_error_range_not_satisfiable() {

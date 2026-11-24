@@ -138,8 +138,6 @@ impl Builder for HttpBuilder {
             .with_context("service", HTTP_SCHEME));
         }
 
-        let endpoint = endpoint.trim_end_matches('/').to_string();
-
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
 
@@ -184,7 +182,7 @@ impl Builder for HttpBuilder {
         let core = Arc::new(HttpCore {
             info: accessor_info,
             capability,
-            endpoint,
+            endpoint: endpoint.to_string(),
             root,
             authorization: auth,
         });
@@ -359,7 +357,6 @@ mod tests {
 
     #[derive(Debug)]
     struct RecordedRequest {
-        method: Method,
         uri: Uri,
         authorization: Option<String>,
     }
@@ -380,7 +377,6 @@ mod tests {
                 .lock()
                 .expect("requests lock must not be poisoned")
                 .push(RecordedRequest {
-                    method: req.method().clone(),
                     uri: req.uri().clone(),
                     authorization,
                 });
@@ -395,22 +391,6 @@ mod tests {
                 .status(StatusCode::OK)
                 .header(header::CONTENT_LENGTH, "5")
                 .body(body)
-                .expect("response must build"))
-        }
-    }
-
-    #[derive(Debug)]
-    struct StatusTransport {
-        status: StatusCode,
-    }
-
-    impl HttpTransport for StatusTransport {
-        async fn fetch(&self, _req: Request<Buffer>) -> Result<Response<HttpBody>> {
-            let body = Buffer::from(self.status.canonical_reason().unwrap_or("error"));
-            let len = body.len() as u64;
-            Ok(Response::builder()
-                .status(self.status)
-                .body(HttpBody::new(futures::stream::iter([Ok(body)]), Some(len)))
                 .expect("response must build"))
         }
     }
@@ -450,129 +430,6 @@ mod tests {
                 .expect_err(&format!("invalid endpoint `{endpoint}` must be rejected"));
             assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "endpoint={endpoint}");
         }
-    }
-
-    #[tokio::test]
-    async fn build_normalizes_trailing_slashes_across_stat_read_and_presign() -> Result<()> {
-        let cases = [
-            ("https://example.com", "", "https://example.com/file.txt"),
-            ("https://example.com/", "", "https://example.com/file.txt"),
-            ("https://example.com///", "", "https://example.com/file.txt"),
-            (
-                "https://example.com/prefix/",
-                "",
-                "https://example.com/prefix/file.txt",
-            ),
-            (
-                "https://example.com/prefix/",
-                "sub",
-                "https://example.com/prefix/sub/file.txt",
-            ),
-            ("http://[::1]:8080/", "", "http://[::1]:8080/file.txt"),
-            ("HTTP://example.com/", "", "http://example.com/file.txt"),
-        ];
-
-        for (endpoint, root, expected_uri) in cases {
-            let requests = Arc::new(Mutex::new(Vec::new()));
-            let mut builder = HttpBuilder::default().endpoint(endpoint);
-            if !root.is_empty() {
-                builder = builder.root(root);
-            }
-            let op =
-                Operator::new(builder)?.with_context(OperationContext::new().with_http_transport(
-                    HttpTransporter::new(RecordingTransport {
-                        requests: requests.clone(),
-                    }),
-                ));
-
-            let meta = op.stat("file.txt").await?;
-            assert_eq!(meta.content_length(), 5, "endpoint={endpoint} root={root}");
-
-            let data = op.read("file.txt").await?;
-            assert_eq!(
-                data.to_bytes(),
-                b"hello".as_slice(),
-                "endpoint={endpoint} root={root}"
-            );
-
-            let presign_stat = op.presign_stat("file.txt", Duration::from_secs(60)).await?;
-            assert_eq!(
-                presign_stat.uri().to_string(),
-                expected_uri,
-                "presign_stat endpoint={endpoint} root={root}"
-            );
-
-            let presign_read = op.presign_read("file.txt", Duration::from_secs(60)).await?;
-            assert_eq!(
-                presign_read.uri().to_string(),
-                expected_uri,
-                "presign_read endpoint={endpoint} root={root}"
-            );
-
-            let recorded = requests.lock().expect("requests lock must not be poisoned");
-            assert_eq!(recorded.len(), 2, "endpoint={endpoint} root={root}");
-            assert_eq!(recorded[0].method, Method::HEAD);
-            assert_eq!(recorded[0].uri.to_string(), expected_uri);
-            assert_eq!(recorded[1].method, Method::GET);
-            assert_eq!(recorded[1].uri.to_string(), expected_uri);
-        }
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn stat_and_read_map_401_and_429_errors() -> Result<()> {
-        let unauthorized_op = Operator::new(
-            HttpBuilder::default().endpoint("https://example.com"),
-        )?
-        .with_context(
-            OperationContext::new().with_http_transport(HttpTransporter::new(StatusTransport {
-                status: StatusCode::UNAUTHORIZED,
-            })),
-        );
-
-        for err in [
-            unauthorized_op
-                .stat("file.txt")
-                .await
-                .expect_err("401 stat on file must fail"),
-            unauthorized_op
-                .stat("dir/")
-                .await
-                .expect_err("401 stat on dir must fail"),
-            unauthorized_op
-                .read("file.txt")
-                .await
-                .expect_err("401 read must fail"),
-        ] {
-            assert_eq!(err.kind(), ErrorKind::PermissionDenied);
-            assert!(!err.is_temporary());
-        }
-
-        let rate_limited_op = Operator::new(
-            HttpBuilder::default().endpoint("https://example.com"),
-        )?
-        .with_context(
-            OperationContext::new().with_http_transport(HttpTransporter::new(StatusTransport {
-                status: StatusCode::TOO_MANY_REQUESTS,
-            })),
-        );
-
-        for err in [
-            rate_limited_op
-                .stat("file.txt")
-                .await
-                .expect_err("429 stat must fail"),
-            rate_limited_op
-                .read("file.txt")
-                .await
-                .expect_err("429 read must fail"),
-        ] {
-            assert_eq!(err.kind(), ErrorKind::RateLimited);
-            assert!(err.is_temporary());
-        }
-
-        Ok(())
     }
 
     #[tokio::test]

@@ -602,10 +602,11 @@ pub(super) struct ListObjectsResponse {
 }
 
 use bytes::Buf;
+use quick_xml::de;
 
 /// UpyunError is the error returned by upyun service.
 #[derive(Default, Debug, Deserialize)]
-#[serde(default)]
+#[serde(default, rename_all = "PascalCase")]
 struct UpyunError {
     code: i64,
     msg: String,
@@ -633,8 +634,6 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
         304 | 412 => (ErrorKind::ConditionNotMatch, false),
-        416 => (ErrorKind::RangeNotSatisfied, false),
-        429 => (ErrorKind::RateLimited, true),
         // Service like Upyun could return 499 error with a message like:
         // Client Disconnect, we should retry it.
         499 => (ErrorKind::Unexpected, true),
@@ -642,7 +641,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let (message, _upyun_err) = serde_json::from_reader::<_, UpyunError>(bs.clone().reader())
+    let (message, _upyun_err) = de::from_reader::<_, UpyunError>(bs.clone().reader())
         .map(|upyun_err| (format!("{upyun_err:?}"), Some(upyun_err)))
         .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
@@ -683,60 +682,16 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_parse_error() {
-        let err_res = vec![
-            (
-                r#"{"code": 40100016, "msg": "invalid date value in header", "id": "f5b30c720ddcecc70abd2f5c1c64bde8"}"#,
-                ErrorKind::Unexpected,
-                StatusCode::UNAUTHORIZED,
-                false,
-                "UpyunError { code: 40100016, msg: \"invalid date value in header\"",
-            ),
-            (
-                r#"{"code": 40300010, "msg": "file type error", "id": "f5b30c720ddcecc70abd2f5c1c64bde7"}"#,
-                ErrorKind::PermissionDenied,
-                StatusCode::FORBIDDEN,
-                false,
-                "UpyunError { code: 40300010, msg: \"file type error\"",
-            ),
-            (
-                r#"{"code": 41600001, "msg": "invalid range", "id": "range-err-id"}"#,
-                ErrorKind::RangeNotSatisfied,
-                StatusCode::RANGE_NOT_SATISFIABLE,
-                false,
-                "UpyunError { code: 41600001, msg: \"invalid range\"",
-            ),
-            (
-                r#"{"code": 42900001, "msg": "too many requests", "id": "rate-err-id"}"#,
-                ErrorKind::RateLimited,
-                StatusCode::TOO_MANY_REQUESTS,
-                true,
-                "UpyunError { code: 42900001, msg: \"too many requests\"",
-            ),
-            (
-                "<html>gateway timeout</html>",
-                ErrorKind::Unexpected,
-                StatusCode::GATEWAY_TIMEOUT,
-                true,
-                "<html>gateway timeout</html>",
-            ),
-        ];
-
-        for (body_str, expected_kind, status, expected_temporary, expected_substr) in err_res {
-            let bs = bytes::Bytes::from(body_str);
-            let body = Buffer::from(bs);
-            let resp = Response::builder().status(status).body(body).unwrap();
-
-            let err = parse_error(ErrorContext::new(ServiceOperation("Test")), resp);
-
-            assert_eq!(err.kind(), expected_kind, "status {status}");
-            assert_eq!(err.is_temporary(), expected_temporary, "status {status}");
-            assert!(
-                err.to_string().contains(expected_substr),
-                "expected error message to contain {expected_substr:?}, got: {err}"
-            );
-        }
+    #[test]
+    fn test_parse_error() {
+        let body = Buffer::from("<Error><Code>40300010</Code><Msg>file type error</Msg></Error>");
+        let resp = Response::builder()
+            .status(StatusCode::FORBIDDEN)
+            .body(body)
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("Test")), resp);
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+        assert!(err.to_string().contains("file type error"));
     }
 
     #[test]

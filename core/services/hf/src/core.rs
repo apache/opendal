@@ -821,20 +821,7 @@ impl HfCore {
                         } else {
                             range
                         };
-                        let resp = match self.resolve(ctx, path, resolve_range, mode).await {
-                            Ok(resp) => resp,
-                            Err(err)
-                                if mode == HfDownloadMode::Xet
-                                    && err.kind() == ErrorKind::RangeNotSatisfied =>
-                            {
-                                // A 0-byte non-XET file rejects the `bytes=0-0`
-                                // probe with 416. Fall back to HTTP with the
-                                // caller's original range.
-                                *state = ResolvedFile::NotXet;
-                                continue;
-                            }
-                            Err(err) => return Err(err),
-                        };
+                        let resp = self.resolve(ctx, path, resolve_range, mode).await?;
                         let resp = match HfReadResponse::from_response(resp, mode).await? {
                             HfReadResponse::Xet(info) => {
                                 *state = ResolvedFile::Xet(info.clone());

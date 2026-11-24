@@ -331,14 +331,14 @@ mod tests {
             .delete_once("a".to_string(), OpDelete::default())
             .await
             .expect_err("ContainerNotFound must not be masked as Ok");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        assert_eq!(err.kind(), ErrorKind::NotFound);
         assert!(!err.is_temporary());
 
         let err = deleter
             .delete_once("a".to_string(), op_delete_if_match("\"etag\""))
             .await
             .expect_err("ContainerNotFound must not be masked as ConditionNotMatch");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        assert_eq!(err.kind(), ErrorKind::NotFound);
 
         let resource_not_found_deleter = deleter_with_transport(StaticTransport::new(
             StatusCode::NOT_FOUND,
@@ -496,7 +496,7 @@ content-type: application/xml\r\n\
             .await
             .err()
             .expect("ContainerNotFound in batch delete must not succeed");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        assert_eq!(err.kind(), ErrorKind::NotFound);
 
         let mixed = format!(
             "--{boundary}\r\n\
@@ -539,7 +539,7 @@ content-type: application/xml\r\n\
         assert_eq!(result.succeeded[0].0, "missing-blob");
         assert_eq!(result.failed.len(), 1);
         assert_eq!(result.failed[0].0, "missing-container");
-        assert_eq!(result.failed[0].2.kind(), ErrorKind::ConfigInvalid);
+        assert_eq!(result.failed[0].2.kind(), ErrorKind::NotFound);
 
         // Positional fallback when all parts omit Content-ID.
         let no_content_id = format!(

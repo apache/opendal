@@ -142,14 +142,14 @@ impl oio::PageList for CloudflareKvLister {
             ));
         }
 
-        let bs = resp.clone().into_body();
+        let bs = resp.into_body();
         let res: CfKvListResponse =
             serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
         if !res.success {
-            return Err(parse_error(
-                ErrorContext::new(ServiceOperation("ListKeys")),
-                resp,
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "Cloudflare KV list request failed",
             ));
         }
 

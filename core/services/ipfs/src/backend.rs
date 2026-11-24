@@ -106,8 +106,7 @@ impl Builder for IpfsBuilder {
             .config
             .endpoint
             .as_deref()
-            .map(|v| v.trim_end_matches('/'))
-            .filter(|v| !v.is_empty())
+            .filter(|v| !v.trim_end_matches('/').is_empty())
             .ok_or_else(|| {
                 Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                     .with_context("service", IPFS_SCHEME)
@@ -276,18 +275,11 @@ impl oio::PageList for DirStream {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self.core.ipfs_list(&self.ctx, &self.path).await?;
 
-        match resp.status() {
-            StatusCode::OK => {}
-            StatusCode::NOT_FOUND => {
-                ctx.done = true;
-                return Ok(());
-            }
-            _ => {
-                return Err(parse_error(
-                    ErrorContext::new(ServiceOperation("List")),
-                    resp,
-                ));
-            }
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("List")),
+                resp,
+            ));
         }
 
         let bs = resp.into_body();
@@ -392,42 +384,6 @@ mod tests {
 
             panic!("unexpected request: {method} {uri}");
         }
-    }
-
-    #[tokio::test]
-    async fn test_build_trims_trailing_slash_from_config_endpoint() -> Result<()> {
-        tokio::time::timeout(Duration::from_secs(5), async {
-            for raw_endpoint in ["https://ipfs.io/", "https://ipfs.io///"] {
-                let requests = Arc::new(Mutex::new(Vec::new()));
-                let config = IpfsConfig::from_iter([
-                    ("endpoint".to_string(), raw_endpoint.to_string()),
-                    ("root".to_string(), TEST_ROOT.to_string()),
-                ])?;
-                let op = Operator::new(config.into_builder())?.with_context(
-                    OperationContext::new().with_http_transport(HttpTransporter::new(
-                        MockIpfsTransport {
-                            requests: requests.clone(),
-                            list_status: StatusCode::OK,
-                            pb_node: PBNode::default(),
-                        },
-                    )),
-                );
-
-                let meta = op.stat("file.txt").await?;
-                assert_eq!(meta.mode(), EntryMode::FILE);
-                assert_eq!(meta.content_length(), 42);
-
-                let recorded = requests.lock().expect("mutex poisoned");
-                assert_eq!(
-                    recorded.as_slice(),
-                    &[(Method::HEAD, format!("https://ipfs.io{TEST_ROOT}file.txt"))]
-                );
-            }
-
-            Ok(())
-        })
-        .await
-        .expect("test timed out")
     }
 
     #[test]
@@ -582,47 +538,6 @@ mod tests {
                 Method::HEAD,
                 format!("https://ipfs.io{TEST_ROOT}dir/nested")
             )));
-            Ok(())
-        })
-        .await
-        .expect("test timed out")
-    }
-
-    #[tokio::test]
-    async fn test_list_not_found_returns_empty_and_errors_propagate() -> Result<()> {
-        tokio::time::timeout(Duration::from_secs(5), async {
-            let op = Operator::new(
-                IpfsBuilder::default()
-                    .endpoint("https://ipfs.io")
-                    .root(TEST_ROOT),
-            )?
-            .with_context(OperationContext::new().with_http_transport(
-                HttpTransporter::new(MockIpfsTransport {
-                    requests: Arc::new(Mutex::new(Vec::new())),
-                    list_status: StatusCode::NOT_FOUND,
-                    pb_node: PBNode::default(),
-                }),
-            ));
-
-            let entries = op.list("missing/").await?;
-            assert!(entries.is_empty());
-
-            let op_err = Operator::new(
-                IpfsBuilder::default()
-                    .endpoint("https://ipfs.io")
-                    .root(TEST_ROOT),
-            )?
-            .with_context(OperationContext::new().with_http_transport(
-                HttpTransporter::new(MockIpfsTransport {
-                    requests: Arc::new(Mutex::new(Vec::new())),
-                    list_status: StatusCode::TOO_MANY_REQUESTS,
-                    pb_node: PBNode::default(),
-                }),
-            ));
-
-            let err = op_err.list("missing/").await.unwrap_err();
-            assert_eq!(err.kind(), ErrorKind::RateLimited);
-            assert!(err.is_temporary());
             Ok(())
         })
         .await

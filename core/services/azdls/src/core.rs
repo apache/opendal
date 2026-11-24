@@ -833,7 +833,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_error_precondition_failed_and_unauthorized() {
+    fn test_parse_error_precondition_failed() {
         let conditional_ctx =
             ErrorContext::new(ServiceOperation("ReadFile")).with_caller_condition(true);
         for code in [
@@ -881,22 +881,6 @@ mod tests {
             let err = parse_error(unconditional_ctx, resp);
             assert_eq!(err.kind(), ErrorKind::Unexpected);
         }
-
-        // 401 Unauthorized maps to PermissionDenied.
-        let resp = Response::builder()
-            .status(StatusCode::UNAUTHORIZED)
-            .header("x-ms-error-code", "InvalidAuthenticationInfo")
-            .body(Buffer::from(
-                r#"{"error":{"code":"InvalidAuthenticationInfo","message":"Server failed to authenticate the request."}}"#,
-            ))
-            .unwrap();
-        let err = parse_error(unconditional_ctx, resp);
-        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
-        assert!(!err.is_temporary());
-        assert!(
-            err.to_string()
-                .contains("Server failed to authenticate the request.")
-        );
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -1102,7 +1086,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }

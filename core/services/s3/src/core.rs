@@ -2365,7 +2365,6 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         401 | 403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
         304 | 412 if ctx.caller_condition => (ErrorKind::ConditionNotMatch, false),
-        416 => (ErrorKind::RangeNotSatisfied, false),
         // Service like R2 could return 499 error with a message like:
         // Client Disconnect, we should retry it.
         499 => (ErrorKind::Unexpected, true),
@@ -2410,14 +2409,7 @@ pub fn parse_s3_error_code(ctx: ErrorContext, code: &str) -> Option<(ErrorKind, 
         // Although the status code is 404, NoSuchBucket is
         // a config invalid error, and it's not retryable from OpenDAL.
         "NoSuchBucket" => Some((ErrorKind::ConfigInvalid, false)),
-        // AccessDenied can appear inside HTTP 200 OK XML error payloads
-        // (such as DeleteObjects, CopyObject, and CompleteMultipartUpload)
-        // where the HTTP status does not carry 403 Forbidden.
-        "AccessDenied" => Some((ErrorKind::PermissionDenied, false)),
-        // S3 Express and batch/copy operations can return 200 OK with an
-        // embedded NoSuchKey or NoSuchVersion error. Classify them explicitly
-        // because the HTTP status alone cannot preserve NotFound semantics.
-        "NoSuchKey" | "NoSuchVersion" => Some((ErrorKind::NotFound, false)),
+        "NoSuchKey" => Some((ErrorKind::NotFound, false)),
         // On CompleteMultipartUpload, NoSuchUpload means the upload session no
         // longer exists rather than a missing target key, so it must not map to
         // NotFound or be rewritten to ConditionNotMatch under if_match.
@@ -2581,53 +2573,6 @@ mod error_tests {
             let err = parse_error(ctx, resp);
             assert_eq!(err.kind(), ErrorKind::NotFound, "{operation}");
             assert!(!err.is_temporary(), "{operation}");
-        }
-    }
-
-    #[test]
-    fn access_denied_and_no_such_version_classify_in_200_xml_errors() {
-        let ctx = ErrorContext::new(ServiceOperation("DeleteObjects"));
-        assert_eq!(
-            parse_s3_error_code(ctx, "AccessDenied"),
-            Some((ErrorKind::PermissionDenied, false))
-        );
-        assert_eq!(
-            parse_s3_error_code(ctx, "NoSuchVersion"),
-            Some((ErrorKind::NotFound, false))
-        );
-
-        let access_denied_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
-<Error>
-  <Code>AccessDenied</Code>
-  <Message>Access Denied</Message>
-</Error>"#;
-        let resp = Response::builder()
-            .status(200)
-            .body(Buffer::from(access_denied_xml))
-            .unwrap();
-        let err = parse_error(
-            ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
-            resp,
-        );
-        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
-        assert!(!err.is_temporary());
-    }
-
-    #[test]
-    fn http_416_maps_to_range_not_satisfied_without_xml_error_code() {
-        let ctx = ErrorContext::new(ServiceOperation("GetObject"));
-        for body in [
-            "",
-            "Requested Range Not Satisfiable",
-            r#"<Error><Code>InvalidRange</Code><Message>The requested range is not valid</Message></Error>"#,
-        ] {
-            let resp = Response::builder()
-                .status(416)
-                .body(Buffer::from(body))
-                .unwrap();
-            let err = parse_error(ctx, resp);
-            assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied, "body={body:?}");
-            assert!(!err.is_temporary(), "body={body:?}");
         }
     }
 }

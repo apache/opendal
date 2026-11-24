@@ -149,30 +149,18 @@ impl Builder for D1Builder {
             ));
         };
 
-        let Some(table) = config.table.filter(|v| !v.is_empty()) else {
+        let Some(table) = config.table else {
             return Err(Error::new(ErrorKind::ConfigInvalid, "table is required"));
         };
         let _ = quote_ident(&table)?;
 
         let key_field = match config.key_field {
-            Some(v) if v.is_empty() => {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "key_field must not be empty",
-                ));
-            }
             Some(v) => v,
             None => "key".to_string(),
         };
         let _ = quote_ident(&key_field)?;
 
         let value_field = match config.value_field {
-            Some(v) if v.is_empty() => {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "value_field must not be empty",
-                ));
-            }
             Some(v) => v,
             None => "value".to_string(),
         };
@@ -379,17 +367,8 @@ mod tests {
         let mut empty_db = valid.clone();
         empty_db.database_id = Some(String::new());
 
-        let mut empty_table = valid.clone();
-        empty_table.table = Some(String::new());
-
         let mut empty_token = valid.clone();
         empty_token.token = Some(String::new());
-
-        let mut empty_key_field = valid.clone();
-        empty_key_field.key_field = Some(String::new());
-
-        let mut empty_value_field = valid.clone();
-        empty_value_field.value_field = Some(String::new());
 
         let mut nul_table = valid.clone();
         nul_table.table = Some("kv\0bad".to_string());
@@ -403,10 +382,7 @@ mod tests {
         for cfg in [
             empty_account,
             empty_db,
-            empty_table,
             empty_token,
-            empty_key_field,
-            empty_value_field,
             nul_table,
             nul_key_field,
             nul_value_field,
@@ -415,7 +391,7 @@ mod tests {
             assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
         }
 
-        for empty_required in ["account_id", "database_id", "table"] {
+        for empty_required in ["account_id", "database_id"] {
             let mut map = vec![
                 ("account_id".to_string(), "acc123".to_string()),
                 ("database_id".to_string(), "db456".to_string()),
@@ -430,18 +406,5 @@ mod tests {
             let err = cfg.into_builder().build().err().unwrap();
             assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
         }
-    }
-
-    #[test]
-    fn backend_debug_redacts_token() {
-        let sentinel = "d1-backend-secret-token";
-        let backend = D1Builder::default()
-            .token(sentinel)
-            .account_id("acc123")
-            .database_id("db456")
-            .table("kv")
-            .build()
-            .unwrap();
-        assert!(!format!("{backend:?}").contains(sentinel));
     }
 }

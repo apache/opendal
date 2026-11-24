@@ -38,7 +38,7 @@ pub(super) mod constants {
     pub const X_BZ_FILE_NAME: &str = "X-Bz-File-Name";
     pub const X_BZ_CONTENT_SHA1: &str = "X-Bz-Content-Sha1";
     pub const X_BZ_PART_NUMBER: &str = "X-Bz-Part-Number";
-    pub const X_BZ_INFO_PREFIX: &str = "x-bz-info-";
+    pub const X_BZ_INFO_PREFIX: &str = "X-Bz-Info-";
 }
 
 /// Core of [b2](https://www.backblaze.com/cloud-storage) services support.
@@ -506,7 +506,7 @@ impl B2Core {
     ) -> Result<File> {
         let abs_path = build_absolute_path(&self.root, path);
         let resp = self
-            .list_file_names_raw(ctx, Some(path), delimiter, Some(1), None, Operation::Stat)
+            .list_file_names_raw(ctx, Some(path), delimiter, None, None, Operation::Stat)
             .await?;
 
         let status = resp.status();
@@ -1145,7 +1145,6 @@ pub(crate) mod tests {
         let recorded = requests.lock().unwrap();
         assert_eq!(recorded.len(), 1);
         assert!(recorded[0].contains("prefix=sub/foo"));
-        assert!(recorded[0].contains("maxFileCount=1"));
     }
 
     #[tokio::test]

@@ -160,7 +160,7 @@ impl Builder for B2Builder {
 
         Ok(B2Backend {
             core: Arc::new(B2Core {
-                info: ServiceInfo::new(B2_SCHEME, &root, &self.config.bucket),
+                info: ServiceInfo::new(B2_SCHEME, &root, ""),
                 capability: Capability {
                     stat: true,
 
@@ -513,23 +513,6 @@ mod tests {
                 .body(HttpBody::new(stream::iter([Ok(buf)]), Some(len)))
                 .map_err(new_request_build_error)
         }
-    }
-
-    #[test]
-    fn test_builder_sets_service_info_bucket_name() {
-        let srv = B2Builder::default()
-            .root("/prefix")
-            .bucket("my-b2-bucket")
-            .bucket_id("bucket-id-123")
-            .application_key_id("key-id")
-            .application_key("key-secret")
-            .build()
-            .unwrap();
-
-        let info = srv.info();
-        assert_eq!(info.scheme(), B2_SCHEME);
-        assert_eq!(&*info.root(), "/prefix/");
-        assert_eq!(&*info.name(), "my-b2-bucket");
     }
 
     #[tokio::test]

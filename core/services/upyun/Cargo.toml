@@ -40,6 +40,7 @@ log = { workspace = true }
 md-5 = "0.11.0"
 opendal-core = { path = "../../core", version = "0.59.5", default-features = false }
 serde = { workspace = true, features = ["derive"] }
+quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
 serde_json = { workspace = true }
 sha1 = "0.11.0"
 

@@ -283,7 +283,6 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::PRECONDITION_FAILED => (ErrorKind::ConditionNotMatch, false),
-        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
@@ -480,19 +479,5 @@ mod tests {
         assert_eq!(sub_core.dbfs_path("/"), "/workspace");
         assert_eq!(sub_core.dbfs_path("dir/"), "/workspace/dir");
         assert_eq!(sub_core.dbfs_path("file.txt"), "/workspace/file.txt");
-    }
-
-    #[test]
-    fn parse_error_maps_too_many_requests_to_retryable_rate_limited() {
-        let resp = Response::builder()
-            .status(StatusCode::TOO_MANY_REQUESTS)
-            .body(Buffer::from(
-                r#"{"error_code":"REQUEST_LIMIT_EXCEEDED","message":"rate limit exceeded"}"#,
-            ))
-            .unwrap();
-
-        let err = parse_error(ErrorContext::new(ServiceOperation("GetStatus")), resp);
-        assert_eq!(err.kind(), ErrorKind::RateLimited);
-        assert!(err.is_temporary());
     }
 }

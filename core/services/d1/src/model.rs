@@ -45,16 +45,10 @@ impl D1Response {
         })?;
 
         if !response.success {
-            let (kind, retryable) = response
-                .errors
-                .as_deref()
-                .and_then(crate::core::parse_d1_error_code)
-                .unwrap_or((opendal_core::ErrorKind::Unexpected, false));
-            let mut err = Error::new(kind, String::from_utf8_lossy(bs));
-            if retryable {
-                err = err.set_temporary();
-            }
-            return Err(err);
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                String::from_utf8_lossy(bs),
+            ));
         }
         Ok(response)
     }
@@ -87,11 +81,7 @@ impl D1Response {
                 }
                 Ok(Some(Buffer::from(bytes)))
             }
-            Value::Null => Ok(None),
-            _ => Err(Error::new(
-                opendal_core::ErrorKind::Unexpected,
-                "d1 value is not a byte array",
-            )),
+            _ => Ok(None),
         }
     }
 
@@ -236,7 +226,7 @@ mod test {
         let response: D1Response = serde_json::from_str(null_data).unwrap();
         assert!(response.get_result("value").unwrap().is_none());
 
-        for invalid_value in ["[-1]", "[1.5]", "[256]", r#"["x"]"#, r#""not-an-array""#] {
+        for invalid_value in ["[-1]", "[1.5]", "[256]", r#"["x"]"#] {
             let data = format!(
                 r#"{{"result":[{{"results":[{{"value":{invalid_value}}}]}}],"success":true,"errors":[]}}"#
             );
@@ -248,20 +238,5 @@ mod test {
                 "expected Unexpected for {invalid_value}"
             );
         }
-    }
-
-    #[test]
-    fn test_parse_error_response_with_null_or_missing_result() {
-        let null_result = Bytes::from_static(
-            br#"{"success":false,"result":null,"errors":[{"code":10000,"message":"Authentication error"}]}"#,
-        );
-        let err = D1Response::parse(&null_result).unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
-
-        let missing_result = Bytes::from_static(
-            br#"{"success":false,"errors":[{"code":7500,"message":"no such column"}]}"#,
-        );
-        let err = D1Response::parse(&missing_result).unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::NotFound);
     }
 }

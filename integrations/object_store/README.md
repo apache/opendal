@@ -121,8 +121,8 @@ operator advertises the requested mode. Otherwise, the integration copies the
 object and deletes the source after a successful copy. For distinct paths
 (`from != to`), `rename_if_not_exists` requires conditional rename or
 conditional copy, and `copy_if_not_exists` requires conditional copy, returning
-`NotSupported` when the operator lacks those capabilities. Same-path operations
-resolve via `stat`.
+`NotSupported` when the operator lacks those capabilities. A same-path overwrite
+of an existing file succeeds and preserves its contents.
 
 ### Listing with an offset
 

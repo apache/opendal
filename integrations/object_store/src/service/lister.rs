@@ -92,11 +92,6 @@ fn recursive_stream(
                     let metadata = format_metadata(&meta);
                     Ok(oio::Entry::new(&location, metadata))
                 }
-                // Local filesystem stores report a missing directory as NotFound.
-                // Listing a missing prefix is empty in OpenDAL.
-                Err(err) if matches!(&err, object_store::Error::NotFound { .. }) => {
-                    return futures::future::ready(None);
-                }
                 Err(err) => Err(parse_error(err)),
             };
 
@@ -130,11 +125,6 @@ fn non_recursive_stream(
     stream::once(async move {
         let result = match store.list_with_delimiter(Some(&directory)).await {
             Ok(result) => result,
-            // Local filesystem stores report a missing directory as NotFound.
-            // Listing a missing prefix is empty in OpenDAL.
-            Err(err) if matches!(&err, object_store::Error::NotFound { .. }) => {
-                return Vec::new();
-            }
             Err(err) => return vec![Err(parse_error(err))],
         };
 

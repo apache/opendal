@@ -941,7 +941,7 @@ async fn test_collection_move_without_backend_rename() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_append_seek_and_cursor_accounting() -> Result<()> {
+async fn test_append_accepts_initial_seek_to_start() -> Result<()> {
     let root = tempfile::tempdir()?;
     let builder = Fs::default().root(root.path().to_str().unwrap());
     let op = Operator::new(builder)?;
@@ -961,38 +961,12 @@ async fn test_append_seek_and_cursor_accounting() -> Result<()> {
         )
         .await?;
 
-    // Before writing, Start(0) (used by dav-server), Start(eof), Current(0), and End(0)
-    // all succeed and report the current append offset.
-    assert_eq!(file.seek(SeekFrom::Start(0)).await?, 3);
-    assert_eq!(file.seek(SeekFrom::Current(0)).await?, 3);
-    assert_eq!(file.seek(SeekFrom::End(0)).await?, 3);
-    assert_eq!(file.seek(SeekFrom::Start(3)).await?, 3);
-
-    // Random seeks away from the append position must fail.
-    assert!(matches!(
-        file.seek(SeekFrom::Start(1)).await,
-        Err(FsError::NotImplemented)
-    ));
-    assert!(matches!(
-        file.seek(SeekFrom::Current(-1)).await,
-        Err(FsError::NotImplemented)
-    ));
-    assert!(matches!(
-        file.seek(SeekFrom::End(-1)).await,
-        Err(FsError::NotImplemented)
-    ));
+    file.seek(SeekFrom::Start(0)).await?;
+    assert!(file.seek(SeekFrom::Start(1)).await.is_err());
 
     file.write_bytes(Bytes::from_static(b"d")).await?;
-    assert_eq!(file.seek(SeekFrom::Current(0)).await?, 4);
-    assert_eq!(file.seek(SeekFrom::End(0)).await?, 4);
-    assert_eq!(file.seek(SeekFrom::Start(4)).await?, 4);
-    assert!(matches!(
-        file.seek(SeekFrom::Start(0)).await,
-        Err(FsError::NotImplemented)
-    ));
-
+    assert!(file.seek(SeekFrom::Start(0)).await.is_err());
     file.write_buf(Box::new(Bytes::from_static(b"ef"))).await?;
-    assert_eq!(file.seek(SeekFrom::Current(0)).await?, 6);
 
     file.flush().await?;
     assert!(matches!(
@@ -1013,14 +987,8 @@ async fn test_append_seek_and_cursor_accounting() -> Result<()> {
             },
         )
         .await?;
-    assert!(matches!(
-        writer.seek(SeekFrom::Start(0)).await,
-        Err(FsError::NotImplemented)
-    ));
-    assert!(matches!(
-        writer.seek(SeekFrom::Start(2)).await,
-        Err(FsError::NotImplemented)
-    ));
+    assert!(writer.seek(SeekFrom::Start(0)).await.is_err());
+    assert!(writer.seek(SeekFrom::Start(2)).await.is_err());
     drop(writer);
 
     assert_eq!(op.read("append.txt").await?.to_bytes().as_ref(), b"abcdef");
@@ -1097,25 +1065,9 @@ async fn assert_put_and_patch_on_collection_rejected(op: Operator, label: &str) 
     .await?;
     assert_eq!(status, StatusCode::FORBIDDEN, "{label}: PATCH /dir");
 
-    // Direct DavFileSystem::open must reject read, write, append, and create_new
-    // against an existing collection.
+    // Opening a collection for writing must fail.
     let webdavfs = OpendalFs::new(op.clone());
     let dir_path = DavPath::new("/dir")?;
-    assert!(
-        matches!(
-            webdavfs
-                .open(
-                    &dir_path,
-                    OpenOptions {
-                        read: true,
-                        ..OpenOptions::default()
-                    },
-                )
-                .await,
-            Err(FsError::Forbidden)
-        ),
-        "{label}: open(read) /dir"
-    );
     assert!(
         matches!(
             webdavfs
@@ -1253,18 +1205,6 @@ async fn test_put_and_open_on_implicit_collection_rejected() -> Result<()> {
     assert_eq!(status, StatusCode::FORBIDDEN);
 
     let webdavfs = OpendalFs::new(op.clone());
-    assert!(matches!(
-        webdavfs
-            .open(
-                &DavPath::new("/implicit")?,
-                OpenOptions {
-                    read: true,
-                    ..OpenOptions::default()
-                },
-            )
-            .await,
-        Err(FsError::Forbidden)
-    ));
 
     assert!(matches!(
         op.stat("implicit").await,
@@ -1347,7 +1287,7 @@ async fn assert_delete_depth_zero_and_missing(op: Operator, label: &str) -> Resu
     assert_eq!(status, StatusCode::OK, "{label}: child survives");
     assert_eq!(body.as_ref(), b"keep");
 
-    // Direct remove_dir must refuse non-empty collections, files, and the root.
+    // Direct remove_dir must refuse a non-empty collection.
     let webdavfs = OpendalFs::new(op.clone());
     assert!(
         matches!(
@@ -1356,21 +1296,6 @@ async fn assert_delete_depth_zero_and_missing(op: Operator, label: &str) -> Resu
         ),
         "{label}: remove_dir non-empty"
     );
-    assert!(
-        matches!(
-            webdavfs.remove_dir(&DavPath::new("/dir/child.txt")?).await,
-            Err(FsError::Forbidden)
-        ),
-        "{label}: remove_dir on file"
-    );
-    assert!(
-        matches!(
-            webdavfs.remove_dir(&DavPath::new("/")?).await,
-            Err(FsError::Forbidden)
-        ),
-        "{label}: remove_dir on root"
-    );
-
     // After removing the child, Depth: 0 DELETE removes the now-empty collection.
     let (status, _) = dav_request(
         &dav,

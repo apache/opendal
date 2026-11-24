@@ -119,12 +119,10 @@ impl storage::Metadata for OpendalMetadata {
 
 fn convert_err(err: opendal::Error) -> Error {
     let kind = match err.kind() {
-        opendal::ErrorKind::NotFound
-        | opendal::ErrorKind::AlreadyExists
-        | opendal::ErrorKind::IsADirectory
-        | opendal::ErrorKind::NotADirectory => storage::ErrorKind::PermanentFileNotAvailable,
+        opendal::ErrorKind::NotFound | opendal::ErrorKind::AlreadyExists => {
+            storage::ErrorKind::PermanentFileNotAvailable
+        }
         opendal::ErrorKind::PermissionDenied => storage::ErrorKind::PermissionDenied,
-        opendal::ErrorKind::Unsupported => storage::ErrorKind::CommandNotImplemented,
         _ => storage::ErrorKind::LocalError,
     };
     Error::new(kind, err)
@@ -235,11 +233,6 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
 
         let path = convert_path(path.as_ref())?;
         let directory = format!("{}/", path.trim_end_matches('/'));
-
-        // The FTP root always exists; some backends cannot stat it.
-        if directory == "/" {
-            return Ok(OpendalMetadata(opendal::MetadataBuilder::dir().build()));
-        }
 
         // Try the path as a file first. Object stores only address directories
         // with a trailing `/`, so fall back to the directory form below.
@@ -402,13 +395,6 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
     }
 
     async fn del<P: AsRef<Path> + Send + Debug>(&self, _: &User, path: P) -> storage::Result<()> {
-        if !self.op.info().capability().delete {
-            return Err(Error::new(
-                storage::ErrorKind::CommandNotImplemented,
-                "the storage service does not support deleting",
-            ));
-        }
-
         let path = convert_path(path.as_ref())?;
         if path.ends_with('/') {
             return Err(Error::new(
@@ -442,13 +428,6 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
         from: P,
         to: P,
     ) -> storage::Result<()> {
-        if !self.op.info().capability().rename {
-            return Err(Error::new(
-                storage::ErrorKind::CommandNotImplemented,
-                "the storage service does not support renaming",
-            ));
-        }
-
         let from = convert_path(from.as_ref())?;
         let to = convert_path(to.as_ref())?;
 
@@ -580,20 +559,8 @@ mod tests {
                 storage::ErrorKind::PermanentFileNotAvailable,
             ),
             (
-                opendal::ErrorKind::IsADirectory,
-                storage::ErrorKind::PermanentFileNotAvailable,
-            ),
-            (
-                opendal::ErrorKind::NotADirectory,
-                storage::ErrorKind::PermanentFileNotAvailable,
-            ),
-            (
                 opendal::ErrorKind::PermissionDenied,
                 storage::ErrorKind::PermissionDenied,
-            ),
-            (
-                opendal::ErrorKind::Unsupported,
-                storage::ErrorKind::CommandNotImplemented,
             ),
             (
                 opendal::ErrorKind::Unexpected,

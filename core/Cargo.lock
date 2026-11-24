@@ -8634,6 +8634,7 @@ dependencies = [
  "flume 0.12.0",
  "monoio",
  "opendal-core",
+ "rustix 1.1.6",
  "serde",
  "tempfile",
  "tokio",

@@ -18,6 +18,7 @@
 use std::sync::Arc;
 
 use asyncband::once::OnceCell;
+use mongodb::options::ConnectionString;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -111,38 +112,47 @@ impl Builder for GridfsBuilder {
     type Config = GridfsConfig;
 
     fn build(self) -> Result<impl Service> {
-        let conn = match &self.config.connection_string.clone() {
-            Some(v) => v.clone(),
-            None => {
+        let conn = match self.config.connection_string.as_deref() {
+            Some(v) if !v.is_empty() => v,
+            _ => {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "connection_string is required")
                         .with_context("service", GRIDFS_SCHEME),
                 );
             }
         };
-        let database = match &self.config.database.clone() {
-            Some(v) => v.clone(),
-            None => {
+        let connection_string = ConnectionString::parse(conn).map_err(|err| {
+            Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
+                .with_context("service", GRIDFS_SCHEME)
+                .set_source(err)
+        })?;
+        let database = match self.config.database.as_deref() {
+            Some(v) if !v.is_empty() => v.to_string(),
+            _ => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "database is required")
                     .with_context("service", GRIDFS_SCHEME));
             }
         };
-        let bucket = match &self.config.bucket.clone() {
-            Some(v) => v.clone(),
-            None => "fs".to_string(),
+        let bucket = match self.config.bucket.as_deref() {
+            Some(v) if !v.is_empty() => v.to_string(),
+            _ => "fs".to_string(),
         };
-        let chunk_size = self.config.chunk_size.unwrap_or(DEFAULT_CHUNK_SIZE_BYTES);
+        let chunk_size = match self.config.chunk_size {
+            Some(0) => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "chunk_size must be greater than 0",
+                )
+                .with_context("service", GRIDFS_SCHEME));
+            }
+            Some(v) => v,
+            None => DEFAULT_CHUNK_SIZE_BYTES,
+        };
 
-        let root = normalize_root(
-            self.config
-                .root
-                .clone()
-                .unwrap_or_else(|| "/".to_string())
-                .as_str(),
-        );
+        let root = normalize_root(self.config.root.as_deref().unwrap_or("/"));
 
         Ok(GridfsBackend::new(GridfsCore {
-            connection_string: conn,
+            connection_string,
             database,
             bucket,
             chunk_size,
@@ -228,10 +238,14 @@ impl Service for GridfsBackend {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.get_length(&p).await? {
-                Some(len) => Ok(RpStat::new({
-                    let metadata = MetadataBuilder::file(len as u64);
-                    metadata.build()
-                })),
+                Some(len) => {
+                    let metadata = if p.ends_with('/') {
+                        MetadataBuilder::dir()
+                    } else {
+                        MetadataBuilder::file(len)
+                    };
+                    Ok(RpStat::new(metadata.build()))
+                }
                 None => Err(Error::new(ErrorKind::NotFound, "kv not found in gridfs")),
             }
         }
@@ -311,5 +325,101 @@ impl Service for GridfsBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn valid_config() -> GridfsConfig {
+        GridfsConfig {
+            connection_string: Some("mongodb://127.0.0.1:27017".to_string()),
+            database: Some("demo".to_string()),
+            bucket: None,
+            chunk_size: None,
+            root: None,
+        }
+    }
+
+    #[test]
+    fn build_rejects_empty_and_invalid_config() {
+        let mut cfg = valid_config();
+        cfg.connection_string = None;
+        assert_eq!(
+            cfg.into_builder().build().err().unwrap().kind(),
+            ErrorKind::ConfigInvalid
+        );
+
+        let mut cfg = valid_config();
+        cfg.connection_string = Some(String::new());
+        assert_eq!(
+            cfg.into_builder().build().err().unwrap().kind(),
+            ErrorKind::ConfigInvalid
+        );
+
+        let mut cfg = valid_config();
+        cfg.connection_string = Some("not-a-mongodb-uri".to_string());
+        assert_eq!(
+            cfg.into_builder().build().err().unwrap().kind(),
+            ErrorKind::ConfigInvalid
+        );
+
+        let mut cfg = valid_config();
+        cfg.database = None;
+        assert_eq!(
+            cfg.into_builder().build().err().unwrap().kind(),
+            ErrorKind::ConfigInvalid
+        );
+
+        let mut cfg = valid_config();
+        cfg.database = Some(String::new());
+        assert_eq!(
+            cfg.into_builder().build().err().unwrap().kind(),
+            ErrorKind::ConfigInvalid
+        );
+
+        let mut cfg = valid_config();
+        cfg.chunk_size = Some(0);
+        assert_eq!(
+            cfg.into_builder().build().err().unwrap().kind(),
+            ErrorKind::ConfigInvalid
+        );
+    }
+
+    #[test]
+    fn build_rejects_zero_chunk_size_from_iter() -> Result<()> {
+        let cfg = GridfsConfig::from_iter([
+            (
+                "connection_string".to_string(),
+                "mongodb://127.0.0.1:27017".to_string(),
+            ),
+            ("database".to_string(), "demo".to_string()),
+            ("chunk_size".to_string(), "0".to_string()),
+        ])?;
+        assert_eq!(
+            cfg.into_builder().build().err().unwrap().kind(),
+            ErrorKind::ConfigInvalid
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn build_defaults_empty_bucket_and_validates_positive_chunk_size() -> Result<()> {
+        let cfg = GridfsConfig {
+            bucket: Some(String::new()),
+            chunk_size: Some(1024),
+            ..valid_config()
+        };
+        let service = cfg.into_builder().build()?;
+        assert_eq!(service.info().name().as_ref(), "demo/fs");
+
+        let default_builder_service = GridfsBuilder::default()
+            .connection_string("mongodb://127.0.0.1:27017")
+            .database("demo")
+            .chunk_size(0)
+            .build()?;
+        assert_eq!(default_builder_service.info().name().as_ref(), "demo/fs");
+        Ok(())
     }
 }

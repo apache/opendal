@@ -7820,6 +7820,7 @@ dependencies = [
  "foyer",
  "futures",
  "opendal-core",
+ "opendal-layer-retry",
  "opendal-service-fs",
  "size",
  "tempfile",

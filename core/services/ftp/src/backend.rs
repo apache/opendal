@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use http::Uri;
@@ -30,8 +29,10 @@ use super::FTP_SCHEME;
 use super::config::FtpConfig;
 use super::core::FtpCore;
 use super::core::Manager;
+use super::core::build_tls_config;
 use super::core::format_ftp_error;
 use super::deleter::FtpDeleter;
+use super::lister::parse_list_line;
 use super::reader::*;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -161,13 +162,19 @@ impl Builder for FtpBuilder {
             ..Default::default()
         };
 
+        let tls_config = if enable_secure {
+            Some(build_tls_config(rustls_native_certs::load_native_certs())?)
+        } else {
+            None
+        };
+
         let manager = Manager {
             endpoint: endpoint.clone(),
             host: host.to_string(),
             root: root.clone(),
             user: user.clone(),
             password: password.clone(),
-            enable_secure,
+            tls_config,
         };
 
         let core = Arc::new(FtpCore::new(info, capability, manager.clone()));
@@ -331,7 +338,7 @@ impl FtpBackend {
         // Get stat of file.
         let mut files = resp
             .into_iter()
-            .filter_map(|file| File::from_str(file.as_str()).ok())
+            .filter_map(|file| parse_list_line(file.as_str()).ok().flatten())
             .filter(|f| f.name() == basename.trim_end_matches('/'))
             .collect::<Vec<File>>();
 
@@ -409,5 +416,285 @@ mod build_test {
         assert_eq!(cfg.endpoint.as_deref(), Some("ftp://example.com"));
         assert_eq!(cfg.user.as_deref(), Some("alice"));
         assert_eq!(cfg.password.as_deref(), Some("secret"));
+    }
+}
+
+#[cfg(test)]
+mod protocol_tests {
+    use std::collections::{HashMap, HashSet};
+    use std::sync::{Arc, Mutex};
+
+    use opendal_core::*;
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    use tokio::net::TcpListener;
+
+    use super::FtpBuilder;
+
+    struct MockFtpState {
+        reject_login: bool,
+        dirs: HashSet<String>,
+        listings: HashMap<String, Vec<String>>,
+        mkd_calls: Vec<String>,
+    }
+
+    impl MockFtpState {
+        fn new() -> Self {
+            Self {
+                reject_login: false,
+                dirs: HashSet::from(["/".to_string()]),
+                listings: HashMap::new(),
+                mkd_calls: Vec::new(),
+            }
+        }
+    }
+
+    async fn spawn_mock_ftp(
+        state: Arc<Mutex<MockFtpState>>,
+    ) -> (String, tokio::task::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let handle = tokio::spawn(async move {
+            loop {
+                let Ok((socket, _)) = listener.accept().await else {
+                    break;
+                };
+                let state = state.clone();
+                tokio::spawn(async move {
+                    let (reader, mut writer) = socket.into_split();
+                    let mut lines = BufReader::new(reader).lines();
+                    if writer.write_all(b"220 mock ftp ready\r\n").await.is_err() {
+                        return;
+                    }
+
+                    let mut data_listener: Option<TcpListener> = None;
+
+                    while let Ok(Some(line)) = lines.next_line().await {
+                        let (cmd, arg) = match line.split_once(' ') {
+                            Some((c, a)) => (c.to_ascii_uppercase(), a.trim().to_string()),
+                            None => (line.trim().to_ascii_uppercase(), String::new()),
+                        };
+
+                        match cmd.as_str() {
+                            "USER" => {
+                                let _ = writer.write_all(b"331 password required\r\n").await;
+                            }
+                            "PASS" => {
+                                let reject = state.lock().unwrap().reject_login;
+                                if reject {
+                                    let _ = writer.write_all(b"530 Login incorrect.\r\n").await;
+                                } else {
+                                    let _ = writer.write_all(b"230 Login successful.\r\n").await;
+                                }
+                            }
+                            "TYPE" | "NOOP" => {
+                                let _ = writer.write_all(b"200 OK\r\n").await;
+                            }
+                            "CWD" => {
+                                let exists = state.lock().unwrap().dirs.contains(&arg);
+                                if exists {
+                                    let _ = writer.write_all(b"250 CWD ok\r\n").await;
+                                } else {
+                                    let _ = writer.write_all(b"550 No such directory\r\n").await;
+                                }
+                            }
+                            "MKD" => {
+                                let existed = {
+                                    let mut guard = state.lock().unwrap();
+                                    guard.mkd_calls.push(arg.clone());
+                                    !guard.dirs.insert(arg)
+                                };
+                                if existed {
+                                    let _ = writer.write_all(b"550 Already exists\r\n").await;
+                                } else {
+                                    let _ = writer.write_all(b"257 Created\r\n").await;
+                                }
+                            }
+                            "PASV" => {
+                                let dl = TcpListener::bind("127.0.0.1:0").await.unwrap();
+                                let port = dl.local_addr().unwrap().port();
+                                data_listener = Some(dl);
+                                let resp = format!(
+                                    "227 Entering Passive Mode (127,0,0,1,{},{}).\r\n",
+                                    port >> 8,
+                                    port & 0xff
+                                );
+                                let _ = writer.write_all(resp.as_bytes()).await;
+                            }
+                            "LIST" => {
+                                let key = if arg.is_empty() {
+                                    "/".to_string()
+                                } else {
+                                    arg.clone()
+                                };
+                                let payload = state.lock().unwrap().listings.get(&key).cloned();
+                                match payload {
+                                    Some(entries) => {
+                                        let dl = data_listener.take().unwrap();
+                                        let _ = writer
+                                            .write_all(b"150 Opening data connection\r\n")
+                                            .await;
+                                        if let Ok((mut data_sock, _)) = dl.accept().await {
+                                            for entry in entries {
+                                                let _ = data_sock.write_all(entry.as_bytes()).await;
+                                                let _ = data_sock.write_all(b"\r\n").await;
+                                            }
+                                            let _ = data_sock.shutdown().await;
+                                        }
+                                        let _ =
+                                            writer.write_all(b"226 Transfer complete\r\n").await;
+                                    }
+                                    None => {
+                                        data_listener = None;
+                                        let _ =
+                                            writer.write_all(b"550 Directory not found\r\n").await;
+                                    }
+                                }
+                            }
+                            "RMD" | "DELE" | "SIZE" => {
+                                let _ = writer.write_all(b"550 Operation failed\r\n").await;
+                            }
+                            "QUIT" => {
+                                let _ = writer.write_all(b"221 Bye\r\n").await;
+                                break;
+                            }
+                            _ => {
+                                let _ = writer.write_all(b"502 Not implemented\r\n").await;
+                            }
+                        }
+                    }
+                });
+            }
+        });
+        (format!("ftp://127.0.0.1:{}", addr.port()), handle)
+    }
+
+    #[tokio::test]
+    async fn test_list_handles_550_missing_dir_and_recursive_dots_and_total() {
+        let state = Arc::new(Mutex::new(MockFtpState::new()));
+        {
+            let mut guard = state.lock().unwrap();
+            guard.listings.insert(
+                "dir/".to_string(),
+                vec![
+                    "total 8".to_string(),
+                    "drwxr-xr-x 2 user group 4096 Nov  5  2018 .".to_string(),
+                    "drwxr-xr-x 4 user group 4096 Nov  5  2018 ..".to_string(),
+                    "drwxr-xr-x 2 user group 4096 Nov  5  2018 sub".to_string(),
+                    "-rw-r--r-- 1 user group   10 Nov  5  2018 a.txt".to_string(),
+                ],
+            );
+            guard.listings.insert(
+                "dir/sub/".to_string(),
+                vec![
+                    "total 4".to_string(),
+                    "drwxr-xr-x 2 user group 4096 Nov  5  2018 .".to_string(),
+                    "drwxr-xr-x 2 user group 4096 Nov  5  2018 ..".to_string(),
+                    "-rw-r--r-- 1 user group    5 Nov  5  2018 b.txt".to_string(),
+                ],
+            );
+        }
+
+        let (endpoint, server) = spawn_mock_ftp(state).await;
+        let op = Operator::new(FtpBuilder::default().endpoint(&endpoint).root("/"))
+            .unwrap()
+            .layer(layers::SimulateLayer::default());
+
+        let missing = op.list("missing/").await.unwrap();
+        assert!(missing.is_empty(), "550 on missing dir must list as empty");
+
+        let entries = op.list_with("dir/").recursive(true).await.unwrap();
+        let mut paths: Vec<String> = entries.into_iter().map(|e| e.path().to_string()).collect();
+        paths.sort();
+        assert_eq!(
+            paths,
+            vec!["dir/", "dir/a.txt", "dir/sub/", "dir/sub/b.txt"]
+        );
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_delete_550_distinguishes_existing_from_missing() {
+        let state = Arc::new(Mutex::new(MockFtpState::new()));
+        {
+            let mut guard = state.lock().unwrap();
+            guard.listings.insert(
+                "/".to_string(),
+                vec![
+                    "total 8".to_string(),
+                    "drwxr-xr-x 2 user group 4096 Nov  5  2018 nonempty".to_string(),
+                    "-rw-r--r-- 1 user group   10 Nov  5  2018 readonly.txt".to_string(),
+                ],
+            );
+        }
+
+        let (endpoint, server) = spawn_mock_ftp(state).await;
+        let op = Operator::new(FtpBuilder::default().endpoint(&endpoint).root("/")).unwrap();
+
+        let err = op
+            .delete("nonempty/")
+            .await
+            .expect_err("non-empty dir must not silently succeed on 550");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        let err = op
+            .delete("readonly.txt")
+            .await
+            .expect_err("existing file must not silently succeed on 550");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        let err = op
+            .delete("readonly.txt/")
+            .await
+            .expect_err("deleting a file via dir path must fail");
+        assert_eq!(err.kind(), ErrorKind::NotADirectory);
+
+        let err = op
+            .delete("nonempty")
+            .await
+            .expect_err("deleting a dir via file path must fail");
+        assert_eq!(err.kind(), ErrorKind::IsADirectory);
+
+        op.delete("missing.txt")
+            .await
+            .expect("missing file delete must be idempotent");
+        op.delete("missing_dir/")
+            .await
+            .expect("missing dir delete must be idempotent");
+        op.delete("missing_parent/file.txt")
+            .await
+            .expect("delete under missing parent must be idempotent");
+
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn test_manager_creates_multilevel_root_and_maps_530_permission_denied() {
+        let state = Arc::new(Mutex::new(MockFtpState::new()));
+        let (endpoint, server) = spawn_mock_ftp(state.clone()).await;
+
+        let op = Operator::new(FtpBuilder::default().endpoint(&endpoint).root("/a/b/c")).unwrap();
+        let entries = op.list("/").await.unwrap();
+        assert!(entries.is_empty());
+
+        let mkd_calls = state.lock().unwrap().mkd_calls.clone();
+        assert_eq!(mkd_calls, vec!["/a/", "/a/b/", "/a/b/c/"]);
+
+        state.lock().unwrap().reject_login = true;
+        let bad_op = Operator::new(
+            FtpBuilder::default()
+                .endpoint(&endpoint)
+                .user("alice")
+                .password("wrong"),
+        )
+        .unwrap();
+        let err = bad_op
+            .list("/")
+            .await
+            .expect_err("530 login failure must fail");
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+        assert!(!err.is_temporary());
+
+        server.abort();
     }
 }

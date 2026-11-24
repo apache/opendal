@@ -350,8 +350,9 @@ class AsyncOperator:
         Raises
         ------
         TypeError
-            If `**kwargs` contains an unknown keyword argument, an option that
-            does not apply to `mode`, or a value with an incompatible type.
+            If `**kwargs` contains an unknown keyword argument, an option with a
+            non-`None` value that does not apply to `mode`, or a value with an
+            incompatible type.
         ValueError
             If the mode is invalid or unsupported, including text (`"t"`) and
             update (`"+"`) modes, or if the mode conflicts with `append` or
@@ -1073,8 +1074,9 @@ class Operator:
         Raises
         ------
         TypeError
-            If `**kwargs` contains an unknown keyword argument, an option that
-            does not apply to `mode`, or a value with an incompatible type.
+            If `**kwargs` contains an unknown keyword argument, an option with a
+            non-`None` value that does not apply to `mode`, or a value with an
+            incompatible type.
         ValueError
             If the mode is invalid or unsupported, including text (`"t"`) and
             update (`"+"`) modes, or if the mode conflicts with `append` or

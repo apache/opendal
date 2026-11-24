@@ -446,7 +446,10 @@ export function run(op) {
         const worker = new Worker(
           `
             const { parentPort, workerData } = require('node:worker_threads')
-            import(workerData.entry).then(async ({ Operator }) => {
+            const load = workerData.entry.endsWith('.cjs')
+              ? Promise.resolve(require('node:module').createRequire(new URL(workerData.entry))('opendal'))
+              : import(workerData.entry)
+            load.then(async ({ Operator }) => {
               const op = new Operator('http', { endpoint: workerData.endpoint })
               const reader = await op.reader('object')
               let retained

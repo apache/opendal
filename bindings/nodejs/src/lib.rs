@@ -30,7 +30,6 @@ use opendal::options::{
 use tokio::sync::Mutex;
 
 use crate::layer::Layer;
-use crate::validate::parse_count;
 use crate::validate::parse_expires_secs;
 
 mod capability;
@@ -629,10 +628,7 @@ impl Operator {
         path: String,
         options: Option<options::ListOptions>,
     ) -> Result<Vec<Entry>> {
-        let options = options
-            .map(ListOptions::try_from)
-            .transpose()?
-            .unwrap_or_default();
+        let options = options.map_or(ListOptions::default(), ListOptions::from);
         let l = self
             .async_op
             .list_options(&path, options)
@@ -680,10 +676,7 @@ impl Operator {
         path: String,
         options: Option<options::ListOptions>,
     ) -> Result<Vec<Entry>> {
-        let options = options
-            .map(ListOptions::try_from)
-            .transpose()?
-            .unwrap_or_default();
+        let options = options.map_or(ListOptions::default(), ListOptions::from);
         let l = self
             .blocking_op
             .list_options(&path, options)
@@ -726,10 +719,7 @@ impl Operator {
         path: String,
         options: Option<options::ListOptions>,
     ) -> Result<Lister> {
-        let options = options
-            .map(ListOptions::try_from)
-            .transpose()?
-            .unwrap_or_default();
+        let options = options.map_or(ListOptions::default(), ListOptions::from);
         let l = self
             .async_op
             .lister_options(&path, options)
@@ -775,10 +765,7 @@ impl Operator {
         path: String,
         options: Option<options::ListOptions>,
     ) -> Result<BlockingLister> {
-        let options = options
-            .map(ListOptions::try_from)
-            .transpose()?
-            .unwrap_or_default();
+        let options = options.map_or(ListOptions::default(), ListOptions::from);
         let l = self
             .blocking_op
             .lister_options(&path, options)
@@ -1079,13 +1066,18 @@ impl Reader {
     #[napi(ts_return_type = "Promise<Buffer | null>")]
     pub async fn read_chunk(&self, max_bytes: f64) -> Result<Option<ReadChunk>> {
         // N-API's uint32 conversion truncates and wraps JavaScript numbers.
-        let max_bytes = parse_count(max_bytes, "maxBytes", 1)?;
+        if !(1.0..=f64::from(u32::MAX)).contains(&max_bytes) || max_bytes.fract() != 0.0 {
+            return Err(Error::new(
+                Status::InvalidArg,
+                "maxBytes must be an integer between 1 and 4294967295",
+            ));
+        }
 
         let chunk = self
             .inner
             .lock()
             .await
-            .read_buffer(max_bytes)
+            .read_buffer(max_bytes as usize)
             .await
             .map_err(format_napi_error)?;
         Ok((!chunk.is_empty()).then_some(ReadChunk(chunk)))

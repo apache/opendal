@@ -22,9 +22,8 @@ use napi::bindgen_prelude::External;
 use napi::bindgen_prelude::Result;
 use napi::bindgen_prelude::Status;
 
-use crate::validate::parse_count;
-use crate::validate::parse_millis;
-use crate::validate::parse_timeout_millis;
+use crate::validate::duration_from_millis;
+use tokio::sync::Semaphore;
 
 pub trait NodeLayer: Send + Sync {
     fn layer(&self, op: opendal::Operator) -> opendal::Operator;
@@ -102,7 +101,7 @@ impl CapabilityOverrideLayer {
 #[napi]
 pub struct RetryLayer {
     jitter: bool,
-    max_times: Option<usize>,
+    max_times: Option<u32>,
     factor: Option<f32>,
     max_delay: Option<Duration>,
     min_delay: Option<Duration>,
@@ -127,32 +126,15 @@ impl RetryLayer {
     /// Set max_times of current backoff.
     ///
     /// Backoff will return `None` if max times are reached.
-    ///
-    /// The value must be an integer between 0 and 4294967295. `0` disables
-    /// retries.
     #[napi(setter)]
-    pub fn max_times(&mut self, v: f64) -> Result<()> {
-        self.max_times = Some(parse_count(v, "maxTimes", 0)?);
-        Ok(())
+    pub fn max_times(&mut self, v: u32) {
+        self.max_times = Some(v);
     }
 
-    /// Set factor of current backoff.
-    ///
-    /// The value must be a finite number between `1.0` and `340282350000000000000000000000000000000`.
+    /// Set the multiplier between retry delays.
     #[napi(setter)]
-    pub fn factor(&mut self, v: f64) -> Result<()> {
-        if !(1.0..=f64::from(f32::MAX)).contains(&v) {
-            return Err(Error::new(
-                Status::InvalidArg,
-                format!(
-                    "factor must be a finite number between 1.0 and {}",
-                    f32::MAX
-                ),
-            ));
-        }
-
+    pub fn factor(&mut self, v: f64) {
         self.factor = Some(v as f32);
-        Ok(())
     }
 
     /// Set max_delay of current backoff.
@@ -162,11 +144,9 @@ impl RetryLayer {
     /// # Notes
     ///
     /// - The unit of max_delay is millisecond.
-    /// - The value must be a finite, non-negative number.
     #[napi(setter)]
-    pub fn max_delay(&mut self, v: f64) -> Result<()> {
-        self.max_delay = Some(parse_millis(v, "maxDelay")?);
-        Ok(())
+    pub fn max_delay(&mut self, v: f64) {
+        self.max_delay = Some(duration_from_millis(v));
     }
 
     /// Set min_delay of current backoff.
@@ -174,11 +154,9 @@ impl RetryLayer {
     /// # Notes
     ///
     /// - The unit of min_delay is millisecond.
-    /// - The value must be a finite, non-negative number.
     #[napi(setter)]
-    pub fn min_delay(&mut self, v: f64) -> Result<()> {
-        self.min_delay = Some(parse_millis(v, "minDelay")?);
-        Ok(())
+    pub fn min_delay(&mut self, v: f64) {
+        self.min_delay = Some(duration_from_millis(v));
     }
 
     #[napi]
@@ -188,7 +166,7 @@ impl RetryLayer {
             l = l.with_jitter();
         }
         if let Some(max_times) = self.max_times {
-            l = l.with_max_times(max_times);
+            l = l.with_max_times(max_times as usize);
         }
         if let Some(factor) = self.factor {
             l = l.with_factor(factor);
@@ -207,6 +185,17 @@ impl RetryLayer {
 impl NodeLayer for opendal::layers::ConcurrentLimitLayer {
     fn layer(&self, op: opendal::Operator) -> opendal::Operator {
         op.layer(self.clone())
+    }
+}
+
+fn parse_permits(value: i64, field: &str) -> Result<usize> {
+    let permits = usize::try_from(value).ok();
+    match permits {
+        Some(permits) if (1..=Semaphore::MAX_PERMITS).contains(&permits) => Ok(permits),
+        _ => Err(Error::new(
+            Status::InvalidArg,
+            format!("{field} must be between 1 and {}", Semaphore::MAX_PERMITS),
+        )),
     }
 }
 
@@ -256,11 +245,11 @@ impl ConcurrentLimitLayer {
     ///
     /// # Errors
     ///
-    /// Returns an error if `permits` is not an integer between 1 and 4294967295.
+    /// Returns an error if the permit count is zero or outside the semaphore's range.
     #[napi(constructor)]
-    pub fn new(permits: f64) -> Result<Self> {
+    pub fn new(permits: i64) -> Result<Self> {
         Ok(Self {
-            permits: parse_count(permits, "permits", 1)?,
+            permits: parse_permits(permits, "permits")?,
             http_permits: None,
         })
     }
@@ -275,10 +264,10 @@ impl ConcurrentLimitLayer {
     ///
     /// # Errors
     ///
-    /// Returns an error if `v` is not an integer between 1 and 4294967295.
+    /// Returns an error if the permit count is zero or outside the semaphore's range.
     #[napi(setter)]
-    pub fn http_permits(&mut self, v: f64) -> Result<()> {
-        self.http_permits = Some(parse_count(v, "httpPermits", 1)?);
+    pub fn http_permits(&mut self, v: i64) -> Result<()> {
+        self.http_permits = Some(parse_permits(v, "httpPermits")?);
         Ok(())
     }
 
@@ -352,12 +341,9 @@ impl TimeoutLayer {
     ///
     /// - The unit is millisecond.
     /// - Default is 60000ms (60 seconds).
-    /// - The value must be finite and greater than 0. A zero timeout is
-    ///   rejected because it would time out every operation immediately.
     #[napi(setter)]
-    pub fn timeout(&mut self, v: f64) -> Result<()> {
-        self.timeout = Some(parse_timeout_millis(v, "timeout")?);
-        Ok(())
+    pub fn timeout(&mut self, v: f64) {
+        self.timeout = Some(duration_from_millis(v));
     }
 
     /// Set timeout for IO operations (read, write, etc.)
@@ -366,12 +352,9 @@ impl TimeoutLayer {
     ///
     /// - The unit is millisecond.
     /// - Default is 10000ms (10 seconds).
-    /// - The value must be finite and greater than 0. A zero timeout is
-    ///   rejected because it would time out every operation immediately.
     #[napi(setter)]
-    pub fn io_timeout(&mut self, v: f64) -> Result<()> {
-        self.io_timeout = Some(parse_timeout_millis(v, "ioTimeout")?);
-        Ok(())
+    pub fn io_timeout(&mut self, v: f64) {
+        self.io_timeout = Some(duration_from_millis(v));
     }
 
     #[napi]
@@ -497,16 +480,23 @@ impl ThrottleLayer {
     ///
     /// # Notes
     ///
-    /// `bandwidth` and `burst` must be integers between 1 and 4294967295.
-    /// Fractional values, and values that N-API would truncate or wrap, are
-    /// rejected instead of silently changing the rate limit.
+    /// Both converted arguments must be greater than zero.
     #[napi(constructor)]
-    pub fn new(bandwidth: f64, burst: f64) -> Result<Self> {
-        // `parse_count` bounds both values to `u32::MAX`, so the casts are exact.
-        Ok(Self {
-            bandwidth: parse_count(bandwidth, "bandwidth", 1)? as u32,
-            burst: parse_count(burst, "burst", 1)? as u32,
-        })
+    pub fn new(bandwidth: u32, burst: u32) -> Result<Self> {
+        if bandwidth == 0 {
+            return Err(Error::new(
+                Status::InvalidArg,
+                "bandwidth must be greater than 0",
+            ));
+        }
+        if burst == 0 {
+            return Err(Error::new(
+                Status::InvalidArg,
+                "burst must be greater than 0",
+            ));
+        }
+
+        Ok(Self { bandwidth, burst })
     }
 
     #[napi]

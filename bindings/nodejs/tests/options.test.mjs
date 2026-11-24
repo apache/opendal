@@ -40,7 +40,7 @@ describe('bigint options', () => {
   })
 
   describe('read', () => {
-    for (const field of ['offset', 'size', 'gap']) {
+    for (const field of ['offset', 'size']) {
       for (const [label, value] of invalidValues) {
         it(`read rejects ${field} that is ${label}`, async () => {
           await expect(op.read(path, { [field]: value })).rejects.toThrowError(`${field} must`)
@@ -50,16 +50,6 @@ describe('bigint options', () => {
           expect(() => op.readSync(path, { [field]: value })).toThrowError(`${field} must`)
         })
       }
-    }
-
-    for (const [label, value] of invalidValues) {
-      it(`reader rejects gap that is ${label}`, async () => {
-        await expect(op.reader(path, { gap: value })).rejects.toThrowError('gap must')
-      })
-
-      it(`readerSync rejects gap that is ${label}`, () => {
-        expect(() => op.readerSync(path, { gap: value })).toThrowError('gap must')
-      })
     }
 
     it('accepts a zero offset', async () => {
@@ -93,24 +83,6 @@ describe('bigint options', () => {
   })
 
   describe('write', () => {
-    for (const [label, value] of invalidValues) {
-      it(`write rejects chunk that is ${label}`, async () => {
-        await expect(op.write(path, 'hello', { chunk: value })).rejects.toThrowError('chunk must')
-      })
-
-      it(`writeSync rejects chunk that is ${label}`, () => {
-        expect(() => op.writeSync(path, 'hello', { chunk: value })).toThrowError('chunk must')
-      })
-
-      it(`writer rejects chunk that is ${label}`, async () => {
-        await expect(op.writer(path, { chunk: value })).rejects.toThrowError('chunk must')
-      })
-
-      it(`writerSync rejects chunk that is ${label}`, () => {
-        expect(() => op.writerSync(path, { chunk: value })).toThrowError('chunk must')
-      })
-    }
-
     it('accepts a chunk size', async () => {
       await op.write(path, 'chunked', { chunk: 4n })
       expect((await op.read(path)).toString()).toBe('chunked')
@@ -204,16 +176,14 @@ describe('numeric options', () => {
   })
 
   describe('read', () => {
-    for (const field of ['concurrent', 'chunk']) {
-      for (const value of invalidCounts) {
-        it(`read rejects ${field} ${value}`, async () => {
-          await expect(op.read(path, { [field]: value })).rejects.toThrowError(`${field} must be an integer`)
-        })
+    for (const value of invalidCounts) {
+      it(`read rejects concurrent ${value}`, async () => {
+        await expect(op.read(path, { concurrent: value })).rejects.toThrowError(`concurrent must be an integer`)
+      })
 
-        it(`readSync rejects ${field} ${value}`, () => {
-          expect(() => op.readSync(path, { [field]: value })).toThrowError(`${field} must be an integer`)
-        })
-      }
+      it(`readSync rejects concurrent ${value}`, () => {
+        expect(() => op.readSync(path, { concurrent: value })).toThrowError(`concurrent must be an integer`)
+      })
     }
 
     it('accepts a zero concurrent and chunk', async () => {
@@ -229,16 +199,14 @@ describe('numeric options', () => {
   })
 
   describe('reader', () => {
-    for (const field of ['concurrent', 'chunk', 'prefetch']) {
-      for (const value of invalidCounts) {
-        it(`reader rejects ${field} ${value}`, async () => {
-          await expect(op.reader(path, { [field]: value })).rejects.toThrowError(`${field} must be an integer`)
-        })
+    for (const value of invalidCounts) {
+      it(`reader rejects concurrent ${value}`, async () => {
+        await expect(op.reader(path, { concurrent: value })).rejects.toThrowError(`concurrent must be an integer`)
+      })
 
-        it(`readerSync rejects ${field} ${value}`, () => {
-          expect(() => op.readerSync(path, { [field]: value })).toThrowError(`${field} must be an integer`)
-        })
-      }
+      it(`readerSync rejects concurrent ${value}`, () => {
+        expect(() => op.readerSync(path, { concurrent: value })).toThrowError(`concurrent must be an integer`)
+      })
     }
 
     it('accepts a zero concurrent and prefetch', async () => {
@@ -259,24 +227,6 @@ describe('numeric options', () => {
   })
 
   describe('list', () => {
-    for (const value of invalidCounts) {
-      it(`list rejects limit ${value}`, async () => {
-        await expect(op.list('/', { limit: value })).rejects.toThrowError('limit must be an integer')
-      })
-
-      it(`listSync rejects limit ${value}`, () => {
-        expect(() => op.listSync('/', { limit: value })).toThrowError('limit must be an integer')
-      })
-
-      it(`lister rejects limit ${value}`, async () => {
-        await expect(op.lister('/', { limit: value })).rejects.toThrowError('limit must be an integer')
-      })
-
-      it(`listerSync rejects limit ${value}`, () => {
-        expect(() => op.listerSync('/', { limit: value })).toThrowError('limit must be an integer')
-      })
-    }
-
     it('accepts a zero and a positive limit', async () => {
       const zero = await op.list('/', { limit: 0 })
       expect(zero.some((entry) => entry.path() === path)).toBe(true)

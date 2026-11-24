@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
-
 import pytest
 
 import opendal
@@ -32,18 +30,12 @@ from opendal.exceptions import ConfigInvalid
         {"timeout": float("inf")},
         {"timeout": float("-inf")},
         {"timeout": 1e30},
-        {"timeout": 1e-10},
-        {"timeout": 1e-300},
-        {"timeout": sys.float_info.min},
         {"io_timeout": 0.0},
         {"io_timeout": -1.0},
         {"io_timeout": float("nan")},
         {"io_timeout": float("inf")},
         {"io_timeout": float("-inf")},
         {"io_timeout": 1e30},
-        {"io_timeout": 1e-10},
-        {"io_timeout": 1e-300},
-        {"io_timeout": sys.float_info.min},
     ],
 )
 def test_timeout_layer_rejects_invalid_values(kwargs):
@@ -54,23 +46,8 @@ def test_timeout_layer_rejects_invalid_values(kwargs):
 @pytest.mark.parametrize(
     "kwargs",
     [
-        {"timeout": 1e-10},
-        {"timeout": 1e-300},
-        {"timeout": sys.float_info.min},
-        {"io_timeout": 1e-10},
-        {"io_timeout": 1e-300},
-        {"io_timeout": sys.float_info.min},
-    ],
-)
-def test_timeout_layer_rejects_sub_nanosecond_values(kwargs):
-    with pytest.raises(ConfigInvalid, match="at least one nanosecond"):
-        opendal.layers.TimeoutLayer(**kwargs)
-
-
-@pytest.mark.parametrize(
-    "kwargs",
-    [
         {},
+        {"timeout": 1e-10, "io_timeout": 1e-10},
         {"timeout": 1e-9},
         {"io_timeout": 1e-9},
         {"timeout": 0.5, "io_timeout": 2.0},

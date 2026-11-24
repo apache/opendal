@@ -62,11 +62,9 @@ stub-gen: setup
     ## This is temporary till the functionalities land in pyo3-introspection. ref: https://github.com/PyO3/pyo3/issues/5137
     @echo "{{ BOLD }}--- Post processing generated stubs ---{{ NORMAL }}"
     @uv run python scripts/postprocess_stubs.py
+    ## Remove forward-reference quotes before formatting the generated file stub.
+    @uv run ruff check --select PYI020,UP037 --unsafe-fixes --fix-only --silent python/opendal/file.pyi
     @just fmt
-    ## `ruff check --fix` inside `fmt` can strip quoted annotations
-    ## (PYI020/UP037) and leave a line wrapped until formatted once more,
-    ## keeping `just stub-gen` idempotent.
-    @uv run ruff format --quiet
 
 # Compile and produce a release wheel with optimizations
 [group('release')]

@@ -133,12 +133,21 @@ const WRITE_OPTION_KEYS: &[&str] = &[
     "user_metadata",
 ];
 
-fn reject_unknown_kwargs(dict: &pyo3::Bound<'_, PyDict>, allowed: &[&str]) -> PyResult<()> {
-    for key in dict.keys() {
+fn reject_unknown_kwargs(
+    dict: &pyo3::Bound<'_, PyDict>,
+    allowed: &[&str],
+    allow_inapplicable_none: bool,
+) -> PyResult<()> {
+    for (key, value) in dict.iter() {
         let name = key
             .extract::<String>()
             .map_err(|_| PyTypeError::new_err("keyword argument names must be strings"))?;
-        if !allowed.contains(&name.as_str()) {
+        if !allowed.contains(&name.as_str())
+            && !(allow_inapplicable_none
+                && value.is_none()
+                && (READ_OPTION_KEYS.contains(&name.as_str())
+                    || WRITE_OPTION_KEYS.contains(&name.as_str())))
+        {
             return Err(PyTypeError::new_err(format!(
                 "open() got an unexpected keyword argument '{name}'"
             )));
@@ -152,7 +161,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for ReadOptions {
 
     fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
         let dict = downcast_kwargs(obj)?;
-        reject_unknown_kwargs(&dict, READ_OPTION_KEYS)?;
+        reject_unknown_kwargs(&dict, READ_OPTION_KEYS, false)?;
 
         Ok(Self {
             version: extract_optional(&dict, "version")?,
@@ -176,11 +185,10 @@ impl<'a, 'py> FromPyObject<'a, 'py> for ReadOptions {
 impl ReadOptions {
     /// Extract reader options for `open(..., "rb")`.
     ///
-    /// Rejects response header overrides (`content_type`, `cache_control`,
-    /// `content_disposition`) because `ocore::options::ReaderOptions` ignores
-    /// them; callers should use `read()` for response header overrides.
+    /// Rejects non-None response header overrides because reader options
+    /// cannot forward them. Use `read()` for response header overrides.
     pub fn from_open_kwargs(dict: &pyo3::Bound<'_, PyDict>) -> PyResult<Self> {
-        reject_unknown_kwargs(dict, OPEN_READ_OPTION_KEYS)?;
+        reject_unknown_kwargs(dict, OPEN_READ_OPTION_KEYS, true)?;
 
         Ok(Self {
             version: extract_optional(dict, "version")?,
@@ -255,7 +263,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for WriteOptions {
 
     fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
         let dict = downcast_kwargs(obj)?;
-        reject_unknown_kwargs(&dict, WRITE_OPTION_KEYS)?;
+        reject_unknown_kwargs(&dict, WRITE_OPTION_KEYS, true)?;
 
         Ok(Self {
             append: extract_optional(&dict, "append")?,

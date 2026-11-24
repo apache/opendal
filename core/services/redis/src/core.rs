@@ -201,7 +201,9 @@ impl RedisCore {
         end: i64,
     ) -> Result<Option<(usize, Buffer)>> {
         let mut conn = self.conn().await?;
-        let (bytes, len, exists): (Bytes, usize, bool) = redis::pipe()
+        // Redis-compatible servers such as Kvrocks return RESP nil instead of
+        // an empty bulk string for out-of-range or missing GETRANGE responses.
+        let (bytes, len, exists): (Option<Bytes>, usize, bool) = redis::pipe()
             .cmd("GETRANGE")
             .arg(key)
             .arg(start)
@@ -213,6 +215,7 @@ impl RedisCore {
             .query_async(&mut *conn)
             .await
             .map_err(format_redis_error)?;
+        let bytes = bytes.unwrap_or_default();
         if len > 0 {
             Ok(Some((len, Buffer::from(bytes))))
         } else if exists {

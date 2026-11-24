@@ -59,4 +59,11 @@ reqsign-command-execute-tokio = { version = "3.0.9", default-features = false }
 
 [dev-dependencies]
 serde_json = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = [
+  "macros",
+  "net",
+  "rt-multi-thread",
+  "sync",
+  "time",
+] }
+tonic = { version = "0.14.5", default-features = false, features = ["server"] }

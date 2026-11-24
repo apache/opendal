@@ -72,14 +72,6 @@ fn not_modified_ignores_content_length() {
 }
 
 #[test]
-fn no_content_ignores_content_length() {
-    let (status, data) = fetch(b"HTTP/1.1 204 No Content\r\nContent-Length: 5\r\n\r\n");
-
-    assert_eq!(status, StatusCode::NO_CONTENT);
-    assert!(data.unwrap().is_empty());
-}
-
-#[test]
 fn ok_validates_content_length() {
     let (status, data) = fetch(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\na");
 

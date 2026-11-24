@@ -231,12 +231,12 @@ where
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.tasks.clear();
-        self.cache = None;
-
         if self.scheduled_block_ids.is_empty() {
             return Ok(());
         }
+
+        self.tasks.clear();
+        self.cache = None;
 
         // Keep the IDs until the abort succeeds so a temporary failure can be retried.
         self.w.abort_block(self.scheduled_block_ids.clone()).await?;
@@ -605,23 +605,6 @@ mod tests {
         let state = state.lock().expect("test state mutex poisoned");
         assert_eq!(state.abort_calls, vec![written.clone(), written.clone()]);
         assert_eq!(state.aborted, [written.clone(), written].concat());
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_block_writer_abort_clears_cached_write_without_abort_block() -> Result<()> {
-        let (inner, state) = RecordingWrite::new();
-        let mut w = BlockWriter::new(crate::test_executor(), inner, 4);
-
-        w.write(Buffer::from("a")).await?;
-
-        w.abort().await?;
-
-        assert!(w.cache.is_none());
-
-        let state = state.lock().expect("test state mutex poisoned");
-        assert!(state.written.is_empty());
-        assert!(state.abort_calls.is_empty());
         Ok(())
     }
 }

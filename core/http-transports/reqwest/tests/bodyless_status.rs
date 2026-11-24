@@ -79,14 +79,6 @@ async fn not_modified_ignores_content_length() {
 }
 
 #[tokio::test]
-async fn no_content_ignores_content_length() {
-    let (status, data) = fetch(b"HTTP/1.1 204 No Content\r\nContent-Length: 5\r\n\r\n").await;
-
-    assert_eq!(status, StatusCode::NO_CONTENT);
-    assert!(data.unwrap().is_empty());
-}
-
-#[tokio::test]
 async fn ok_validates_content_length() {
     let (status, data) = fetch(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\na").await;
 

@@ -17,11 +17,25 @@
  * under the License.
  */
 
+#include <stdexcept>
+
 #include "lib.rs.h"
 #include "opendal.hpp"
 #include "utils/rust_converter.hpp"
 
 namespace opendal {
+
+namespace {
+
+ffi::Writer &CheckedWriter(ffi::Writer *writer) {
+  if (writer == nullptr) {
+    throw std::logic_error(
+        "opendal::Writer method called on a moved-from object");
+  }
+  return *writer;
+}
+
+}  // namespace
 
 void Writer::Destroy() noexcept {
   if (writer_) {
@@ -39,11 +53,11 @@ Writer::Writer(Writer &&other) noexcept : writer_{other.writer_} {
 Writer::~Writer() noexcept { Destroy(); }
 
 void Writer::Write(std::string_view data) {
-  writer_->write(utils::rust_slice<const uint8_t>(data));
+  CheckedWriter(writer_).write(utils::rust_slice<const uint8_t>(data));
 }
 
-void Writer::Flush() { writer_->flush(); }
+void Writer::Flush() { CheckedWriter(writer_).flush(); }
 
-void Writer::Close() { writer_->close(); }
+void Writer::Close() { CheckedWriter(writer_).close(); }
 
 }  // namespace opendal

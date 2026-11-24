@@ -19,6 +19,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <stdexcept>
 
 #include "lib.rs.h"
 #include "opendal.hpp"
@@ -184,6 +185,15 @@ ffi::FfiListOptions ToFfiOptions(const ListOptions &options) {
   };
 }
 
+const ffi::Operator &CheckedOperator(const ffi::Operator *op) {
+  if (op == nullptr) {
+    throw std::logic_error(
+        "opendal::Operator method called on an uninitialized or moved-from "
+        "object");
+  }
+  return *op;
+}
+
 }  // namespace
 
 std::optional<std::string> parse_optional_string(ffi::OptionalString &&s) {
@@ -295,86 +305,89 @@ bool Operator::Available() const { return operator_ != nullptr; }
 // We can't avoid copy, because std::vector hides the internal structure.
 // std::vector doesn't support init from a pointer without copy.
 std::string Operator::Read(std::string_view path) {
-  auto rust_vec = operator_->read(utils::rust_str(path));
+  auto rust_vec = CheckedOperator(operator_).read(utils::rust_str(path));
   return {rust_vec.begin(), rust_vec.end()};
 }
 
 std::string Operator::Read(std::string_view path, const ReadOptions &options) {
-  auto rust_vec =
-      operator_->read_options(utils::rust_str(path), ToFfiOptions(options));
+  auto rust_vec = CheckedOperator(operator_).read_options(
+      utils::rust_str(path), ToFfiOptions(options));
   return {rust_vec.begin(), rust_vec.end()};
 }
 
 void Operator::Write(std::string_view path, std::string_view data) {
-  operator_->write(utils::rust_str(path),
-                   utils::rust_slice<const uint8_t>(data));
+  CheckedOperator(operator_).write(utils::rust_str(path),
+                                   utils::rust_slice<const uint8_t>(data));
 }
 
 void Operator::Write(std::string_view path, std::string_view data,
                      const WriteOptions &options) {
-  operator_->write_options(utils::rust_str(path),
-                           utils::rust_slice<const uint8_t>(data),
-                           ToFfiOptions(options));
+  CheckedOperator(operator_).write_options(
+      utils::rust_str(path), utils::rust_slice<const uint8_t>(data),
+      ToFfiOptions(options));
 }
 
 bool Operator::Exists(std::string_view path) {
-  return operator_->exists(utils::rust_str(path));
+  return CheckedOperator(operator_).exists(utils::rust_str(path));
 }
 
 bool Operator::IsExist(std::string_view path) { return Exists(path); }
 
 void Operator::CreateDir(std::string_view path) {
-  operator_->create_dir(utils::rust_str(path));
+  CheckedOperator(operator_).create_dir(utils::rust_str(path));
 }
 
 void Operator::Copy(std::string_view src, std::string_view dst) {
-  operator_->copy(utils::rust_str(src), utils::rust_str(dst));
+  CheckedOperator(operator_).copy(utils::rust_str(src), utils::rust_str(dst));
 }
 
 void Operator::Copy(std::string_view src, std::string_view dst,
                     const CopyOptions &options) {
-  operator_->copy_options(utils::rust_str(src), utils::rust_str(dst),
-                          ToFfiOptions(options));
+  CheckedOperator(operator_).copy_options(
+      utils::rust_str(src), utils::rust_str(dst), ToFfiOptions(options));
 }
 
 void Operator::Rename(std::string_view src, std::string_view dst) {
-  operator_->rename(utils::rust_str(src), utils::rust_str(dst));
+  CheckedOperator(operator_).rename(utils::rust_str(src), utils::rust_str(dst));
 }
 
 void Operator::Rename(std::string_view src, std::string_view dst,
                       const RenameOptions &options) {
-  operator_->rename_options(utils::rust_str(src), utils::rust_str(dst),
-                            ToFfiOptions(options));
+  CheckedOperator(operator_).rename_options(
+      utils::rust_str(src), utils::rust_str(dst), ToFfiOptions(options));
 }
 
 void Operator::Remove(std::string_view path) {
-  operator_->remove(utils::rust_str(path));
+  CheckedOperator(operator_).remove(utils::rust_str(path));
 }
 
 void Operator::Remove(std::string_view path, const DeleteOptions &options) {
-  operator_->remove_options(utils::rust_str(path), ToFfiOptions(options));
+  CheckedOperator(operator_).remove_options(utils::rust_str(path),
+                                            ToFfiOptions(options));
 }
 
 void Operator::RemoveAll(const std::vector<std::string> &paths) {
+  const auto &op = CheckedOperator(operator_);
   rust::Vec<rust::String> rust_paths;
   rust_paths.reserve(paths.size());
   for (const auto &path : paths) {
     rust_paths.push_back(utils::rust_string(path));
   }
-  operator_->remove_all(std::move(rust_paths));
+  op.remove_all(std::move(rust_paths));
 }
 
 Metadata Operator::Stat(std::string_view path) {
-  return parse_meta_data(operator_->stat(utils::rust_str(path)));
+  return parse_meta_data(
+      CheckedOperator(operator_).stat(utils::rust_str(path)));
 }
 
 Metadata Operator::Stat(std::string_view path, const StatOptions &options) {
-  return parse_meta_data(
-      operator_->stat_options(utils::rust_str(path), ToFfiOptions(options)));
+  return parse_meta_data(CheckedOperator(operator_).stat_options(
+      utils::rust_str(path), ToFfiOptions(options)));
 }
 
 std::vector<Entry> Operator::List(std::string_view path) {
-  auto rust_vec = operator_->list(utils::rust_str(path));
+  auto rust_vec = CheckedOperator(operator_).list(utils::rust_str(path));
 
   std::vector<Entry> entries;
   entries.reserve(rust_vec.size());
@@ -387,8 +400,8 @@ std::vector<Entry> Operator::List(std::string_view path) {
 
 std::vector<Entry> Operator::List(std::string_view path,
                                   const ListOptions &options) {
-  auto rust_vec =
-      operator_->list_options(utils::rust_str(path), ToFfiOptions(options));
+  auto rust_vec = CheckedOperator(operator_).list_options(
+      utils::rust_str(path), ToFfiOptions(options));
 
   std::vector<Entry> entries;
   entries.reserve(rust_vec.size());
@@ -400,36 +413,35 @@ std::vector<Entry> Operator::List(std::string_view path,
 }
 
 Lister Operator::GetLister(std::string_view path) {
-  return operator_->lister(utils::rust_str(path));
+  return CheckedOperator(operator_).lister(utils::rust_str(path));
 }
 
 Lister Operator::GetLister(std::string_view path, const ListOptions &options) {
-  return operator_->lister_options(utils::rust_str(path),
-                                   ToFfiOptions(options));
+  return CheckedOperator(operator_).lister_options(utils::rust_str(path),
+                                                   ToFfiOptions(options));
 }
 
 Reader Operator::GetReader(std::string_view path) {
-  return operator_->reader(utils::rust_str(path));
+  return CheckedOperator(operator_).reader(utils::rust_str(path));
 }
 
 Reader Operator::GetReader(std::string_view path,
                            const ReaderOptions &options) {
-  return operator_->reader_options(utils::rust_str(path),
-                                   ToFfiOptions(options));
+  return CheckedOperator(operator_).reader_options(utils::rust_str(path),
+                                                   ToFfiOptions(options));
 }
 
 Writer Operator::GetWriter(std::string_view path) {
-  return operator_->writer(utils::rust_str(path));
+  return CheckedOperator(operator_).writer(utils::rust_str(path));
 }
 
 Writer Operator::GetWriter(std::string_view path, const WriteOptions &options) {
-  return operator_->writer_options(utils::rust_str(path),
-                                   ToFfiOptions(options));
+  return CheckedOperator(operator_).writer_options(utils::rust_str(path),
+                                                   ToFfiOptions(options));
 }
 
-}  // namespace opendal
-opendal::Capability opendal::Operator::Info() {
-  const auto op_info = operator_->info();
+Capability Operator::Info() {
+  const auto op_info = CheckedOperator(operator_).info();
   Capability capability{};
   capability.stat = op_info.stat;
   capability.stat_with_if_match = op_info.stat_with_if_match;
@@ -469,3 +481,5 @@ opendal::Capability opendal::Operator::Info() {
   capability.shared = op_info.shared;
   return capability;
 }
+
+}  // namespace opendal

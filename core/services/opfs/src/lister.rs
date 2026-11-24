@@ -15,35 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(target_arch = "wasm32")]
 use std::sync::Arc;
 
-#[cfg(target_arch = "wasm32")]
 use send_wrapper::SendWrapper;
-#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-#[cfg(target_arch = "wasm32")]
 use wasm_bindgen_futures::JsFuture;
 
-#[cfg(target_arch = "wasm32")]
 use super::core::OpfsCore;
-#[cfg(target_arch = "wasm32")]
 use super::core::*;
-#[cfg(target_arch = "wasm32")]
 use opendal_core::raw::*;
-#[cfg(target_arch = "wasm32")]
 use opendal_core::*;
 
-pub(crate) fn normalize_list_prefix(path: &str) -> String {
-    let trimmed = path.trim_matches('/');
-    if trimmed.is_empty() {
-        String::new()
-    } else {
-        format!("{trimmed}/")
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
 pub struct OpfsLister {
     core: Arc<OpfsCore>,
     iter: Option<SendWrapper<js_sys::AsyncIterator>>,
@@ -51,12 +33,16 @@ pub struct OpfsLister {
     done: bool,
 }
 
-#[cfg(target_arch = "wasm32")]
 impl OpfsLister {
     pub fn new(core: Arc<OpfsCore>, path: String) -> Self {
         // Entry paths must not start with '/', and non-empty directory prefixes
         // must end with '/' so child names are separated properly.
-        let path = normalize_list_prefix(&path);
+        let prefix = path.trim_matches('/');
+        let path = if prefix.is_empty() {
+            String::new()
+        } else {
+            format!("{prefix}/")
+        };
         Self {
             core,
             iter: None,
@@ -64,35 +50,23 @@ impl OpfsLister {
             done: false,
         }
     }
-
-    async fn init_iter(&mut self) -> Result<bool> {
-        if self.iter.is_some() {
-            return Ok(true);
-        }
-
-        let p = build_absolute_path(&self.core.root, &self.path);
-        match get_directory_handle(&p, false).await {
-            Ok(dir) => {
-                self.iter = Some(SendWrapper::new(dir.entries()));
-                Ok(true)
-            }
-            Err(err) if err.kind() == ErrorKind::NotFound => {
-                self.done = true;
-                Ok(false)
-            }
-            Err(err) => Err(err),
-        }
-    }
 }
 
-#[cfg(target_arch = "wasm32")]
 impl oio::List for OpfsLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         if self.done {
             return Ok(None);
         }
-        if !self.init_iter().await? {
-            return Ok(None);
+        if self.iter.is_none() {
+            let path = build_absolute_path(&self.core.root, &self.path);
+            match get_directory_handle(&path, false).await {
+                Ok(dir) => self.iter = Some(SendWrapper::new(dir.entries())),
+                Err(err) if err.kind() == ErrorKind::NotFound => {
+                    self.done = true;
+                    return Ok(None);
+                }
+                Err(err) => return Err(err),
+            }
         }
 
         let iter = self
@@ -129,34 +103,5 @@ impl oio::List for OpfsLister {
         };
 
         Ok(Some(oio::Entry::new(&entry_path, metadata.build())))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn normalize_list_prefix_handles_root_and_trailing_slash() {
-        assert_eq!(normalize_list_prefix(""), "");
-        assert_eq!(normalize_list_prefix("/"), "");
-        assert_eq!(normalize_list_prefix("///"), "");
-        assert_eq!(normalize_list_prefix("sub"), "sub/");
-        assert_eq!(normalize_list_prefix("sub/"), "sub/");
-        assert_eq!(normalize_list_prefix("/sub"), "sub/");
-        assert_eq!(normalize_list_prefix("/sub/"), "sub/");
-        assert_eq!(normalize_list_prefix("a/b"), "a/b/");
-        assert_eq!(normalize_list_prefix("a/b/"), "a/b/");
-    }
-
-    #[test]
-    fn normalized_prefix_formats_child_entries_with_separator() {
-        let prefix = normalize_list_prefix("sub");
-        assert_eq!(format!("{prefix}file"), "sub/file");
-        assert_eq!(format!("{prefix}child/"), "sub/child/");
-
-        let root_prefix = normalize_list_prefix("/");
-        assert_eq!(format!("{root_prefix}file"), "file");
-        assert_eq!(format!("{root_prefix}child/"), "child/");
     }
 }

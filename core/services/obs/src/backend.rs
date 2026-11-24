@@ -265,6 +265,7 @@ impl Builder for ObsBuilder {
 
             list: true,
             list_with_recursive: true,
+            list_with_recursive_flat: true,
 
             presign: true,
             presign_stat: true,

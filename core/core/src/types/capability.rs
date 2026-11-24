@@ -251,6 +251,9 @@ pub struct Capability {
     pub list_with_start_after: bool,
     /// Indicates if recursive listing is supported.
     pub list_with_recursive: bool,
+    /// Indicates if a recursive listing is one flat key listing (one request
+    /// stream for the whole subtree), rather than a walk of directories.
+    pub list_with_recursive_flat: bool,
     /// Indicates if listing with versions included is supported.
     pub list_with_versions: bool,
     /// Indicates if listing with deleted files included is supported.

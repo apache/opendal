@@ -205,6 +205,7 @@ impl Builder for SwiftBuilder {
 
                     list: true,
                     list_with_recursive: true,
+                    list_with_recursive_flat: true,
                     list_with_start_after: true,
 
                     presign: has_temp_url_key,

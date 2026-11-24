@@ -1267,6 +1267,7 @@ impl S3Builder {
             list_with_limit: true,
             list_with_start_after: !is_s3_express,
             list_with_recursive: !is_s3_express,
+            list_with_recursive_flat: !is_s3_express,
             list_with_versions: !is_s3_express,
             list_with_deleted: !is_s3_express,
 
@@ -3978,6 +3979,7 @@ mod tests {
         assert!(!capability.restore_with_if_not_exists);
         assert!(!capability.list_with_start_after);
         assert!(!capability.list_with_recursive);
+        assert!(!capability.list_with_recursive_flat);
         assert!(!capability.list_with_versions);
         assert!(!capability.list_with_deleted);
     }

@@ -122,6 +122,7 @@ public struct Capability
         ListWithLimit = native.listWithLimit != 0;
         ListWithStartAfter = native.listWithStartAfter != 0;
         ListWithRecursive = native.listWithRecursive != 0;
+        ListWithRecursiveFlat = native.listWithRecursiveFlat != 0;
         ListWithVersions = native.listWithVersions != 0;
         ListWithDeleted = native.listWithDeleted != 0;
         ListWithGlob = native.listWithGlob != 0;
@@ -567,6 +568,11 @@ public struct Capability
     /// Indicates if recursive listing is supported.
     /// </summary>
     public bool ListWithRecursive { get; private set; }
+
+    /// <summary>
+    /// Indicates if a recursive listing is one flat key listing (one request stream for the whole subtree), rather than a walk of directories.
+    /// </summary>
+    public bool ListWithRecursiveFlat { get; private set; }
 
     /// <summary>
     /// Indicates if listing with versions included is supported.

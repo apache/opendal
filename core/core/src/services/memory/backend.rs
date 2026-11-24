@@ -82,6 +82,7 @@ impl MemoryBackend {
             stat: true,
             list: true,
             list_with_recursive: true,
+            list_with_recursive_flat: true,
             list_with_start_after: true,
             ..Default::default()
         };

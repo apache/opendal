@@ -204,6 +204,8 @@ pub struct Capability {
     pub list_with_start_after: bool,
     /// Indicates if recursive listing is supported.
     pub list_with_recursive: bool,
+    /// Indicates if a recursive listing is one flat key listing (one request stream for the whole subtree), rather than a walk of directories.
+    pub list_with_recursive_flat: bool,
     /// Indicates if listing with versions included is supported.
     pub list_with_versions: bool,
     /// Indicates if listing with deleted files included is supported.
@@ -315,6 +317,7 @@ impl Capability {
             list_with_limit: cap.list_with_limit,
             list_with_start_after: cap.list_with_start_after,
             list_with_recursive: cap.list_with_recursive,
+            list_with_recursive_flat: cap.list_with_recursive_flat,
             list_with_versions: cap.list_with_versions,
             list_with_deleted: cap.list_with_deleted,
             list_with_glob: cap.list_with_glob,

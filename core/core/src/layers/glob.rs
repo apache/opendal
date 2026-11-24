@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::raw::glob_matcher::GlobPattern;
@@ -26,8 +27,12 @@ use crate::*;
 ///
 /// OpenDAL installs this layer by default. Services that advertise native glob
 /// support receive list requests unchanged. Otherwise the layer uses the pattern
-/// to skip unrelated directories. With a cursor, versions, or delete markers,
-/// it filters an underlying listing to preserve the service's cursor and entries.
+/// to skip unrelated directories. On services whose recursive listing is one
+/// flat key listing (`list_with_recursive_flat`), a pattern that spans
+/// directories filters one recursive listing instead, since listing each
+/// directory would cost one request per directory. With a cursor, versions, or
+/// delete markers, it filters an underlying listing to preserve the service's
+/// cursor and entries.
 /// For a custom stack, install it before layers that resolve symbolic links
 /// when completing entry metadata.
 ///
@@ -155,10 +160,12 @@ impl Service for GlobService {
                 inner: self.inner.list(ctx, path, args)?,
                 pattern,
                 base: base.to_owned(),
+                root: base.to_owned(),
+                implied: None,
+                pending: None,
             }));
         }
 
-        args.set_recursive(false);
         let mut directory = if base == "/" {
             String::new()
         } else {
@@ -174,6 +181,36 @@ impl Service for GlobService {
             directory.push('/');
         }
         let prefix = if path == "/" { "" } else { path };
+
+        // A flat recursive listing returns a whole subtree in one paged request
+        // stream. Walking it directory by directory would turn one request into
+        // one request per visited directory, so filter the subtree instead.
+        // Services that recurse by walking directories keep the guided walk,
+        // which skips directories the pattern cannot match.
+        let capability = self.inner.capability();
+        if pattern.spans_directories()
+            && capability.list_with_recursive
+            && capability.list_with_recursive_flat
+            && (position == 0 || directory.starts_with(prefix))
+        {
+            args.set_recursive(true);
+            // Prefix listings cannot skip to a literal directory the prefix does not cover.
+            let root = if directory.starts_with(prefix) {
+                directory
+            } else {
+                path.to_owned()
+            };
+            return Ok(Box::new(FilteredLister {
+                inner: self.inner.list(ctx, &root, args)?,
+                pattern,
+                base: base.to_owned(),
+                root,
+                implied: Some(HashSet::new()),
+                pending: None,
+            }));
+        }
+
+        args.set_recursive(false);
         let directories = if position == 0 || directory.starts_with(prefix) {
             vec![Directory {
                 path: directory,
@@ -289,18 +326,77 @@ struct FilteredLister {
     inner: oio::Lister,
     pattern: GlobPattern,
     base: String,
+    /// The listed directory itself is never a match, as in guided listing.
+    root: String,
+    /// Directories already seen in a recursive listing. Object stores list keys,
+    /// so parents that exist only as key prefixes are matched here, as a guided
+    /// listing would see them as common prefixes.
+    implied: Option<HashSet<String>>,
+    pending: Option<oio::Entry>,
+}
+
+impl FilteredLister {
+    fn accepts(&self, path: &str, is_dir: bool) -> bool {
+        path != self.root
+            && relative_child(path, &self.base)
+                .is_some_and(|relative| self.pattern.matches(relative, is_dir))
+    }
+
+    /// Return the first unseen matching parent of `entry`, or `entry` itself.
+    fn take_next(&mut self, entry: oio::Entry) -> Option<oio::Entry> {
+        if let Some(seen) = &self.implied {
+            let root = if self.root == "/" { "" } else { &self.root };
+            let path = entry.path();
+            let end = path.trim_end_matches('/').len();
+            for (index, _) in path[..end].match_indices('/') {
+                let parent = &path[..=index];
+                if parent.len() <= root.len() || !parent.starts_with(root) {
+                    continue;
+                }
+                if seen.contains(parent) {
+                    continue;
+                }
+                let parent = parent.to_owned();
+                self.implied
+                    .as_mut()
+                    .expect("implied set")
+                    .insert(parent.clone());
+                if self.accepts(&parent, true) {
+                    self.pending = Some(entry);
+                    return Some(oio::Entry::new(&parent, MetadataBuilder::dir().build()));
+                }
+                return self.take_next(entry);
+            }
+            if entry.mode().is_dir() {
+                let fresh = self
+                    .implied
+                    .as_mut()
+                    .expect("implied set")
+                    .insert(entry.path().to_owned());
+                if !fresh {
+                    return None;
+                }
+            }
+        }
+        self.accepts(entry.path(), entry.mode().is_dir())
+            .then_some(entry)
+    }
 }
 
 impl List for FilteredLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        while let Some(entry) = self.inner.next().await? {
-            if let Some(path) = relative_child(entry.path(), &self.base)
-                && self.pattern.matches(path, entry.mode().is_dir())
-            {
+        loop {
+            let entry = match self.pending.take() {
+                Some(entry) => entry,
+                None => match self.inner.next().await? {
+                    Some(entry) => entry,
+                    None => return Ok(None),
+                },
+            };
+            if let Some(entry) = self.take_next(entry) {
                 return Ok(Some(entry));
             }
         }
-        Ok(None)
     }
 }
 

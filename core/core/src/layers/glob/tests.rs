@@ -196,12 +196,124 @@ async fn native_glob_receives_the_original_list_options() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn recursive_services_filter_one_listing() -> Result<()> {
+    // A recursive object listing returns keys only, no directory entries.
+    let inner = Arc::new(ListFixture {
+        recursive: true,
+        ..ListFixture::new(&[
+            "t/p=1/a.parquet",
+            "t/p=1/b.json",
+            "t/p=2/x/c.parquet",
+            "t/q=3/d.parquet",
+        ])
+    });
+    let op = Operator::from_parts(OperationContext::default(), inner.clone()).layer(GlobLayer);
+
+    let entries = op
+        .list_with("/")
+        .glob("t/p=*/**/*.parquet")
+        .limit(2)
+        .await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        ["t/p=1/a.parquet", "t/p=2/x/c.parquet"]
+    );
+    // Parents that exist only as key prefixes still match, once each.
+    let entries = op.list_with("/").glob("t/*/").await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        ["t/p=1/", "t/p=2/", "t/q=3/"]
+    );
+    let entries = op.list_with("t/").glob("**").await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        [
+            "t/p=1/",
+            "t/p=1/a.parquet",
+            "t/p=1/b.json",
+            "t/p=2/",
+            "t/p=2/x/",
+            "t/p=2/x/c.parquet",
+            "t/q=3/",
+            "t/q=3/d.parquet",
+        ]
+    );
+
+    let requests = inner.requests.lock().unwrap();
+    assert_eq!(requests.len(), 3);
+    for ((path, args), expected) in requests.iter().zip(["t/", "t/", "t/"]) {
+        assert_eq!(path, expected);
+        assert!(args.recursive());
+        assert_eq!(args.glob(), None);
+    }
+    assert_eq!(requests[0].1.limit(), Some(2));
+    Ok(())
+}
+
+#[tokio::test]
+async fn walking_services_keep_the_guided_listing() -> Result<()> {
+    // Recursive but not flat, as fs: recursion walks directories anyway.
+    let inner = Arc::new(ListFixture {
+        recursive: true,
+        ..ListFixture::new(&["t/a.parquet"])
+    });
+    let walking = crate::layers::CapabilityOverrideLayer::new(|mut capability| {
+        capability.list_with_recursive_flat = false;
+        capability
+    });
+    let op = Operator::from_parts(OperationContext::default(), inner.clone())
+        .layer(walking)
+        .layer(GlobLayer);
+    op.list_with("/").glob("t/*/*.parquet").await?;
+    let requests = inner.requests.lock().unwrap();
+    assert_eq!(requests[0].0, "t/");
+    assert!(requests.iter().all(|(_, args)| !args.recursive()));
+    Ok(())
+}
+
+#[tokio::test]
+async fn flat_listing_requires_recursive_listing() -> Result<()> {
+    // A layer that disables recursion leaves the flat hint stale.
+    let inner = Arc::new(ListFixture {
+        recursive: true,
+        ..ListFixture::new(&["t/a.parquet"])
+    });
+    let no_recursion = crate::layers::CapabilityOverrideLayer::new(|mut capability| {
+        capability.list_with_recursive = false;
+        capability
+    });
+    let op = Operator::from_parts(OperationContext::default(), inner.clone())
+        .layer(no_recursion)
+        .layer(GlobLayer);
+    op.list_with("/").glob("t/**/*.parquet").await?;
+    let requests = inner.requests.lock().unwrap();
+    assert!(requests.iter().all(|(_, args)| !args.recursive()));
+    Ok(())
+}
+
+#[tokio::test]
+async fn single_component_patterns_list_one_directory() -> Result<()> {
+    let inner = Arc::new(ListFixture {
+        recursive: true,
+        ..ListFixture::new(&["t/a.parquet", "t/b.json"])
+    });
+    let op = Operator::from_parts(OperationContext::default(), inner.clone()).layer(GlobLayer);
+    let entries = op.list_with("t/").glob("*.parquet").await?;
+    assert_eq!(entries[0].path(), "t/a.parquet");
+    let requests = inner.requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert!(!requests[0].1.recursive());
+    Ok(())
+}
+
 #[derive(Debug)]
 struct ListFixture {
     requests: Mutex<Vec<(String, OpList)>>,
     entries: Vec<oio::Entry>,
     native_glob: bool,
     denied: Option<&'static str>,
+    recursive: bool,
 }
 
 impl ListFixture {
@@ -214,6 +326,7 @@ impl ListFixture {
                 .collect(),
             native_glob: false,
             denied: None,
+            recursive: false,
         }
     }
 }
@@ -234,6 +347,8 @@ impl Service for ListFixture {
         Capability {
             list: true,
             list_with_glob: self.native_glob,
+            list_with_recursive: self.recursive,
+            list_with_recursive_flat: self.recursive,
             list_with_limit: true,
             list_with_start_after: true,
             list_with_versions: true,

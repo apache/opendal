@@ -30,7 +30,7 @@ pub(crate) fn make_capability<'a>(env: &mut Env<'a>, cap: Capability) -> Result<
     let capability = env.new_object(
         jni_str!("org/apache/opendal/Capability"),
         jni_sig!(
-            "(ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZJJJZZZZZZZZJZZZZZZZZZZZJJZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ)V"
+            "(ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZJJJZZZZZZZZJZZZZZZZZZZZJJZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ)V"
         ),
         &[
             JValue::Bool(cap.stat),
@@ -120,6 +120,7 @@ pub(crate) fn make_capability<'a>(env: &mut Env<'a>, cap: Capability) -> Result<
             JValue::Bool(cap.list_with_limit),
             JValue::Bool(cap.list_with_start_after),
             JValue::Bool(cap.list_with_recursive),
+            JValue::Bool(cap.list_with_recursive_flat),
             JValue::Bool(cap.list_with_versions),
             JValue::Bool(cap.list_with_deleted),
             JValue::Bool(cap.list_with_glob),

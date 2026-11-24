@@ -1677,7 +1677,13 @@ mod tests {
             object_store::Error::NotFound { path, .. } if path == location.as_ref()
         ));
 
-        assert!(store.get_ranges(&location, &[0..1]).await.is_err());
+        let range = 0..1;
+        assert!(
+            store
+                .get_ranges(&location, std::slice::from_ref(&range))
+                .await
+                .is_err()
+        );
         Ok(())
     }
 

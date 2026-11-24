@@ -201,7 +201,7 @@ struct DtraceHttpTransport {
 macro_rules! http_probe {
     ($name:ident $(, $arg:expr)*) => {{
         #[cfg(test)]
-        tests::record_probe(stringify!($name));
+        tests::record_probe(stringify!($name), &[$($arg as isize),*]);
         probe!(opendal, $name $(, $arg)*);
     }};
 }
@@ -240,7 +240,7 @@ impl HttpTransport for DtraceHttpTransport {
 macro_rules! operation_probe {
     ($name:ident $(, $arg:expr)* $(,)?) => {{
         #[cfg(test)]
-        tests::record_probe(stringify!($name));
+        tests::record_probe(stringify!($name), &[$($arg as isize),*]);
         probe_lazy!(opendal, $name $(, $arg)*);
     }};
 }
@@ -477,12 +477,13 @@ impl<R: oio::Read> oio::Read for DtraceWrapper<R> {
 impl<R: oio::Write> oio::Write for DtraceWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         let c_path = probe_cstring(&self.path);
+        let len = bs.len();
         operation_probe!(writer_write_start, c_path.as_ptr());
         self.inner
             .write(bs)
             .await
             .map(|_| {
-                operation_probe!(writer_write_ok, c_path.as_ptr());
+                operation_probe!(writer_write_ok, c_path.as_ptr(), len);
             })
             .inspect_err(|_| {
                 operation_probe!(writer_write_error, c_path.as_ptr());
@@ -491,12 +492,13 @@ impl<R: oio::Write> oio::Write for DtraceWrapper<R> {
 
     async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
         let c_path = probe_cstring(&self.path);
+        let len = range.size().unwrap_or_default();
         operation_probe!(writer_write_start, c_path.as_ptr());
         self.inner
             .copy_from(path, args, range)
             .await
             .map(|_| {
-                operation_probe!(writer_write_ok, c_path.as_ptr());
+                operation_probe!(writer_write_ok, c_path.as_ptr(), len);
             })
             .inspect_err(|_| {
                 operation_probe!(writer_write_error, c_path.as_ptr());
@@ -505,15 +507,15 @@ impl<R: oio::Write> oio::Write for DtraceWrapper<R> {
 
     async fn abort(&mut self) -> Result<()> {
         let c_path = probe_cstring(&self.path);
-        operation_probe!(writer_poll_abort_start, c_path.as_ptr());
+        operation_probe!(writer_abort_start, c_path.as_ptr());
         self.inner
             .abort()
             .await
             .map(|_| {
-                operation_probe!(writer_poll_abort_ok, c_path.as_ptr());
+                operation_probe!(writer_abort_ok, c_path.as_ptr());
             })
             .inspect_err(|_| {
-                operation_probe!(writer_poll_abort_error, c_path.as_ptr());
+                operation_probe!(writer_abort_error, c_path.as_ptr());
             })
     }
 

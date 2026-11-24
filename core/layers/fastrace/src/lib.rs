@@ -40,7 +40,7 @@ mod tests;
 /// [fastrace](https://docs.rs/fastrace/).
 ///
 /// It creates spans for service calls and deferred operation bodies such as
-/// readers, writers, listers, deleters, and copiers. It also traces outbound
+/// readers, writers, listers, deleters, copiers, and composers. It also traces outbound
 /// HTTP requests through response body consumption and propagates trace context
 /// to tasks spawned through the operation's executor.
 ///
@@ -226,7 +226,7 @@ impl Service for FastraceService {
     type Lister = FastraceWrapper<oio::Lister>;
     type Deleter = FastraceWrapper<oio::Deleter>;
     type Copier = FastraceWrapper<oio::Copier>;
-    type Composer = oio::Composer;
+    type Composer = FastraceWrapper<oio::Composer>;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -237,7 +237,11 @@ impl Service for FastraceService {
     }
 
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
-        self.inner.compose(ctx, to, args)
+        let span = Span::enter_with_local_parent(Operation::Compose.into_static());
+        let _guard = span.set_local_parent();
+        self.inner
+            .compose(ctx, to, args)
+            .map(|composer| FastraceWrapper::new(span, composer))
     }
 
     async fn create_dir(
@@ -473,5 +477,23 @@ impl<C: oio::Copy> oio::Copy for FastraceWrapper<C> {
         let span = Span::enter_with_parent(Operation::Copy.into_static(), &self.span);
         let _guard = span.set_local_parent();
         self.inner.abort().in_span(span)
+    }
+}
+
+impl<C: oio::Compose> oio::Compose for FastraceWrapper<C> {
+    fn compose<'a>(
+        &'a mut self,
+        path: &'a str,
+        args: OpRead,
+    ) -> impl Future<Output = Result<()>> + MaybeSend + 'a {
+        let span = Span::enter_with_parent(Operation::Compose.into_static(), &self.span);
+        let _guard = span.set_local_parent();
+        self.inner.compose(path, args).in_span(span)
+    }
+
+    fn close(&mut self) -> impl Future<Output = Result<Metadata>> + MaybeSend {
+        let span = Span::enter_with_parent(Operation::Compose.into_static(), &self.span);
+        let _guard = span.set_local_parent();
+        self.inner.close().in_span(span)
     }
 }

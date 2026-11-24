@@ -220,3 +220,141 @@ fn executor_propagates_the_submitters_trace() {
         assert_eq!(submitted.trace_id, root.trace_id);
     }
 }
+
+#[derive(Debug)]
+struct ComposeTestService;
+
+impl Service for ComposeTestService {
+    type Reader = ();
+    type Writer = ();
+    type Lister = ();
+    type Deleter = ();
+    type Copier = ();
+    type Composer = TestComposer;
+
+    fn info(&self) -> ServiceInfo {
+        ServiceInfo::new("mock", "/", "mock")
+    }
+
+    fn capability(&self) -> Capability {
+        Capability {
+            compose: true,
+            ..Default::default()
+        }
+    }
+
+    async fn create_dir(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        unimplemented!()
+    }
+
+    async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+        unimplemented!()
+    }
+
+    fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+        unimplemented!()
+    }
+
+    fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+        unimplemented!()
+    }
+
+    fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+        unimplemented!()
+    }
+
+    fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+        unimplemented!()
+    }
+
+    fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
+        unimplemented!()
+    }
+
+    async fn rename(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: &str,
+        _: OpRename,
+    ) -> Result<RpRename> {
+        unimplemented!()
+    }
+
+    async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+        unimplemented!()
+    }
+
+    fn compose(
+        &self,
+        _ctx: &OperationContext,
+        _to: &str,
+        _args: OpCompose,
+    ) -> Result<Self::Composer> {
+        let _span = LocalSpan::enter_with_local_parent("test.compose.create");
+        Ok(TestComposer { count: 0 })
+    }
+}
+
+struct TestComposer {
+    count: u64,
+}
+
+impl oio::Compose for TestComposer {
+    async fn compose(&mut self, _path: &str, _args: OpRead) -> Result<()> {
+        tokio::task::yield_now().await;
+        let _span = LocalSpan::enter_with_local_parent("test.composer.compose");
+        self.count += 1;
+        Ok(())
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        tokio::task::yield_now().await;
+        let _span = LocalSpan::enter_with_local_parent("test.composer.close");
+        Ok(MetadataBuilder::file(self.count).build())
+    }
+}
+
+#[test]
+fn composer_operations_inherit_compose_span() {
+    let (meta, spans) = collect_spans(async {
+        async {
+            let service = FastraceLayer::new().apply_service(Arc::new(ComposeTestService));
+            let ctx = OperationContext::default();
+            let mut composer = service.compose(&ctx, "dst", OpCompose::default()).unwrap();
+            oio::Compose::compose(&mut composer, "part1", OpRead::default())
+                .await
+                .unwrap();
+            oio::Compose::close(&mut composer).await.unwrap()
+        }
+        .in_span(Span::root("test.compose", SpanContext::random()))
+        .await
+    });
+    assert_eq!(meta.content_length(), 1);
+
+    let root = spans
+        .iter()
+        .find(|span| span.name == "test.compose")
+        .unwrap();
+    let compose = child_span(&spans, root, Operation::Compose.into_static());
+    child_span(&spans, compose, "test.compose.create");
+
+    for leaf in ["test.composer.compose", "test.composer.close"] {
+        let leaf_span = spans
+            .iter()
+            .find(|span| span.name == leaf)
+            .unwrap_or_else(|| panic!("missing {leaf} in {spans:?}"));
+        let op_span = spans
+            .iter()
+            .find(|span| span.span_id == leaf_span.parent_id && span.trace_id == leaf_span.trace_id)
+            .unwrap();
+        assert_eq!(op_span.name, Operation::Compose.into_static());
+        assert_eq!(op_span.parent_id, compose.span_id);
+        assert_eq!(op_span.trace_id, root.trace_id);
+    }
+}

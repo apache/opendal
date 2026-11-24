@@ -46,6 +46,8 @@ const LABEL_DELETER_CLOSE: &str = "opendal.deleter.close";
 const LABEL_COPIER_NEXT: &str = "opendal.copier.next";
 const LABEL_COPIER_CLOSE: &str = "opendal.copier.close";
 const LABEL_COPIER_ABORT: &str = "opendal.copier.abort";
+const LABEL_COMPOSER_COMPOSE: &str = "opendal.composer.compose";
+const LABEL_COMPOSER_CLOSE: &str = "opendal.composer.close";
 const LABEL_HTTP_FETCH: &str = "opendal.http.fetch";
 const LABEL_HTTP_BODY_POLL: &str = "opendal.http.body.poll";
 
@@ -110,7 +112,7 @@ impl Service for HotpathService {
     type Lister = HotpathWrapper<oio::Lister>;
     type Deleter = HotpathWrapper<oio::Deleter>;
     type Copier = HotpathWrapper<oio::Copier>;
-    type Composer = oio::Composer;
+    type Composer = HotpathWrapper<oio::Composer>;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -121,7 +123,7 @@ impl Service for HotpathService {
     }
 
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
-        self.inner.compose(ctx, to, args)
+        self.inner.compose(ctx, to, args).map(HotpathWrapper::new)
     }
 
     async fn create_dir(
@@ -272,6 +274,16 @@ impl<C: oio::Copy> oio::Copy for HotpathWrapper<C> {
     }
 }
 
+impl<C: oio::Compose> oio::Compose for HotpathWrapper<C> {
+    async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
+        hotpath::measure_async(LABEL_COMPOSER_COMPOSE, self.inner.compose(path, args)).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        hotpath::measure_async(LABEL_COMPOSER_CLOSE, self.inner.close()).await
+    }
+}
+
 struct HotpathHttpTransport {
     inner: HttpTransporter,
 }
@@ -300,3 +312,6 @@ where
         hotpath::measure_block!(_label, self.inner.poll_next_unpin(cx))
     }
 }
+
+#[cfg(test)]
+mod tests;

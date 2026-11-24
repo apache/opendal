@@ -96,6 +96,12 @@ impl<R: PositionRead> oio::Read for PositionReader<R> {
                 "position reader doesn't support suffix range",
             ));
         };
+        if size.is_some_and(|size| offset.checked_add(size).is_none()) {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "range end overflow: offset + size exceeds u64::MAX",
+            ));
+        }
 
         let stream = PositionReadStream::new(
             self.reader.clone(),
@@ -119,6 +125,12 @@ impl<R: PositionRead> oio::Read for PositionReader<R> {
         };
         let size = size
             .ok_or_else(|| Error::new(ErrorKind::Unsupported, "read requires a bounded range"))?;
+        if offset.checked_add(size).is_none() {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "range end overflow: offset + size exceeds u64::MAX",
+            ));
+        }
 
         let mut remaining = size;
         let mut bufs = Vec::new();
@@ -138,7 +150,12 @@ impl<R: PositionRead> oio::Read for PositionReader<R> {
             }
 
             let n = buf.len() as u64;
-            offset += n;
+            offset = offset.checked_add(n).ok_or_else(|| {
+                Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "range end overflow: offset + size exceeds u64::MAX",
+                )
+            })?;
             remaining -= n;
             bufs.push(buf);
         }
@@ -208,7 +225,16 @@ impl<R: PositionRead> oio::ReadStream for PositionReadStream<R> {
 
         self.read_any = true;
         let n = buf.len() as u64;
-        self.offset += n;
+        self.offset = match self.offset.checked_add(n) {
+            Some(offset) => offset,
+            None => {
+                self.done = true;
+                return Err(Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "range end overflow: offset + size exceeds u64::MAX",
+                ));
+            }
+        };
         if let Some(remaining) = &mut self.remaining {
             *remaining -= n;
         }
@@ -374,5 +400,77 @@ mod tests {
             assert_eq!(stream.read_all().await?.to_vec(), expected);
         }
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_position_reader_rejects_bounded_range_overflow() -> Result<()> {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            for range in [
+                BytesRange::new(u64::MAX, Some(1)),
+                BytesRange::new(u64::MAX, Some(2)),
+                BytesRange::new(u64::MAX - 1, Some(4)),
+            ] {
+                let inner = TestPositionRead::new(b"0123456789", 4);
+                let calls = inner.calls.clone();
+                let opens = inner.opens.clone();
+                let reader = PositionReader::new(inner);
+
+                let err = reader.read(range).await.unwrap_err();
+                assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied, "{range:?}");
+
+                let err = match reader.open(range).await {
+                    Ok(_) => panic!("open must reject overflowing range {range:?}"),
+                    Err(err) => err,
+                };
+                assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied, "{range:?}");
+
+                assert_eq!(*opens.lock().unwrap(), 0);
+                assert!(calls.lock().unwrap().is_empty());
+            }
+
+            Ok(())
+        })
+        .await
+        .expect("test timed out")
+    }
+
+    struct ConstantPositionRead {
+        chunk: Bytes,
+    }
+
+    impl PositionRead for ConstantPositionRead {
+        type Handle = Bytes;
+
+        async fn open(&self) -> Result<Self::Handle> {
+            Ok(self.chunk.clone())
+        }
+
+        async fn read_at(handle: &Self::Handle, _offset: u64, size: usize) -> Result<Buffer> {
+            Ok(Buffer::from(handle.slice(..size.min(handle.len()))))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_position_reader_unbounded_stream_rejects_offset_overflow() -> Result<()> {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let reader = PositionReader::new(ConstantPositionRead {
+                chunk: Bytes::from_static(b"ab"),
+            })
+            .with_max_buf_size(4);
+
+            for offset in [u64::MAX - 1, u64::MAX] {
+                let (_, mut stream) = reader.open(BytesRange::new(offset, None)).await?;
+                let err = stream.read().await.unwrap_err();
+                assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied, "offset={offset}");
+                assert!(
+                    stream.read().await?.is_empty(),
+                    "stream must be done after offset overflow"
+                );
+            }
+
+            Ok(())
+        })
+        .await
+        .expect("test timed out")
     }
 }

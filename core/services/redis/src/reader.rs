@@ -44,48 +44,105 @@ impl oio::StreamRead for RedisReader {
             // Full read - use GET
             match backend.core.get(&p).await? {
                 Some(bs) => {
-                    let metadata = {
-                        let metadata = MetadataBuilder::file(bs.len() as u64);
-                        metadata.build()
-                    };
+                    let metadata = MetadataBuilder::file(bs.len() as u64).build();
                     (bs, Some(metadata))
                 }
                 None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
             }
-        } else {
-            // Range read - use GETRANGE
-            let content_length = match backend.core.len(&p).await? {
+        } else if let Some((start, end)) = redis_getrange_bounds(range) {
+            // Range read - fetch range, length, and existence in one pipeline
+            let (content_length, bs) = match backend.core.get_range(&p, start, end).await? {
                 Some(v) => v,
                 None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
             };
             let content_range = range.to_content_range(content_length)?;
-
-            let buffer = if content_range.is_empty() {
-                Buffer::new()
-            } else {
-                let start: isize = content_range.start.try_into().map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "range start exceeds isize::MAX")
-                        .set_source(err)
-                })?;
-                let end: isize = (content_range.end - 1).try_into().map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "range end exceeds isize::MAX")
-                        .set_source(err)
-                })?;
-                match backend.core.get_range(&p, start, end).await? {
-                    Some(bs) => bs,
-                    None => {
-                        return Err(Error::new(ErrorKind::NotFound, "key not found in redis"));
-                    }
-                }
+            if bs.len() != content_range.len() {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "redis key changed concurrently during range read",
+                )
+                .set_temporary());
+            }
+            let metadata = MetadataBuilder::file(content_length as u64).build();
+            (bs, Some(metadata))
+        } else {
+            let content_length = match backend.core.len(&p).await? {
+                Some(v) => v,
+                None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
             };
-            let metadata = {
-                let metadata = MetadataBuilder::file(content_length as u64);
-                metadata.build()
-            };
-            (buffer, Some(metadata))
+            let _ = range.to_content_range(content_length)?;
+            let metadata = MetadataBuilder::file(content_length as u64).build();
+            (Buffer::new(), Some(metadata))
         };
 
         let rp = metadata.map_or_else(RpRead::default, RpRead::new);
         Ok((rp, Box::new(buffer) as Box<dyn oio::ReadStreamDyn>))
+    }
+}
+
+fn redis_getrange_bounds(range: BytesRange) -> Option<(i64, i64)> {
+    match range {
+        BytesRange::Range { size: Some(0), .. } | BytesRange::Suffix { size: 0 } => None,
+        BytesRange::Range { offset, size: None } => {
+            let start = i64::try_from(offset).ok()?;
+            Some((start, -1))
+        }
+        BytesRange::Range {
+            offset,
+            size: Some(size),
+        } => {
+            let start = i64::try_from(offset).ok()?;
+            let end = offset.saturating_add(size - 1).min(i64::MAX as u64) as i64;
+            Some((start, end))
+        }
+        BytesRange::Suffix { size } => {
+            if size <= i64::MAX as u64 {
+                Some((-(size as i64), -1))
+            } else {
+                Some((0, -1))
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn getrange_bounds_cover_all_range_forms() {
+        assert_eq!(redis_getrange_bounds(BytesRange::new(0, Some(0))), None);
+        assert_eq!(redis_getrange_bounds(BytesRange::new(10, Some(0))), None);
+        assert_eq!(redis_getrange_bounds(BytesRange::suffix(0)), None);
+        assert_eq!(redis_getrange_bounds(BytesRange::new(u64::MAX, None)), None);
+        assert_eq!(
+            redis_getrange_bounds(BytesRange::new(u64::MAX, Some(5))),
+            None
+        );
+
+        assert_eq!(
+            redis_getrange_bounds(BytesRange::new(5, None)),
+            Some((5, -1))
+        );
+        assert_eq!(
+            redis_getrange_bounds(BytesRange::new(0, Some(10))),
+            Some((0, 9))
+        );
+        assert_eq!(
+            redis_getrange_bounds(BytesRange::new(5, Some(u64::MAX))),
+            Some((5, i64::MAX))
+        );
+        assert_eq!(
+            redis_getrange_bounds(BytesRange::suffix(10)),
+            Some((-10, -1))
+        );
+        assert_eq!(
+            redis_getrange_bounds(BytesRange::suffix(i64::MAX as u64)),
+            Some((-i64::MAX, -1))
+        );
+        assert_eq!(
+            redis_getrange_bounds(BytesRange::suffix(u64::MAX)),
+            Some((0, -1))
+        );
     }
 }

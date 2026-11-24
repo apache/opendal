@@ -112,34 +112,57 @@ pub struct Manager {
 
 impl Manager {
     async fn initialize_root(&self, sftp: &Sftp) -> Result<()> {
-        let mut fs = sftp.fs();
-        let mut current = PathBuf::new();
-        for component in Path::new(&self.root).components() {
-            let path = component.as_os_str();
-            current.push(path);
-            if component != Component::RootDir
-                && let Err(error) = fs.create_dir(path).await
-            {
-                // Servers may reject mkdir even when an existing directory can be used.
-                if !matches!(
-                    error,
-                    SftpClientError::SftpError(
-                        SftpErrorKind::Failure | SftpErrorKind::PermDenied,
-                        _
-                    )
-                ) {
-                    return Err(parse_sftp_error(error));
-                }
-                match fs.metadata(path).await {
-                    Ok(metadata) if metadata.file_type().is_some_and(|kind| kind.is_dir()) => {}
-                    Err(err) if classify_sftp_error(&err).1 => return Err(parse_sftp_error(err)),
-                    _ => return Err(parse_sftp_error(error)),
-                }
-            }
-            fs.set_cwd(&current);
-        }
-        Ok(())
+        create_dir_all(sftp, "", &self.root).await
     }
+}
+
+pub(crate) async fn create_dir_all(sftp: &Sftp, base: &str, path: &str) -> Result<()> {
+    let mut fs = sftp.fs();
+    let mut current = PathBuf::from(base);
+    if !base.is_empty() {
+        fs.set_cwd(&current);
+    }
+
+    for component in Path::new(path).components() {
+        let segment = component.as_os_str();
+        match component {
+            Component::RootDir => {
+                if base.is_empty() {
+                    current.push(segment);
+                    fs.set_cwd(&current);
+                }
+                continue;
+            }
+            Component::CurDir => continue,
+            _ => {}
+        }
+
+        current.push(segment);
+        if let Err(error) = fs.create_dir(segment).await {
+            // Servers may reject mkdir even when an existing directory can be used.
+            if !matches!(
+                error,
+                SftpClientError::SftpError(SftpErrorKind::Failure | SftpErrorKind::PermDenied, _)
+            ) {
+                return Err(parse_sftp_error(error));
+            }
+            match fs.metadata(segment).await {
+                Ok(metadata) if metadata.file_type().is_some_and(|kind| kind.is_dir()) => {}
+                Ok(_) => {
+                    return Err(Error::new(
+                        ErrorKind::NotADirectory,
+                        "path exists and is not a directory",
+                    )
+                    .set_source(error));
+                }
+                Err(err) if classify_sftp_error(&err).1 => return Err(parse_sftp_error(err)),
+                _ => return Err(parse_sftp_error(error)),
+            }
+        }
+        fs.set_cwd(&current);
+    }
+
+    Ok(())
 }
 
 impl ManageObject for Manager {
@@ -264,6 +287,7 @@ pub fn parse_sftp_error(e: SftpClientError) -> Error {
 fn classify_sftp_error(error: &SftpClientError) -> (ErrorKind, bool) {
     match error {
         SftpClientError::UnsupportedSftpProtocol { .. }
+        | SftpClientError::UnsupportedExtension(_)
         | SftpClientError::SftpError(SftpErrorKind::OpUnsupported, _) => {
             (ErrorKind::Unsupported, false)
         }
@@ -359,10 +383,6 @@ fn classify_io_error(error: &io::Error) -> (ErrorKind, bool) {
 
 pub(crate) fn is_not_found(e: &SftpClientError) -> bool {
     matches!(e, SftpClientError::SftpError(SftpErrorKind::NoSuchFile, _))
-}
-
-pub(crate) fn is_sftp_protocol_error(e: &SftpClientError) -> bool {
-    matches!(e, SftpClientError::SftpError(_, _))
 }
 
 pub(crate) fn is_sftp_failure(e: &SftpClientError) -> bool {
@@ -537,5 +557,13 @@ mod tests {
             assert_eq!(error.is_temporary(), temporary, "{error:?}");
             assert!(error.source().unwrap().is::<SftpClientError>());
         }
+    }
+
+    #[test]
+    fn unsupported_extension_maps_to_unsupported() {
+        let error = parse_sftp_error(SftpClientError::UnsupportedExtension(&"copy-data"));
+        assert_eq!(error.kind(), ErrorKind::Unsupported);
+        assert!(!error.is_temporary());
+        assert!(error.source().unwrap().is::<SftpClientError>());
     }
 }

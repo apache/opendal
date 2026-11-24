@@ -70,7 +70,12 @@ impl opendal_core::Configurator for SftpConfig {
     fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
         if let Some(authority) = uri.authority() {
-            map.insert("endpoint".to_string(), authority.to_string());
+            map.insert("endpoint".to_string(), format!("ssh://{authority}"));
+        }
+
+        if let Some(username) = uri.username() {
+            map.entry("user".to_string())
+                .or_insert_with(|| username.to_string());
         }
 
         if let Some(root) = uri.root() {
@@ -103,8 +108,40 @@ mod tests {
         .unwrap();
 
         let cfg = SftpConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.endpoint.as_deref(), Some("sftp.example.com"));
+        assert_eq!(cfg.endpoint.as_deref(), Some("ssh://sftp.example.com"));
         assert_eq!(cfg.root.as_deref(), Some("home/alice"));
+    }
+
+    #[test]
+    fn from_uri_preserves_port_and_username() {
+        let uri = OperatorUri::new(
+            "sftp://foo@127.0.0.1:2222/upload/data",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = SftpConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("ssh://127.0.0.1:2222"));
+        assert_eq!(cfg.user.as_deref(), Some("foo"));
+        assert_eq!(cfg.root.as_deref(), Some("upload/data"));
+
+        let builder = openssh::SessionBuilder::default();
+        let (resolved, destination) = builder.resolve(cfg.endpoint.as_deref().unwrap());
+        assert_eq!(resolved.get_port(), Some("2222"));
+        assert_eq!(destination, "127.0.0.1");
+    }
+
+    #[test]
+    fn from_uri_explicit_user_option_overrides_uri_username() {
+        let uri = OperatorUri::new(
+            "sftp://bob@127.0.0.1:2222/upload",
+            [("user".to_string(), "alice".to_string())],
+        )
+        .unwrap();
+
+        let cfg = SftpConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("ssh://127.0.0.1:2222"));
+        assert_eq!(cfg.user.as_deref(), Some("alice"));
     }
 
     #[test]
@@ -162,7 +199,7 @@ mod tests {
         .unwrap();
 
         let cfg = SftpConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.endpoint.as_deref(), Some("host"));
+        assert_eq!(cfg.endpoint.as_deref(), Some("ssh://host"));
         assert_eq!(cfg.user.as_deref(), Some("alice"));
         assert_eq!(cfg.key.as_deref(), Some("/home/alice/.ssh/id_rsa"));
         assert_eq!(cfg.known_hosts_strategy.as_deref(), Some("accept"));
@@ -210,5 +247,17 @@ mod tests {
             .endpoint("host")
             .control_directory("/tmp/sftp-control");
         assert!(builder.build().is_ok());
+    }
+
+    #[test]
+    fn capability_does_not_advertise_list_with_limit() {
+        use opendal_core::Builder;
+        use opendal_core::raw::Service;
+
+        let service = SftpBuilder::default().endpoint("host").build().unwrap();
+        assert!(!service.capability().list_with_limit);
+
+        let op = opendal_core::Operator::new(SftpBuilder::default().endpoint("host")).unwrap();
+        assert!(!op.info().capability().list_with_limit);
     }
 }

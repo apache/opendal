@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::path::Path;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use log::debug;
@@ -26,7 +24,7 @@ use super::SFTP_SCHEME;
 use super::config::SftpConfig;
 use super::core::Manager;
 use super::core::SftpCore;
-use super::core::is_sftp_protocol_error;
+use super::core::create_dir_all;
 use super::core::parse_sftp_error;
 use super::core::to_metadata;
 use super::deleter::SftpDeleter;
@@ -231,7 +229,6 @@ impl Builder for SftpBuilder {
             delete: true,
 
             list: true,
-            list_with_limit: true,
 
             copy: true,
             rename: true,
@@ -290,23 +287,7 @@ impl Service for SftpBackend {
         _: OpCreateDir,
     ) -> Result<RpCreateDir> {
         let client = self.core.connect().await?;
-        let mut fs = client.fs();
-        fs.set_cwd(&self.core.root);
-
-        let paths = Path::new(&path).components();
-        let mut current = PathBuf::from(&self.core.root);
-        for p in paths {
-            current = current.join(p);
-            let res = fs.create_dir(p).await;
-
-            if let Err(e) = res {
-                // ignore error if dir already exists
-                if !is_sftp_protocol_error(&e) {
-                    return Err(parse_sftp_error(e));
-                }
-            }
-            fs.set_cwd(&current);
-        }
+        create_dir_all(&client, &self.core.root, path.trim_start_matches('/')).await?;
 
         Ok(RpCreateDir::default())
     }
@@ -332,8 +313,8 @@ impl Service for SftpBackend {
         Ok(output)
     }
 
-    fn write(&self, ctx: &OperationContext, path: &str, op: OpWrite) -> Result<Self::Writer> {
-        Ok(SftpLazyWriter::new(self.clone(), ctx.clone(), path, op))
+    fn write(&self, _ctx: &OperationContext, path: &str, op: OpWrite) -> Result<Self::Writer> {
+        Ok(SftpLazyWriter::new(self.clone(), path, op))
     }
 
     fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -352,58 +333,107 @@ impl Service for SftpBackend {
 
     fn copy(
         &self,
-        ctx: &OperationContext,
+        _ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
     ) -> Result<Self::Copier> {
         let backend = self.clone();
-        let ctx = ctx.clone();
         let from = from.to_string();
         let to = to.to_string();
-        Ok(oio::OneShotCopier::new(async move {
-            if let Some((dir, _)) = to.rsplit_once('/') {
-                backend
-                    .create_dir(&ctx, dir, OpCreateDir::default())
-                    .await?;
-            }
+        let source_content_length_hint = args.source_content_length_hint();
 
-            let client = backend.core.connect().await?;
-            let mut fs = client.fs();
-            fs.set_cwd(&backend.core.root);
+        Ok(oio::OneShotCopier::new_with(move || {
+            let backend = backend.clone();
+            let from = from.clone();
+            let to = to.clone();
 
-            let src = fs.canonicalize(&from).await.map_err(parse_sftp_error)?;
-            let dst = fs.canonicalize(&to).await.map_err(parse_sftp_error)?;
-            let mut src_file = client.open(&src).await.map_err(parse_sftp_error)?;
-            let mut dst_file = client.create(dst).await.map_err(parse_sftp_error)?;
+            async move {
+                let client = backend.core.connect().await?;
+                if !client.support_copy() {
+                    return Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "sftp server does not support copy-data extension",
+                    ));
+                }
 
-            let source_size = match args.source_content_length_hint() {
-                Some(size) => size,
-                None => src_file
-                    .metadata()
+                let mut fs = client.fs();
+                fs.set_cwd(&backend.core.root);
+
+                let src = fs.canonicalize(&from).await.map_err(parse_sftp_error)?;
+                let mut src_file = client.open(&src).await.map_err(parse_sftp_error)?;
+
+                let source_size = match source_content_length_hint {
+                    Some(size) => size,
+                    None => match src_file.metadata().await.map_err(parse_sftp_error) {
+                        Ok(meta) => match meta.len() {
+                            Some(len) => len,
+                            None => {
+                                let _ = src_file.close().await;
+                                return Err(Error::new(
+                                    ErrorKind::Unexpected,
+                                    "sftp source metadata does not contain file length",
+                                ));
+                            }
+                        },
+                        Err(err) => {
+                            let _ = src_file.close().await;
+                            return Err(err);
+                        }
+                    },
+                };
+
+                if let Some((dir, _)) = to.rsplit_once('/')
+                    && let Err(err) =
+                        create_dir_all(&client, &backend.core.root, dir.trim_start_matches('/'))
+                            .await
+                {
+                    let _ = src_file.close().await;
+                    return Err(err);
+                }
+
+                let dst = match fs.canonicalize(&to).await.map_err(parse_sftp_error) {
+                    Ok(dst) => dst,
+                    Err(err) => {
+                        let _ = src_file.close().await;
+                        return Err(err);
+                    }
+                };
+                if src == dst {
+                    let _ = src_file.close().await;
+                    return Err(Error::new(
+                        ErrorKind::IsSameFile,
+                        "copy source and destination resolve to the same file",
+                    ));
+                }
+
+                let mut dst_file = match client.create(dst).await.map_err(parse_sftp_error) {
+                    Ok(dst_file) => dst_file,
+                    Err(err) => {
+                        let _ = src_file.close().await;
+                        return Err(err);
+                    }
+                };
+
+                let copy_res = src_file
+                    .copy_all_to(&mut dst_file)
                     .await
-                    .map_err(parse_sftp_error)?
-                    .len()
-                    .ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "sftp source metadata does not contain file length",
-                        )
-                    })?,
-            };
+                    .map_err(parse_sftp_error);
+                let dst_close_res = dst_file.close().await.map_err(parse_sftp_error);
+                let src_close_res = src_file.close().await.map_err(parse_sftp_error);
 
-            src_file
-                .copy_all_to(&mut dst_file)
-                .await
-                .map_err(parse_sftp_error)?;
+                copy_res?;
+                dst_close_res?;
+                src_close_res?;
 
-            Ok(MetadataBuilder::file(source_size).build())
+                Ok(MetadataBuilder::file(source_size).build())
+            }
         }))
     }
 
     async fn rename(
         &self,
-        ctx: &OperationContext,
+        _ctx: &OperationContext,
         from: &str,
         to: &str,
         _: OpRename,
@@ -414,7 +444,9 @@ impl Service for SftpBackend {
         fs.set_cwd(&self.core.root);
 
         if let Some((dir, _)) = to.rsplit_once('/') {
-            self.create_dir(ctx, dir, OpCreateDir::default()).await?;
+            // Verify source exists before creating destination parent directories.
+            fs.metadata(from).await.map_err(parse_sftp_error)?;
+            create_dir_all(&client, &self.core.root, dir.trim_start_matches('/')).await?;
         }
         fs.rename(from, to).await.map_err(parse_sftp_error)?;
 

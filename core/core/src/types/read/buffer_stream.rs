@@ -208,7 +208,7 @@ pub struct ChunkedReader {
     remaining: Option<u64>,
     suffix_revalidation: Option<SuffixRevalidation>,
     revalidated_range: Option<Range<u64>>,
-    opened: Option<Box<OpenedChunk>>,
+    opened: Option<OpenedChunk>,
     tasks: ConcurrentTasks<ChunkedReadInput, Buffer>,
     done: bool,
 }
@@ -311,7 +311,7 @@ impl ChunkedReader {
                 self.revalidated_range = Some(full_range);
                 self.suffix_revalidation = None;
                 self.ctx.observe_read_response(rp);
-                self.opened = Some(Box::new(OpenedChunk {
+                self.opened = Some(OpenedChunk {
                     input: ChunkedReadInput {
                         ctx: self.ctx.clone(),
                         range: first_range,
@@ -322,7 +322,7 @@ impl ChunkedReader {
                         next_offset: self.offset + read_size,
                         next_remaining: Some(total - read_size),
                     },
-                }));
+                });
                 Ok(())
             }
             Ok(None) => {
@@ -356,14 +356,14 @@ impl ChunkedReader {
                 let range = planned.range;
                 let (rp, reader) = self.ctx.reader().open(range).await?;
                 self.ctx.observe_read_response(rp);
-                self.opened = Some(Box::new(OpenedChunk {
+                self.opened = Some(OpenedChunk {
                     input: ChunkedReadInput {
                         ctx: self.ctx.clone(),
                         range,
                         reader: Some(reader),
                     },
                     planned,
-                }));
+                });
             } else {
                 self.done = true;
             }
@@ -425,7 +425,7 @@ impl oio::ReadStream for ChunkedReader {
 
         while self.tasks.has_remaining() && !self.done {
             if let Some(opened) = self.opened.take() {
-                let OpenedChunk { input, planned } = *opened;
+                let OpenedChunk { input, planned } = opened;
                 self.tasks.execute(input).await?;
                 self.commit_range(planned);
             } else if let Some(planned) = self.plan_next_range() {

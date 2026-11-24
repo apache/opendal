@@ -189,7 +189,9 @@ impl OssCore {
         size: Option<u64>,
         args: &OpWrite,
     ) -> Result<http::request::Builder> {
-        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
+        if let Some(size) = size {
+            req = req.header(CONTENT_LENGTH, size);
+        }
 
         if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime);
@@ -243,21 +245,16 @@ impl OssCore {
         key.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
     }
 
-    /// parse_metadata will parse http headers(including standards http headers
-    /// and user defined metadata header) into Metadata.
-    ///
-    /// # Arguments
-    ///
-    /// * `user_metadata_prefix` is the prefix of user defined metadata key
-    ///
-    /// # Notes
-    ///
-    /// before return the user defined metadata, we'll strip the user_metadata_prefix from the key
+    /// Parse HTTP response headers, including `x-oss-meta-*` user metadata
+    /// and `x-oss-version-id`, into [`Metadata`].
     pub fn parse_metadata(&self, path: &str, headers: &HeaderMap) -> Result<Metadata> {
         let mut m = parse_into_metadata(path, headers)?.into_builder();
         let user_meta = parse_prefixed_headers(headers, X_OSS_META_PREFIX);
         if !user_meta.is_empty() {
             m.user_metadata(user_meta);
+        }
+        if let Some(v) = parse_header_to_str(headers, constants::X_OSS_VERSION_ID)? {
+            m.version(v);
         }
 
         Ok(m.build())
@@ -1247,7 +1244,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
@@ -1262,6 +1259,10 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     if let Some(oss_error) = &oss_error {
         match oss_error.code.as_str() {
+            // Although the status code is 404, NoSuchBucket indicates a misconfigured bucket.
+            "NoSuchBucket" => {
+                (kind, retryable) = (ErrorKind::ConfigInvalid, false);
+            }
             "PreconditionFailed" if ctx.caller_condition => {
                 (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
             }
@@ -1355,5 +1356,32 @@ mod error_tests {
             parse_oss_error(unconditional, StatusCode::CONFLICT, "UnknownConflict").kind(),
             ErrorKind::Unexpected
         );
+    }
+
+    #[test]
+    fn test_parse_error_unauthorized_and_no_such_bucket() {
+        let unauthorized = parse_oss_error(
+            ErrorContext::new(ServiceOperation("GetObject")),
+            StatusCode::UNAUTHORIZED,
+            "AccessDenied",
+        );
+        assert_eq!(unauthorized.kind(), ErrorKind::PermissionDenied);
+        assert!(!unauthorized.is_temporary());
+
+        let no_such_bucket = parse_oss_error(
+            ErrorContext::new(ServiceOperation("DeleteObject")),
+            StatusCode::NOT_FOUND,
+            "NoSuchBucket",
+        );
+        assert_eq!(no_such_bucket.kind(), ErrorKind::ConfigInvalid);
+        assert!(!no_such_bucket.is_temporary());
+
+        let no_such_key = parse_oss_error(
+            ErrorContext::new(ServiceOperation("DeleteObject")),
+            StatusCode::NOT_FOUND,
+            "NoSuchKey",
+        );
+        assert_eq!(no_such_key.kind(), ErrorKind::NotFound);
+        assert!(!no_such_key.is_temporary());
     }
 }

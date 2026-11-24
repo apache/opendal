@@ -45,5 +45,6 @@ reqsign-file-read-tokio = { version = "3.0.9", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
+futures = { workspace = true }
 pretty_assertions = "1"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

@@ -118,7 +118,6 @@ impl oio::PageList for OssLister {
             };
             meta.is_current(Some(true));
             meta.etag(&object.etag);
-            meta.content_md5(object.etag.trim_matches('"'));
             meta.last_modified(object.last_modified.parse::<Timestamp>()?);
 
             let de = oio::Entry::with(path, meta.build());
@@ -161,7 +160,7 @@ impl OssObjectVersionsLister {
 
 impl oio::PageList for OssObjectVersionsLister {
     async fn next_page(&self, ctx: &mut PageContext) -> Result<()> {
-        let markers = ctx.token.rsplit_once(" ");
+        let markers = ctx.token.split_once('\0');
         let (key_marker, version_id_marker) = if let Some(data) = markers {
             data
         } else if let Some(start_after) = &self.abs_start_after {
@@ -198,16 +197,19 @@ impl oio::PageList for OssObjectVersionsLister {
             // we allow retries to obtain the correct data.
             .map_err(Error::set_temporary)?;
 
-        ctx.done = if let Some(is_truncated) = output.is_truncated {
-            !is_truncated
+        // Terminate pagination unless the server explicitly reports truncation
+        // and provides a non-empty NextKeyMarker. Join markers with NUL (`\0`),
+        // which is disallowed in XML 1.0 character data, so spaces in keys or
+        // version IDs cannot corrupt pagination tokens.
+        let next_key_marker = output.next_key_marker.as_deref().unwrap_or_default();
+        let next_version_id_marker = output.next_version_id_marker.as_deref().unwrap_or_default();
+        if output.is_truncated == Some(true) && !next_key_marker.is_empty() {
+            ctx.done = false;
+            ctx.token = format!("{next_key_marker}\0{next_version_id_marker}");
         } else {
-            false
-        };
-        ctx.token = format!(
-            "{} {}",
-            output.next_key_marker.unwrap_or_default(),
-            output.next_version_id_marker.unwrap_or_default()
-        );
+            ctx.done = true;
+            ctx.token.clear();
+        }
 
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(
@@ -241,7 +243,6 @@ impl oio::PageList for OssObjectVersionsLister {
             meta.last_modified(version_object.last_modified.parse::<Timestamp>()?);
             if let Some(etag) = version_object.etag {
                 meta.etag(&etag);
-                meta.content_md5(etag.trim_matches('"'));
             }
 
             let entry = oio::Entry::new(&path, meta.build());
@@ -271,5 +272,246 @@ impl oio::PageList for OssObjectVersionsLister {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::VecDeque;
+    use std::sync::Arc;
+    use std::sync::Mutex;
+
+    use bytes::Bytes;
+    use futures::stream;
+    use http::Request;
+    use http::Response;
+    use http::StatusCode;
+    use opendal_core::*;
+
+    use crate::backend::OssBuilder;
+
+    #[derive(Clone)]
+    struct ScriptedListTransport {
+        responses: Arc<Mutex<VecDeque<&'static str>>>,
+        queries: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl ScriptedListTransport {
+        fn new(responses: Vec<&'static str>) -> Self {
+            Self {
+                responses: Arc::new(Mutex::new(responses.into())),
+                queries: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+    }
+
+    impl HttpTransport for ScriptedListTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.queries
+                .lock()
+                .unwrap()
+                .push(req.uri().query().unwrap_or_default().to_string());
+
+            let body = self
+                .responses
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("unexpected extra pagination request");
+            let buf = Buffer::from(Bytes::from_static(body.as_bytes()));
+            let size = buf.len() as u64;
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .body(HttpBody::new(stream::iter([Ok(buf)]), Some(size)))
+                .expect("mock response must build"))
+        }
+    }
+
+    fn operator_with_responses(
+        responses: Vec<&'static str>,
+    ) -> (Operator, Arc<Mutex<Vec<String>>>) {
+        let transport = ScriptedListTransport::new(responses);
+        let queries = transport.queries.clone();
+        let op = Operator::new(
+            OssBuilder::default()
+                .bucket("example")
+                .endpoint("https://oss-cn-hangzhou.aliyuncs.com")
+                .skip_signature()
+                .disable_config_load(),
+        )
+        .expect("OSS operator must build")
+        .with_context(OperationContext::new().with_http_transport(HttpTransporter::new(transport)));
+        (op, queries)
+    }
+
+    #[tokio::test]
+    async fn lister_sets_etag_without_content_md5() {
+        let page = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult>
+  <IsTruncated>false</IsTruncated>
+  <Contents>
+    <Key>single.txt</Key>
+    <LastModified>2026-01-01T00:00:00.000Z</LastModified>
+    <ETag>"5B3C1A2E053D763E1B002CC607C5A0FE"</ETag>
+    <Size>12</Size>
+  </Contents>
+  <Contents>
+    <Key>multipart.bin</Key>
+    <LastModified>2026-01-01T00:00:00.000Z</LastModified>
+    <ETag>"9B2CF535F27731C974343645A3985328-2"</ETag>
+    <Size>2097152</Size>
+  </Contents>
+</ListBucketResult>"#;
+
+        let (op, _) = operator_with_responses(vec![page]);
+        let entries = op.list("").await.unwrap();
+        assert_eq!(entries.len(), 2);
+        assert_eq!(
+            entries[0].metadata().etag(),
+            Some("\"5B3C1A2E053D763E1B002CC607C5A0FE\"")
+        );
+        assert_eq!(entries[0].metadata().content_md5(), None);
+        assert_eq!(
+            entries[1].metadata().etag(),
+            Some("\"9B2CF535F27731C974343645A3985328-2\"")
+        );
+        assert_eq!(entries[1].metadata().content_md5(), None);
+    }
+
+    #[tokio::test]
+    async fn object_versions_lister_sets_etag_without_content_md5() {
+        let page = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ListVersionsResult>
+  <IsTruncated>false</IsTruncated>
+  <Version>
+    <Key>multipart.bin</Key>
+    <VersionId>v1</VersionId>
+    <IsLatest>true</IsLatest>
+    <LastModified>2026-01-01T00:00:00.000Z</LastModified>
+    <ETag>"9B2CF535F27731C974343645A3985328-2"</ETag>
+    <Size>2097152</Size>
+  </Version>
+</ListVersionsResult>"#;
+
+        let (op, _) = operator_with_responses(vec![page]);
+        let entries = op.list_with("").versions(true).await.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0].metadata().etag(),
+            Some("\"9B2CF535F27731C974343645A3985328-2\"")
+        );
+        assert_eq!(entries[0].metadata().content_md5(), None);
+    }
+
+    #[tokio::test]
+    async fn object_versions_lister_stops_when_is_truncated_missing() {
+        let page = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ListVersionsResult>
+  <Version>
+    <Key>alpha.txt</Key>
+    <VersionId>v1</VersionId>
+    <IsLatest>true</IsLatest>
+    <LastModified>2026-01-01T00:00:00.000Z</LastModified>
+    <Size>5</Size>
+  </Version>
+</ListVersionsResult>"#;
+
+        let (op, queries) = operator_with_responses(vec![page]);
+        let entries = op.list_with("").versions(true).await.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].path(), "alpha.txt");
+        assert_eq!(queries.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn object_versions_lister_stops_when_next_key_marker_missing_or_empty() {
+        for page in [
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<ListVersionsResult>
+  <IsTruncated>true</IsTruncated>
+  <Version>
+    <Key>alpha.txt</Key>
+    <VersionId>v1</VersionId>
+    <IsLatest>true</IsLatest>
+    <LastModified>2026-01-01T00:00:00.000Z</LastModified>
+    <Size>5</Size>
+  </Version>
+</ListVersionsResult>"#,
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<ListVersionsResult>
+  <IsTruncated>true</IsTruncated>
+  <NextKeyMarker></NextKeyMarker>
+  <NextVersionIdMarker>v1</NextVersionIdMarker>
+  <Version>
+    <Key>alpha.txt</Key>
+    <VersionId>v1</VersionId>
+    <IsLatest>true</IsLatest>
+    <LastModified>2026-01-01T00:00:00.000Z</LastModified>
+    <Size>5</Size>
+  </Version>
+</ListVersionsResult>"#,
+        ] {
+            let (op, queries) = operator_with_responses(vec![page]);
+            let entries = op.list_with("").versions(true).await.unwrap();
+            assert_eq!(entries.len(), 1);
+            assert_eq!(queries.lock().unwrap().len(), 1);
+        }
+    }
+
+    #[tokio::test]
+    async fn object_versions_lister_preserves_spaces_in_key_and_version_markers() {
+        let page1 = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ListVersionsResult>
+  <IsTruncated>true</IsTruncated>
+  <NextKeyMarker>dir with spaces/file one.txt</NextKeyMarker>
+  <NextVersionIdMarker>ver 1 alpha</NextVersionIdMarker>
+  <Version>
+    <Key>dir with spaces/file one.txt</Key>
+    <VersionId>ver 1 alpha</VersionId>
+    <IsLatest>true</IsLatest>
+    <LastModified>2026-01-01T00:00:00.000Z</LastModified>
+    <Size>3</Size>
+  </Version>
+</ListVersionsResult>"#;
+        let page2 = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ListVersionsResult>
+  <IsTruncated>false</IsTruncated>
+  <Version>
+    <Key>dir with spaces/file two.txt</Key>
+    <VersionId>ver 2 beta</VersionId>
+    <IsLatest>true</IsLatest>
+    <LastModified>2026-01-02T00:00:00.000Z</LastModified>
+    <Size>4</Size>
+  </Version>
+</ListVersionsResult>"#;
+
+        let (op, queries) = operator_with_responses(vec![page1, page2]);
+        let entries = op
+            .list_with("")
+            .versions(true)
+            .recursive(true)
+            .await
+            .unwrap();
+        let paths: Vec<_> = entries.iter().map(|e| e.path()).collect();
+        assert_eq!(
+            paths,
+            vec![
+                "dir with spaces/file one.txt",
+                "dir with spaces/file two.txt",
+            ]
+        );
+
+        let recorded = queries.lock().unwrap();
+        assert_eq!(recorded.len(), 2);
+        assert!(
+            recorded[1].contains("key-marker=dir%20with%20spaces/file%20one.txt"),
+            "second page query must preserve key-marker with spaces: {}",
+            recorded[1]
+        );
+        assert!(
+            recorded[1].contains("version-id-marker=ver%201%20alpha"),
+            "second page query must preserve version-id-marker with spaces: {}",
+            recorded[1]
+        );
     }
 }

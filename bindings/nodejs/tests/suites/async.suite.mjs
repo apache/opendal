@@ -398,7 +398,6 @@ export function run(op) {
       ws.end(new Uint8Array([63]))
 
       await finished(ws)
-      expect(ws.writer).toBeNull()
 
       const expected = Buffer.concat([
         Buffer.from('hello'),
@@ -427,7 +426,6 @@ export function run(op) {
       await closed
 
       expect(ws.destroyed).toBe(true)
-      expect(ws.writer).toBeNull()
       expect(closeCalled).toBe(false)
       expect(await memory.exists('aborted.bin')).toBe(false)
     })

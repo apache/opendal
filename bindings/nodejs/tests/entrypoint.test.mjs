@@ -129,7 +129,6 @@ describe('entrypoint exports parity', () => {
         asyncWs.write(Buffer.from('!'))
         asyncWs.end(new Uint8Array([63]))
         await finished(asyncWs)
-        assert.equal(asyncWs.writer, null)
         assert.deepEqual(await op.read('cjs-async.bin'), expected)
 
         const syncWs = op.writerSync('cjs-sync.bin').createWriteStream({ decodeStrings: false })
@@ -141,7 +140,6 @@ describe('entrypoint exports parity', () => {
         syncWs.write(Buffer.from('!'))
         syncWs.end(new Uint8Array([63]))
         await finished(syncWs)
-        assert.equal(syncWs.writer, null)
         assert.deepEqual(op.readSync('cjs-sync.bin'), expected)
 
         // Destroying a stream leaves the writer uncommitted.
@@ -153,7 +151,6 @@ describe('entrypoint exports parity', () => {
           ws.destroy()
           await wsClosed
           assert.equal(ws.destroyed, true)
-          assert.equal(ws.writer, null)
         }
         assert.equal(await op.exists('cjs-abort-async.bin'), false)
         assert.equal(op.existsSync('cjs-abort-sync.bin'), false)

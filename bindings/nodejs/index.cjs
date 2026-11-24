@@ -114,11 +114,6 @@ class WriteStream extends Writable {
         callback(error)
       })
   }
-
-  _destroy(error, callback) {
-    this.writer = null
-    callback(error)
-  }
 }
 
 class BlockingWriteStream extends Writable {
@@ -143,11 +138,6 @@ class BlockingWriteStream extends Writable {
     } catch (error) {
       callback(error)
     }
-  }
-
-  _destroy(error, callback) {
-    this.writer = null
-    callback(error)
   }
 }
 

@@ -478,16 +478,21 @@ mod tests {
 
     #[test]
     fn test_bytes_range_from_range_bounds_underflow() {
-        // Invalid ranges where end < start should produce zero-size ranges
-        // rather than underflowing.
-        assert_eq!(BytesRange::new(100, Some(0)), BytesRange::from(100..50));
-        assert_eq!(BytesRange::new(10, Some(0)), BytesRange::from(10..=5));
-        assert_eq!(BytesRange::new(5, Some(0)), BytesRange::from(5..0));
-        assert_eq!(BytesRange::new(5, Some(0)), BytesRange::from(5..=0));
-        assert_eq!(
-            BytesRange::new(u64::MAX, Some(0)),
-            BytesRange::from(u64::MAX..=0)
-        );
+        // Descending bounds describe a zero-size byte range at the start offset.
+        for (start, end) in [(100, 50), (5, 0)] {
+            assert_eq!(
+                BytesRange::from(start..end),
+                BytesRange::new(start, Some(0)),
+                "{start}..{end}"
+            );
+        }
+        for (start, end) in [(10, 5), (5, 0), (u64::MAX, 0)] {
+            assert_eq!(
+                BytesRange::from(start..=end),
+                BytesRange::new(start, Some(0)),
+                "{start}..={end}"
+            );
+        }
     }
 
     #[test]

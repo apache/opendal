@@ -55,7 +55,6 @@ pub struct AzfileCore {
     pub root: String,
     pub endpoint: String,
     pub share_name: String,
-    pub sas_token: Option<String>,
     pub skip_signature: bool,
     pub sign_ctx: Context,
     pub credential_provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
@@ -295,7 +294,12 @@ impl AzfileCore {
         self.send(ctx, req).await
     }
 
-    pub fn azfile_rename_request(&self, path: &str, new_path: &str) -> Result<Request<Buffer>> {
+    pub async fn azfile_rename_request(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        new_path: &str,
+    ) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -329,17 +333,30 @@ impl AzfileCore {
         // the official document does not mention the URL style path
         // find the solution from the community FAQ and implementation of the Java-SDK
         // ref: https://learn.microsoft.com/en-us/answers/questions/799611/azure-file-service-rest-api(rename)?page=1
-        let mut source_url = format!(
+        let source_url = format!(
             "{}/{}/{}",
             self.endpoint,
             self.share_name,
             percent_encode_path(&p)
         );
-        if let Some(sas_token) = &self.sas_token {
-            source_url = format!("{source_url}?{sas_token}");
-        }
         let mut source = build_header_value(&source_url)?;
-        source.set_sensitive(self.sas_token.is_some());
+        if !self.skip_signature {
+            // Only a SAS credential changes the URI; shared key and bearer
+            // token authorize the source through the rename request.
+            let (mut parts, ()) = Request::get(&source_url)
+                .body(())
+                .map_err(new_request_build_error)?
+                .into_parts();
+            let unsigned = parts.uri.clone();
+            self.signer(ctx)
+                .sign(&mut parts, None)
+                .await
+                .map_err(|e| new_request_sign_error(e.into()))?;
+            if parts.uri != unsigned {
+                source = build_header_value(&parts.uri.to_string())?;
+                source.set_sensitive(true);
+            }
+        }
 
         req = req.header(X_MS_FILE_RENAME_SOURCE, source);
 
@@ -357,7 +374,7 @@ impl AzfileCore {
         path: &str,
         new_path: &str,
     ) -> Result<Response<Buffer>> {
-        let req = self.azfile_rename_request(path, new_path)?;
+        let req = self.azfile_rename_request(ctx, path, new_path).await?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
@@ -690,41 +707,38 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_rename_source_carries_normalized_sas_token() {
-        let rename_source = |sas_token: Option<&str>| {
+    #[tokio::test]
+    async fn test_rename_source_carries_only_sas_credential() {
+        let rename_source = async |credential: StaticCredentialProvider, skip_signature: bool| {
             let core = AzfileCore {
                 info: ServiceInfo::new("azfile", "/", ""),
                 capability: Capability::default(),
                 root: "/".to_string(),
                 endpoint: "https://acc.file.core.windows.net".to_string(),
                 share_name: "share".to_string(),
-                sas_token: normalize_sas_token(sas_token).map(str::to_string),
-                skip_signature: false,
+                skip_signature,
                 sign_ctx: Context::new(),
-                credential_provider: Arc::new(StaticCredentialProvider::new_shared_key(
-                    "acc", "a2V5",
-                )),
+                credential_provider: Arc::new(credential),
                 request_signer: Arc::new(RequestSigner::new()),
                 signers: HttpTransportCache::new(),
             };
-            let req = core.azfile_rename_request("a", "b").expect("must build");
+            let req = core
+                .azfile_rename_request(&OperationContext::default(), "a", "b")
+                .await
+                .expect("must build");
             let source = &req.headers()[X_MS_FILE_RENAME_SOURCE];
             (source.to_str().unwrap().to_string(), source.is_sensitive())
         };
-        let bare = "https://acc.file.core.windows.net/share/a";
-        let signed = "https://acc.file.core.windows.net/share/a?sv=x&sig=y";
+        let key = || StaticCredentialProvider::new_shared_key("acc", "a2V5");
+        let sas = || StaticCredentialProvider::new_sas_token("sv=x&sig=y");
+        let url = "https://acc.file.core.windows.net/share/a";
 
-        for (sas_token, expected) in [
-            (None, (bare, false)),
-            (Some("sv=x&sig=y"), (signed, true)),
-            (Some("?sv=x&sig=y"), (signed, true)),
-            (Some(""), (bare, false)),
-            (Some("?"), (bare, false)),
-        ] {
-            let (source, sensitive) = rename_source(sas_token);
-            assert_eq!((source.as_str(), sensitive), expected, "{sas_token:?}");
-        }
+        assert_eq!(rename_source(key(), false).await, (url.to_string(), false));
+        assert_eq!(
+            rename_source(sas(), false).await,
+            (format!("{url}?sv=x&sig=y"), true)
+        );
+        assert_eq!(rename_source(sas(), true).await, (url.to_string(), false));
     }
 
     fn parse_native_error(operation: &'static str, status: StatusCode, code: &str) -> Error {

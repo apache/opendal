@@ -337,10 +337,6 @@ impl AzfileBuilder {
                 credential_providers.push_front(StaticCredentialProvider::new_sas_token(sas_token));
         }
 
-        let rename_source_sas_token = sas_token
-            .filter(|_| self.credential_providers.is_none() && !self.config.skip_signature)
-            .map(str::to_string);
-
         if let Some(customized_credential_chain) = self.credential_providers {
             credential_providers = customized_credential_chain;
         }
@@ -383,7 +379,6 @@ impl AzfileBuilder {
                 request_signer,
                 signers: HttpTransportCache::new(),
                 share_name: self.config.share_name.clone(),
-                sas_token: rename_source_sas_token,
                 skip_signature: self.config.skip_signature,
             }),
         })
@@ -614,11 +609,6 @@ mod tests {
             .build_backend()
             .unwrap();
 
-        assert_eq!(
-            backend.core.sas_token.as_deref(),
-            Some("sv=2022-11-02&sig=abc")
-        );
-
         let signer = backend
             .core
             .signer_with_context(Context::new().with_env(reqsign_core::StaticEnv::default()));
@@ -645,7 +635,6 @@ mod tests {
             .unwrap();
 
         assert!(backend.core.skip_signature);
-        assert_eq!(backend.core.sas_token, None);
 
         let req = http::Request::get("http://127.0.0.1:10002/share/file.txt")
             .body(Buffer::new())
@@ -676,8 +665,6 @@ mod tests {
             .credential_provider_chain(chain)
             .build_backend()
             .unwrap();
-
-        assert_eq!(backend.core.sas_token, None);
 
         let signer = backend
             .core

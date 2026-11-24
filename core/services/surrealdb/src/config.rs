@@ -72,6 +72,20 @@ impl opendal_core::Configurator for SurrealdbConfig {
                 .or_insert_with(|| format!("ws://{authority}"));
         }
 
+        if let Some(username) = uri.username()
+            && !username.is_empty()
+        {
+            map.entry("username".to_string())
+                .or_insert_with(|| username.to_string());
+        }
+
+        if let Some(password) = uri.password()
+            && !password.is_empty()
+        {
+            map.entry("password".to_string())
+                .or_insert_with(|| password.to_string());
+        }
+
         if let Some(path) = uri.root()
             && !path.is_empty()
         {
@@ -97,7 +111,8 @@ impl opendal_core::Configurator for SurrealdbConfig {
             if let Some(rest) = segments.next()
                 && !rest.is_empty()
             {
-                map.insert("root".to_string(), rest.to_string());
+                map.entry("root".to_string())
+                    .or_insert_with(|| rest.to_string());
             }
         }
 
@@ -132,5 +147,34 @@ mod tests {
         assert_eq!(cfg.database.as_deref(), Some("app"));
         assert_eq!(cfg.table.as_deref(), Some("cache"));
         assert_eq!(cfg.root.as_deref(), Some("static"));
+    }
+
+    #[test]
+    fn from_uri_extracts_credentials_and_preserves_explicit_options() {
+        let uri = OperatorUri::new(
+            "surrealdb://alice:secret@db.example.com:8000/project/app/cache/static",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = SurrealdbConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.username.as_deref(), Some("alice"));
+        assert_eq!(cfg.password.as_deref(), Some("secret"));
+        assert_eq!(cfg.root.as_deref(), Some("static"));
+
+        let override_uri = OperatorUri::new(
+            "surrealdb://alice:secret@db.example.com:8000/project/app/cache/static",
+            vec![
+                ("username".to_string(), "override-user".to_string()),
+                ("password".to_string(), "override-pass".to_string()),
+                ("root".to_string(), "override-root".to_string()),
+            ],
+        )
+        .unwrap();
+
+        let override_cfg = SurrealdbConfig::from_uri(&override_uri).unwrap();
+        assert_eq!(override_cfg.username.as_deref(), Some("override-user"));
+        assert_eq!(override_cfg.password.as_deref(), Some("override-pass"));
+        assert_eq!(override_cfg.root.as_deref(), Some("override-root"));
     }
 }

@@ -127,11 +127,9 @@ impl SurrealdbBuilder {
     }
 }
 
-impl Builder for SurrealdbBuilder {
-    type Config = SurrealdbConfig;
-
-    fn build(self) -> Result<impl Service> {
-        let connection_string = match self.config.connection_string.clone() {
+impl SurrealdbBuilder {
+    fn build_backend(self) -> Result<SurrealdbBackend> {
+        let connection_string = match self.config.connection_string.filter(|v| !v.is_empty()) {
             Some(v) => v,
             None => {
                 return Err(
@@ -141,21 +139,21 @@ impl Builder for SurrealdbBuilder {
             }
         };
 
-        let namespace = match self.config.namespace.clone() {
+        let namespace = match self.config.namespace.filter(|v| !v.is_empty()) {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "namespace is empty")
                     .with_context("service", SURREALDB_SCHEME));
             }
         };
-        let database = match self.config.database.clone() {
+        let database = match self.config.database.filter(|v| !v.is_empty()) {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "database is empty")
                     .with_context("service", SURREALDB_SCHEME));
             }
         };
-        let table = match self.config.table.clone() {
+        let table = match self.config.table.filter(|v| !v.is_empty()) {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
@@ -163,24 +161,32 @@ impl Builder for SurrealdbBuilder {
             }
         };
 
-        let username = self.config.username.clone().unwrap_or_default();
-        let password = self.config.password.clone().unwrap_or_default();
+        let username = self
+            .config
+            .username
+            .filter(|v| !v.is_empty())
+            .unwrap_or_default();
+        let password = self
+            .config
+            .password
+            .filter(|v| !v.is_empty())
+            .unwrap_or_default();
         let key_field = self
             .config
             .key_field
-            .clone()
+            .filter(|v| !v.is_empty())
             .unwrap_or_else(|| "key".to_string());
         let value_field = self
             .config
             .value_field
-            .clone()
+            .filter(|v| !v.is_empty())
             .unwrap_or_else(|| "value".to_string());
         let root = normalize_root(
             self.config
                 .root
-                .clone()
-                .unwrap_or_else(|| "/".to_string())
-                .as_str(),
+                .as_deref()
+                .filter(|v| !v.is_empty())
+                .unwrap_or("/"),
         );
 
         Ok(SurrealdbBackend::new(SurrealdbCore {
@@ -195,6 +201,14 @@ impl Builder for SurrealdbBuilder {
             value_field,
         })
         .with_normalized_root(root))
+    }
+}
+
+impl Builder for SurrealdbBuilder {
+    type Config = SurrealdbConfig;
+
+    fn build(self) -> Result<impl Service> {
+        self.build_backend()
     }
 }
 
@@ -270,10 +284,14 @@ impl Service for SurrealdbBackend {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.get_length(&p).await? {
-                Some(length) => Ok(RpStat::new({
-                    let metadata = MetadataBuilder::file(length as u64);
-                    metadata.build()
-                })),
+                Some(length) => {
+                    let metadata = if p.ends_with('/') {
+                        MetadataBuilder::dir()
+                    } else {
+                        MetadataBuilder::file(length as u64)
+                    };
+                    Ok(RpStat::new(metadata.build()))
+                }
                 None => Err(Error::new(ErrorKind::NotFound, "kv not found in surrealdb")),
             }
         }
@@ -353,5 +371,75 @@ impl Service for SurrealdbBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+
+    fn valid_config_entries() -> Vec<(String, String)> {
+        vec![
+            (
+                "connection_string".to_string(),
+                "http://127.0.0.1:8000".to_string(),
+            ),
+            ("namespace".to_string(), "test_ns".to_string()),
+            ("database".to_string(), "test_db".to_string()),
+            ("table".to_string(), "test_table".to_string()),
+        ]
+    }
+
+    #[test]
+    fn build_rejects_empty_required_fields() {
+        for field in ["connection_string", "namespace", "database", "table"] {
+            let mut entries = valid_config_entries();
+            for (k, v) in &mut entries {
+                if k == field {
+                    v.clear();
+                }
+            }
+            let cfg = SurrealdbConfig::from_iter(entries).unwrap();
+            let err = cfg.into_builder().build().err().unwrap();
+            assert_eq!(
+                err.kind(),
+                ErrorKind::ConfigInvalid,
+                "empty {field} must fail with ConfigInvalid"
+            );
+        }
+    }
+
+    #[test]
+    fn build_falls_back_to_default_fields_when_empty() {
+        let mut entries = valid_config_entries();
+        entries.push(("key_field".to_string(), String::new()));
+        entries.push(("value_field".to_string(), String::new()));
+        entries.push(("root".to_string(), String::new()));
+
+        let cfg = SurrealdbConfig::from_iter(entries).unwrap();
+        let backend = cfg.into_builder().build_backend().unwrap();
+        assert_eq!(backend.info().root().as_ref(), "/");
+        assert_eq!(backend.info().name().as_ref(), "test_table");
+        assert_eq!(backend.core.key_field, "key");
+        assert_eq!(backend.core.value_field, "value");
+    }
+
+    #[tokio::test]
+    async fn stat_root_returns_dir() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let cfg = SurrealdbConfig::from_iter(valid_config_entries()).unwrap();
+            let service = cfg.into_builder().build().unwrap();
+            let ctx = OperationContext::default();
+
+            let root_stat = service.stat(&ctx, "/", OpStat::new()).await.unwrap();
+            assert_eq!(root_stat.into_metadata().mode(), EntryMode::DIR);
+
+            let empty_stat = service.stat(&ctx, "", OpStat::new()).await.unwrap();
+            assert_eq!(empty_stat.into_metadata().mode(), EntryMode::DIR);
+        })
+        .await
+        .unwrap();
     }
 }

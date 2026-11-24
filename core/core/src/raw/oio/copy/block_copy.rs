@@ -232,6 +232,13 @@ where
             State::Running => {}
         }
 
+        if self.block_size == 0 {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "block copy block size must be greater than 0",
+            ));
+        }
+
         let source_size = self.source_size().await?;
 
         if self.scheduled_block_ids.is_empty() && source_size <= self.copy_once_threshold {
@@ -771,6 +778,43 @@ mod tests {
                 .complete_block_calls,
             1
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_zero_block_size_returns_config_invalid() -> Result<()> {
+        let state = Arc::new(Mutex::new(TestState::default()));
+        let inner = TestCopy {
+            state: state.clone(),
+        };
+        let mut copier = BlockCopier::new(
+            crate::test_executor(),
+            inner,
+            Some(4),
+            /*copy_once_threshold=*/ 0,
+            /*block_size=*/ 0,
+            /*concurrent=*/ 1,
+        );
+
+        let err = timeout(Duration::from_secs(5), copier.next())
+            .await
+            .expect("next must not hang when block_size is 0")
+            .expect_err("block_size == 0 must fail");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        assert!(!err.is_temporary());
+
+        let err = timeout(Duration::from_secs(5), copier.close())
+            .await
+            .expect("close must not hang when block_size is 0")
+            .expect_err("block_size == 0 must fail on close");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        assert!(!err.is_temporary());
+
+        let state = state.lock().expect("test state mutex poisoned");
+        assert_eq!(state.source_metadata_calls, 0);
+        assert_eq!(state.copy_once_calls, 0);
+        assert_eq!(state.complete_block_calls, 0);
+        assert!(state.abort_calls.is_empty());
         Ok(())
     }
 }

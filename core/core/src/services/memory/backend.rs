@@ -166,21 +166,19 @@ impl Service for MemoryBackend {
     }
 
     fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let root_key = &self.root[1..];
         let p = build_absolute_path(&self.root, path);
-        let start_after = args
-            .start_after()
-            .map(|v| build_absolute_path(&self.root, v));
-        let mut keys = self.core.scan(&p, start_after.as_deref())?;
+        let mut keys = self.core.scan(root_key, &p, args.start_after())?;
 
         // Non-recursive lists fold `d/x` and `d/y` into `d/`. If the marker is `d/` or `d/x`,
         // `d/y` would still yield `d/`, which sorts at or before the marker, so drop all of `d/`.
         if !args.recursive()
-            && let Some(marker) = start_after.as_deref()
-            && let Some(rest) = marker.strip_prefix(p.as_str())
+            && let Some(marker) = args.start_after()
+            && let Some(rest) = marker.strip_prefix(&p[root_key.len()..])
             && let Some(idx) = rest.find('/')
         {
-            let dir = &marker[..p.len() + idx + 1];
-            keys.retain(|key| !key.starts_with(dir));
+            let dir = format!("{p}{}", &rest[..=idx]);
+            keys.retain(|key| !key.starts_with(&dir));
         }
 
         let lister = MemoryLister::new(&self.root, keys);
@@ -434,6 +432,145 @@ mod tests {
             assert!(op.list("/").await?.is_empty(), "root {root}");
         }
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_list_with_start_after_root_and_pre_slash_keys() -> Result<()> {
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            let cases: &[(&str, bool, Option<&str>, &[&str])] = &[
+                (
+                    "no marker non-recursive",
+                    false,
+                    None,
+                    &["-dir/", "-first.txt", ".env", "/", "0.txt", "a.txt", "a/"],
+                ),
+                (
+                    "no marker recursive",
+                    true,
+                    None,
+                    &[
+                        "-dir/x",
+                        "-dir/y",
+                        "-first.txt",
+                        ".env",
+                        "/",
+                        "0.txt",
+                        "a.txt",
+                        "a/1",
+                    ],
+                ),
+                (
+                    "empty marker non-recursive",
+                    false,
+                    Some(""),
+                    &["-dir/", "-first.txt", ".env", "/", "0.txt", "a.txt", "a/"],
+                ),
+                (
+                    "empty marker recursive",
+                    true,
+                    Some(""),
+                    &[
+                        "-dir/x",
+                        "-dir/y",
+                        "-first.txt",
+                        ".env",
+                        "/",
+                        "0.txt",
+                        "a.txt",
+                        "a/1",
+                    ],
+                ),
+                (
+                    "pre-slash folder marker non-recursive",
+                    false,
+                    Some("-dir/x"),
+                    &["-first.txt", ".env", "/", "0.txt", "a.txt", "a/"],
+                ),
+                (
+                    "pre-slash folder marker recursive",
+                    true,
+                    Some("-dir/x"),
+                    &["-dir/y", "-first.txt", ".env", "/", "0.txt", "a.txt", "a/1"],
+                ),
+                (
+                    "pre-slash file marker non-recursive",
+                    false,
+                    Some("-first.txt"),
+                    &[".env", "/", "0.txt", "a.txt", "a/"],
+                ),
+                (
+                    "pre-slash file marker recursive",
+                    true,
+                    Some("-first.txt"),
+                    &[".env", "/", "0.txt", "a.txt", "a/1"],
+                ),
+                (
+                    "root marker non-recursive",
+                    false,
+                    Some("/"),
+                    &["0.txt", "a.txt", "a/"],
+                ),
+                (
+                    "root marker recursive",
+                    true,
+                    Some("/"),
+                    &["0.txt", "a.txt", "a/1"],
+                ),
+                (
+                    "leading-slash marker non-recursive",
+                    false,
+                    Some("/a"),
+                    &["0.txt", "a.txt", "a/"],
+                ),
+                (
+                    "leading-slash marker recursive",
+                    true,
+                    Some("/a"),
+                    &["0.txt", "a.txt", "a/1"],
+                ),
+            ];
+
+            for root in ["/", "/root/"] {
+                let op = Operator::new(services::Memory::default().root(root))?;
+                #[cfg(not(feature = "auto-simulate"))]
+                let op = op.layer(crate::layers::SimulateLayer::default());
+
+                op.create_dir("/").await?;
+                for path in [
+                    "-dir/x",
+                    "-dir/y",
+                    "-first.txt",
+                    ".env",
+                    "0.txt",
+                    "a.txt",
+                    "a/1",
+                ] {
+                    op.write(path, "x").await?;
+                }
+
+                for &(name, recursive, start_after, expected) in cases {
+                    let mut list = op.list_with("/").recursive(recursive);
+                    if let Some(marker) = start_after {
+                        list = list.start_after(marker);
+                    }
+                    let actual: Vec<String> = list
+                        .await?
+                        .into_iter()
+                        .map(|e| e.path().to_string())
+                        .collect();
+                    assert_eq!(actual, expected, "{name} (root {root})");
+                    if let Some(marker) = start_after {
+                        assert!(
+                            actual.iter().all(|p| p.as_str() > marker),
+                            "{name} (root {root}) violated entry.path() > start_after"
+                        );
+                    }
+                }
+            }
+            Ok(())
+        })
+        .await
+        .expect("memory list start_after test timed out")
     }
 
     #[tokio::test]

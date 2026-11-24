@@ -166,17 +166,48 @@ impl Service for MonoiofsBackend {
         _ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpRename,
+        args: OpRename,
     ) -> Result<RpRename> {
+        #[cfg(not(target_os = "linux"))]
+        if args.if_not_exists() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "Conditional rename is only supported on Linux",
+            ));
+        }
+
         let from = self.core.prepare_path(from)?;
         // ensure file exists
-        self.core
+        let meta = self
+            .core
             .dispatch({
                 let from = from.clone();
                 move || monoio::fs::metadata(from)
             })
             .await
             .map_err(new_std_io_error)?;
+
+        #[cfg(target_os = "linux")]
+        if args.if_not_exists() {
+            use rustix::fs::{CWD, RenameFlags, renameat_with};
+
+            if meta.is_dir() {
+                return Err(Error::new(
+                    ErrorKind::IsADirectory,
+                    "rename source is a directory",
+                ));
+            }
+            let to = self.core.prepare_write_path(to).await?;
+            self.core
+                .dispatch(move || async move {
+                    renameat_with(CWD, &from, CWD, &to, RenameFlags::NOREPLACE)
+                        .map_err(parse_conditional_rename_error)
+                })
+                .await?;
+            return Ok(RpRename::default());
+        }
+
+        let _ = meta;
         let to = self.core.prepare_write_path(to).await?;
         self.core
             .dispatch(move || monoio::fs::rename(from, to))
@@ -333,6 +364,25 @@ fn is_same_file(
     }
 }
 
+#[cfg(target_os = "linux")]
+fn parse_conditional_rename_error(err: rustix::io::Errno) -> Error {
+    use rustix::io::Errno;
+
+    match err {
+        Errno::EXIST | Errno::NOTEMPTY => Error::new(
+            ErrorKind::ConditionNotMatch,
+            "The destination already exists",
+        )
+        .set_source(std::io::Error::from(err)),
+        Errno::NOSYS | Errno::INVAL | Errno::OPNOTSUPP => Error::new(
+            ErrorKind::Unsupported,
+            "The kernel or filesystem does not support conditional rename",
+        )
+        .set_source(err),
+        _ => new_std_io_error(err.into()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -411,5 +461,192 @@ mod tests {
         let err = op.copy("missing", "missing_parent/dst").await.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::NotFound);
         assert!(!temp_dir.path().join("missing_parent").exists());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_conditional_rename_errno_mapping() {
+        use rustix::io::Errno;
+
+        for (errno, kind) in [
+            (Errno::EXIST, ErrorKind::ConditionNotMatch),
+            (Errno::NOTEMPTY, ErrorKind::ConditionNotMatch),
+            (Errno::NOSYS, ErrorKind::Unsupported),
+            (Errno::INVAL, ErrorKind::Unsupported),
+            (Errno::OPNOTSUPP, ErrorKind::Unsupported),
+            (Errno::NOENT, ErrorKind::NotFound),
+            (Errno::NOTDIR, ErrorKind::NotADirectory),
+            (Errno::ISDIR, ErrorKind::IsADirectory),
+        ] {
+            let err = parse_conditional_rename_error(errno);
+            assert_eq!(err.kind(), kind, "{errno:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn test_rename_with_if_not_exists() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        let backend = MonoiofsBuilder::default()
+            .root(root.to_str().unwrap())
+            .build()
+            .unwrap();
+        let op = Operator::new(MonoiofsBuilder::default().root(root.to_str().unwrap())).unwrap();
+        assert!(op.info().capability().rename_with_if_not_exists);
+
+        // Basic success.
+        op.write("src", "source data").await.unwrap();
+        op.rename_with("src", "dst")
+            .if_not_exists(true)
+            .await
+            .unwrap();
+        assert!(!root.join("src").exists());
+        assert_eq!(std::fs::read(root.join("dst")).unwrap(), b"source data");
+
+        // Nested destination creates parent directories.
+        op.write("nested_src", "nested data").await.unwrap();
+        op.rename_with("nested_src", "a/b/nested_dst")
+            .if_not_exists(true)
+            .await
+            .unwrap();
+        assert!(!root.join("nested_src").exists());
+        assert_eq!(
+            std::fs::read(root.join("a/b/nested_dst")).unwrap(),
+            b"nested data"
+        );
+
+        // Existing destination file returns ConditionNotMatch and preserves both files.
+        op.write("conflict_src", "new content").await.unwrap();
+        op.write("conflict_dst", "existing content").await.unwrap();
+        let err = op
+            .rename_with("conflict_src", "conflict_dst")
+            .if_not_exists(true)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+        assert_eq!(
+            std::fs::read(root.join("conflict_src")).unwrap(),
+            b"new content"
+        );
+        assert_eq!(
+            std::fs::read(root.join("conflict_dst")).unwrap(),
+            b"existing content"
+        );
+
+        // Existing non-empty destination directory returns ConditionNotMatch and preserves both.
+        std::fs::create_dir(root.join("existing_dir")).unwrap();
+        std::fs::write(root.join("existing_dir/child"), b"keep").unwrap();
+        let err = op
+            .rename_with("conflict_src", "existing_dir")
+            .if_not_exists(true)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+        assert_eq!(
+            std::fs::read(root.join("conflict_src")).unwrap(),
+            b"new content"
+        );
+        assert_eq!(
+            std::fs::read(root.join("existing_dir/child")).unwrap(),
+            b"keep"
+        );
+
+        // Self-rename via Operator returns IsSameFile; direct backend call and hard-link alias
+        // hit RENAME_NOREPLACE and return ConditionNotMatch while preserving the file.
+        op.write("self_file", "self content").await.unwrap();
+        let err = op
+            .rename_with("self_file", "self_file")
+            .if_not_exists(true)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsSameFile, "{err:?}");
+        let err = backend
+            .rename(
+                &OperationContext::default(),
+                "self_file",
+                "self_file",
+                OpRename::new().with_if_not_exists(true),
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+        std::fs::hard_link(root.join("self_file"), root.join("self_hard")).unwrap();
+        let err = op
+            .rename_with("self_file", "self_hard")
+            .if_not_exists(true)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch, "{err:?}");
+        assert_eq!(
+            std::fs::read(root.join("self_file")).unwrap(),
+            b"self content"
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn test_conditional_rename_source_and_path_errors() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        let op = Operator::new(MonoiofsBuilder::default().root(root.to_str().unwrap())).unwrap();
+
+        // Missing source returns NotFound without creating destination parent directories.
+        let err = op
+            .rename_with("missing", "ghost/dir/dst")
+            .if_not_exists(true)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+        assert!(!root.join("ghost").exists());
+
+        // Directory source (with or without trailing slash) returns IsADirectory without creating
+        // destination parent directories.
+        std::fs::create_dir(root.join("src_dir")).unwrap();
+        std::fs::write(root.join("src_dir/child"), b"dir child").unwrap();
+        for from in ["src_dir", "src_dir/"] {
+            let err = op
+                .rename_with(from, "dir_ghost/dst")
+                .if_not_exists(true)
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::IsADirectory, "{from}: {err:?}");
+            assert!(!err.is_temporary(), "{from}: {err:?}");
+            assert!(!root.join("dir_ghost").exists());
+        }
+        assert_eq!(
+            std::fs::read(root.join("src_dir/child")).unwrap(),
+            b"dir child"
+        );
+
+        // Non-directory path components return permanent errors and preserve existing files.
+        std::fs::write(root.join("source"), b"source contents").unwrap();
+        std::fs::write(root.join("file"), b"parent contents").unwrap();
+        for (from, to, kind) in [
+            ("file/child", "target", ErrorKind::NotADirectory),
+            ("source", "file/child", ErrorKind::AlreadyExists),
+            ("source", "file/dir/child", ErrorKind::NotADirectory),
+        ] {
+            let err = op
+                .rename_with(from, to)
+                .if_not_exists(true)
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), kind, "{from} -> {to}: {err:?}");
+            assert!(!err.is_temporary(), "{from} -> {to}: {err:?}");
+        }
+        assert_eq!(
+            std::fs::read(root.join("source")).unwrap(),
+            b"source contents"
+        );
+        assert_eq!(
+            std::fs::read(root.join("file")).unwrap(),
+            b"parent contents"
+        );
     }
 }

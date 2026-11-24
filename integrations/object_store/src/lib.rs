@@ -82,6 +82,105 @@
 //!     op.rename("from", "to").into_send().await
 //! }
 //! ```
+//!
+//! # Limitations and Backend-Specific Behavior
+//!
+//! [`OpendalStore`] implements [`object_store::ObjectStore`] by delegating to
+//! an [`opendal::Operator`]. Because OpenDAL supports many storage backends
+//! with different native capabilities, some behaviors differ from native
+//! `object_store` implementations:
+//!
+//! - **Capability-dependent operations**: Optional operations depend on
+//!   [`OpendalStore::info`]'s capability flags and return
+//!   [`object_store::Error::NotSupported`] when unavailable:
+//!   - [`put_opts`](object_store::ObjectStore::put_opts) with
+//!     [`PutMode::Create`](object_store::PutMode::Create) requires
+//!     `write_with_if_not_exists`.
+//!   - [`put_opts`](object_store::ObjectStore::put_opts) with
+//!     [`PutMode::Update`](object_store::PutMode::Update) requires at least one
+//!     of `e_tag` (`write_with_if_match`) or `version`
+//!     (`write_with_if_version_match`); supplying neither always returns
+//!     `NotSupported`.
+//!   - [`copy_opts`](object_store::ObjectStore::copy_opts) requires `copy` for
+//!     overwrite and `copy_with_if_not_exists` for create.
+//!   - [`rename_opts`](object_store::ObjectStore::rename_opts) uses native
+//!     `rename` or `rename_with_if_not_exists` when advertised, and otherwise
+//!     falls back to `copy` (or `copy_if_not_exists`) followed by `delete`.
+//!     That fallback is not atomic with deleting the source, and create-mode
+//!     rename returns `NotSupported` when the operator supports neither
+//!     `rename_with_if_not_exists` nor `copy_with_if_not_exists`.
+//!   - [`get_opts`](object_store::ObjectStore::get_opts) with
+//!     [`GetOptions::version`](object_store::GetOptions::version) requires
+//!     `read_with_version` for body reads, and `stat_with_version` for
+//!     [`GetOptions::head`](object_store::GetOptions::head) or `stat` fallback
+//!     paths (such as over-EOF ranges or local precondition evaluation).
+//! - **Write atomicity and multipart uploads**:
+//!   - Write atomicity and [`MultipartUpload::abort`](object_store::MultipartUpload::abort)
+//!     depend on the underlying OpenDAL service. For example, OpenDAL's `fs`
+//!     service writes directly to the target path by default and returns
+//!     `NotSupported` from `abort` unless configured with `atomic_write_dir`.
+//!   - Multipart uploads write parts sequentially in call order through
+//!     OpenDAL's `Writer` (which buffers chunks and flushes concurrently
+//!     internally). A failed, dropped, or cancelled `put_part` future poisons
+//!     the upload so subsequent `put_part` and `complete` calls fail with
+//!     [`object_store::Error::Generic`]; call `abort` to clean up where
+//!     supported. Calling `complete` with parts still in flight also fails and
+//!     poisons the upload.
+//! - **Metadata, attributes, tags, and extensions**:
+//!   - `e_tag` and `version` on [`object_store::ObjectMeta`] and
+//!     [`object_store::PutResult`] are populated only when the backend returns
+//!     them (`None` on backends such as `memory` and `fs`). When a backend omits
+//!     `last_modified`, [`ObjectMeta::last_modified`](object_store::ObjectMeta::last_modified)
+//!     defaults to the Unix epoch (`1970-01-01T00:00:00Z`).
+//!   - [`OpendalStore`] maps `CacheControl`, `ContentDisposition`,
+//!     `ContentEncoding`, `ContentLanguage`, `ContentType`, and
+//!     [`Attribute::Metadata`](object_store::Attribute::Metadata).
+//!     [`Attribute::StorageClass`](object_store::Attribute::StorageClass) (and
+//!     unknown future variants) is ignored on writes and never populated on
+//!     reads. OpenDAL's default correctness checks do not reject unsupported
+//!     non-critical write attributes; add `CapabilityCheckLayer` to the
+//!     `Operator` when strict rejection is required.
+//!   - [`PutOptions::tags`](object_store::PutOptions::tags),
+//!     [`PutMultipartOptions::tags`](object_store::PutMultipartOptions::tags),
+//!     and request `extensions` are ignored; response `extensions` are always
+//!     empty.
+//! - **Conditional reads and payloads**:
+//!   - When a service cannot return metadata or evaluate preconditions directly
+//!     on read open, [`get_opts`](object_store::ObjectStore::get_opts) falls
+//!     back to `stat` plus local precondition checks before opening the reader.
+//!     On backends without native read preconditions, this check is not atomic
+//!     with reading the body, and `if_match` fails with
+//!     [`object_store::Error::Precondition`] when the backend omits `e_tag`.
+//!   - [`OpendalStore`] always returns
+//!     [`GetResultPayload::Stream`](object_store::GetResultPayload::Stream),
+//!     never [`GetResultPayload::File`](object_store::GetResultPayload::File).
+//! - **Deletes**:
+//!   - Deleting a missing object succeeds idempotently (matching OpenDAL's
+//!     delete contract), rather than returning [`object_store::Error::NotFound`].
+//!   - [`delete_stream`](object_store::ObjectStore::delete_stream) deletes
+//!     objects sequentially one by one through [`opendal::Operator::delete`]
+//!     instead of issuing bulk or concurrent delete batches.
+//! - **Listing**:
+//!   - [`list_with_offset`](object_store::ObjectStore::list_with_offset) lists
+//!     the full prefix recursively and filters locally by encoded
+//!     [`object_store::path::Path`] order instead of pushing a cursor down to
+//!     the backend.
+//!   - When list entries omit `last_modified`, `list`, `list_with_offset`, and
+//!     `list_with_delimiter` issue an extra `stat` call per object to complete
+//!     [`object_store::ObjectMeta`].
+//!   - Listing order is backend-defined and not guaranteed to be sorted.
+//! - **Optional `object_store` traits, error mapping, and `new_amazon_s3`**:
+//!   - [`OpendalStore`] does not implement [`object_store::multipart::MultipartStore`],
+//!     [`object_store::signer::Signer`], or
+//!     [`object_store::list::PaginatedListStore`].
+//!   - OpenDAL maps `NotFound`, `Unsupported`, `AlreadyExists`,
+//!     `ConditionNotMatch`, and `PermissionDenied` to dedicated
+//!     [`object_store::Error`] variants; all other [`opendal::ErrorKind`] values
+//!     map to [`object_store::Error::Generic`].
+//!   - With feature `services-s3`, `OpendalStore::new_amazon_s3` forwards only
+//!     `Endpoint`, `Region`, `Bucket`, `AccessKeyId`, `SecretAccessKey`,
+//!     `Token`, `VirtualHostedStyleRequest`, and `SkipSignature` from
+//!     `AmazonS3Builder`; other S3 builder options are not forwarded.
 
 mod store;
 pub use store::OpendalStore;

@@ -46,4 +46,4 @@ serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 tempfile = "3"
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

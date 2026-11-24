@@ -20,6 +20,8 @@
 package opendal
 
 import (
+	"unicode/utf8"
+
 	"github.com/ebitengine/purego"
 	"golang.org/x/sys/unix"
 )
@@ -27,6 +29,9 @@ import (
 func BytePtrFromString(s string) (*byte, error) {
 	if s == "" {
 		return new(byte), nil
+	}
+	if !utf8.ValidString(s) {
+		return nil, errInvalidUTF8
 	}
 	return unix.BytePtrFromString(s)
 }

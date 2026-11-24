@@ -144,6 +144,9 @@ func (op *Operator) List(ctx context.Context, path string, opts ...WithListFn) (
 	if len(opts) > 0 {
 		o := &listOptions{}
 		for _, opt := range opts {
+			if opt == nil {
+				continue
+			}
 			opt(o)
 		}
 		cOpts = ffiListOptionsNew.symbol(op.ctx)()
@@ -153,7 +156,9 @@ func (op *Operator) List(ctx context.Context, path string, opts ...WithListFn) (
 			ffiListOptionsSetLimit.symbol(op.ctx)(cOpts, o.limit)
 		}
 		if o.startAfter != nil {
-			ffiListOptionsSetStartAfter.symbol(op.ctx)(cOpts, *o.startAfter)
+			if err := ffiListOptionsSetStartAfter.symbol(op.ctx)(cOpts, *o.startAfter); err != nil {
+				return nil, err
+			}
 		}
 		ffiListOptionsSetVersions.symbol(op.ctx)(cOpts, o.versions)
 		ffiListOptionsSetDeleted.symbol(op.ctx)(cOpts, o.deleted)
@@ -300,6 +305,7 @@ func (l *Lister) Next(ctx context.Context) bool {
 
 	entry := newEntry(l.ctx, inner)
 
+	l.err = nil
 	l.entry = entry
 	return true
 }
@@ -391,14 +397,15 @@ var ffiListOptionsSetLimit = newDirectFFI[func(opts *opendalListOptions, limit u
 
 var ffiListOptionsSetStartAfter = newFFI(
 	"opendal_list_options_set_start_after",
-	func(_ context.Context, cFunc func(opts *opendalListOptions, startAfter *byte)) func(opts *opendalListOptions, startAfter string) {
-		return func(opts *opendalListOptions, startAfter string) {
+	func(_ context.Context, cFunc func(opts *opendalListOptions, startAfter *byte)) func(opts *opendalListOptions, startAfter string) error {
+		return func(opts *opendalListOptions, startAfter string) error {
 			bytePtr, err := BytePtrFromString(startAfter)
 			if err != nil {
-				return
+				return err
 			}
 			cFunc(opts, bytePtr)
 			runtime.KeepAlive(bytePtr)
+			return nil
 		}
 	},
 )

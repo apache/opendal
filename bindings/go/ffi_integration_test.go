@@ -22,9 +22,11 @@ import (
 	"context"
 	"errors"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -374,5 +376,182 @@ func TestLiveCLibraryEndToEndAndNoLibffi(t *testing.T) {
 		if strings.Contains(mapsText, "libffi") {
 			t.Fatalf("/proc/self/maps unexpectedly contained libffi:\n%s", mapsText)
 		}
+	}
+}
+
+func TestLiveCFFIValidationAndInvariants(t *testing.T) {
+	ctx := context.Background()
+	libPath := findLocalCLibrary(t)
+
+	// Non-UTF-8 strings in operator options must fail in Go rather than aborting inside bindings/c.
+	if _, err := NewOperator(localTestScheme{name: "memory", path: libPath}, OperatorOptions{"root": "\xff"}); err == nil {
+		t.Fatal("NewOperator with invalid UTF-8 option value succeeded, want error")
+	}
+	if _, err := NewOperator(localTestScheme{name: "memory", path: libPath}, OperatorOptions{"\xff": "/tmp"}); err == nil {
+		t.Fatal("NewOperator with invalid UTF-8 option key succeeded, want error")
+	}
+	if _, err := NewOperator(localTestScheme{name: "\xff", path: libPath}, nil); err == nil {
+		t.Fatal("NewOperator with invalid UTF-8 scheme succeeded, want error")
+	}
+
+	// RetryFactor overflow past math.MaxFloat32 is rejected before crossing FFI.
+	if _, err := NewOperator(localTestScheme{name: "memory", path: libPath}, nil, WithRetry(RetryFactor(math.MaxFloat64))); err == nil {
+		t.Fatal("NewOperator with RetryFactor(MaxFloat64) succeeded, want error")
+	}
+
+	memOp, err := NewOperator(localTestScheme{name: "memory", path: libPath}, OperatorOptions{"root": "/validation"})
+	if err != nil {
+		t.Fatalf("NewOperator(memory): %v", err)
+	}
+	defer memOp.Close()
+
+	if _, err := memOp.Write(ctx, "dir/a.txt", []byte("0123456789")); err != nil {
+		t.Fatalf("Write(dir/a.txt): %v", err)
+	}
+	if _, err := memOp.Write(ctx, "dir/b.txt", []byte("abcdefghij")); err != nil {
+		t.Fatalf("Write(dir/b.txt): %v", err)
+	}
+
+	// Non-UTF-8 paths/options and invalid ListWithStartAfter return Go errors without aborting.
+	nonUTF8Checks := map[string]func() error{
+		"Read":      func() error { _, err := memOp.Read(ctx, "\xff"); return err },
+		"Stat":      func() error { _, err := memOp.Stat(ctx, "\xff"); return err },
+		"IsExist":   func() error { _, err := memOp.IsExist(ctx, "\xff"); return err },
+		"WritePath": func() error { _, err := memOp.Write(ctx, "\xff", []byte("x")); return err },
+		"WriteOpt": func() error {
+			_, err := memOp.Write(ctx, "a.txt", []byte("x"), WriteWithContentType("\xff"))
+			return err
+		},
+		"WriteMeta": func() error {
+			_, err := memOp.Write(ctx, "a.txt", []byte("x"), WriteWithUserMetadata(map[string]string{"k": "\xff"}))
+			return err
+		},
+		"ListPath":  func() error { _, err := memOp.List(ctx, "\xff"); return err },
+		"ListStart": func() error { _, err := memOp.List(ctx, "dir/", ListWithStartAfter("\xff")); return err },
+		"ListNul":   func() error { _, err := memOp.List(ctx, "dir/", ListWithStartAfter("a\x00b")); return err },
+		"Delete":    func() error { return memOp.Delete(ctx, "\xff") },
+		"Remove":    func() error { return memOp.Remove(ctx, []string{"\xff"}) },
+		"CreateDir": func() error { return memOp.CreateDir(ctx, "\xff/") },
+		"Rename":    func() error { return memOp.Rename(ctx, "\xff", "b.txt") },
+		"Copy":      func() error { return memOp.Copy(ctx, "\xff", "b.txt") },
+		"Presign":   func() error { _, err := memOp.PresignRead(ctx, "\xff", time.Minute); return err },
+	}
+	for name, check := range nonUTF8Checks {
+		if err := check(); err == nil {
+			t.Fatalf("%s with invalid string succeeded, want error", name)
+		}
+	}
+
+	// Invalid presign durations return a Go validation error rather than crossing FFI.
+	for _, expire := range []time.Duration{-time.Second, 0, 500 * time.Millisecond} {
+		for name, call := range map[string]func() error{
+			"PresignRead":   func() error { _, err := memOp.PresignRead(ctx, "dir/a.txt", expire); return err },
+			"PresignWrite":  func() error { _, err := memOp.PresignWrite(ctx, "dir/a.txt", expire); return err },
+			"PresignDelete": func() error { _, err := memOp.PresignDelete(ctx, "dir/a.txt", expire); return err },
+			"PresignStat":   func() error { _, err := memOp.PresignStat(ctx, "dir/a.txt", expire); return err },
+		} {
+			err := call()
+			if err == nil {
+				t.Fatalf("%s(%v) succeeded, want validation error", name, expire)
+			}
+			var opErr *Error
+			if errors.As(err, &opErr) {
+				t.Fatalf("%s(%v) crossed FFI and returned native error %v", name, expire, err)
+			}
+		}
+	}
+
+	// Reader.SeekContext rejects invalid whence values (including 64-bit truncation) cleanly.
+	reader, err := memOp.Reader(ctx, "dir/a.txt")
+	if err != nil {
+		t.Fatalf("Reader(dir/a.txt): %v", err)
+	}
+	defer func() { _ = reader.Close() }()
+	if _, err := reader.SeekContext(ctx, 4, io.SeekStart); err != nil {
+		t.Fatalf("SeekContext(4, SeekStart): %v", err)
+	}
+	if _, err := reader.SeekContext(ctx, 0, -1); err == nil {
+		t.Fatal("SeekContext(0, -1) succeeded, want error")
+	}
+	if strconv.IntSize >= 64 {
+		if _, err := reader.SeekContext(ctx, 0, int(int64(1)<<32)); err == nil {
+			t.Fatal("SeekContext(0, 1<<32) succeeded, want error")
+		}
+	}
+	// Position must remain unchanged at 4 after rejected seeks.
+	pos, err := reader.SeekContext(ctx, 0, io.SeekCurrent)
+	if err != nil || pos != 4 {
+		t.Fatalf("SeekContext(0, SeekCurrent) after rejected seeks = (%d, %v), want (4, nil)", pos, err)
+	}
+
+	// Lister.Next clears a prior error after a subsequent successful step.
+	lister, err := memOp.List(ctx, "dir/")
+	if err != nil {
+		t.Fatalf("List(dir/): %v", err)
+	}
+	defer func() { _ = lister.Close() }()
+	canceledCtx, cancel := context.WithCancel(ctx)
+	cancel()
+	if lister.Next(canceledCtx) {
+		t.Fatal("lister.Next(canceledCtx) = true, want false")
+	}
+	if lister.Error() == nil {
+		t.Fatal("lister.Error() after canceled Next = nil, want error")
+	}
+	if !lister.Next(ctx) {
+		t.Fatalf("lister.Next(ctx) after retry = false (err=%v), want true", lister.Error())
+	}
+	if lister.Error() != nil {
+		t.Fatalf("lister.Error() after successful retry = %v, want nil", lister.Error())
+	}
+
+	// Live fs operator verifies LastModified UTC, CopyWithSourceContentLengthHint(0), and nil options.
+	fsOp, err := NewOperator(localTestScheme{name: "fs", path: libPath}, OperatorOptions{"root": t.TempDir()})
+	if err != nil {
+		t.Fatalf("NewOperator(fs): %v", err)
+	}
+	defer fsOp.Close()
+
+	if _, err := fsOp.Write(ctx, "empty.txt", nil, nil); err != nil {
+		t.Fatalf("fsOp.Write with nil option: %v", err)
+	}
+	if err := fsOp.Copy(ctx, "empty.txt", "empty-copy.txt", nil, CopyWithSourceContentLengthHint(0), nil); err != nil {
+		t.Fatalf("fsOp.Copy with CopyWithSourceContentLengthHint(0) and nil option: %v", err)
+	}
+	if data, err := fsOp.Read(ctx, "empty-copy.txt", nil); err != nil || len(data) != 0 {
+		t.Fatalf("fsOp.Read with nil option = (%q, %v), want empty, nil", data, err)
+	}
+	rNilOpt, err := fsOp.Reader(ctx, "empty-copy.txt", nil)
+	if err != nil {
+		t.Fatalf("fsOp.Reader with nil option: %v", err)
+	}
+	_ = rNilOpt.Close()
+	lNilOpt, err := fsOp.List(ctx, "", nil)
+	if err != nil {
+		t.Fatalf("fsOp.List with nil option: %v", err)
+	}
+	_ = lNilOpt.Close()
+
+	origLocal := time.Local
+	time.Local = time.FixedZone("CST", 8*3600)
+	meta, statErr := fsOp.Stat(ctx, "empty.txt", nil)
+	time.Local = origLocal
+	if statErr != nil {
+		t.Fatalf("fsOp.Stat with nil option: %v", statErr)
+	}
+	if meta.LastModified().IsZero() {
+		t.Fatal("fsOp.Stat LastModified() is zero, expected non-zero timestamp")
+	}
+	if meta.LastModified().Location() != time.UTC {
+		t.Fatalf("fsOp.Stat LastModified().Location() = %v, want UTC", meta.LastModified().Location())
+	}
+	if err := fsOp.Delete(ctx, "empty-copy.txt", nil); err != nil {
+		t.Fatalf("fsOp.Delete with nil option: %v", err)
+	}
+
+	// Operator.Remove(ctx, nil) on a closed live operator returns ErrOperatorClosed.
+	memOp.Close()
+	if err := memOp.Remove(ctx, nil); !errors.Is(err, ErrOperatorClosed) {
+		t.Fatalf("Remove(nil) on closed operator = %v, want ErrOperatorClosed", err)
 	}
 }

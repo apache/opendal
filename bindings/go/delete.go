@@ -116,6 +116,9 @@ func (op *Operator) Delete(ctx context.Context, path string, opts ...WithDeleteF
 func parseDeleteOptions(opts ...WithDeleteFn) *deleteOptions {
 	o := &deleteOptions{}
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
 		opt(o)
 	}
 	return o

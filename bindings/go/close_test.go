@@ -120,12 +120,14 @@ func TestOperatorMethodsFailCleanlyAfterClose(t *testing.T) {
 	for state, op := range operators {
 		t.Run(state, func(t *testing.T) {
 			checks := map[string]func(*Operator) error{
-				"Check":     func(op *Operator) error { return op.Check(bg) },
-				"CreateDir": func(op *Operator) error { return op.CreateDir(bg, "dir/") },
-				"IsExist":   func(op *Operator) error { _, err := op.IsExist(bg, "file.txt"); return err },
-				"Rename":    func(op *Operator) error { return op.Rename(bg, "a.txt", "b.txt") },
-				"Remove":    func(op *Operator) error { return op.Remove(bg, []string{"a.txt"}) },
-				"Read":      func(op *Operator) error { _, err := op.Read(bg, "file.txt"); return err },
+				"Check":            func(op *Operator) error { return op.Check(bg) },
+				"CreateDir":        func(op *Operator) error { return op.CreateDir(bg, "dir/") },
+				"IsExist":          func(op *Operator) error { _, err := op.IsExist(bg, "file.txt"); return err },
+				"Rename":           func(op *Operator) error { return op.Rename(bg, "a.txt", "b.txt") },
+				"Remove":           func(op *Operator) error { return op.Remove(bg, []string{"a.txt"}) },
+				"RemoveEmpty":      func(op *Operator) error { return op.Remove(bg, nil) },
+				"RemoveEmptySlice": func(op *Operator) error { return op.Remove(bg, []string{}) },
+				"Read":             func(op *Operator) error { _, err := op.Read(bg, "file.txt"); return err },
 				"ReadWithOpts": func(op *Operator) error {
 					_, err := op.Read(bg, "file.txt", ReadWithRange(0, 1))
 					return err

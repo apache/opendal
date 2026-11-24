@@ -299,6 +299,11 @@ func (op *Operator) WithDeleter(ctx context.Context, fn func(d *Deleter) error) 
 //		}
 //	}
 func (op *Operator) Remove(ctx context.Context, paths []string) error {
+	_, release, err := op.acquire()
+	if err != nil {
+		return err
+	}
+	release()
 	if err := checkContext(ctx); err != nil {
 		return err
 	}

@@ -23,6 +23,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
+	"strconv"
 	"testing"
 	"testing/synctest"
 )
@@ -202,6 +204,59 @@ func TestReaderShortReadsWithReadFullSeekAndClose(t *testing.T) {
 	}
 	if err := r.Close(); err != nil || closed != 1 {
 		t.Fatalf("Close = %v, calls = %d", err, closed)
+	}
+}
+
+func TestReaderSeekRejectsInvalidWhenceAndPositionOverflow(t *testing.T) {
+	called := false
+	ctx := context.WithValue(context.Background(), ffiReaderSeek.sym, func(_ *opendalReader, _ int64, _ int, _ *opendalCancelToken) (int64, error) {
+		called = true
+		return 0, nil
+	})
+	r := &Reader{ctx: ctx, inner: newTestReaderHandle()}
+
+	invalidWhences := []int{-1, 3}
+	if strconv.IntSize >= 64 {
+		invalidWhences = append(
+			invalidWhences,
+			int(int64(1)<<32),
+			int((int64(1)<<32)+1),
+			int((int64(1)<<32)+2),
+		)
+	}
+	for _, whence := range invalidWhences {
+		if _, err := r.Seek(0, whence); err == nil {
+			t.Fatalf("Seek(0, %d) succeeded, want error", whence)
+		}
+		if called {
+			t.Fatalf("Seek(0, %d) crossed FFI boundary", whence)
+		}
+	}
+
+	// Verify ffiReaderSeek rejects invalid whence directly and guards pos > math.MaxInt64.
+	cCalled := false
+	seekOverflow := ffiReaderSeek.withFunc(context.Background(), func(_ *opendalReader, _ int64, _ int32, _ *opendalCancelToken, pos *uint64) *opendalError {
+		cCalled = true
+		*pos = uint64(math.MaxInt64) + 1
+		return nil
+	})
+	if _, err := seekOverflow(newTestReaderHandle(), 0, -1, nil); err == nil {
+		t.Fatal("ffiReaderSeek with invalid whence succeeded, want error")
+	}
+	if cCalled {
+		t.Fatal("ffiReaderSeek invoked C symbol for invalid whence")
+	}
+	if _, err := seekOverflow(newTestReaderHandle(), 0, io.SeekStart, nil); err == nil {
+		t.Fatal("ffiReaderSeek with pos > math.MaxInt64 succeeded, want error")
+	}
+
+	seekMaxInt64 := ffiReaderSeek.withFunc(context.Background(), func(_ *opendalReader, _ int64, _ int32, _ *opendalCancelToken, pos *uint64) *opendalError {
+		*pos = uint64(math.MaxInt64)
+		return nil
+	})
+	pos, err := seekMaxInt64(newTestReaderHandle(), 0, io.SeekStart, nil)
+	if err != nil || pos != math.MaxInt64 {
+		t.Fatalf("ffiReaderSeek(MaxInt64) = (%d, %v), want (%d, nil)", pos, err, int64(math.MaxInt64))
 	}
 }
 

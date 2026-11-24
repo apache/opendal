@@ -50,7 +50,7 @@ impl oio::Write for CacacheWriter {
 
         self.core.set(&self.path, buf.to_bytes()).await?;
 
-        let metadata = if self.path.ends_with('/') {
+        let metadata = if self.path.is_empty() || self.path.ends_with('/') {
             MetadataBuilder::dir()
         } else {
             MetadataBuilder::file(length)

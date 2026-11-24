@@ -9,6 +9,7 @@ Depending on its configuration and the backing system, this service can expose:
 - [x] stat
 - [x] read
 - [x] write
+- [x] write (if_not_exists)
 - [x] delete
 - [x] list
 - [ ] copy

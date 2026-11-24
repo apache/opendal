@@ -92,6 +92,22 @@ impl HdfsNativeCore {
         args: &OpWrite,
     ) -> Result<(hdfs_native::file::FileWriter, u64)> {
         let target_path = build_rooted_absolute_path(&self.root, path);
+
+        if args.if_not_exists() {
+            let f = self
+                .client
+                .create(&target_path, WriteOptions::default())
+                .await
+                .map_err(|err| match err {
+                    HdfsError::AlreadyExists(_) => {
+                        Error::new(ErrorKind::ConditionNotMatch, "file already exists")
+                            .set_source(err)
+                    }
+                    err => parse_hdfs_error(err),
+                })?;
+            return Ok((f, 0));
+        }
+
         let mut initial_size = 0;
 
         let target_exists = match self.client.get_file_info(&target_path).await {

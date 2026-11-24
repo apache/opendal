@@ -74,7 +74,8 @@ impl oio::OneShotDelete for OpfsDeleter {
                 if next.done() {
                     return Ok(());
                 }
-                return Err(Error::new(ErrorKind::Unexpected, "directory not empty"));
+                return Err(Error::new(ErrorKind::Unexpected, "directory not empty")
+                    .with_context("path", path));
             }
 
             loop {

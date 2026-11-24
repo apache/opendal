@@ -19,12 +19,17 @@
 #[cfg(test)]
 mod tests {
     use futures::TryStreamExt;
+    use opendal::Buffer;
     use opendal::Builder;
+    use opendal::BytesRange;
     use opendal::EntryMode;
     use opendal::ErrorKind;
     use opendal::OperationContext;
     use opendal::Operator;
-    use opendal::raw::{OpList, OpStat, Service, oio::List};
+    use opendal::raw::{
+        OpList, OpRead, OpStat, OpWrite, Service,
+        oio::{List, Read, Write},
+    };
     use opendal::services::Opfs;
     use opendal::services::OpfsConfig;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -326,39 +331,81 @@ mod tests {
     #[wasm_bindgen_test]
     async fn test_writer_double_close_and_abort_lifecycle() {
         let op = new_operator();
+        let srv = Opfs::default().build().expect("build opfs service");
+        let ctx = OperationContext::default();
         let path = "writer-lifecycle.txt";
         let content = "keep-this-content";
 
-        let mut w = op.writer(path).await.expect("writer");
-        w.write(content).await.expect("write");
-        let meta = w.close().await.expect("first close");
+        // Test OPFS-level double-close directly below CompleteLayer.
+        let mut raw_w = srv
+            .write(&ctx, path, OpWrite::default())
+            .expect("raw writer");
+        raw_w.write(Buffer::from(content)).await.expect("raw write");
+        let meta = raw_w.close().await.expect("first raw close");
         assert_eq!(meta.content_length(), content.len() as u64);
 
-        let err = w.close().await.expect_err("second close must fail");
+        let err = raw_w.close().await.expect_err("second raw close must fail");
         assert_eq!(err.kind(), ErrorKind::Unexpected);
         assert!(!err.is_temporary());
 
-        let err = w
-            .write("extra")
+        let err = raw_w
+            .write(Buffer::from("extra"))
             .await
-            .expect_err("write after close must fail");
+            .expect_err("raw write after close must fail");
         assert_eq!(err.kind(), ErrorKind::Unexpected);
         assert!(!err.is_temporary());
 
-        let buffer = op.read(path).await.expect("read back");
-        assert_eq!(buffer.to_bytes(), content.as_bytes());
-
-        // Abort after staged write must not overwrite the existing file.
-        let mut w = op.writer(path).await.expect("second writer");
-        w.write("discard").await.expect("staged write");
-        w.abort().await.expect("first abort");
-        w.abort().await.expect("second abort must be idempotent");
-        let err = w.close().await.expect_err("close after abort must fail");
+        let err = raw_w
+            .abort()
+            .await
+            .expect_err("raw abort after close must fail");
         assert_eq!(err.kind(), ErrorKind::Unexpected);
         assert!(!err.is_temporary());
 
-        let buffer = op.read(path).await.expect("read back after abort");
+        let buffer = op.read(path).await.expect("read back after double close");
         assert_eq!(buffer.to_bytes(), content.as_bytes());
+
+        // Test OPFS-level double-abort directly below CompleteLayer.
+        let mut raw_w = srv
+            .write(&ctx, path, OpWrite::default())
+            .expect("second raw writer");
+        raw_w
+            .write(Buffer::from("discard"))
+            .await
+            .expect("staged raw write");
+        raw_w.abort().await.expect("first raw abort");
+        raw_w
+            .abort()
+            .await
+            .expect("second raw abort must be idempotent");
+        let err = raw_w
+            .close()
+            .await
+            .expect_err("raw close after abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let buffer = op.read(path).await.expect("read back after raw abort");
+        assert_eq!(buffer.to_bytes(), content.as_bytes());
+
+        // Also verify Operator-level close and abort preserve file contents.
+        let mut w = op.writer(path).await.expect("operator writer");
+        w.write("operator-discard")
+            .await
+            .expect("operator staged write");
+        w.abort().await.expect("operator abort");
+
+        let buffer = op.read(path).await.expect("read back after operator abort");
+        assert_eq!(buffer.to_bytes(), content.as_bytes());
+
+        let op_content = "operator-committed";
+        let mut w = op.writer(path).await.expect("operator commit writer");
+        w.write(op_content).await.expect("operator write");
+        let meta = w.close().await.expect("operator close");
+        assert_eq!(meta.content_length(), op_content.len() as u64);
+
+        let buffer = op.read(path).await.expect("read back after operator close");
+        assert_eq!(buffer.to_bytes(), op_content.as_bytes());
 
         op.delete(path).await.expect("delete");
     }
@@ -452,6 +499,18 @@ mod tests {
             .expect_err("out-of-bounds range must fail");
         assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
 
+        // Also exercise OPFS range validation directly below CompleteLayer.
+        let srv = Opfs::default().build().expect("build opfs service");
+        let ctx = OperationContext::default();
+        let reader = srv
+            .read(&ctx, path, OpRead::default())
+            .expect("raw read handle");
+        let err = reader
+            .read(BytesRange::new(100, Some(5)))
+            .await
+            .expect_err("raw out-of-bounds range must fail");
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+
         let err = op
             .read_with(path)
             .range(10..11)
@@ -478,6 +537,7 @@ mod tests {
 
     #[wasm_bindgen_test]
     async fn test_from_uri_constructs_rooted_operator() {
+        opendal::init_default_registry();
         let op_uri = Operator::from_uri("opfs:///from-uri-test").expect("load opfs from uri");
         op_uri.write("hello.txt", "from uri").await.expect("write");
 

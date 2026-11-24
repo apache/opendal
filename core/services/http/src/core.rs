@@ -184,13 +184,13 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
-        StatusCode::TOO_MANY_REQUESTS
-        | StatusCode::INTERNAL_SERVER_ERROR
+        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
+        StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
         | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
@@ -234,6 +234,25 @@ mod tests {
 
         let err = parse_error(ErrorContext::new(ServiceOperation("Get")), resp);
         assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+    }
+
+    #[test]
+    fn test_parse_unauthorized_and_rate_limited() {
+        let unauthorized = Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .body(Buffer::from("unauthorized"))
+            .expect("response must be valid");
+        let err = parse_error(ErrorContext::new(ServiceOperation("Get")), unauthorized);
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+        assert!(!err.is_temporary());
+
+        let rate_limited = Response::builder()
+            .status(StatusCode::TOO_MANY_REQUESTS)
+            .body(Buffer::from("too many requests"))
+            .expect("response must be valid");
+        let err = parse_error(ErrorContext::new(ServiceOperation("Head")), rate_limited);
+        assert_eq!(err.kind(), ErrorKind::RateLimited);
+        assert!(err.is_temporary());
     }
 
     #[test]

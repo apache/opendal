@@ -40,13 +40,21 @@ pub struct SledBuilder {
 impl SledBuilder {
     /// Set the path to the sled data directory. Will create if not exists.
     pub fn datadir(mut self, path: &str) -> Self {
-        self.config.datadir = Some(path.into());
+        self.config.datadir = if path.is_empty() {
+            None
+        } else {
+            Some(path.into())
+        };
         self
     }
 
     /// Set the tree for sled.
     pub fn tree(mut self, tree: &str) -> Self {
-        self.config.tree = Some(tree.into());
+        self.config.tree = if tree.is_empty() {
+            None
+        } else {
+            Some(tree.into())
+        };
         self
     }
 
@@ -66,10 +74,14 @@ impl Builder for SledBuilder {
     type Config = SledConfig;
 
     fn build(self) -> Result<impl Service> {
-        let datadir_path = self.config.datadir.ok_or_else(|| {
-            Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
-                .with_context("service", SLED_SCHEME)
-        })?;
+        let datadir_path = self
+            .config
+            .datadir
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| {
+                Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
+                    .with_context("service", SLED_SCHEME)
+            })?;
 
         let db = sled::open(&datadir_path).map_err(|e| {
             Error::new(ErrorKind::ConfigInvalid, "open db")
@@ -82,6 +94,7 @@ impl Builder for SledBuilder {
         let tree_name = self
             .config
             .tree
+            .filter(|v| !v.is_empty())
             .unwrap_or_else(|| DEFAULT_TREE_ID.to_string());
 
         let tree = db.open_tree(&tree_name).map_err(|e| {
@@ -176,10 +189,14 @@ impl Service for SledBackend {
         } else {
             let bs = self.core.get(&p)?;
             match bs {
-                Some(bs) => Ok(RpStat::new({
-                    let metadata = MetadataBuilder::file(bs.len() as u64);
-                    metadata.build()
-                })),
+                Some(bs) => {
+                    let metadata = if p.ends_with('/') {
+                        MetadataBuilder::dir()
+                    } else {
+                        MetadataBuilder::file(bs.len() as u64)
+                    };
+                    Ok(RpStat::new(metadata.build()))
+                }
                 None => Err(Error::new(ErrorKind::NotFound, "kv not found in sled")),
             }
         }
@@ -362,6 +379,74 @@ mod tests {
                 "root {root}"
             );
         }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dir_marker_stat_metadata() -> Result<()> {
+        for root in ["/", "/sub/"] {
+            let dir = TempDir::new("dir-marker-stat");
+            let builder = SledBuilder::default().datadir(dir.path_str());
+            let builder = if root == "/" {
+                builder
+            } else {
+                builder.root(root)
+            };
+            let srv: Servicer = Arc::new(builder.build()?);
+            let op = Operator::from_parts(OperationContext::default(), srv)
+                .layer(layers::SimulateLayer::default().with_stat_dir(false));
+
+            op.create_dir("a/").await?;
+            assert_eq!(op.stat("a/").await?.mode(), EntryMode::DIR, "root {root}");
+
+            op.write("a/file.txt", "hello").await?;
+            let meta = op.stat("a/file.txt").await?;
+            assert_eq!(meta.mode(), EntryMode::FILE, "root {root}");
+            assert_eq!(meta.content_length(), 5, "root {root}");
+
+            let err = op.stat("missing/").await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::NotFound, "root {root}");
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_invalid_config_and_empty_tree() -> Result<()> {
+        let err = SledBuilder::default().datadir("").build().unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = SledBuilder::default()
+            .datadir("/some/path")
+            .datadir("")
+            .build()
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = SledConfig::from_iter([("datadir".to_string(), String::new())])?
+            .into_builder()
+            .build()
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let dir = TempDir::new("empty-tree");
+        {
+            let op = Operator::new(SledBuilder::default().datadir(dir.path_str()))?;
+            op.write("k", "hello").await?;
+        }
+        {
+            let op = Operator::new(SledBuilder::default().datadir(dir.path_str()).tree(""))?;
+            assert_eq!(op.read("k").await?.to_bytes().as_ref(), b"hello");
+        }
+        {
+            let builder = SledConfig::from_iter([
+                ("datadir".to_string(), dir.path_str().to_string()),
+                ("tree".to_string(), String::new()),
+            ])?
+            .into_builder();
+            let op = Operator::new(builder)?;
+            assert_eq!(op.read("k").await?.to_bytes().as_ref(), b"hello");
+        }
+
         Ok(())
     }
 }

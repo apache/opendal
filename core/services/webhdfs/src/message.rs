@@ -78,6 +78,9 @@ pub enum FileStatusType {
     Directory,
     #[default]
     File,
+    Symlink,
+    #[serde(other)]
+    Unknown,
 }
 
 #[cfg(test)]
@@ -245,5 +248,38 @@ mod test {
             directory_listing.partial_listing.file_statuses.file_status[1].path_suffix,
             "bazfile"
         );
+    }
+
+    #[test]
+    fn test_file_status_symlink_and_unknown() {
+        let json = r#"
+{
+  "FileStatuses": {
+    "FileStatus": [
+      {
+        "length": 0,
+        "modificationTime": 1320173277227,
+        "pathSuffix": "mylink",
+        "type": "SYMLINK"
+      },
+      {
+        "length": 0,
+        "modificationTime": 1320173277227,
+        "pathSuffix": "future",
+        "type": "FIFO"
+      }
+    ]
+  }
+}
+"#;
+        let statuses = serde_json::from_str::<FileStatusesWrapper>(json)
+            .expect("must deserialize symlink and unknown types")
+            .file_statuses
+            .file_status;
+        assert_eq!(statuses.len(), 2);
+        assert_eq!(statuses[0].path_suffix, "mylink");
+        assert_eq!(statuses[0].ty, FileStatusType::Symlink);
+        assert_eq!(statuses[1].path_suffix, "future");
+        assert_eq!(statuses[1].ty, FileStatusType::Unknown);
     }
 }

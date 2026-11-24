@@ -179,14 +179,27 @@ impl CachedReader {
             .read(&self.context, &self.path, self.args.clone())
     }
 
+    fn can_stat(&self, version: Option<&str>) -> bool {
+        let cap = self.source.capability();
+        cap.stat && (version.is_none() || cap.stat_with_version)
+    }
+
     async fn stat(&self, version: Option<&str>) -> Result<Metadata> {
+        let cap = self.source.capability();
+        if !cap.stat {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ));
+        }
         let options = StatOptions {
             version: version.map(str::to_owned),
             ..Default::default()
         };
+        let args = OpStat::from_options(&cap, options)?;
         Ok(self
             .source
-            .stat(&self.context, &self.path, OpStat::from(options))
+            .stat(&self.context, &self.path, args)
             .await?
             .into_metadata())
     }
@@ -375,7 +388,7 @@ impl CachedReader {
                 // GET whose body would be discarded before aligned chunk fetching.
                 let observed_at = Timestamp::now();
                 let mut metadata = None;
-                if self.source.capability().stat {
+                if self.can_stat(self.args.version()) {
                     match self.revalidate_stat(snapshot, None).await {
                         RevalidationResult::Verified { pointer, published } => {
                             if published {
@@ -588,7 +601,7 @@ impl CachedReader {
             .filter(|metadata| Identity::verifiable(metadata).is_some())
         {
             metadata.clone()
-        } else if self.source.capability().stat {
+        } else if self.can_stat(self.args.version()) {
             match self.stat(self.args.version()).await {
                 Ok(metadata) if metadata.is_file() => {
                     if response.as_ref().is_some_and(|response| {

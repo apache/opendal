@@ -95,3 +95,116 @@ async fn test_list_with_start_after() {
     assert!(capability.list_with_start_after);
     assert!(capability.list_with_recursive);
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn test_list_with_start_after_directory_symlink() {
+    use opendal_core::EntryMode;
+
+    let root = tempfile::tempdir().unwrap();
+    let root_path = root.path();
+    std::fs::create_dir(root_path.join("realdir")).unwrap();
+    std::fs::write(root_path.join("realdir/inside.txt"), b"data").unwrap();
+    std::fs::write(root_path.join("link-file"), b"data").unwrap();
+    std::os::unix::fs::symlink("realdir", root_path.join("link")).unwrap();
+    std::os::unix::fs::symlink("link-file", root_path.join("file-link")).unwrap();
+    std::os::unix::fs::symlink("nonexistent", root_path.join("dangle")).unwrap();
+
+    let op = Operator::new(Fs::default().root(root_path.to_str().unwrap())).unwrap();
+
+    // start_after("link") must keep directory symlink "link/" ("link/" > "link")
+    // and maintain strict lexicographical order ('-' < '/').
+    let entries = op.list_with("/").start_after("link").await.unwrap();
+    let paths: Vec<_> = entries
+        .iter()
+        .map(|entry| (entry.path(), entry.metadata().mode()))
+        .collect();
+    assert_eq!(
+        paths,
+        vec![
+            ("link-file", EntryMode::FILE),
+            ("link/", EntryMode::DIR),
+            ("realdir/", EntryMode::DIR),
+        ]
+    );
+
+    // Full sorted listing and cursor pagination must neither reorder nor skip entries.
+    let entries = op.list_with("/").start_after("a").await.unwrap();
+    let paths: Vec<_> = entries
+        .iter()
+        .map(|entry| (entry.path(), entry.metadata().mode()))
+        .collect();
+    assert_eq!(
+        paths,
+        vec![
+            ("dangle", EntryMode::Unknown),
+            ("file-link", EntryMode::FILE),
+            ("link-file", EntryMode::FILE),
+            ("link/", EntryMode::DIR),
+            ("realdir/", EntryMode::DIR),
+        ]
+    );
+
+    let after_link_file: Vec<_> = op
+        .list_with("/")
+        .start_after("link-file")
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|entry| entry.path().to_string())
+        .collect();
+    assert_eq!(after_link_file, vec!["link/", "realdir/"]);
+
+    let after_link_dir: Vec<_> = op
+        .list_with("/")
+        .start_after("link/")
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|entry| entry.path().to_string())
+        .collect();
+    assert_eq!(after_link_dir, vec!["realdir/"]);
+
+    // Recursive listing must not descend into directory symlinks and must skip
+    // "link/" when start_after is beneath "link/".
+    let recursive: Vec<_> = op
+        .list_with("/")
+        .recursive(true)
+        .start_after("link")
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|entry| entry.path().to_string())
+        .collect();
+    assert_eq!(
+        recursive,
+        vec!["link-file", "link/", "realdir/", "realdir/inside.txt"]
+    );
+
+    let recursive_after_link_child: Vec<_> = op
+        .list_with("/")
+        .recursive(true)
+        .start_after("link/a")
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|entry| entry.path().to_string())
+        .collect();
+    assert_eq!(
+        recursive_after_link_child,
+        vec!["realdir/", "realdir/inside.txt"]
+    );
+
+    // Circular directory symlink must not trigger infinite recursion.
+    std::os::unix::fs::symlink(".", root_path.join("self-loop")).unwrap();
+    let with_loop: Vec<_> = op
+        .list_with("/")
+        .recursive(true)
+        .start_after("realdir/z")
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|entry| (entry.path().to_string(), entry.metadata().mode()))
+        .collect();
+    assert_eq!(with_loop, vec![("self-loop/".to_string(), EntryMode::DIR)]);
+}

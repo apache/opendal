@@ -45,6 +45,12 @@ impl DirectIoAlignment {
         operation: ServiceOperation,
     ) -> Result<(File, Self)> {
         let file = Self::open_raw(path, options, operation)?;
+        if file.metadata().map_err(new_std_io_error)?.is_dir() {
+            return Err(
+                Error::new(OpendalErrorKind::IsADirectory, "read path is a directory")
+                    .with_context("service_operation", operation.0),
+            );
+        }
         Self::discover_or_cleanup(path, file, operation, false)
     }
 
@@ -116,6 +122,11 @@ impl DirectIoAlignment {
                     if code == Errno::INVAL.raw_os_error()
                         || code == Errno::OPNOTSUPP.raw_os_error() =>
                 {
+                    if std::fs::metadata(path).is_ok_and(|meta| meta.is_dir()) {
+                        return Error::new(OpendalErrorKind::IsADirectory, "path is a directory")
+                            .with_context("service_operation", operation.0)
+                            .set_source(err);
+                    }
                     Error::new(OpendalErrorKind::Unsupported, "O_DIRECT open failed")
                         .with_context("service_operation", operation.0)
                         .set_source(err)

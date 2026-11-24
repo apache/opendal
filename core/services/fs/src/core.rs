@@ -140,19 +140,44 @@ impl FsCore {
 
     pub async fn fs_copy(&self, from: &str, to: &str) -> Result<u64> {
         let from = self.root_join(from)?;
-        // try to get the metadata of the source file to ensure it exists
-        tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
+        // Fetch source metadata first so missing or directory sources fail
+        // before creating destination parent directories.
+        let from_meta = tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
+        if from_meta.is_dir() {
+            return Err(Error::new(
+                ErrorKind::IsADirectory,
+                "copy source is a directory",
+            ));
+        }
 
-        // Read source user metadata before copying: copying onto the same path
-        // would otherwise read the replaced destination. A source whose user
+        let to_trimmed = to.trim_end_matches('/');
+        let to_path = self.root_join(to_trimmed)?;
+        match tokio::fs::metadata(&to_path).await {
+            Ok(to_meta) => {
+                if to_meta.is_dir() {
+                    return Err(Error::new(
+                        ErrorKind::IsADirectory,
+                        "copy target is a directory",
+                    ));
+                }
+                if is_same_file(&from, &from_meta, &to_path, &to_meta).await {
+                    return Err(Error::new(
+                        ErrorKind::IsSameFile,
+                        "copy source and destination refer to the same file",
+                    ));
+                }
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            Err(err) => return Err(new_std_io_error(err)),
+        }
+
+        // Read source user metadata before copying. A source whose user
         // metadata cannot be read keeps the previous copy behavior of not
         // failing the content copy.
         #[cfg(unix)]
         let user_metadata = Self::get_user_metadata(&from).ok();
 
-        let to = self
-            .ensure_write_abs_path(&self.root, to.trim_end_matches('/'))
-            .await?;
+        let to = self.ensure_write_abs_path(&self.root, to_trimmed).await?;
 
         let size = tokio::fs::copy(&from, &to)
             .await
@@ -201,7 +226,7 @@ impl FsCore {
 
         tokio::fs::rename(from, to)
             .await
-            .map_err(new_std_io_error)?;
+            .map_err(parse_rename_error)?;
         Ok(())
     }
 
@@ -463,6 +488,31 @@ pub(crate) fn parse_error(ctx: ErrorContext, err: std::io::Error) -> Error {
     parse_io_error(err, true).with_context("service_operation", ctx.service_operation.0)
 }
 
+async fn is_same_file(
+    from: &Path,
+    from_meta: &std::fs::Metadata,
+    to: &Path,
+    to_meta: &std::fs::Metadata,
+) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let _ = (from, to);
+        from_meta.dev() == to_meta.dev() && from_meta.ino() == to_meta.ino()
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (from_meta, to_meta);
+        matches!(
+            (
+                tokio::fs::canonicalize(from).await,
+                tokio::fs::canonicalize(to).await,
+            ),
+            (Ok(from_canon), Ok(to_canon)) if from_canon == to_canon
+        )
+    }
+}
+
 fn parse_io_error(err: std::io::Error, already_exists_as_condition: bool) -> Error {
     match err.kind() {
         std::io::ErrorKind::AlreadyExists if already_exists_as_condition => Error::new(
@@ -470,12 +520,6 @@ fn parse_io_error(err: std::io::Error, already_exists_as_condition: bool) -> Err
             "The file already exists in the filesystem",
         )
         .set_source(err),
-        std::io::ErrorKind::IsADirectory => {
-            Error::new(ErrorKind::IsADirectory, err.kind().to_string()).set_source(err)
-        }
-        std::io::ErrorKind::NotADirectory => {
-            Error::new(ErrorKind::NotADirectory, err.kind().to_string()).set_source(err)
-        }
         _ => {
             #[cfg(unix)]
             if err.raw_os_error() == Some(libc::EXDEV) {
@@ -862,5 +906,137 @@ mod tests {
         let err = op.delete_iter(["../outside.txt"]).await.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::NotFound);
         assert_eq!(std::fs::read(&outside).unwrap(), b"content");
+    }
+
+    #[tokio::test]
+    async fn test_directory_errors_are_permanent() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+        std::fs::write(root.join("src"), b"data").unwrap();
+        std::fs::write(root.join("file"), b"data").unwrap();
+        std::fs::create_dir(root.join("existing_dir")).unwrap();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+
+        let err = op.rename("src", "existing_dir").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+
+        for (from, to) in [("file/child", "dst"), ("src", "file/dir/dst")] {
+            let err = op.rename(from, to).await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::NotADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+        }
+
+        let err = op.copy("src", "existing_dir").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+
+        let err = op.copy("src", "file/dir/dst").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotADirectory, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+
+        let err = op.write("existing_dir", "x").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+    }
+
+    #[tokio::test]
+    async fn test_copy_directory_source_rejects_before_creating_parents() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+        std::fs::create_dir(root.join("dir")).unwrap();
+        std::fs::write(root.join("existing.txt"), b"keep").unwrap();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+
+        let err = op.copy("dir", "existing.txt").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+        assert_eq!(std::fs::read(root.join("existing.txt")).unwrap(), b"keep");
+
+        let err = op.copy("dir", "new_parent/missing").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+        assert!(!root.join("new_parent").exists());
+
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink("dir", root.join("dir_link")).unwrap();
+            let err = op
+                .copy("dir_link", "new_parent_link/missing")
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+            assert!(!root.join("new_parent_link").exists());
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_copy_same_file_via_symlink_and_hardlink_preserves_content() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+        let has_xattrs = xattrs_supported(root);
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        if has_xattrs {
+            op.write_with("real.txt", "important")
+                .user_metadata([("k".to_string(), "v".to_string())])
+                .await
+                .unwrap();
+        } else {
+            op.write("real.txt", "important").await.unwrap();
+        }
+
+        std::os::unix::fs::symlink("real.txt", root.join("link.txt")).unwrap();
+        std::fs::hard_link(root.join("real.txt"), root.join("hard.txt")).unwrap();
+
+        for (from, to) in [
+            ("real.txt", "link.txt"),
+            ("link.txt", "real.txt"),
+            ("real.txt", "hard.txt"),
+            ("hard.txt", "real.txt"),
+            ("link.txt", "hard.txt"),
+        ] {
+            let err = op.copy(from, to).await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::IsSameFile, "{from} -> {to}: {err:?}");
+            assert_eq!(
+                std::fs::read(root.join("real.txt")).unwrap(),
+                b"important",
+                "{from} -> {to} must not truncate source"
+            );
+            if has_xattrs {
+                let meta = op.stat("real.txt").await.unwrap();
+                assert_eq!(meta.user_metadata().and_then(|m| m.get("k")), Some("v"));
+            }
+        }
+
+        // Copying from a dangling symlink still fails with NotFound.
+        std::os::unix::fs::symlink("missing.txt", root.join("broken_src.txt")).unwrap();
+        let err = op.copy("broken_src.txt", "dst.txt").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound, "{err:?}");
+
+        // Copying to a non-existent destination and to a different file/dangling symlink
+        // still succeeds normally.
+        op.copy("real.txt", "nested/copied.txt").await.unwrap();
+        assert_eq!(
+            std::fs::read(root.join("nested/copied.txt")).unwrap(),
+            b"important"
+        );
+
+        op.write("plain.txt", "payload").await.unwrap();
+        std::fs::write(root.join("other.txt"), b"old").unwrap();
+        std::os::unix::fs::symlink("other.txt", root.join("other_link.txt")).unwrap();
+        op.copy("plain.txt", "other_link.txt").await.unwrap();
+        assert_eq!(std::fs::read(root.join("other.txt")).unwrap(), b"payload");
+
+        std::os::unix::fs::symlink("created_via_link.txt", root.join("dangle_dst.txt")).unwrap();
+        op.copy("plain.txt", "dangle_dst.txt").await.unwrap();
+        assert_eq!(
+            std::fs::read(root.join("created_via_link.txt")).unwrap(),
+            b"payload"
+        );
     }
 }

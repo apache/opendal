@@ -63,12 +63,19 @@ impl PendingDir {
     }
 }
 
+struct ListedEntry {
+    entry: oio::Entry,
+    /// Only descend into real directories during recursive listing so
+    /// directory symlinks do not trigger duplicate traversal or cycles.
+    descend: bool,
+}
+
 enum DirectoryEntries {
     Streaming {
-        reader: ReadDir,
+        reader: Box<ReadDir>,
         after_children: Option<oio::Entry>,
     },
-    Sorted(IntoIter<oio::Entry>),
+    Sorted(IntoIter<ListedEntry>),
 }
 
 impl FsLister {
@@ -149,9 +156,12 @@ impl oio::List for FsLister {
                     // Unlike other directory paths, "/" is not a prefix of its
                     // children. It can sort between entries in the root.
                     if dir.as_ref().is_some_and(|dir| dir.path() == "/") {
-                        entries.extend(dir.take().map(PendingDir::into_entry));
+                        entries.extend(dir.take().map(|dir| ListedEntry {
+                            entry: dir.into_entry(),
+                            descend: false,
+                        }));
                     }
-                    entries.sort_unstable_by(|a, b| a.path().cmp(b.path()));
+                    entries.sort_unstable_by(|a, b| a.entry.path().cmp(b.entry.path()));
                     self.active
                         .push(DirectoryEntries::Sorted(entries.into_iter()));
                     // A non-root directory sorts before all its descendants.
@@ -167,7 +177,7 @@ impl oio::List for FsLister {
                         None
                     };
                     self.active.push(DirectoryEntries::Streaming {
-                        reader,
+                        reader: Box::new(reader),
                         after_children,
                     });
                     if let Some(dir) = dir {
@@ -185,7 +195,7 @@ impl oio::List for FsLister {
                 }
                 DirectoryEntries::Sorted(entries) => entries.next(),
             };
-            let Some(entry) = entry else {
+            let Some(listed) = entry else {
                 if let Some(DirectoryEntries::Streaming {
                     after_children: Some(dir),
                     ..
@@ -195,10 +205,10 @@ impl oio::List for FsLister {
                 }
                 continue;
             };
-            if self.recursive && entry.mode().is_dir() && entry.path() != "/" {
-                self.next_dir = Some(PendingDir::Discovered(entry));
+            if self.recursive && listed.descend && listed.entry.path() != "/" {
+                self.next_dir = Some(PendingDir::Discovered(listed.entry));
             } else {
-                return Ok(Some(entry));
+                return Ok(Some(listed.entry));
             }
         }
     }
@@ -210,7 +220,7 @@ async fn next_entry(
     prefix: &str,
     start_after: Option<&str>,
     recursive: bool,
-) -> Result<Option<oio::Entry>> {
+) -> Result<Option<ListedEntry>> {
     loop {
         let de = match reader.next_entry().await {
             Ok(Some(de)) => de,
@@ -239,33 +249,55 @@ async fn next_entry(
             }
             Err(e) => return Err(new_std_io_error(e)),
         };
-        let (path, mode) = if ft.is_dir() {
+        let (path, mode, descend, target_metadata) = if ft.is_dir() {
             // Make sure we are returning the correct path.
-            (&format!("{rel_path}/"), EntryMode::DIR)
+            (format!("{rel_path}/"), EntryMode::DIR, true, None)
         } else if ft.is_file() {
-            (&rel_path, EntryMode::FILE)
+            (rel_path, EntryMode::FILE, false, None)
+        } else if ft.is_symlink() && start_after.is_some() {
+            // Resolve symlinks before start_after filtering and sorting so
+            // directory symlinks carry their trailing '/' and sort in their
+            // final path order. Keep streaming listings (start_after == None)
+            // returning EntryMode::Unknown so GlobLayer does not descend into
+            // discovered symlinks before CompleteLayer refines them.
+            match tokio::fs::metadata(&entry_path).await {
+                Ok(meta) if meta.is_dir() => {
+                    (format!("{rel_path}/"), EntryMode::DIR, false, Some(meta))
+                }
+                Ok(meta) if meta.is_file() => (rel_path, EntryMode::FILE, false, Some(meta)),
+                Ok(meta) => (rel_path, EntryMode::Unknown, false, Some(meta)),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    // Dangling symlink (or removed concurrently; de.metadata()
+                    // below distinguishes the two).
+                    (rel_path, EntryMode::Unknown, false, None)
+                }
+                Err(e) => return Err(new_std_io_error(e)),
+            }
         } else {
-            (&rel_path, EntryMode::Unknown)
+            (rel_path, EntryMode::Unknown, false, None)
         };
 
         if !path.starts_with(prefix) {
             continue;
         }
-        // A directory containing the marker can still have later children.
+        // A directory we will descend into can still have later children.
         if let Some(marker) = start_after
             && path.as_str() <= marker
-            && !(recursive && mode.is_dir() && marker.starts_with(path))
+            && !(recursive && descend && marker.starts_with(path.as_str()))
         {
             continue;
         }
 
-        let de_metadata = match de.metadata().await {
-            Ok(de_metadata) => de_metadata,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                // Entry can be deleted between readdir and metadata calls.
-                continue;
-            }
-            Err(e) => return Err(new_std_io_error(e)),
+        let de_metadata = match target_metadata {
+            Some(meta) => meta,
+            None => match de.metadata().await {
+                Ok(de_metadata) => de_metadata,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    // Entry can be deleted between readdir and metadata calls.
+                    continue;
+                }
+                Err(e) => return Err(new_std_io_error(e)),
+            },
         };
         let last_modified = match de_metadata.modified() {
             Ok(v) => v,
@@ -281,7 +313,10 @@ async fn next_entry(
         };
         metadata.last_modified(Timestamp::try_from(last_modified)?);
 
-        return Ok(Some(oio::Entry::new(path, metadata.build())));
+        return Ok(Some(ListedEntry {
+            entry: oio::Entry::new(&path, metadata.build()),
+            descend,
+        }));
     }
 }
 

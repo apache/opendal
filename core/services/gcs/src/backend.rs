@@ -122,7 +122,8 @@ impl GcsBuilder {
     /// set the endpoint GCS service uses
     pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
-            self.config.endpoint = Some(endpoint.to_string())
+            // Trim trailing `/` so that we can accept `https://storage.googleapis.com/`
+            self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string());
         };
         self
     }
@@ -274,8 +275,11 @@ impl GcsBuilder {
         let endpoint = self
             .config
             .endpoint
-            .clone()
-            .unwrap_or_else(|| DEFAULT_GCS_ENDPOINT.to_string());
+            .as_deref()
+            .map(|endpoint| endpoint.trim_end_matches('/'))
+            .filter(|endpoint| !endpoint.is_empty())
+            .unwrap_or(DEFAULT_GCS_ENDPOINT)
+            .to_string();
         debug!("backend use endpoint: {endpoint}");
 
         let scope = self
@@ -1094,5 +1098,38 @@ mod tests {
         assert!(file_read.paths.lock().unwrap().is_empty());
         assert!(http.requests.lock().unwrap().is_empty());
         assert!(!script.marker_path.exists());
+    }
+
+    #[test]
+    fn test_endpoint_trims_trailing_slashes() {
+        let backend = GcsBuilder::default()
+            .bucket("test-bucket")
+            .endpoint("https://storage.googleapis.com/")
+            .skip_signature()
+            .build_backend()
+            .expect("GCS backend must build");
+        assert_eq!(backend.core.endpoint, "https://storage.googleapis.com");
+        let req = backend
+            .core
+            .gcs_head_object_request("hello.txt", &OpStat::new())
+            .expect("stat request must build");
+        assert_eq!(
+            req.uri().to_string(),
+            "https://storage.googleapis.com/storage/v1/b/test-bucket/o/hello.txt"
+        );
+
+        let config = GcsConfig {
+            bucket: "test-bucket".to_string(),
+            endpoint: Some("http://127.0.0.1:4443///".to_string()),
+            skip_signature: true,
+            ..Default::default()
+        };
+        let backend = GcsBuilder {
+            config,
+            ..Default::default()
+        }
+        .build_backend()
+        .expect("GCS backend from config must build");
+        assert_eq!(backend.core.endpoint, "http://127.0.0.1:4443");
     }
 }

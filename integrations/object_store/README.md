@@ -172,6 +172,100 @@ that do not support concurrent writes continue to write sequentially. Concurrenc
 must be nonzero; passing zero panics. This setting does not affect ordinary puts
 or reads.
 
+## Limitations and Backend-Specific Behavior
+
+`OpendalStore` implements [`object_store::ObjectStore`] by delegating to an
+`opendal::Operator`. Because OpenDAL targets many storage backends with
+different native capabilities, some behaviors differ from native `object_store`
+implementations (such as `InMemory`, `LocalFileSystem`, `AmazonS3`,
+`GoogleCloudStorage`, or `MicrosoftAzure`):
+
+- **Capability-dependent operations**: Optional operations depend on the
+  underlying operator's capabilities (inspectable via
+  `OpendalStore::info().capability()`) and return
+  `object_store::Error::NotSupported` when unavailable:
+  - `put_opts` with `PutMode::Create` requires `write_with_if_not_exists`.
+  - `put_opts` with `PutMode::Update` requires at least one of `e_tag`
+    (`write_with_if_match`) or `version` (`write_with_if_version_match`);
+    supplying neither always returns `NotSupported`.
+  - `copy` requires `copy`, and `copy_if_not_exists` requires
+    `copy_with_if_not_exists`.
+  - `rename` uses native `rename` when advertised, or falls back to
+    `copy` followed by `delete`. The fallback is not atomic: if `delete` fails
+    after `copy` succeeds, both source and destination remain.
+  - `rename_if_not_exists` uses native `rename_with_if_not_exists` when
+    advertised (for example, `fs` on Linux) or falls back to
+    `copy_if_not_exists` followed by `delete`. That fallback only guards target
+    creation and is not atomic with deleting the source; when neither
+    capability is advertised, `rename_if_not_exists` returns `NotSupported`.
+  - `get_opts` with `GetOptions::version` requires `read_with_version` and
+    `stat_with_version`.
+- **Write atomicity and multipart uploads**:
+  - Whether `put_opts`, `put_multipart_opts`, and `MultipartUpload::abort` are
+    atomic depends on the underlying OpenDAL service. For example, OpenDAL's
+    `fs` service writes directly to the target path by default and returns
+    `NotSupported` from `abort()` unless configured with `atomic_write_dir`,
+    whereas native `LocalFileSystem` always stages writes through temporary
+    files.
+  - `OpendalStore`'s `MultipartUpload` writes parts sequentially in call order
+    through OpenDAL's `Writer` (which handles chunking and concurrent flushes
+    internally). A failed, dropped, or cancelled `put_part` future poisons the
+    upload so subsequent `put_part` and `complete` calls fail with
+    `Error::Generic`; call `abort()` to clean up. Calling `complete()` while
+    parts are still in flight also fails and poisons the upload.
+- **Metadata, attributes, tags, and extensions**:
+  - `ObjectMeta::e_tag`, `ObjectMeta::version`, `PutResult::e_tag`, and
+    `PutResult::version` are populated only when the backend returns them
+    (`None` on backends such as `memory` and `fs`). When a backend omits
+    `last_modified`, `ObjectMeta::last_modified` defaults to the Unix epoch
+    (`1970-01-01T00:00:00Z`).
+  - `OpendalStore` maps `CacheControl`, `ContentDisposition`,
+    `ContentEncoding`, `ContentLanguage`, `ContentType`, and
+    `Attribute::Metadata` on writes and reads. `Attribute::StorageClass` (and
+    any future unknown `Attribute` variants) is ignored on writes and never
+    returned on reads. OpenDAL's default correctness checks do not reject
+    unsupported non-critical write attributes (such as `ContentType` on `fs`);
+    layer `CapabilityCheckLayer` onto the `Operator` if strict rejection is
+    needed.
+  - `PutOptions::tags`, `PutMultipartOptions::tags`, and request `extensions`
+    are ignored, and response `extensions` are always empty.
+- **Conditional reads and payloads**:
+  - When a service cannot satisfy `get_opts` preconditions or metadata directly
+    on read open, `OpendalStore` falls back to `stat` plus local
+    `GetOptions::check_preconditions` evaluation before opening the reader. On
+    backends without native read preconditions, this two-step check is not
+    atomic with reading the body, and `if_match` fails with
+    `Error::Precondition` when the backend does not populate `e_tag`.
+  - `OpendalStore` always returns `GetResultPayload::Stream`, never
+    `GetResultPayload::File`.
+- **Deletes**:
+  - OpenDAL's `delete` is idempotent: deleting a missing object succeeds rather
+    than returning `Error::NotFound` (unlike native `InMemory` and
+    `LocalFileSystem`).
+  - `delete_stream` deletes locations one by one sequentially through
+    `Operator::delete` instead of using bulk-delete APIs or concurrent batches.
+- **Listing**:
+  - `list_with_offset` does not push `offset` down to backend cursors; it lists
+    the requested prefix recursively and filters locally by encoded
+    `object_store::path::Path` order, scanning entries before `offset`.
+  - When a backend omits `last_modified` in list responses, `list`,
+    `list_with_offset`, and `list_with_delimiter` issue an additional `stat`
+    call per object to complete `ObjectMeta`.
+  - Listing order follows the underlying backend and is not guaranteed to be
+    sorted.
+- **Optional `object_store` traits, error mapping, and `new_amazon_s3`**:
+  - `OpendalStore` does not implement the optional `MultipartStore`, `Signer`,
+    or `PaginatedListStore` traits from `object_store`.
+  - OpenDAL maps `NotFound`, `Unsupported`, `AlreadyExists`,
+    `ConditionNotMatch`, and `PermissionDenied` to dedicated `object_store::Error`
+    variants; all other OpenDAL `ErrorKind` values map to `Error::Generic`.
+  - `OpendalStore::new_amazon_s3` (with feature `services-s3`) translates only
+    `Endpoint`, `Region`, `Bucket`, `AccessKeyId`, `SecretAccessKey`, `Token`,
+    `VirtualHostedStyleRequest`, and `SkipSignature` from `AmazonS3Builder`;
+    other S3 builder options are not forwarded.
+
+[`object_store::ObjectStore`]: https://docs.rs/object_store/latest/object_store/trait.ObjectStore.html
+
 ## WASM support
 
 To build with `wasm32-unknown-unknown` target, you need to enable the `send_wrapper` feature:

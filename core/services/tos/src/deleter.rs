@@ -49,7 +49,17 @@ impl oio::BatchDelete for TosDeleter {
 
         match status {
             StatusCode::NO_CONTENT => Ok(()),
-            StatusCode::NOT_FOUND => Ok(()),
+            StatusCode::NOT_FOUND => {
+                let err = crate::core::parse_error(
+                    crate::core::ErrorContext::new(ServiceOperation("DeleteObject")),
+                    resp,
+                );
+                if err.kind() == ErrorKind::NotFound {
+                    Ok(())
+                } else {
+                    Err(err)
+                }
+            }
             _ => Err(crate::core::parse_error(
                 crate::core::ErrorContext::new(ServiceOperation("DeleteObject")),
                 resp,
@@ -81,21 +91,22 @@ impl oio::BatchDelete for TosDeleter {
         };
         for (path, op) in batch {
             let abs_path = build_absolute_path(&self.core.root, &path);
-            if let Some(idx) = errors
-                .iter()
-                .position(|e| e.key == abs_path && e.version_id.as_deref() == op.version())
-            {
+            let op_version = op.version().filter(|v| !v.is_empty());
+            if let Some(idx) = errors.iter().position(|e| {
+                e.key == abs_path && e.version_id.as_deref().filter(|v| !v.is_empty()) == op_version
+            }) {
                 let error = errors.swap_remove(idx);
                 batched_result
                     .failed
                     .push((path, op, parse_delete_objects_result_error(error)));
             } else if let Some(idx) = deleted.iter().position(|e| {
                 e.key == abs_path
-                    && (op.version().is_none() || e.version_id.as_deref() == op.version())
+                    && (op_version.is_none()
+                        || e.version_id.as_deref().filter(|v| !v.is_empty()) == op_version)
             }) {
                 let deleted = deleted.swap_remove(idx);
-                let op = if op.version().is_some() {
-                    if let Some(version) = &deleted.version_id {
+                let op = if op_version.is_some() {
+                    if let Some(version) = deleted.version_id.as_deref().filter(|v| !v.is_empty()) {
                         op.into_version(version)
                     } else {
                         op
@@ -121,4 +132,174 @@ fn parse_delete_objects_result_error(err: DeleteObjectsResultError) -> Error {
         err = err.set_temporary();
     }
     err
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use futures::stream;
+    use http::{Request, Response};
+    use opendal_core::raw::oio::BatchDelete;
+
+    use super::*;
+
+    struct StaticTransport {
+        status: StatusCode,
+        body: String,
+    }
+
+    impl HttpTransport for StaticTransport {
+        async fn fetch(&self, _req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let len = self.body.len() as u64;
+            Response::builder()
+                .status(self.status)
+                .body(HttpBody::new(
+                    stream::iter([Ok(Buffer::from(self.body.clone()))]),
+                    Some(len),
+                ))
+                .map_err(new_request_build_error)
+        }
+    }
+
+    fn build_core() -> Arc<TosCore> {
+        let backend = crate::Tos::default()
+            .bucket("test-bucket")
+            .skip_signature()
+            .build()
+            .expect("build must succeed");
+        let backend = (&backend as &dyn std::any::Any)
+            .downcast_ref::<crate::backend::TosBackend>()
+            .expect("build must return TosBackend");
+        backend.core.clone()
+    }
+
+    #[tokio::test]
+    async fn test_delete_batch_matches_empty_version_id_error_and_classifies_access_denied() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let body = r#"{
+                "Deleted": [
+                    {"Key": "ok.txt", "VersionId": ""}
+                ],
+                "Error": [
+                    {"Key": "denied.txt", "VersionId": "", "Code": "AccessDenied", "Message": "Access Denied"},
+                    {"Key": "throttled.txt", "VersionId": "", "Code": "SlowDown", "Message": "Please reduce your request rate"}
+                ]
+            }"#;
+            let ctx = OperationContext::new().with_http_transport(HttpTransporter::new(
+                StaticTransport {
+                    status: StatusCode::OK,
+                    body: body.to_string(),
+                },
+            ));
+            let deleter = TosDeleter::new(build_core(), ctx);
+
+            let res = deleter
+                .delete_batch(vec![
+                    ("ok.txt".to_string(), OpDelete::default()),
+                    ("denied.txt".to_string(), OpDelete::default()),
+                    ("throttled.txt".to_string(), OpDelete::default()),
+                ])
+                .await
+                .unwrap();
+
+            assert_eq!(res.succeeded.len(), 1);
+            assert_eq!(res.succeeded[0].0, "ok.txt");
+
+            assert_eq!(res.failed.len(), 2);
+            assert_eq!(res.failed[0].0, "denied.txt");
+            assert_eq!(res.failed[0].2.kind(), ErrorKind::PermissionDenied);
+            assert!(!res.failed[0].2.is_temporary());
+
+            assert_eq!(res.failed[1].0, "throttled.txt");
+            assert_eq!(res.failed[1].2.kind(), ErrorKind::RateLimited);
+            assert!(res.failed[1].2.is_temporary());
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    #[tokio::test]
+    async fn test_delete_batch_distinguishes_versions() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let body = r#"{
+                "Deleted": [
+                    {"Key": "a.txt", "VersionId": "v2"}
+                ],
+                "Error": [
+                    {"Key": "a.txt", "VersionId": "v1", "Code": "AccessDenied", "Message": "Access Denied"}
+                ]
+            }"#;
+            let ctx = OperationContext::new().with_http_transport(HttpTransporter::new(
+                StaticTransport {
+                    status: StatusCode::OK,
+                    body: body.to_string(),
+                },
+            ));
+            let deleter = TosDeleter::new(build_core(), ctx);
+
+            let res = deleter
+                .delete_batch(vec![
+                    ("a.txt".to_string(), OpDelete::new().into_version("v1")),
+                    ("a.txt".to_string(), OpDelete::new().into_version("v2")),
+                ])
+                .await
+                .unwrap();
+
+            assert_eq!(res.succeeded.len(), 1);
+            assert_eq!(res.succeeded[0].0, "a.txt");
+            assert_eq!(res.succeeded[0].1.version(), Some("v2"));
+
+            assert_eq!(res.failed.len(), 1);
+            assert_eq!(res.failed[0].0, "a.txt");
+            assert_eq!(res.failed[0].1.version(), Some("v1"));
+            assert_eq!(res.failed[0].2.kind(), ErrorKind::PermissionDenied);
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    #[tokio::test]
+    async fn test_delete_once_404_surfaces_no_such_bucket_and_ignores_not_found() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let core = build_core();
+
+            let json_no_such_bucket =
+                r#"{"Code":"NoSuchBucket","Message":"The specified bucket does not exist"}"#;
+            let xml_no_such_bucket = r#"<Error><Code>NoSuchBucket</Code><Message>The specified bucket does not exist</Message></Error>"#;
+
+            for body in [json_no_such_bucket, xml_no_such_bucket] {
+                let ctx = OperationContext::new().with_http_transport(HttpTransporter::new(
+                    StaticTransport {
+                        status: StatusCode::NOT_FOUND,
+                        body: body.to_string(),
+                    },
+                ));
+                let deleter = TosDeleter::new(core.clone(), ctx);
+                let err = deleter
+                    .delete_once("a.txt".to_string(), OpDelete::default())
+                    .await
+                    .expect_err("404 NoSuchBucket must not be swallowed");
+                assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+            }
+
+            let json_no_such_key =
+                r#"{"Code":"NoSuchKey","Message":"The specified key does not exist"}"#;
+            for body in [json_no_such_key, ""] {
+                let ctx = OperationContext::new().with_http_transport(HttpTransporter::new(
+                    StaticTransport {
+                        status: StatusCode::NOT_FOUND,
+                        body: body.to_string(),
+                    },
+                ));
+                let deleter = TosDeleter::new(core.clone(), ctx);
+                deleter
+                    .delete_once("a.txt".to_string(), OpDelete::default())
+                    .await
+                    .expect("404 NoSuchKey or empty 404 must succeed idempotently");
+            }
+        })
+        .await
+        .expect("test timed out");
+    }
 }

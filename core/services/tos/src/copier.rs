@@ -231,7 +231,21 @@ impl oio::MultipartCopy for TosCopier {
                     serde_json::from_reader(resp.into_body().reader())
                         .map_err(new_json_deserialize_error)?;
                 if !ret.code.is_empty() {
-                    return Err(Error::new(ErrorKind::Unexpected, ret.message));
+                    let (kind, retryable) =
+                        parse_tos_error_code(&ret.code).unwrap_or((ErrorKind::Unexpected, false));
+                    let mut err = Error::new(kind, format!("{ret:?}"));
+                    if retryable {
+                        err = err.set_temporary();
+                    }
+                    return Err(err);
+                }
+                let etag = ret.etag.trim_matches('"');
+                if etag.is_empty() {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "ETag not present in complete multipart upload response",
+                    )
+                    .set_temporary());
                 }
 
                 let mut meta = if self.to.ends_with('/') {
@@ -239,9 +253,7 @@ impl oio::MultipartCopy for TosCopier {
                 } else {
                     MetadataBuilder::unknown()
                 };
-                if !ret.etag.is_empty() {
-                    meta.etag(ret.etag.trim_matches('"'));
-                }
+                meta.etag(etag);
                 if !ret.version_id.is_empty() {
                     meta.version(&ret.version_id);
                 }
@@ -267,5 +279,116 @@ impl oio::MultipartCopy for TosCopier {
                 resp,
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use futures::stream;
+    use http::{Request, Response};
+    use opendal_core::raw::oio::MultipartCopy;
+
+    use super::*;
+
+    struct StaticTransport {
+        body: String,
+    }
+
+    impl HttpTransport for StaticTransport {
+        async fn fetch(&self, _req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let len = self.body.len() as u64;
+            Response::builder()
+                .status(StatusCode::OK)
+                .body(HttpBody::new(
+                    stream::iter([Ok(Buffer::from(self.body.clone()))]),
+                    Some(len),
+                ))
+                .map_err(new_request_build_error)
+        }
+    }
+
+    fn build_core() -> Arc<TosCore> {
+        let backend = crate::Tos::default()
+            .bucket("test-bucket")
+            .skip_signature()
+            .build()
+            .expect("build must succeed");
+        let backend = (&backend as &dyn std::any::Any)
+            .downcast_ref::<crate::backend::TosBackend>()
+            .expect("build must return TosBackend");
+        backend.core.clone()
+    }
+
+    fn build_copier(core: Arc<TosCore>, body: String) -> TosCopier {
+        let ctx = OperationContext::new()
+            .with_http_transport(HttpTransporter::new(StaticTransport { body }));
+        TosCopier {
+            core,
+            ctx,
+            from: "src.txt".to_string(),
+            to: "dst.txt".to_string(),
+            args: OpCopy::default(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_complete_copy_classifies_200_ok_error_codes() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let core = build_core();
+            let cases = [
+                ("SlowDown", ErrorKind::RateLimited, true),
+                ("InternalError", ErrorKind::Unexpected, true),
+                ("OperationAborted", ErrorKind::Unexpected, true),
+                ("AccessDenied", ErrorKind::PermissionDenied, false),
+            ];
+
+            for (code, expected_kind, expected_temporary) in cases {
+                let body = format!(r#"{{"Code":"{code}","Message":"error for {code}"}}"#);
+                let copier = build_copier(core.clone(), body);
+                let err = copier
+                    .complete_copy("uid", &[])
+                    .await
+                    .expect_err("200 OK error body must fail");
+                assert_eq!(err.kind(), expected_kind, "code={code}");
+                assert_eq!(err.is_temporary(), expected_temporary, "code={code}");
+            }
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    #[tokio::test]
+    async fn test_complete_copy_rejects_empty_etag() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let core = build_core();
+            for body in [r#"{}"#, r#"{"ETag":""}"#, r#"{"ETag":"\"\""}"#] {
+                let copier = build_copier(core.clone(), body.to_string());
+                let err = copier
+                    .complete_copy("uid", &[])
+                    .await
+                    .expect_err("empty ETag must fail");
+                assert_eq!(err.kind(), ErrorKind::Unexpected);
+                assert!(err.is_temporary());
+            }
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    #[tokio::test]
+    async fn test_complete_copy_parses_quoted_etag_and_version_id() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let copier = build_copier(
+                build_core(),
+                r#"{"ETag":"\"copy-etag\"","VersionId":"v-copy"}"#.to_string(),
+            );
+            let meta = copier.complete_copy("uid", &[]).await.unwrap();
+            assert_eq!(meta.etag(), Some("copy-etag"));
+            assert_eq!(meta.version(), Some("v-copy"));
+        })
+        .await
+        .expect("test timed out");
     }
 }

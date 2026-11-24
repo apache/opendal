@@ -64,7 +64,7 @@ pub struct TosCore {
 
     pub bucket: String,
     pub endpoint: String, // full endpoint with scheme, e.g. https://tos-cn-beijing.volces.com
-    pub endpoint_domain: String, // endpoint domain without scheme, e.g. tos-cn-beijing.volces.com
+    pub bucket_endpoint: String, // full bucket endpoint with scheme, e.g. https://bucket.tos-cn-beijing.volces.com
     pub root: String,
     pub default_storage_class: Option<String>,
     pub skip_signature: bool,
@@ -249,12 +249,7 @@ impl TosCore {
     ) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path);
 
-        let mut url = format!(
-            "https://{}.{}/{}",
-            self.bucket,
-            self.endpoint_domain,
-            percent_encode_path(&p)
-        );
+        let mut url = format!("{}/{}", self.bucket_endpoint, percent_encode_path(&p));
 
         let mut query_args = Vec::new();
         if let Some(override_content_disposition) = args.override_content_disposition() {
@@ -282,7 +277,7 @@ impl TosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::TOS_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_query(version)
             ));
         }
         if !query_args.is_empty() {
@@ -346,12 +341,7 @@ impl TosCore {
     ) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path);
 
-        let url = format!(
-            "https://{}.{}/{}",
-            self.bucket,
-            self.endpoint_domain,
-            percent_encode_path(&p)
-        );
+        let url = format!("{}/{}", self.bucket_endpoint, percent_encode_path(&p));
 
         let mut req = Request::put(&url);
 
@@ -369,12 +359,7 @@ impl TosCore {
     pub fn tos_head_object_request(&self, path: &str, args: OpStat) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path);
 
-        let mut url = format!(
-            "https://{}.{}/{}",
-            self.bucket,
-            self.endpoint_domain,
-            percent_encode_path(&p)
-        );
+        let mut url = format!("{}/{}", self.bucket_endpoint, percent_encode_path(&p));
 
         let mut query_args = Vec::new();
         if let Some(override_content_disposition) = args.override_content_disposition() {
@@ -402,7 +387,7 @@ impl TosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::TOS_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_query(version)
             ));
         }
         if !query_args.is_empty() {
@@ -457,12 +442,7 @@ impl TosCore {
     ) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path);
 
-        let mut url = format!(
-            "https://{}.{}/{}",
-            self.bucket,
-            self.endpoint_domain,
-            percent_encode_path(&p)
-        );
+        let mut url = format!("{}/{}", self.bucket_endpoint, percent_encode_path(&p));
 
         let mut query_args = Vec::new();
 
@@ -502,7 +482,7 @@ impl TosCore {
         ctx: &OperationContext,
         paths: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
-        let url = format!("https://{}.{}?delete", self.bucket, self.endpoint_domain);
+        let url = format!("{}?delete", self.bucket_endpoint);
 
         let mut req = Request::post(&url);
 
@@ -543,12 +523,7 @@ impl TosCore {
         let source = build_absolute_path(&self.root, from);
         let target = build_absolute_path(&self.root, to);
 
-        let url = format!(
-            "https://{}.{}/{}",
-            self.bucket,
-            self.endpoint_domain,
-            percent_encode_path(&target)
-        );
+        let url = format!("{}/{}", self.bucket_endpoint, percent_encode_path(&target));
         let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
 
         let mut req = Request::put(&url)
@@ -576,9 +551,8 @@ impl TosCore {
         let p = build_absolute_path(&self.root, path);
 
         let url = format!(
-            "https://{}.{}/{}?uploads",
-            self.bucket,
-            self.endpoint_domain,
+            "{}/{}?uploads",
+            self.bucket_endpoint,
             percent_encode_path(&p)
         );
 
@@ -608,9 +582,8 @@ impl TosCore {
         let target = build_absolute_path(&self.root, input.to);
 
         let url = format!(
-            "https://{}.{}/{}?partNumber={}&uploadId={}",
-            self.bucket,
-            self.endpoint_domain,
+            "{}/{}?partNumber={}&uploadId={}",
+            self.bucket_endpoint,
             percent_encode_path(&target),
             input.part_number,
             percent_encode_query(input.upload_id)
@@ -639,9 +612,8 @@ impl TosCore {
         let p = build_absolute_path(&self.root, path);
 
         let url = format!(
-            "https://{}.{}/{}?uploadId={}",
-            self.bucket,
-            self.endpoint_domain,
+            "{}/{}?uploadId={}",
+            self.bucket_endpoint,
             percent_encode_path(&p),
             percent_encode_query(upload_id)
         );
@@ -675,9 +647,8 @@ impl TosCore {
         let p = build_absolute_path(&self.root, path);
 
         let url = format!(
-            "https://{}.{}/{}?uploadId={}",
-            self.bucket,
-            self.endpoint_domain,
+            "{}/{}?uploadId={}",
+            self.bucket_endpoint,
             percent_encode_path(&p),
             percent_encode_query(upload_id)
         );
@@ -702,8 +673,7 @@ impl TosCore {
     ) -> Result<Response<Buffer>> {
         let p = build_absolute_path(&self.root, path);
 
-        let mut url =
-            QueryPairsWriter::new(&format!("https://{}.{}", self.bucket, self.endpoint_domain));
+        let mut url = QueryPairsWriter::new(&self.bucket_endpoint);
         url = url.push("list-type", "2");
 
         if !p.is_empty() {
@@ -715,9 +685,7 @@ impl TosCore {
         if let Some(limit) = limit {
             url = url.push("max-keys", &limit.to_string());
         }
-        if let Some(start_after) = start_after
-            && (path.is_empty() || path == "/" || start_after.starts_with(path))
-        {
+        if let Some(start_after) = start_after {
             let start_after = build_absolute_path(&self.root, &start_after);
             url = url.push("start-after", &percent_encode_query(&start_after));
         }
@@ -748,8 +716,7 @@ impl TosCore {
     ) -> Result<Response<Buffer>> {
         let p = build_absolute_path(&self.root, prefix);
 
-        let mut url =
-            QueryPairsWriter::new(&format!("https://{}.{}", self.bucket, self.endpoint_domain));
+        let mut url = QueryPairsWriter::new(&self.bucket_endpoint);
         url = url.push("versions", "");
 
         if !p.is_empty() {
@@ -789,9 +756,8 @@ impl TosCore {
         let p = build_absolute_path(&self.root, path);
 
         let url = format!(
-            "https://{}.{}/{}?uploads",
-            self.bucket,
-            self.endpoint_domain,
+            "{}/{}?uploads",
+            self.bucket_endpoint,
             percent_encode_path(&p)
         );
 
@@ -846,9 +812,8 @@ impl TosCore {
         let p = build_absolute_path(&self.root, path);
 
         let url = format!(
-            "https://{}.{}/{}?partNumber={}&uploadId={}",
-            self.bucket,
-            self.endpoint_domain,
+            "{}/{}?partNumber={}&uploadId={}",
+            self.bucket_endpoint,
             percent_encode_path(&p),
             part_number,
             percent_encode_query(upload_id)
@@ -875,9 +840,8 @@ impl TosCore {
         let p = build_absolute_path(&self.root, path);
 
         let url = format!(
-            "https://{}.{}/{}?uploadId={}",
-            self.bucket,
-            self.endpoint_domain,
+            "{}/{}?uploadId={}",
+            self.bucket_endpoint,
             percent_encode_path(&p),
             percent_encode_query(upload_id)
         );
@@ -914,9 +878,8 @@ impl TosCore {
         let p = build_absolute_path(&self.root, path);
 
         let url = format!(
-            "https://{}.{}/{}?uploadId={}",
-            self.bucket,
-            self.endpoint_domain,
+            "{}/{}?uploadId={}",
+            self.bucket_endpoint,
             percent_encode_path(&p),
             percent_encode_query(upload_id)
         );
@@ -1128,7 +1091,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let bs = body.to_bytes();
 
     let (mut kind, mut retryable) = match parts.status {
-        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED => {
             (ErrorKind::ConditionNotMatch, false)
@@ -1171,6 +1134,7 @@ fn parse_tos_error(bs: &bytes::Bytes) -> Option<TosError> {
 /// TOS error codes: https://www.volcengine.com/docs/6349/74874
 pub fn parse_tos_error_code(code: &str) -> Option<(ErrorKind, bool)> {
     match code {
+        "AccessDenied" => Some((ErrorKind::PermissionDenied, false)),
         "NoSuchBucket" => Some((ErrorKind::ConfigInvalid, false)),
         "NoSuchKey" => Some((ErrorKind::NotFound, false)),
         "DuplicateObject" => Some((ErrorKind::ConditionNotMatch, false)),
@@ -1323,13 +1287,232 @@ mod tests {
             "Host header must be removed after signing"
         );
     }
+
+    #[test]
+    fn test_version_id_query_encoding() {
+        let core = build_core();
+        let version = "v1+a/b=c&d%20e f";
+        let expected_query = "versionId=v1%2Ba%2Fb%3Dc%26d%2520e%20f";
+
+        let (range, op_read, _) = options::ReadOptions {
+            version: Some(version.to_string()),
+            ..Default::default()
+        }
+        .into();
+        let get_req = core
+            .tos_get_object_request("dir/file.txt", range, &op_read)
+            .expect("get request with special version characters must be valid");
+        assert_eq!(get_req.uri().query(), Some(expected_query));
+
+        let head_req = core
+            .tos_head_object_request(
+                "dir/file.txt",
+                OpStat::from(options::StatOptions {
+                    version: Some(version.to_string()),
+                    ..Default::default()
+                }),
+            )
+            .expect("head request with special version characters must be valid");
+        assert_eq!(head_req.uri().query(), Some(expected_query));
+
+        let del_req = core
+            .tos_delete_object_request("dir/file.txt", &OpDelete::new().into_version(version))
+            .expect("delete request with special version characters must be valid");
+        assert_eq!(del_req.uri().query(), Some(expected_query));
+    }
+
+    #[test]
+    fn test_parse_error_unauthorized_and_access_denied() {
+        let resp = Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .body(Buffer::from(
+                r#"{"Code":"InvalidAccessKeyId","Message":"invalid key"}"#,
+            ))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("GetObject")), resp);
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+        assert!(!err.is_temporary());
+
+        assert_eq!(
+            parse_tos_error_code("AccessDenied"),
+            Some((ErrorKind::PermissionDenied, false))
+        );
+    }
+
+    #[derive(Clone, Default)]
+    struct CaptureUriTransport {
+        uris: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    }
+
+    impl HttpTransport for CaptureUriTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.uris.lock().unwrap().push(req.uri().to_string());
+            Response::builder()
+                .status(StatusCode::OK)
+                .body(HttpBody::new(futures::stream::empty(), Some(0)))
+                .map_err(new_request_build_error)
+        }
+    }
+
+    fn build_http_core(root: &str) -> std::sync::Arc<TosCore> {
+        let backend = crate::Tos::default()
+            .bucket("test-bucket")
+            .endpoint("http://tos.internal:8080")
+            .root(root)
+            .skip_signature()
+            .build()
+            .expect("build must succeed");
+        let backend = (&backend as &dyn std::any::Any)
+            .downcast_ref::<crate::backend::TosBackend>()
+            .expect("build must return TosBackend");
+        backend.core.clone()
+    }
+
+    #[tokio::test]
+    async fn test_http_endpoint_scheme_preserved_across_requests() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let core = build_http_core("/");
+            let expected_prefix = "http://test-bucket.tos.internal:8080";
+
+            assert!(
+                core.tos_get_object_request("a.txt", BytesRange::from(..), &OpRead::default())
+                    .unwrap()
+                    .uri()
+                    .to_string()
+                    .starts_with(expected_prefix)
+            );
+            assert!(
+                core.tos_put_object_request("a.txt", Some(0), &OpWrite::default(), Buffer::new())
+                    .unwrap()
+                    .uri()
+                    .to_string()
+                    .starts_with(expected_prefix)
+            );
+            assert!(
+                core.tos_head_object_request("a.txt", OpStat::default())
+                    .unwrap()
+                    .uri()
+                    .to_string()
+                    .starts_with(expected_prefix)
+            );
+            assert!(
+                core.tos_delete_object_request("a.txt", &OpDelete::default())
+                    .unwrap()
+                    .uri()
+                    .to_string()
+                    .starts_with(expected_prefix)
+            );
+            assert!(
+                core.tos_upload_part_request("a.txt", "uid", 1, 0, Buffer::new())
+                    .unwrap()
+                    .uri()
+                    .to_string()
+                    .starts_with(expected_prefix)
+            );
+            assert!(
+                core.tos_upload_part_copy_request(TosUploadPartCopyRequest {
+                    from: "a.txt",
+                    to: "b.txt",
+                    upload_id: "uid",
+                    part_number: 1,
+                    range: BytesRange::new(0, Some(10)),
+                })
+                .unwrap()
+                .uri()
+                .to_string()
+                .starts_with(expected_prefix)
+            );
+
+            let transport = CaptureUriTransport::default();
+            let ctx = OperationContext::new()
+                .with_http_transport(HttpTransporter::new(transport.clone()));
+
+            core.tos_delete_objects(&ctx, &[("a.txt".to_string(), OpDelete::default())])
+                .await
+                .unwrap();
+            core.tos_copy_object(&ctx, "a.txt", "b.txt", &OpCopy::default())
+                .await
+                .unwrap();
+            core.tos_initiate_multipart_copy(&ctx, "b.txt")
+                .await
+                .unwrap();
+            core.tos_complete_multipart_copy(&ctx, "b.txt", "uid", vec![], &OpCopy::default())
+                .await
+                .unwrap();
+            core.tos_abort_multipart_copy(&ctx, "b.txt", "uid")
+                .await
+                .unwrap();
+            core.tos_list_objects_v2(&ctx, "dir/", "", "/", None, None)
+                .await
+                .unwrap();
+            core.tos_list_object_versions(&ctx, "dir/", "/", None, "", "")
+                .await
+                .unwrap();
+            core.tos_initiate_multipart_upload(&ctx, "a.txt", &OpWrite::default())
+                .await
+                .unwrap();
+            core.tos_complete_multipart_upload(&ctx, "a.txt", "uid", vec![], &OpWrite::default())
+                .await
+                .unwrap();
+            core.tos_abort_multipart_upload(&ctx, "a.txt", "uid")
+                .await
+                .unwrap();
+
+            let uris = transport.uris.lock().unwrap();
+            assert_eq!(uris.len(), 10);
+            for uri in uris.iter() {
+                assert!(
+                    uri.starts_with(expected_prefix),
+                    "expected http scheme in request URI, got: {uri}"
+                );
+            }
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    #[tokio::test]
+    async fn test_list_objects_v2_preserves_start_after_outside_path_prefix() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let transport = CaptureUriTransport::default();
+            let ctx = OperationContext::new()
+                .with_http_transport(HttpTransporter::new(transport.clone()));
+
+            let root_core = build_http_core("/");
+            root_core
+                .tos_list_objects_v2(&ctx, "dir/", "", "/", None, Some("e".to_string()))
+                .await
+                .unwrap();
+
+            let sub_core = build_http_core("/sub/");
+            sub_core
+                .tos_list_objects_v2(&ctx, "dir/", "", "/", None, Some("e".to_string()))
+                .await
+                .unwrap();
+
+            let uris = transport.uris.lock().unwrap();
+            assert_eq!(uris.len(), 2);
+            assert_eq!(
+                uris[0],
+                "http://test-bucket.tos.internal:8080/?list-type=2&prefix=dir%2F&delimiter=%2F&start-after=e"
+            );
+            assert_eq!(
+                uris[1],
+                "http://test-bucket.tos.internal:8080/?list-type=2&prefix=sub%2Fdir%2F&delimiter=%2F&start-after=sub%2Fe"
+            );
+        })
+        .await
+        .expect("test timed out");
+    }
 }
 
 mod utils {
     use http::HeaderMap;
     use http::header::ETAG;
     use opendal_core::Metadata;
-    use opendal_core::raw::{parse_header_to_str, parse_into_metadata};
+    use opendal_core::raw::{parse_header_to_str, parse_into_metadata, parse_prefixed_headers};
+
+    use super::constants::{X_TOS_META_PREFIX, X_TOS_VERSION_ID};
 
     /// Parse etag from header map.
     ///
@@ -1347,6 +1530,15 @@ mod utils {
 
         if let Some(etag) = tos_parse_etag(headers)? {
             metadata.etag(etag);
+        }
+
+        let user_meta = parse_prefixed_headers(headers, X_TOS_META_PREFIX);
+        if !user_meta.is_empty() {
+            metadata.user_metadata(user_meta);
+        }
+
+        if let Some(v) = parse_header_to_str(headers, X_TOS_VERSION_ID)? {
+            metadata.version(v);
         }
 
         Ok(metadata.build())

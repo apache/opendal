@@ -22,8 +22,7 @@ use super::reader::*;
 use crate::config::TosConfig;
 use crate::copier::TosCopiers;
 use crate::copier::new_tos_copier;
-use crate::core::constants::X_TOS_VERSION_ID;
-use crate::core::constants::{X_TOS_DIRECTORY, X_TOS_META_PREFIX};
+use crate::core::constants::X_TOS_DIRECTORY;
 use crate::core::parse_error;
 use crate::core::tos_parse_into_metadata;
 use crate::core::*;
@@ -84,7 +83,14 @@ impl TosBuilder {
     /// will prepend "https://" before it.
     pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
-            self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string());
+            let trimmed = if let Some(rest) = endpoint.strip_prefix("http://") {
+                format!("http://{}", rest.trim_end_matches('/'))
+            } else if let Some(rest) = endpoint.strip_prefix("https://") {
+                format!("https://{}", rest.trim_end_matches('/'))
+            } else {
+                endpoint.trim_end_matches('/').to_string()
+            };
+            self.config.endpoint = Some(trimmed);
         }
         self
     }
@@ -148,18 +154,40 @@ impl Builder for TosBuilder {
     type Config = TosConfig;
 
     fn build(self) -> Result<impl Service> {
-        let mut config = self.config;
+        let config = self.config;
+        let bucket = config.bucket.clone();
+        if bucket.is_empty() {
+            return Err(Error::new(ErrorKind::ConfigInvalid, "bucket is empty")
+                .with_operation("Builder::build")
+                .with_context("service", TOS_SCHEME));
+        }
+
         let region = config
             .region
             .clone()
             .unwrap_or_else(|| "cn-beijing".to_string());
 
-        if config.endpoint.is_none() {
-            config.endpoint = Some(format!("https://tos-{}.volces.com", region));
+        let endpoint = match config.endpoint.as_deref() {
+            Some(endpoint) if !endpoint.is_empty() => endpoint.to_string(),
+            _ => format!("https://tos-{region}.volces.com"),
+        };
+
+        let (scheme, endpoint_domain) = if let Some(stripped) = endpoint.strip_prefix("http://") {
+            ("http", stripped.trim_end_matches('/'))
+        } else if let Some(stripped) = endpoint.strip_prefix("https://") {
+            ("https", stripped.trim_end_matches('/'))
+        } else {
+            ("https", endpoint.trim_end_matches('/'))
+        };
+
+        if endpoint_domain.is_empty() {
+            return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
+                .with_operation("Builder::build")
+                .with_context("service", TOS_SCHEME));
         }
 
-        let endpoint = config.endpoint.clone().unwrap();
-        let bucket = config.bucket.clone();
+        let endpoint = format!("{scheme}://{endpoint_domain}");
+        let bucket_endpoint = format!("{scheme}://{bucket}.{endpoint_domain}");
         let root = normalize_root(&config.root.clone().unwrap_or_default());
 
         let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
@@ -247,21 +275,12 @@ impl Builder for TosBuilder {
             ..Default::default()
         };
 
-        // Extract domain from endpoint, removing http:// or https:// prefix
-        let endpoint_domain = if let Some(stripped) = endpoint.strip_prefix("http://") {
-            stripped
-        } else if let Some(stripped) = endpoint.strip_prefix("https://") {
-            stripped
-        } else {
-            &endpoint
-        };
-
         let core = TosCore {
             info,
             capability,
             bucket,
-            endpoint: endpoint.clone(),
-            endpoint_domain: endpoint_domain.to_string(),
+            endpoint,
+            bucket_endpoint,
             root,
             default_storage_class: None,
             skip_signature: config.skip_signature,
@@ -319,15 +338,6 @@ impl Service for TosBackend {
             StatusCode::OK => {
                 let headers = resp.headers();
                 let mut meta = tos_parse_into_metadata(path, headers)?.into_builder();
-
-                let user_meta = parse_prefixed_headers(headers, X_TOS_META_PREFIX);
-                if !user_meta.is_empty() {
-                    meta.user_metadata(user_meta);
-                }
-
-                if let Some(v) = parse_header_to_str(headers, X_TOS_VERSION_ID)? {
-                    meta.version(v);
-                }
 
                 if parse_header_to_str(headers, X_TOS_DIRECTORY)?
                     .map(|v| {
@@ -477,6 +487,7 @@ mod tests {
     use std::task::Poll;
     use std::task::Waker;
 
+    use opendal_core::Configurator;
     use reqsign_core::StaticEnv;
 
     use super::*;
@@ -569,5 +580,79 @@ mod tests {
             parts.headers["x-tos-security-token"], "static-token",
             "security token must be applied"
         );
+    }
+
+    #[test]
+    fn test_build_rejects_empty_bucket() {
+        let err = match TosBuilder::default().build() {
+            Ok(_) => panic!("empty bucket must fail to build"),
+            Err(err) => err,
+        };
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    }
+
+    #[test]
+    fn test_build_rejects_empty_endpoint_domain() {
+        for endpoint in ["http://", "https://", "http:///"] {
+            let err = match TosBuilder::default()
+                .bucket("test-bucket")
+                .endpoint(endpoint)
+                .build()
+            {
+                Ok(_) => panic!("endpoint {endpoint:?} without host must fail to build"),
+                Err(err) => err,
+            };
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+    }
+
+    #[test]
+    fn test_build_preserves_endpoint_scheme() {
+        let http_core = build_core(
+            TosBuilder::default()
+                .bucket("test-bucket")
+                .endpoint("http://127.0.0.1:9000/"),
+        );
+        assert_eq!(http_core.endpoint, "http://127.0.0.1:9000");
+        assert_eq!(
+            http_core.bucket_endpoint,
+            "http://test-bucket.127.0.0.1:9000"
+        );
+
+        let https_core = build_core(
+            TosBuilder::default()
+                .bucket("test-bucket")
+                .endpoint("https://tos-cn-shanghai.volces.com/"),
+        );
+        assert_eq!(https_core.endpoint, "https://tos-cn-shanghai.volces.com");
+        assert_eq!(
+            https_core.bucket_endpoint,
+            "https://test-bucket.tos-cn-shanghai.volces.com"
+        );
+
+        let schemeless_core = build_core(
+            TosBuilder::default()
+                .bucket("test-bucket")
+                .endpoint("tos-cn-beijing.volces.com"),
+        );
+        assert_eq!(
+            schemeless_core.endpoint,
+            "https://tos-cn-beijing.volces.com"
+        );
+        assert_eq!(
+            schemeless_core.bucket_endpoint,
+            "https://test-bucket.tos-cn-beijing.volces.com"
+        );
+
+        let config_core = build_core(
+            TosConfig {
+                bucket: "test-bucket".to_string(),
+                endpoint: Some("http://tos.local/".to_string()),
+                ..Default::default()
+            }
+            .into_builder(),
+        );
+        assert_eq!(config_core.endpoint, "http://tos.local");
+        assert_eq!(config_core.bucket_endpoint, "http://test-bucket.tos.local");
     }
 }

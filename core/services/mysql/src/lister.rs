@@ -21,41 +21,54 @@ use std::vec::IntoIter;
 use opendal_core::MetadataBuilder;
 use opendal_core::Result;
 use opendal_core::raw::oio::{Entry, List};
-use opendal_core::raw::{build_absolute_path, build_relative_path};
+use opendal_core::raw::{build_absolute_path, normalize_path};
 
 use super::core::MysqlCore;
 
 pub struct MysqlLister {
-    root: String,
+    root_prefix: String,
+    prefix: String,
     entries: IntoIter<String>,
 }
 
 impl MysqlLister {
     pub async fn new(core: Arc<MysqlCore>, root: String, path: String) -> Result<Self> {
-        let entries = core
-            .list(&build_absolute_path(&root, &path))
-            .await?
-            .into_iter();
-        Ok(Self { root, entries })
+        let prefix = build_absolute_path(&root, &path);
+        let entries = core.list(&prefix).await?;
+        Ok(Self::from_entries(&root, prefix, entries))
+    }
+
+    fn from_entries(root: &str, prefix: String, entries: Vec<String>) -> Self {
+        Self {
+            root_prefix: build_absolute_path(root, "/"),
+            prefix,
+            entries: entries.into_iter(),
+        }
     }
 }
 
 impl List for MysqlLister {
     async fn next(&mut self) -> Result<Option<Entry>> {
-        let Some(key) = self.entries.next() else {
-            return Ok(None);
-        };
-
-        let mut path = build_relative_path(&self.root, &key);
-        if path.is_empty() {
-            path = "/".to_string();
+        for key in self.entries.by_ref() {
+            if !key.starts_with(&self.prefix) {
+                continue;
+            }
+            let Some(rel) = key.strip_prefix(&self.root_prefix) else {
+                continue;
+            };
+            // Ignore external keys that OpenDAL cannot address by their exact path.
+            if !rel.is_empty() && (rel == "/" || normalize_path(rel) != rel) {
+                continue;
+            }
+            let path = if rel.is_empty() { "/" } else { rel };
+            let meta = if path.ends_with('/') {
+                MetadataBuilder::dir()
+            } else {
+                MetadataBuilder::unknown()
+            };
+            return Ok(Some(Entry::new(path, meta.build())));
         }
-        let meta = if path.ends_with('/') {
-            MetadataBuilder::dir()
-        } else {
-            MetadataBuilder::unknown()
-        };
-        Ok(Some(Entry::new(&path, meta.build())))
+        Ok(None)
     }
 }
 
@@ -90,5 +103,102 @@ impl List for MysqlLazyLister {
             .expect("lister must be initialized")
             .next()
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opendal_core::EntryMode;
+
+    async fn collect(mut lister: MysqlLister) -> Vec<(String, EntryMode)> {
+        let mut out = Vec::new();
+        while let Some(entry) = lister.next().await.unwrap() {
+            out.push((entry.path().to_string(), entry.metadata().mode()));
+        }
+        out
+    }
+
+    #[tokio::test]
+    async fn lister_skips_cross_root_and_shorter_non_matching_keys() {
+        let lister = MysqlLister::from_entries(
+            "/App/",
+            "App/".to_string(),
+            vec![
+                "app/secret.txt".to_string(),
+                "App/".to_string(),
+                "App/public.txt".to_string(),
+                "App/dir/".to_string(),
+            ],
+        );
+
+        assert_eq!(
+            collect(lister).await,
+            vec![
+                ("/".to_string(), EntryMode::DIR),
+                ("public.txt".to_string(), EntryMode::Unknown),
+                ("dir/".to_string(), EntryMode::DIR),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn lister_does_not_panic_on_byte_length_mismatched_keys() {
+        // Under accent-insensitive collations, `"é/"` (3 bytes) can match a
+        // 4-byte decomposed prefix `"e\u{0301}/"`, and `"e/"` (2 bytes) can
+        // match a 3-byte prefix `"é/"`.
+        let decomposed = MysqlLister::from_entries(
+            "/e\u{0301}/",
+            "e\u{0301}/".to_string(),
+            vec!["é/".to_string(), "e\u{0301}/ok.txt".to_string()],
+        );
+        assert_eq!(
+            collect(decomposed).await,
+            vec![("ok.txt".to_string(), EntryMode::Unknown)]
+        );
+
+        let accented = MysqlLister::from_entries(
+            "/é/",
+            "é/".to_string(),
+            vec!["e/".to_string(), "é/ok.txt".to_string()],
+        );
+        assert_eq!(
+            collect(accented).await,
+            vec![("ok.txt".to_string(), EntryMode::Unknown)]
+        );
+    }
+
+    #[tokio::test]
+    async fn lister_enforces_exact_prefix_and_skips_non_normalized_keys() {
+        let lister = MysqlLister::from_entries(
+            "/",
+            "Dir/".to_string(),
+            vec![
+                "dir/b".to_string(),
+                "Dir/a".to_string(),
+                "Dir//bad".to_string(),
+            ],
+        );
+        assert_eq!(
+            collect(lister).await,
+            vec![("Dir/a".to_string(), EntryMode::Unknown)]
+        );
+
+        let root_lister = MysqlLister::from_entries(
+            "/",
+            String::new(),
+            vec![
+                String::new(),
+                "/external".to_string(),
+                "file.txt".to_string(),
+            ],
+        );
+        assert_eq!(
+            collect(root_lister).await,
+            vec![
+                ("/".to_string(), EntryMode::DIR),
+                ("file.txt".to_string(), EntryMode::Unknown),
+            ]
+        );
     }
 }

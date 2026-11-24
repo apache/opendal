@@ -769,11 +769,7 @@ impl AsyncFile {
     /// coroutine
     ///     An awaitable that returns the number of bytes written.
     #[pyo3(signature = (bs: "bytes") -> "collections.abc.Awaitable[int]")]
-    pub fn write<'p>(
-        &'p mut self,
-        py: Python<'p>,
-        bs: &Bound<PyBytes>,
-    ) -> PyResult<Bound<'p, PyAny>> {
+    pub fn write<'p>(&'p self, py: Python<'p>, bs: &Bound<PyBytes>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
         let bs = py_bytes_like_into_buffer(bs.as_any())?;
 
@@ -827,12 +823,7 @@ impl AsyncFile {
     /// coroutine
     ///     An awaitable that returns the current absolute position.
     #[pyo3(signature = (pos, whence = 0) -> "collections.abc.Awaitable[int]")]
-    pub fn seek<'p>(
-        &'p mut self,
-        py: Python<'p>,
-        pos: i64,
-        whence: u8,
-    ) -> PyResult<Bound<'p, PyAny>> {
+    pub fn seek<'p>(&'p self, py: Python<'p>, pos: i64, whence: u8) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
 
         let whence = match whence {
@@ -871,7 +862,7 @@ impl AsyncFile {
     /// ValueError
     ///     If the file is closed.
     #[pyo3(signature = () -> "collections.abc.Awaitable[int]")]
-    pub fn tell<'p>(&'p mut self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
+    pub fn tell<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
 
         future_into_py(py, async move {
@@ -900,7 +891,7 @@ impl AsyncFile {
     /// -----
     /// A closed file cannot be used for further I/O operations.
     #[pyo3(signature = () -> "collections.abc.Awaitable[None]")]
-    fn close<'p>(&'p mut self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
+    fn close<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
         future_into_py(py, async move {
             let mut state = state.lock().await;
@@ -924,7 +915,7 @@ impl AsyncFile {
         exc_value: "BaseException | None",
         traceback: "types.TracebackType | None") -> "collections.abc.Awaitable[None]")]
     fn __aexit__<'a>(
-        &'a mut self,
+        &'a self,
         py: Python<'a>,
         exc_type: &Bound<'a, PyAny>,
         exc_value: &Bound<'a, PyAny>,

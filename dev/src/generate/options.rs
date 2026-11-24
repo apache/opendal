@@ -28,7 +28,7 @@ use syn::{
 pub enum OptionType {
     /// `Option<String>`
     Str,
-    /// `Option<usize>`
+    /// `Option<usize>` or `Option<u64>`
     Int,
     /// `Option<bool>`
     Bool,
@@ -149,7 +149,7 @@ fn parse_type(ty: &Type) -> Result<OptionType> {
 
     Ok(match inner_segment.ident.to_string().as_str() {
         "String" => OptionType::Str,
-        "usize" => OptionType::Int,
+        "usize" | "u64" => OptionType::Int,
         "bool" => OptionType::Bool,
         // jiff::Timestamp
         "Timestamp" => OptionType::DateTime,

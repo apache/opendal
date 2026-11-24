@@ -87,6 +87,42 @@ async def test_async_list_cancelled_next_preserves_entry():
 
 
 @pytest.mark.asyncio
+async def test_async_list_reentrant_anext_does_not_raise_already_borrowed():
+    op = opendal.AsyncOperator("memory")
+    expected = [f"items/{idx:03d}" for idx in range(5)]
+    await asyncio.gather(*(op.write(path, b"test") for path in expected))
+
+    lister = await op.list("items/", recursive=True)
+    # Prime the internal batch buffer so the next `anext` takes the fast path.
+    first = await anext(lister)
+    seen = [first.path]
+
+    loop = asyncio.get_running_loop()
+    original_create_future = loop.create_future
+    nested_future: list[asyncio.Future[opendal.Entry]] = []
+    triggered = False
+
+    def reentrant_create_future() -> asyncio.Future[object]:
+        nonlocal triggered
+        if not triggered:
+            triggered = True
+            nested_future.append(asyncio.ensure_future(anext(lister)))
+        return original_create_future()
+
+    loop.create_future = reentrant_create_future
+    try:
+        second = await anext(lister)
+        seen.append(second.path)
+        assert len(nested_future) == 1
+        seen.append((await nested_future[0]).path)
+    finally:
+        loop.create_future = original_create_future
+
+    seen.extend([entry.path async for entry in lister])
+    assert sorted(seen) == expected
+
+
+@pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "copy", "list", "list_with_start_after")
 async def test_async_list_with_start_after(service_name, operator, async_operator):
     test_dir = f"test_async_list_dir_{uuid4()}/"

@@ -314,3 +314,44 @@ async def test_async_open_none_options(local_operator):
         assert await file.read() == b"hello"
     with pytest.raises(TypeError):
         await op.open("data", "rb", offset="invalid")
+
+
+INVALID_OPEN_KWARGS = [
+    ("rb", {"if_matches": "etag"}, "if_matches"),
+    ("wb", {"if_not_exist": True}, "if_not_exist"),
+    ("rb", {"append": True}, "append"),
+    ("rb", {"append": None}, "append"),
+    ("rb", {"if_not_exists": True}, "if_not_exists"),
+    ("rb", {"content_encoding": "gzip"}, "content_encoding"),
+    ("rb", {"user_metadata": {"a": "b"}}, "user_metadata"),
+    ("wb", {"offset": 0}, "offset"),
+    ("wb", {"offset": None}, "offset"),
+    ("wb", {"size": 10}, "size"),
+    ("wb", {"gap": 4}, "gap"),
+    ("wb", {"prefetch": 1}, "prefetch"),
+    ("wb", {"version": "v1"}, "version"),
+    ("ab", {"offset": 0}, "offset"),
+    ("xb", {"size": 1}, "size"),
+]
+
+
+@pytest.mark.parametrize(("mode", "kwargs", "key"), INVALID_OPEN_KWARGS)
+def test_sync_open_rejects_unknown_and_cross_mode_kwargs(
+    local_operator, mode, kwargs, key
+):
+    local_operator.write("data", b"original")
+    with pytest.raises(TypeError, match=key):
+        local_operator.open("data", mode, **kwargs)
+    assert local_operator.read("data") == b"original"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("mode", "kwargs", "key"), INVALID_OPEN_KWARGS)
+async def test_async_open_rejects_unknown_and_cross_mode_kwargs(
+    local_operator, mode, kwargs, key
+):
+    op = local_operator.to_async_operator()
+    await op.write("data", b"original")
+    with pytest.raises(TypeError, match=key):
+        await op.open("data", mode, **kwargs)
+    assert await op.read("data") == b"original"

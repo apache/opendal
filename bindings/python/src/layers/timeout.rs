@@ -24,19 +24,26 @@ use opendal::Operator;
 
 /// Parse a timeout given in seconds into a [`Duration`].
 ///
-/// Rejects non-positive, non-finite, or out-of-range values. A zero timeout
-/// is rejected because it would make every operation time out immediately.
+/// Rejects non-positive, non-finite, sub-nanosecond values that round to zero,
+/// or out-of-range values. A zero timeout is rejected because it would make
+/// every operation time out immediately.
 fn parse_timeout_secs(name: &str, secs: f64) -> PyResult<Duration> {
     if !secs.is_finite() || secs <= 0.0 {
         return Err(ConfigInvalid::new_err(format!(
             "{name} must be a positive, finite number of seconds"
         )));
     }
-    Duration::try_from_secs_f64(secs).map_err(|_| {
+    let timeout = Duration::try_from_secs_f64(secs).map_err(|_| {
         ConfigInvalid::new_err(format!(
             "{name} must be a positive, finite number of seconds"
         ))
-    })
+    })?;
+    if timeout.is_zero() {
+        return Err(ConfigInvalid::new_err(format!(
+            "{name} must be a positive, finite number of seconds"
+        )));
+    }
+    Ok(timeout)
 }
 
 /// A layer that adds timeouts to operations.

@@ -2112,7 +2112,6 @@
         "create_dir": true,
         "delete": true,
         "list": true,
-        "list_with_limit": true,
         "read": true,
         "rename": true,
         "shared": true,

@@ -103,7 +103,7 @@ pub struct WebdavCore {
     pub user_metadata_prefix: String,
     /// XML namespace URI for user metadata properties.
     pub user_metadata_uri: String,
-    /// Skip automatic parent directory creation before write, copy, and rename operations.
+    /// Skip automatic parent directory creation before writes.
     pub disable_create_dir: bool,
 }
 
@@ -358,10 +358,7 @@ impl WebdavCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        // Ensure target parent directory exists unless disabled.
-        if !self.disable_create_dir {
-            self.webdav_mkcol(ctx, get_parent(to)).await?;
-        }
+        self.webdav_mkcol(ctx, get_parent(to)).await?;
 
         let source = build_rooted_absolute_path(&self.root, from);
         let source_uri = format!("{}{}", self.endpoint, percent_encode_path(&source));

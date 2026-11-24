@@ -238,7 +238,14 @@ impl FtpLazyLister {
             } else {
                 Some(self.path.as_str())
             };
-            let files = ftp_stream.list(pathname).await.map_err(format_ftp_error)?;
+            let files = match ftp_stream.list(pathname).await {
+                Ok(files) => files,
+                Err(FtpError::UnexpectedResponse(Response {
+                    status: Status::FileUnavailable,
+                    ..
+                })) => Vec::new(),
+                Err(e) => return Err(format_ftp_error(e)),
+            };
 
             self.inner = Some(FtpLister::new(
                 if self.path == "/" { "" } else { &self.path },

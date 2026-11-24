@@ -45,4 +45,4 @@ suppaftp = { version = "13.0.0", default-features = false, features = [
 tokio = { workspace = true, features = ["io-util", "macros", "time"] }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread"] }

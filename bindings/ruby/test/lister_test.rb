@@ -75,6 +75,14 @@ class ListerTest < ActiveSupport::TestCase
     assert_equal ["sub/"], lists
   end
 
+  test "lists the directory with nil keyword arguments" do
+    lister = @op.list("", limit: nil, start_after: nil, recursive: nil)
+
+    lists = lister.map(&:to_h).map { |e| e[:path] }.sort
+
+    assert_equal ["/", "sample", "sub/"], lists
+  end
+
   test "#each without a block returns an Enumerator" do
     enum = @op.list("").each
 

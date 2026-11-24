@@ -84,10 +84,16 @@ impl RetryMiddleware {
 struct ConcurrentLimitMiddleware(Arc<Mutex<ocore::layers::ConcurrentLimitLayer>>);
 
 impl ConcurrentLimitMiddleware {
-    fn new(permits: usize) -> Self {
-        Self(Arc::new(Mutex::new(
+    fn new(ruby: &Ruby, permits: usize) -> Result<Self, Error> {
+        if permits == 0 {
+            return Err(Error::new(
+                ruby.exception_arg_error(),
+                "permits must be greater than 0",
+            ));
+        }
+        Ok(Self(Arc::new(Mutex::new(
             ocore::layers::ConcurrentLimitLayer::new(permits),
-        )))
+        ))))
     }
 
     fn apply_to(ruby: &Ruby, rb_self: &Self, operator: &Operator) -> Result<Operator, Error> {
@@ -108,9 +114,21 @@ impl ConcurrentLimitMiddleware {
 struct ThrottleMiddleware(Arc<Mutex<ocore::layers::ThrottleLayer>>);
 
 impl ThrottleMiddleware {
-    fn new(bandwidth: u32, burst: u32) -> Self {
-        Self(Arc::new(Mutex::new(ocore::layers::ThrottleLayer::new(
-            bandwidth, burst,
+    fn new(ruby: &Ruby, bandwidth: u32, burst: u32) -> Result<Self, Error> {
+        if bandwidth == 0 {
+            return Err(Error::new(
+                ruby.exception_arg_error(),
+                "bandwidth must be greater than 0",
+            ));
+        }
+        if burst == 0 {
+            return Err(Error::new(
+                ruby.exception_arg_error(),
+                "burst must be greater than 0",
+            ));
+        }
+        Ok(Self(Arc::new(Mutex::new(
+            ocore::layers::ThrottleLayer::new(bandwidth, burst),
         ))))
     }
 

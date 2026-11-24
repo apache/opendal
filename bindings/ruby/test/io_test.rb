@@ -164,6 +164,20 @@ class IOTest < ActiveSupport::TestCase
     assert_equal "", buffer
   end
 
+  test "#read with a frozen buffer raises FrozenError without poisoning the stream" do
+    frozen = "frozen"
+
+    assert_raise(FrozenError) { @io_read.read(6, frozen) }
+    assert_equal 0, @io_read.tell
+    assert_raise(FrozenError) { @io_read.read(nil, frozen) }
+    assert_equal 0, @io_read.tell
+    assert_raise(FrozenError) { @io_read.read(0, frozen) }
+    assert_equal 0, @io_read.tell
+
+    assert_equal "Sample", @io_read.read(6)
+    assert_nothing_raised { @io_read.close }
+  end
+
   test "#write writes" do
     @io_write.write("This is a sentence.")
     @io_write.close
@@ -350,8 +364,37 @@ class IOTest < ActiveSupport::TestCase
     assert @io_read.eof?
   end
 
+  test "#eof? returns true when positioned past EOF" do
+    @io_read.seek(100, IO::SEEK_SET)
+
+    assert @io_read.eof?
+    assert_equal 100, @io_read.pos
+  end
+
   test "#length returns" do
     assert_equal 43, @io_read.length
+  end
+
+  test "#length restores stream position" do
+    @io_read.seek(5, IO::SEEK_SET)
+
+    assert_equal 43, @io_read.length
+    assert_equal 5, @io_read.pos
+  end
+
+  test "#length restores stream position when an error occurs" do
+    @io_read.seek(5, IO::SEEK_SET)
+
+    calls = 0
+    @io_read.define_singleton_method(:tell) do
+      calls += 1
+      raise "simulated failure" if calls == 2
+      super()
+    end
+
+    assert_raise(RuntimeError) { @io_read.length }
+    assert_equal 2, calls
+    assert_equal 5, @io_read.pos
   end
 
   test "#size returns" do

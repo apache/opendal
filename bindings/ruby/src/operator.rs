@@ -258,11 +258,16 @@ impl Operator {
     pub fn list(ruby: &Ruby, rb_self: &Self, args: &[Value]) -> Result<Lister, Error> {
         let args = scan_args::<(String,), (), (), (), _, ()>(args)?;
         let (path,) = args.required;
-        let kwargs = get_kwargs::<_, (), (Option<usize>, Option<String>, Option<bool>), ()>(
-            args.keywords,
-            &[],
-            &["limit", "start_after", "recursive"],
-        )?;
+        let kwargs = get_kwargs::<
+            _,
+            (),
+            (
+                Option<Option<usize>>,
+                Option<Option<String>>,
+                Option<Option<bool>>,
+            ),
+            (),
+        >(args.keywords, &[], &["limit", "start_after", "recursive"])?;
         let (limit, start_after, recursive) = kwargs.optional;
 
         let lister = rb_self
@@ -270,9 +275,9 @@ impl Operator {
             .lister_options(
                 &path,
                 ocore::options::ListOptions {
-                    limit,
-                    start_after,
-                    recursive: recursive.unwrap_or(false),
+                    limit: limit.flatten(),
+                    start_after: start_after.flatten(),
+                    recursive: recursive.flatten().unwrap_or(false),
                     ..Default::default()
                 },
             )

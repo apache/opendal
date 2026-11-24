@@ -32,9 +32,24 @@ class MiddlewaresTest < ActiveSupport::TestCase
     end
   end
 
+  test "concurrent limit middleware rejects zero permits" do
+    assert_raise(ArgumentError) do
+      OpenDal::Middleware::ConcurrentLimit.new(0)
+    end
+  end
+
   test "builds a throttle middleware" do
     assert_nothing_raised do
       OpenDal::Middleware::Throttle.new(100, 10)
+    end
+  end
+
+  test "throttle middleware rejects zero bandwidth or burst" do
+    assert_raise(ArgumentError) do
+      OpenDal::Middleware::Throttle.new(0, 10)
+    end
+    assert_raise(ArgumentError) do
+      OpenDal::Middleware::Throttle.new(10, 0)
     end
   end
 

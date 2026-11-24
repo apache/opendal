@@ -18,7 +18,6 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::raw::glob_matcher::GlobPattern;
 use crate::raw::oio::{self, List};
 use crate::raw::*;
 use crate::*;

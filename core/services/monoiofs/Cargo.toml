@@ -44,6 +44,9 @@ monoio = { version = "0.2.4", features = [
 opendal-core = { path = "../../core", version = "0.59.5", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "1", features = ["fs"] }
+
 [dev-dependencies]
 tempfile = "3"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

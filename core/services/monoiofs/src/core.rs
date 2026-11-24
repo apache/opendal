@@ -78,6 +78,7 @@ impl MonoiofsCore {
 
                 delete: true,
                 rename: true,
+                rename_with_if_not_exists: cfg!(target_os = "linux"),
                 create_dir: true,
                 copy: true,
                 shared: true,

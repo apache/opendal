@@ -101,6 +101,15 @@ impl Configurator for RedisConfig {
             .with_context("service", REDIS_SCHEME));
         }
 
+        if let Some(username) = uri.username() {
+            map.entry("username".to_string())
+                .or_insert_with(|| username.to_string());
+        }
+        if let Some(password) = uri.password() {
+            map.entry("password".to_string())
+                .or_insert_with(|| password.to_string());
+        }
+
         if let Some(path) = uri.root()
             && !path.is_empty()
         {
@@ -182,6 +191,41 @@ mod tests {
         assert_eq!(cfg.endpoint.as_deref(), Some("redis://localhost:6379"));
         assert_eq!(cfg.db, 0);
         assert_eq!(cfg.root.as_deref(), Some("app/data"));
+        Ok(())
+    }
+
+    #[test]
+    fn from_uri_extracts_credentials() -> Result<()> {
+        let uri = OperatorUri::new(
+            "redis://alice:s%40cret@localhost:6379/0",
+            Vec::<(String, String)>::new(),
+        )?;
+
+        let cfg = RedisConfig::from_uri(&uri)?;
+        assert_eq!(cfg.endpoint.as_deref(), Some("redis://localhost:6379"));
+        assert_eq!(cfg.username.as_deref(), Some("alice"));
+        assert_eq!(cfg.password.as_deref(), Some("s@cret"));
+        assert!(!format!("{cfg:?}").contains("s@cret"));
+
+        let password_only = OperatorUri::new(
+            "redis://:onlypass@localhost:6379/1",
+            Vec::<(String, String)>::new(),
+        )?;
+        let cfg = RedisConfig::from_uri(&password_only)?;
+        assert_eq!(cfg.username, None);
+        assert_eq!(cfg.password.as_deref(), Some("onlypass"));
+        assert_eq!(cfg.db, 1);
+
+        let override_uri = OperatorUri::new(
+            "redis://alice:secret@localhost:6379/0",
+            [
+                ("username".to_string(), "bob".to_string()),
+                ("password".to_string(), "override".to_string()),
+            ],
+        )?;
+        let cfg = RedisConfig::from_uri(&override_uri)?;
+        assert_eq!(cfg.username.as_deref(), Some("bob"));
+        assert_eq!(cfg.password.as_deref(), Some("override"));
         Ok(())
     }
 

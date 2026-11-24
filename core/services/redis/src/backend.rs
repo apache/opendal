@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::borrow::Cow;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -118,9 +119,10 @@ impl RedisBuilder {
         self
     }
 
-    /// Set the default ttl for redis services.
+    /// Set the default TTL for writes without a per-write expiration.
     ///
-    /// If set, we will specify `EX` for write operations.
+    /// Positive durations are rounded up to whole milliseconds and sent via
+    /// `SET ... PX`. A zero duration disables expiration.
     pub fn default_ttl(mut self, ttl: Duration) -> Self {
         self.default_ttl = Some(ttl);
         self
@@ -172,6 +174,14 @@ impl Builder for RedisBuilder {
             .with_context("service", REDIS_SCHEME));
         }
 
+        if self.config.connection_pool_max_size == Some(0) {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "connection_pool_max_size must be greater than zero",
+            )
+            .with_context("service", REDIS_SCHEME));
+        }
+
         let default_ttl = match self.default_ttl {
             Some(ttl) => Some(ttl),
             None => self
@@ -180,6 +190,11 @@ impl Builder for RedisBuilder {
                 .map(signed_duration_to_duration)
                 .transpose()?,
         };
+        if let Some(ttl) = default_ttl
+            && !ttl.is_zero()
+        {
+            encode_expiration(ttl).map_err(|err| err.with_context("service", REDIS_SCHEME))?;
+        }
         let root = normalize_root(
             self.config
                 .root
@@ -223,7 +238,7 @@ impl Builder for RedisBuilder {
                 Client::open(self.get_connection_info(endpoint.clone())?).map_err(|e| {
                     Error::new(ErrorKind::ConfigInvalid, "invalid or unsupported scheme")
                         .with_context("service", REDIS_SCHEME)
-                        .with_context("endpoint", self.config.endpoint.as_ref().unwrap())
+                        .with_context("endpoint", endpoint.clone())
                         .with_context("db", self.config.db.to_string())
                         .set_source(e)
                 })?;
@@ -263,45 +278,102 @@ impl Builder for RedisBuilder {
 
 impl RedisBuilder {
     fn get_connection_info(&self, endpoint: String) -> Result<ConnectionInfo> {
-        let ep_url = endpoint.parse::<Uri>().map_err(|e| {
-            Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
-                .with_context("service", REDIS_SCHEME)
-                .with_context("endpoint", endpoint)
-                .set_source(e)
-        })?;
-
-        let con_addr = match ep_url.scheme_str() {
-            Some("tcp") | Some("redis") | None => {
-                let host = ep_url
-                    .host()
-                    .map(|h| h.to_string())
-                    .unwrap_or_else(|| "127.0.0.1".to_string());
-                let port = ep_url.port_u16().unwrap_or(DEFAULT_REDIS_PORT);
-                ConnectionAddr::Tcp(host, port)
-            }
-            Some("rediss") => {
-                let host = ep_url
-                    .host()
-                    .map(|h| h.to_string())
-                    .unwrap_or_else(|| "127.0.0.1".to_string());
-                let port = ep_url.port_u16().unwrap_or(DEFAULT_REDIS_PORT);
-                ConnectionAddr::TcpTls {
-                    host,
-                    port,
-                    insecure: false,
-                    tls_params: None,
-                }
-            }
-            Some("unix") | Some("redis+unix") => {
-                let path = PathBuf::from(ep_url.path());
-                ConnectionAddr::Unix(path)
-            }
-            Some(s) => {
-                return Err(
-                    Error::new(ErrorKind::ConfigInvalid, "invalid or unsupported scheme")
+        let con_addr = if let Some(rest) = endpoint
+            .strip_prefix("unix://")
+            .or_else(|| endpoint.strip_prefix("redis+unix://"))
+        {
+            let path = if rest.starts_with('/') {
+                PathBuf::from(rest)
+            } else {
+                let ep_url = endpoint.parse::<Uri>().map_err(|e| {
+                    Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
                         .with_context("service", REDIS_SCHEME)
-                        .with_context("scheme", s),
+                        .with_context("endpoint", endpoint.clone())
+                        .set_source(e)
+                })?;
+                if ep_url.path().is_empty() {
+                    return Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "unix socket path is missing",
+                    )
+                    .with_context("service", REDIS_SCHEME)
+                    .with_context("endpoint", endpoint));
+                }
+                PathBuf::from(ep_url.path())
+            };
+            ConnectionAddr::Unix(path)
+        } else if let Some(path) = endpoint
+            .strip_prefix("unix:")
+            .or_else(|| endpoint.strip_prefix("redis+unix:"))
+        {
+            if path.is_empty() {
+                return Err(
+                    Error::new(ErrorKind::ConfigInvalid, "unix socket path is missing")
+                        .with_context("service", REDIS_SCHEME)
+                        .with_context("endpoint", endpoint),
                 );
+            }
+            ConnectionAddr::Unix(PathBuf::from(path))
+        } else {
+            let parsed_endpoint = if endpoint.contains("://") {
+                Cow::Borrowed(endpoint.as_str())
+            } else {
+                Cow::Owned(format!("tcp://{endpoint}"))
+            };
+
+            let ep_url = parsed_endpoint.parse::<Uri>().map_err(|e| {
+                Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
+                    .with_context("service", REDIS_SCHEME)
+                    .with_context("endpoint", endpoint.clone())
+                    .set_source(e)
+            })?;
+
+            let extract_host = || -> Result<String> {
+                let host = ep_url
+                    .host()
+                    .map(|h| {
+                        h.strip_prefix('[')
+                            .and_then(|s| s.strip_suffix(']'))
+                            .unwrap_or(h)
+                    })
+                    .filter(|h| !h.is_empty())
+                    .ok_or_else(|| {
+                        Error::new(ErrorKind::ConfigInvalid, "endpoint host is missing")
+                            .with_context("service", REDIS_SCHEME)
+                            .with_context("endpoint", endpoint.clone())
+                    })?;
+                Ok(host.to_string())
+            };
+
+            match ep_url.scheme_str() {
+                Some("tcp") | Some("redis") => {
+                    let host = extract_host()?;
+                    let port = ep_url.port_u16().unwrap_or(DEFAULT_REDIS_PORT);
+                    ConnectionAddr::Tcp(host, port)
+                }
+                Some("rediss") => {
+                    let host = extract_host()?;
+                    let port = ep_url.port_u16().unwrap_or(DEFAULT_REDIS_PORT);
+                    ConnectionAddr::TcpTls {
+                        host,
+                        port,
+                        insecure: false,
+                        tls_params: None,
+                    }
+                }
+                Some(s) => {
+                    return Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "invalid or unsupported scheme",
+                    )
+                    .with_context("service", REDIS_SCHEME)
+                    .with_context("scheme", s));
+                }
+                None => {
+                    return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
+                        .with_context("service", REDIS_SCHEME)
+                        .with_context("endpoint", endpoint));
+                }
             }
         };
 
@@ -506,5 +578,139 @@ mod tests {
                 "read_from_replicas requires cluster_endpoints"
             );
         }
+    }
+
+    #[test]
+    fn connection_info_handles_ipv6_and_schemeless_endpoints() -> Result<()> {
+        let builder = RedisBuilder::default();
+
+        let tcp_cases = [
+            ("[::1]", "::1", 6379),
+            ("[::1]:6380", "::1", 6380),
+            ("redis://[::1]:6380", "::1", 6380),
+            ("tcp://[::1]:6380", "::1", 6380),
+            ("redis://[::1]", "::1", 6379),
+            ("redis.internal", "redis.internal", 6379),
+            ("redis.internal:6380", "redis.internal", 6380),
+            ("127.0.0.1", "127.0.0.1", 6379),
+        ];
+
+        for (endpoint, expected_host, expected_port) in tcp_cases {
+            let info = builder.get_connection_info(endpoint.to_string())?;
+            assert_eq!(
+                info.addr(),
+                &ConnectionAddr::Tcp(expected_host.to_string(), expected_port),
+                "unexpected address for endpoint {endpoint}"
+            );
+        }
+
+        // Verify the unbracketed IPv6 host actually resolves via ToSocketAddrs.
+        let ipv6_info = builder.get_connection_info("redis://[::1]:6380".to_string())?;
+        let ConnectionAddr::Tcp(host, port) = ipv6_info.addr() else {
+            panic!("expected TCP address for IPv6 endpoint");
+        };
+        let addrs: Vec<_> = std::net::ToSocketAddrs::to_socket_addrs(&(host.as_str(), *port))
+            .expect("unbracketed IPv6 host must resolve")
+            .collect();
+        assert!(
+            addrs
+                .iter()
+                .any(|addr| addr.ip().is_ipv6() && addr.port() == 6380)
+        );
+
+        let tls_cases = [
+            ("rediss://[::1]", "::1", 6379),
+            ("rediss://[::1]:6380", "::1", 6380),
+            ("rediss://redis.internal:6380", "redis.internal", 6380),
+        ];
+
+        for (endpoint, expected_host, expected_port) in tls_cases {
+            let info = builder.get_connection_info(endpoint.to_string())?;
+            assert_eq!(
+                info.addr(),
+                &ConnectionAddr::TcpTls {
+                    host: expected_host.to_string(),
+                    port: expected_port,
+                    insecure: false,
+                    tls_params: None,
+                },
+                "unexpected TLS address for endpoint {endpoint}"
+            );
+        }
+
+        for endpoint in [
+            "unix:///tmp/redis.sock",
+            "redis+unix:///tmp/redis.sock",
+            "unix:/tmp/redis.sock",
+            "redis+unix:/tmp/redis.sock",
+        ] {
+            let info = builder.get_connection_info(endpoint.to_string())?;
+            assert_eq!(
+                info.addr(),
+                &ConnectionAddr::Unix(PathBuf::from("/tmp/redis.sock")),
+                "unexpected Unix address for endpoint {endpoint}"
+            );
+        }
+
+        for invalid in [
+            "",
+            "redis://",
+            "tcp://",
+            "rediss://",
+            "unix://",
+            "http://127.0.0.1:6379",
+        ] {
+            let err = builder
+                .get_connection_info(invalid.to_string())
+                .expect_err(&format!("invalid endpoint {invalid:?} must be rejected"));
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn build_validates_connection_pool_max_size_and_default_ttl() {
+        let zero_pool = RedisConfig {
+            endpoint: Some("redis://127.0.0.1:6379".to_string()),
+            connection_pool_max_size: Some(0),
+            ..Default::default()
+        };
+        let err = zero_pool
+            .into_builder()
+            .build()
+            .expect_err("zero pool size must return ConfigInvalid");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let uri = OperatorUri::new(
+            "redis://127.0.0.1:6379?connection_pool_max_size=0",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let err = RedisConfig::from_uri(&uri)
+            .unwrap()
+            .into_builder()
+            .build()
+            .expect_err("zero pool size from URI must return ConfigInvalid");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        assert!(
+            RedisBuilder::default()
+                .default_ttl(Duration::ZERO)
+                .build()
+                .is_ok()
+        );
+        assert!(
+            RedisBuilder::default()
+                .default_ttl(Duration::from_millis(500))
+                .build()
+                .is_ok()
+        );
+
+        let err = RedisBuilder::default()
+            .default_ttl(Duration::from_millis(i64::MAX as u64) + Duration::from_nanos(1))
+            .build()
+            .expect_err("overflowing default_ttl must return ConfigInvalid");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
 }

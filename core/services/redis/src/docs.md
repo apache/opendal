@@ -46,11 +46,12 @@ Replication lag can cause stale results. For example, `read` or `stat` can
 briefly return `ErrorKind::NotFound` for a just-written key. OpenDAL returns
 a replica miss without retrying on the primary.
 
-## Per-write expiration
+## Expiration
 
 A write with `expires` overrides `default_ttl` for that key. Redis applies
 the expiration in the same command that stores the value, rounding positive
-durations up to a whole millisecond.
+durations up to a whole millisecond. An omitted or zero `default_ttl` disables
+expiration, while a zero per-write `expires` is invalid.
 
 ## Example
 

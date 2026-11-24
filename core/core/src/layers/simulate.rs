@@ -138,7 +138,11 @@ impl SimulateService {
         if self.config.create_dir && cap.list && cap.write_can_empty {
             cap.create_dir = true;
         }
-        if self.config.delete_recursive && cap.list && cap.delete {
+        if self.config.delete_recursive
+            && cap.list
+            && cap.delete
+            && (cap.list_with_recursive || self.config.list_recursive)
+        {
             cap.delete_with_recursive = true;
         }
         cap
@@ -295,6 +299,7 @@ impl SimulateService {
 
         let mut non_recursive = args;
         non_recursive.set_recursive(false);
+        let delete_with_version = self.srv.capability().delete_with_version;
 
         let mut lister = self.simulate_list(
             ctx,
@@ -309,7 +314,10 @@ impl SimulateService {
         while let Some(entry) = lister.next().await? {
             let entry = entry.into_entry();
             let mut entry_args = non_recursive.clone();
-            if let Some(version) = entry.metadata().version() {
+            if delete_with_version
+                && entry_args.version().is_none()
+                && let Some(version) = entry.metadata().version()
+            {
                 entry_args = entry_args.into_version(version);
             }
             deleter.delete(entry.path(), entry_args).await?;
@@ -461,11 +469,24 @@ impl SimulateReader {
     }
 
     async fn stat_content_length(&self) -> Result<u64> {
-        let op = options::StatOptions {
-            version: self.args.version().map(str::to_owned),
-            ..Default::default()
+        let cap = self.srv.capability();
+        if !cap.stat {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "The service does not support stat, which is required to simulate suffix reads without a content_length_hint.",
+            )
+            .with_operation(Operation::Stat)
+            .with_context("service", self.srv.info().scheme()));
         }
-        .into();
+
+        let op = OpStat::from_options(
+            &cap,
+            options::StatOptions {
+                version: self.args.version().map(str::to_owned),
+                ..Default::default()
+            },
+        )
+        .map_err(|err| err.with_context("service", self.srv.info().scheme()))?;
 
         Ok(self
             .srv
@@ -609,6 +630,10 @@ impl PendingDir {
         }
     }
 
+    fn is_discovered(&self) -> bool {
+        matches!(self, PendingDir::Discovered(_))
+    }
+
     fn try_into_entry(self) -> Result<oio::Entry> {
         match self {
             PendingDir::Initial(path) => {
@@ -635,13 +660,19 @@ enum NextDir {
     Listing(PendingDir, oio::Lister),
 }
 
+struct ActiveLister {
+    entry: oio::Entry,
+    lister: oio::Lister,
+    discovered: bool,
+}
+
 struct ServicerFlatLister {
     ctx: OperationContext,
     srv: Servicer,
     directory_args: OpList,
     start_after: Option<String>,
     next_dir: Option<NextDir>,
-    active_lister: Vec<(oio::Entry, oio::Lister)>,
+    active_lister: Vec<ActiveLister>,
 }
 
 impl ServicerFlatLister {
@@ -677,7 +708,7 @@ impl ServicerFlatLister {
                     .list(&self.ctx, de.path(), self.directory_args.clone())
                 {
                     Ok(v) => v,
-                    Err(e) if e.kind() == ErrorKind::PermissionDenied => {
+                    Err(e) if e.kind() == ErrorKind::PermissionDenied && de.is_discovered() => {
                         log::warn!(
                             "ServicerFlatLister skipping directory due to permission denied: {}",
                             de.path()
@@ -701,21 +732,10 @@ impl ServicerFlatLister {
 
             if matches!(self.next_dir.as_ref(), Some(NextDir::Listing(..))) {
                 let first = {
-                    let Some(NextDir::Listing(de, lister)) = self.next_dir.as_mut() else {
+                    let Some(NextDir::Listing(_, lister)) = self.next_dir.as_mut() else {
                         unreachable!("next_dir must contain a lister")
                     };
-                    loop {
-                        match lister.next().await {
-                            Ok(v) => break Ok(v),
-                            Err(e) if e.kind() == ErrorKind::NotFound => {
-                                log::warn!(
-                                    "ServicerFlatLister skipping entry due to not found during listing: {}",
-                                    de.path()
-                                );
-                            }
-                            Err(e) => break Err(e),
-                        }
-                    }
+                    lister.next().await
                 };
 
                 let Some(NextDir::Listing(de, lister)) = self.next_dir.take() else {
@@ -723,6 +743,20 @@ impl ServicerFlatLister {
                 };
                 let first = match first {
                     Ok(v) => v,
+                    Err(e) if e.kind() == ErrorKind::NotFound => {
+                        log::warn!(
+                            "ServicerFlatLister skipping directory due to not found during listing: {}",
+                            de.path()
+                        );
+                        continue;
+                    }
+                    Err(e) if e.kind() == ErrorKind::PermissionDenied && de.is_discovered() => {
+                        log::warn!(
+                            "ServicerFlatLister skipping directory due to permission denied during listing: {}",
+                            de.path()
+                        );
+                        continue;
+                    }
                     Err(e) => {
                         // No entry has been yielded from this lister, so restart
                         // the directory when the caller retries after an error.
@@ -743,8 +777,13 @@ impl ServicerFlatLister {
                     },
                 };
 
+                let discovered = de.is_discovered();
                 let de = de.try_into_entry()?;
-                self.active_lister.push((de.clone(), lister));
+                self.active_lister.push(ActiveLister {
+                    entry: de.clone(),
+                    lister,
+                    discovered,
+                });
 
                 if v.mode().is_dir() {
                     if v.path() != de.path() {
@@ -756,33 +795,42 @@ impl ServicerFlatLister {
                 }
             }
 
-            let (de, lister) = match self.active_lister.last_mut() {
-                Some((de, lister)) => (de, lister),
+            let active = match self.active_lister.last_mut() {
+                Some(active) => active,
                 None => return Ok(None),
             };
 
-            match lister.next().await {
+            match active.lister.next().await {
                 Err(e) if e.kind() == ErrorKind::NotFound => {
                     log::warn!(
-                        "ServicerFlatLister skipping entry due to not found during recursive listing: {}",
-                        de.path()
+                        "ServicerFlatLister skipping directory due to not found during recursive listing: {}",
+                        active.entry.path()
                     );
+                    let _ = self.active_lister.pop();
+                    continue;
+                }
+                Err(e) if e.kind() == ErrorKind::PermissionDenied && active.discovered => {
+                    log::warn!(
+                        "ServicerFlatLister skipping directory due to permission denied during recursive listing: {}",
+                        active.entry.path()
+                    );
+                    let _ = self.active_lister.pop();
                     continue;
                 }
                 Err(e) => return Err(e),
                 Ok(Some(v)) if v.mode().is_dir() => {
-                    if v.path() != de.path() {
+                    if v.path() != active.entry.path() {
                         self.next_dir = Some(NextDir::Directory(PendingDir::Discovered(v)));
                         continue;
                     }
                 }
                 Ok(Some(v)) => return Ok(Some(v)),
                 Ok(None) => {
-                    let (de, _) = self
+                    let active = self
                         .active_lister
                         .pop()
                         .expect("the exhausted lister must still be active");
-                    return Ok(Some(de));
+                    return Ok(Some(active.entry));
                 }
             }
         }
@@ -2104,6 +2152,864 @@ mod tests {
             };
             assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
         }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn servicer_flat_lister_stops_polling_lister_after_not_found() -> Result<()> {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        #[derive(Debug, Clone)]
+        enum PageStep {
+            Entries(Vec<oio::Entry>, bool),
+            Err(ErrorKind),
+        }
+
+        struct ScriptedPageList {
+            steps: Arc<Mutex<std::collections::VecDeque<PageStep>>>,
+            calls: Arc<AtomicUsize>,
+        }
+
+        impl oio::PageList for ScriptedPageList {
+            async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
+                let count = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
+                assert!(count <= 3, "lister was re-polled {count} times after error");
+
+                let step = self
+                    .steps
+                    .lock()
+                    .expect("mutex must not poison")
+                    .pop_front()
+                    .unwrap_or(PageStep::Err(ErrorKind::NotFound));
+                match step {
+                    PageStep::Entries(entries, done) => {
+                        ctx.entries.extend(entries);
+                        ctx.done = done;
+                        Ok(())
+                    }
+                    PageStep::Err(kind) => {
+                        // Leave `ctx.done = false`, matching real `PageList` implementations.
+                        Err(Error::new(kind, "injected page error"))
+                    }
+                }
+            }
+        }
+
+        #[derive(Debug)]
+        struct PagedListService {
+            pages: HashMap<String, (Vec<PageStep>, Arc<AtomicUsize>)>,
+        }
+
+        impl Service for PagedListService {
+            type Reader = ();
+            type Writer = ();
+            type Lister = oio::PageLister<ScriptedPageList>;
+            type Deleter = ();
+            type Copier = ();
+            type Composer = ();
+
+            fn info(&self) -> ServiceInfo {
+                ServiceInfo::with_scheme("mock")
+            }
+
+            fn capability(&self) -> Capability {
+                Capability {
+                    list: true,
+                    list_with_recursive: false,
+                    ..Default::default()
+                }
+            }
+
+            fn list(&self, _: &OperationContext, path: &str, _: OpList) -> Result<Self::Lister> {
+                let (steps, calls) = self
+                    .pages
+                    .get(path)
+                    .cloned()
+                    .unwrap_or_else(|| (vec![PageStep::Entries(vec![], true)], Arc::default()));
+                Ok(oio::PageLister::new(ScriptedPageList {
+                    steps: Arc::new(Mutex::new(steps.into())),
+                    calls,
+                }))
+            }
+
+            async fn create_dir(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpCreateDir,
+            ) -> Result<RpCreateDir> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn copy(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpCopy,
+            ) -> Result<Self::Copier> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn rename(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpRename,
+            ) -> Result<RpRename> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn presign(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpPresign,
+            ) -> Result<RpPresign> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+        }
+
+        // 1. Discovered directory returns NotFound on its first async page.
+        let sub_calls = Arc::new(AtomicUsize::new(0));
+        let srv = Arc::new(PagedListService {
+            pages: HashMap::from([
+                (
+                    "/".to_string(),
+                    (
+                        vec![PageStep::Entries(
+                            vec![
+                                oio::Entry::new("sub/", MetadataBuilder::dir().build()),
+                                oio::Entry::new("b", MetadataBuilder::file(1).build()),
+                            ],
+                            true,
+                        )],
+                        Arc::default(),
+                    ),
+                ),
+                (
+                    "sub/".to_string(),
+                    (vec![PageStep::Err(ErrorKind::NotFound)], sub_calls.clone()),
+                ),
+            ]),
+        }) as Servicer;
+        let op = Operator::from_parts(OperationContext::new(), srv).layer(SimulateLayer::default());
+        let entries = op.list_with("/").recursive(true).await?;
+        let paths: Vec<_> = entries.iter().map(Entry::path).collect();
+        assert_eq!(paths, ["b", "/"]);
+        assert_eq!(sub_calls.load(Ordering::SeqCst), 1);
+
+        // 2. Active discovered directory yields page 1, then returns NotFound on page 2.
+        let sub_calls = Arc::new(AtomicUsize::new(0));
+        let srv = Arc::new(PagedListService {
+            pages: HashMap::from([
+                (
+                    "/".to_string(),
+                    (
+                        vec![PageStep::Entries(
+                            vec![
+                                oio::Entry::new("sub/", MetadataBuilder::dir().build()),
+                                oio::Entry::new("b", MetadataBuilder::file(1).build()),
+                            ],
+                            true,
+                        )],
+                        Arc::default(),
+                    ),
+                ),
+                (
+                    "sub/".to_string(),
+                    (
+                        vec![
+                            PageStep::Entries(
+                                vec![oio::Entry::new("sub/a", MetadataBuilder::file(1).build())],
+                                false,
+                            ),
+                            PageStep::Err(ErrorKind::NotFound),
+                        ],
+                        sub_calls.clone(),
+                    ),
+                ),
+            ]),
+        }) as Servicer;
+        let op = Operator::from_parts(OperationContext::new(), srv).layer(SimulateLayer::default());
+        let entries = op.list_with("/").recursive(true).await?;
+        let paths: Vec<_> = entries.iter().map(Entry::path).collect();
+        assert_eq!(paths, ["sub/a", "b", "/"]);
+        assert_eq!(sub_calls.load(Ordering::SeqCst), 2);
+
+        // 3. Initial directory returns NotFound on its first async page.
+        let missing_calls = Arc::new(AtomicUsize::new(0));
+        let srv = Arc::new(PagedListService {
+            pages: HashMap::from([(
+                "missing/".to_string(),
+                (
+                    vec![PageStep::Err(ErrorKind::NotFound)],
+                    missing_calls.clone(),
+                ),
+            )]),
+        }) as Servicer;
+        let op = Operator::from_parts(OperationContext::new(), srv).layer(SimulateLayer::default());
+        let entries = op.list_with("missing/").recursive(true).await?;
+        assert!(entries.is_empty());
+        assert_eq!(missing_calls.load(Ordering::SeqCst), 1);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn servicer_flat_lister_permission_denied_parity() -> Result<()> {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        #[derive(Debug, Clone)]
+        enum DirBehavior {
+            SyncDenied,
+            AsyncFirstDenied,
+            AsyncSecondDenied(Vec<oio::Entry>),
+            Entries(Vec<oio::Entry>),
+        }
+
+        struct ScriptedLister {
+            steps: std::collections::VecDeque<Result<Option<oio::Entry>>>,
+            calls: Arc<AtomicUsize>,
+        }
+
+        impl oio::List for ScriptedLister {
+            async fn next(&mut self) -> Result<Option<oio::Entry>> {
+                let count = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
+                assert!(count <= 4, "lister was polled {count} times");
+                self.steps.pop_front().unwrap_or(Ok(None))
+            }
+        }
+
+        #[derive(Debug)]
+        struct PermissionService {
+            dirs: HashMap<String, (DirBehavior, Arc<AtomicUsize>)>,
+        }
+
+        impl Service for PermissionService {
+            type Reader = ();
+            type Writer = ();
+            type Lister = ScriptedLister;
+            type Deleter = ();
+            type Copier = ();
+            type Composer = ();
+
+            fn info(&self) -> ServiceInfo {
+                ServiceInfo::with_scheme("mock")
+            }
+
+            fn capability(&self) -> Capability {
+                Capability {
+                    list: true,
+                    list_with_recursive: false,
+                    ..Default::default()
+                }
+            }
+
+            fn list(&self, _: &OperationContext, path: &str, _: OpList) -> Result<Self::Lister> {
+                let Some((behavior, calls)) = self.dirs.get(path).cloned() else {
+                    return Ok(ScriptedLister {
+                        steps: std::collections::VecDeque::new(),
+                        calls: Arc::default(),
+                    });
+                };
+                match behavior {
+                    DirBehavior::SyncDenied => Err(Error::new(
+                        ErrorKind::PermissionDenied,
+                        "sync permission denied",
+                    )),
+                    DirBehavior::AsyncFirstDenied => Ok(ScriptedLister {
+                        steps: std::collections::VecDeque::from([Err(Error::new(
+                            ErrorKind::PermissionDenied,
+                            "async permission denied on first poll",
+                        ))]),
+                        calls,
+                    }),
+                    DirBehavior::AsyncSecondDenied(entries) => {
+                        let mut steps: std::collections::VecDeque<_> =
+                            entries.into_iter().map(|e| Ok(Some(e))).collect();
+                        steps.push_back(Err(Error::new(
+                            ErrorKind::PermissionDenied,
+                            "async permission denied on second poll",
+                        )));
+                        Ok(ScriptedLister { steps, calls })
+                    }
+                    DirBehavior::Entries(entries) => Ok(ScriptedLister {
+                        steps: entries.into_iter().map(|e| Ok(Some(e))).collect(),
+                        calls,
+                    }),
+                }
+            }
+
+            async fn create_dir(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpCreateDir,
+            ) -> Result<RpCreateDir> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn copy(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpCopy,
+            ) -> Result<Self::Copier> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn rename(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpRename,
+            ) -> Result<RpRename> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn presign(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpPresign,
+            ) -> Result<RpPresign> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+        }
+
+        // Initial starting directory propagates PermissionDenied for sync, first-poll, and second-poll failures.
+        for behavior in [
+            DirBehavior::SyncDenied,
+            DirBehavior::AsyncFirstDenied,
+            DirBehavior::AsyncSecondDenied(vec![oio::Entry::new(
+                "forbidden/first",
+                MetadataBuilder::file(1).build(),
+            )]),
+        ] {
+            let srv = Arc::new(PermissionService {
+                dirs: HashMap::from([("forbidden/".to_string(), (behavior, Arc::default()))]),
+            }) as Servicer;
+            let op =
+                Operator::from_parts(OperationContext::new(), srv).layer(SimulateLayer::default());
+            let err = op
+                .list_with("forbidden/")
+                .recursive(true)
+                .await
+                .expect_err("initial directory must propagate PermissionDenied");
+            assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+        }
+
+        // Discovered subdirectory skips PermissionDenied for sync, first-poll, and second-poll failures.
+        let cases = [
+            (DirBehavior::SyncDenied, vec!["ok/file", "ok/", "/"], 0usize),
+            (
+                DirBehavior::AsyncFirstDenied,
+                vec!["ok/file", "ok/", "/"],
+                1usize,
+            ),
+            (
+                DirBehavior::AsyncSecondDenied(vec![oio::Entry::new(
+                    "forbidden/a",
+                    MetadataBuilder::file(1).build(),
+                )]),
+                vec!["forbidden/a", "ok/file", "ok/", "/"],
+                2usize,
+            ),
+        ];
+
+        for (behavior, expected_paths, expected_polls) in cases {
+            let calls = Arc::new(AtomicUsize::new(0));
+            let srv = Arc::new(PermissionService {
+                dirs: HashMap::from([
+                    (
+                        "/".to_string(),
+                        (
+                            DirBehavior::Entries(vec![
+                                oio::Entry::new("forbidden/", MetadataBuilder::dir().build()),
+                                oio::Entry::new("ok/", MetadataBuilder::dir().build()),
+                            ]),
+                            Arc::default(),
+                        ),
+                    ),
+                    ("forbidden/".to_string(), (behavior, calls.clone())),
+                    (
+                        "ok/".to_string(),
+                        (
+                            DirBehavior::Entries(vec![oio::Entry::new(
+                                "ok/file",
+                                MetadataBuilder::file(1).build(),
+                            )]),
+                            Arc::default(),
+                        ),
+                    ),
+                ]),
+            }) as Servicer;
+            let op =
+                Operator::from_parts(OperationContext::new(), srv).layer(SimulateLayer::default());
+            let entries = op.list_with("/").recursive(true).await?;
+            let paths: Vec<_> = entries.iter().map(Entry::path).collect();
+            assert_eq!(paths, expected_paths);
+            assert_eq!(calls.load(Ordering::SeqCst), expected_polls);
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn simulate_reader_suffix_validates_stat_capability() -> Result<()> {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        #[derive(Debug)]
+        struct VersionedSuffixService {
+            capability: Capability,
+            stat_calls: Arc<AtomicUsize>,
+            observed_stat_versions: Arc<Mutex<Vec<Option<String>>>>,
+        }
+
+        struct VersionedReader {
+            data: bytes::Bytes,
+        }
+
+        impl oio::StreamRead for VersionedReader {
+            async fn open(
+                &self,
+                range: BytesRange,
+            ) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+                let content_range = range.to_content_range(self.data.len())?;
+                Ok((
+                    RpRead::new(MetadataBuilder::file(self.data.len() as u64).build()),
+                    Box::new(Buffer::from(self.data.slice(content_range)))
+                        as Box<dyn oio::ReadStreamDyn>,
+                ))
+            }
+        }
+
+        impl Service for VersionedSuffixService {
+            type Reader = oio::StreamReader<VersionedReader>;
+            type Writer = ();
+            type Lister = ();
+            type Deleter = ();
+            type Copier = ();
+            type Composer = ();
+
+            fn info(&self) -> ServiceInfo {
+                ServiceInfo::with_scheme("mock")
+            }
+
+            fn capability(&self) -> Capability {
+                self.capability
+            }
+
+            async fn stat(&self, _: &OperationContext, _: &str, args: OpStat) -> Result<RpStat> {
+                self.stat_calls.fetch_add(1, Ordering::SeqCst);
+                self.observed_stat_versions
+                    .lock()
+                    .expect("mutex must not poison")
+                    .push(args.version().map(str::to_owned));
+                let len = match args.version() {
+                    Some("v1") => 10,
+                    _ => 4,
+                };
+                Ok(RpStat::new(MetadataBuilder::file(len).build()))
+            }
+
+            fn read(&self, _: &OperationContext, _: &str, args: OpRead) -> Result<Self::Reader> {
+                let data = match args.version() {
+                    Some("v1") => bytes::Bytes::from_static(b"0123456789"),
+                    _ => bytes::Bytes::from_static(b"ABCD"),
+                };
+                Ok(oio::StreamReader::new(VersionedReader { data }))
+            }
+
+            async fn create_dir(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpCreateDir,
+            ) -> Result<RpCreateDir> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn copy(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpCopy,
+            ) -> Result<Self::Copier> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn rename(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpRename,
+            ) -> Result<RpRename> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn presign(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpPresign,
+            ) -> Result<RpPresign> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+        }
+
+        let ctx = OperationContext::new();
+
+        // 1. read_with_version && !stat_with_version rejects suffix reads instead of stat-ing current version.
+        let stat_calls = Arc::new(AtomicUsize::new(0));
+        let srv = Arc::new(VersionedSuffixService {
+            capability: Capability {
+                read: true,
+                read_with_version: true,
+                read_with_suffix: false,
+                stat: true,
+                stat_with_version: false,
+                ..Default::default()
+            },
+            stat_calls: stat_calls.clone(),
+            observed_stat_versions: Arc::default(),
+        }) as Servicer;
+        let sim = SimulateLayer::default().apply_service(srv);
+        let (_, args, _) = options::ReadOptions {
+            version: Some("v1".to_string()),
+            ..Default::default()
+        }
+        .into();
+        let reader = sim.read_dyn(&ctx, "f", args)?;
+        let err = reader
+            .read_dyn(BytesRange::suffix(4))
+            .await
+            .expect_err("versioned suffix read without stat_with_version must fail");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        let err = reader
+            .open_dyn(BytesRange::suffix(4))
+            .await
+            .err()
+            .expect("versioned suffix open without stat_with_version must fail");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert_eq!(stat_calls.load(Ordering::SeqCst), 0);
+
+        // 2. !stat rejects suffix reads without content_length_hint without calling stat.
+        let stat_calls = Arc::new(AtomicUsize::new(0));
+        let srv = Arc::new(VersionedSuffixService {
+            capability: Capability {
+                read: true,
+                read_with_suffix: false,
+                stat: false,
+                ..Default::default()
+            },
+            stat_calls: stat_calls.clone(),
+            observed_stat_versions: Arc::default(),
+        }) as Servicer;
+        let sim = SimulateLayer::default().apply_service(srv);
+        let reader = sim.read_dyn(&ctx, "f", OpRead::new())?;
+        let err = reader
+            .read_dyn(BytesRange::suffix(2))
+            .await
+            .expect_err("suffix read without stat capability must fail");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert_eq!(stat_calls.load(Ordering::SeqCst), 0);
+
+        // 3. read_with_version && stat_with_version forwards version to stat and reads historical suffix.
+        let stat_calls = Arc::new(AtomicUsize::new(0));
+        let observed_versions = Arc::new(Mutex::new(Vec::new()));
+        let srv = Arc::new(VersionedSuffixService {
+            capability: Capability {
+                read: true,
+                read_with_version: true,
+                read_with_suffix: false,
+                stat: true,
+                stat_with_version: true,
+                ..Default::default()
+            },
+            stat_calls: stat_calls.clone(),
+            observed_stat_versions: observed_versions.clone(),
+        }) as Servicer;
+        let sim = SimulateLayer::default().apply_service(srv);
+        let (_, args, _) = options::ReadOptions {
+            version: Some("v1".to_string()),
+            ..Default::default()
+        }
+        .into();
+        let reader = sim.read_dyn(&ctx, "f", args)?;
+        let (_, buf) = reader.read_dyn(BytesRange::suffix(4)).await?;
+        assert_eq!(buf.to_bytes(), &b"6789"[..]);
+        assert_eq!(stat_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            *observed_versions.lock().expect("mutex must not poison"),
+            vec![Some("v1".to_string())]
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn simulate_delete_recursive_capability_and_version_handling() -> Result<()> {
+        type DeletedRecords = Arc<Mutex<Vec<(String, Option<String>)>>>;
+
+        struct VersionedListAndDelete {
+            capability: Capability,
+            entries: Vec<oio::Entry>,
+            deleted: DeletedRecords,
+        }
+
+        struct VecLister(std::collections::VecDeque<oio::Entry>);
+
+        impl oio::List for VecLister {
+            async fn next(&mut self) -> Result<Option<oio::Entry>> {
+                Ok(self.0.pop_front())
+            }
+        }
+
+        struct RecordingDeleter {
+            deleted: DeletedRecords,
+        }
+
+        impl oio::Delete for RecordingDeleter {
+            async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+                self.deleted
+                    .lock()
+                    .expect("mutex must not poison")
+                    .push((path.to_string(), args.version().map(str::to_owned)));
+                Ok(())
+            }
+
+            async fn close(&mut self) -> Result<()> {
+                Ok(())
+            }
+        }
+
+        impl Debug for VersionedListAndDelete {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                f.debug_struct("VersionedListAndDelete").finish()
+            }
+        }
+
+        impl Service for VersionedListAndDelete {
+            type Reader = ();
+            type Writer = ();
+            type Lister = VecLister;
+            type Deleter = RecordingDeleter;
+            type Copier = ();
+            type Composer = ();
+
+            fn info(&self) -> ServiceInfo {
+                ServiceInfo::with_scheme("mock")
+            }
+
+            fn capability(&self) -> Capability {
+                self.capability
+            }
+
+            fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+                Ok(VecLister(self.entries.clone().into()))
+            }
+
+            fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+                Ok(RecordingDeleter {
+                    deleted: self.deleted.clone(),
+                })
+            }
+
+            async fn create_dir(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpCreateDir,
+            ) -> Result<RpCreateDir> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn copy(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpCopy,
+            ) -> Result<Self::Copier> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn rename(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpRename,
+            ) -> Result<RpRename> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn presign(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpPresign,
+            ) -> Result<RpPresign> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+        }
+
+        let mut meta = MetadataBuilder::file(4);
+        meta.version("g1");
+        let versioned_entry = oio::Entry::new("dir/a", meta.build());
+
+        // 1. Disabling list_recursive on a non-recursive service must not advertise delete_with_recursive.
+        let deleted = Arc::new(Mutex::new(Vec::new()));
+        let srv = Arc::new(VersionedListAndDelete {
+            capability: Capability {
+                list: true,
+                list_with_recursive: false,
+                delete: true,
+                delete_with_recursive: false,
+                ..Default::default()
+            },
+            entries: vec![versioned_entry.clone()],
+            deleted: deleted.clone(),
+        }) as Servicer;
+        let op = Operator::from_parts(OperationContext::new(), srv)
+            .layer(SimulateLayer::default().with_list_recursive(false));
+        assert!(!op.info().capability().delete_with_recursive);
+        let err = op
+            .delete_with("dir/")
+            .recursive(true)
+            .await
+            .expect_err("recursive delete without recursive list must fail");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(deleted.lock().expect("mutex must not poison").is_empty());
+
+        // 2. Native list_with_recursive still allows simulated delete_with_recursive when list_recursive simulation is off.
+        let srv = Arc::new(VersionedListAndDelete {
+            capability: Capability {
+                list: true,
+                list_with_recursive: true,
+                delete: true,
+                delete_with_recursive: false,
+                ..Default::default()
+            },
+            entries: vec![versioned_entry.clone()],
+            deleted: Arc::default(),
+        }) as Servicer;
+        let op = Operator::from_parts(OperationContext::new(), srv)
+            .layer(SimulateLayer::default().with_list_recursive(false));
+        assert!(op.info().capability().delete_with_recursive);
+
+        // 3. When delete_with_version is false, listed entry versions must not be attached to deletes.
+        let deleted = Arc::new(Mutex::new(Vec::new()));
+        let srv = Arc::new(VersionedListAndDelete {
+            capability: Capability {
+                list: true,
+                list_with_recursive: true,
+                delete: true,
+                delete_with_recursive: false,
+                delete_with_version: false,
+                ..Default::default()
+            },
+            entries: vec![versioned_entry.clone()],
+            deleted: deleted.clone(),
+        }) as Servicer;
+        let op = Operator::from_parts(OperationContext::new(), srv).layer(SimulateLayer::default());
+        op.delete_with("dir/").recursive(true).await?;
+        assert_eq!(
+            *deleted.lock().expect("mutex must not poison"),
+            vec![("dir/a".to_string(), None)]
+        );
+
+        // 4. When delete_with_version is true, attach listed entry version unless an explicit version was already set.
+        let deleted = Arc::new(Mutex::new(Vec::new()));
+        let srv = Arc::new(VersionedListAndDelete {
+            capability: Capability {
+                list: true,
+                list_with_recursive: true,
+                delete: true,
+                delete_with_recursive: false,
+                delete_with_version: true,
+                ..Default::default()
+            },
+            entries: vec![versioned_entry],
+            deleted: deleted.clone(),
+        }) as Servicer;
+        let op = Operator::from_parts(OperationContext::new(), srv).layer(SimulateLayer::default());
+        op.delete_with("dir/").recursive(true).await?;
+        op.delete_with("dir/")
+            .recursive(true)
+            .version("explicit-v")
+            .await?;
+        assert_eq!(
+            *deleted.lock().expect("mutex must not poison"),
+            vec![
+                ("dir/a".to_string(), Some("g1".to_string())),
+                ("dir/a".to_string(), Some("explicit-v".to_string())),
+            ]
+        );
 
         Ok(())
     }

@@ -60,6 +60,16 @@ impl opendal_core::Configurator for HttpConfig {
             );
         }
 
+        if let Some(username) = uri.username() {
+            map.entry("username".to_string())
+                .or_insert_with(|| username.to_string());
+        }
+
+        if let Some(password) = uri.password() {
+            map.entry("password".to_string())
+                .or_insert_with(|| password.to_string());
+        }
+
         if let Some(root) = uri.root() {
             map.insert("root".to_string(), root.to_string());
         }
@@ -156,5 +166,78 @@ mod tests {
         let uri = OperatorUri::new("https://example.com", Vec::<(String, String)>::new()).unwrap();
         let cfg = HttpConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.endpoint.as_deref(), Some("https://example.com"));
+    }
+
+    #[test]
+    fn from_uri_extracts_credentials() {
+        let uri = OperatorUri::new(
+            "https://alice:secret@example.com/static",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = HttpConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("https://example.com"));
+        assert_eq!(cfg.root.as_deref(), Some("static"));
+        assert_eq!(cfg.username.as_deref(), Some("alice"));
+        assert_eq!(cfg.password.as_deref(), Some("secret"));
+
+        let encoded = OperatorUri::new(
+            "https://alice%40corp:p%40ss%3Aword@example.com/static",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = HttpConfig::from_uri(&encoded).unwrap();
+        assert_eq!(cfg.username.as_deref(), Some("alice@corp"));
+        assert_eq!(cfg.password.as_deref(), Some("p@ss:word"));
+
+        let user_only = OperatorUri::new(
+            "https://alice@example.com/static",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = HttpConfig::from_uri(&user_only).unwrap();
+        assert_eq!(cfg.username.as_deref(), Some("alice"));
+        assert!(cfg.password.is_none());
+    }
+
+    #[test]
+    fn from_uri_respects_explicit_credential_overrides() {
+        let uri = OperatorUri::new(
+            "https://alice:uri-secret@example.com/static",
+            vec![
+                ("username".to_string(), "bob".to_string()),
+                ("password".to_string(), "opt-secret".to_string()),
+            ],
+        )
+        .unwrap();
+        let cfg = HttpConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.username.as_deref(), Some("bob"));
+        assert_eq!(cfg.password.as_deref(), Some("opt-secret"));
+
+        let query_uri = OperatorUri::new(
+            "https://alice:uri-secret@example.com/static?username=carol&password=query-secret",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = HttpConfig::from_uri(&query_uri).unwrap();
+        assert_eq!(cfg.username.as_deref(), Some("carol"));
+        assert_eq!(cfg.password.as_deref(), Some("query-secret"));
+    }
+
+    #[test]
+    fn operator_from_uri_credentials_disable_presign() {
+        register_http();
+
+        let authed = Operator::from_uri("https://alice:secret@example.com/static").unwrap();
+        let authed_cap = authed.info().capability();
+        assert!(!authed_cap.presign);
+        assert!(!authed_cap.presign_read);
+        assert!(!authed_cap.presign_stat);
+
+        let unauthed = Operator::from_uri("https://example.com/static").unwrap();
+        let unauthed_cap = unauthed.info().capability();
+        assert!(unauthed_cap.presign);
+        assert!(unauthed_cap.presign_read);
+        assert!(unauthed_cap.presign_stat);
     }
 }

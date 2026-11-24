@@ -95,13 +95,30 @@ impl PostgresqlBuilder {
     }
 }
 
+fn validate_identifier(name: &str, value: &str) -> Result<()> {
+    if value.is_empty() {
+        return Err(
+            Error::new(ErrorKind::ConfigInvalid, format!("{name} is empty"))
+                .with_context("service", POSTGRESQL_SCHEME),
+        );
+    }
+    if value.contains('\0') {
+        return Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            format!("{name} must not contain NUL bytes"),
+        )
+        .with_context("service", POSTGRESQL_SCHEME));
+    }
+    Ok(())
+}
+
 impl Builder for PostgresqlBuilder {
     type Config = PostgresqlConfig;
 
     fn build(self) -> Result<impl Service> {
         let conn = match self.config.connection_string {
-            Some(v) => v,
-            None => {
+            Some(v) if !v.trim().is_empty() => v,
+            _ => {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "connection_string is empty")
                         .with_context("service", POSTGRESQL_SCHEME),
@@ -122,13 +139,16 @@ impl Builder for PostgresqlBuilder {
                     .with_context("service", POSTGRESQL_SCHEME));
             }
         };
+        validate_identifier("table", &table)?;
 
         let key_field = self.config.key_field.unwrap_or_else(|| "key".to_string());
+        validate_identifier("key_field", &key_field)?;
 
         let value_field = self
             .config
             .value_field
             .unwrap_or_else(|| "value".to_string());
+        validate_identifier("value_field", &value_field)?;
 
         let root = normalize_root(self.config.root.unwrap_or_else(|| "/".to_string()).as_str());
 
@@ -303,5 +323,118 @@ impl Service for PostgresqlBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn valid_config() -> PostgresqlConfig {
+        PostgresqlConfig {
+            connection_string: Some("postgresql://user:pass@127.0.0.1:5432/testdb".to_string()),
+            table: Some("data".to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn build_rejects_empty_and_whitespace_connection_string() {
+        for config in [
+            PostgresqlConfig {
+                connection_string: None,
+                ..valid_config()
+            },
+            PostgresqlConfig {
+                connection_string: Some(String::new()),
+                ..valid_config()
+            },
+            PostgresqlConfig {
+                connection_string: Some("   \t\n ".to_string()),
+                ..valid_config()
+            },
+        ] {
+            let err = config.into_builder().build().unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+
+        for builder in [
+            PostgresqlBuilder::default()
+                .connection_string("")
+                .table("data"),
+            PostgresqlBuilder::default()
+                .connection_string("   ")
+                .table("data"),
+        ] {
+            let err = builder.build().unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+    }
+
+    #[test]
+    fn build_rejects_empty_and_nul_identifiers() {
+        for config in [
+            PostgresqlConfig {
+                table: None,
+                ..valid_config()
+            },
+            PostgresqlConfig {
+                table: Some(String::new()),
+                ..valid_config()
+            },
+            PostgresqlConfig {
+                key_field: Some(String::new()),
+                ..valid_config()
+            },
+            PostgresqlConfig {
+                value_field: Some(String::new()),
+                ..valid_config()
+            },
+            PostgresqlConfig {
+                table: Some("data\0bad".to_string()),
+                ..valid_config()
+            },
+            PostgresqlConfig {
+                key_field: Some("key\0bad".to_string()),
+                ..valid_config()
+            },
+            PostgresqlConfig {
+                value_field: Some("val\0bad".to_string()),
+                ..valid_config()
+            },
+        ] {
+            let err = config.into_builder().build().unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+
+        for builder in [
+            PostgresqlBuilder::default()
+                .connection_string("postgresql://user:pass@127.0.0.1:5432/testdb")
+                .table(""),
+            PostgresqlBuilder::default()
+                .connection_string("postgresql://user:pass@127.0.0.1:5432/testdb")
+                .table("data\0bad"),
+            PostgresqlBuilder::default()
+                .connection_string("postgresql://user:pass@127.0.0.1:5432/testdb")
+                .table("data")
+                .key_field("key\0bad"),
+            PostgresqlBuilder::default()
+                .connection_string("postgresql://user:pass@127.0.0.1:5432/testdb")
+                .table("data")
+                .value_field("val\0bad"),
+        ] {
+            let err = builder.build().unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+    }
+
+    #[test]
+    fn build_preserves_unquoted_table_name_in_service_info() {
+        let config = PostgresqlConfig {
+            table: Some("my\"table".to_string()),
+            ..valid_config()
+        };
+        let service = config.into_builder().build().unwrap();
+        assert_eq!(service.info().name().as_ref(), "my\"table");
     }
 }

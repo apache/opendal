@@ -814,8 +814,9 @@ impl AzblobCore {
         self.send(ctx, req).await
     }
 
-    pub(crate) fn azblob_copy_blob_request(
+    pub async fn azblob_copy_blob_request(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: &OpCopy,
@@ -826,10 +827,28 @@ impl AzblobCore {
                 .push("versionid", &percent_encode_path(version))
                 .finish();
         }
+        let mut source_header = build_header_value(&source)?;
+        if !self.skip_signature {
+            // Only a SAS credential changes the URI; shared key and bearer
+            // token authorize the source through the destination request.
+            let (mut parts, ()) = Request::get(&source)
+                .body(())
+                .map_err(new_request_build_error)?
+                .into_parts();
+            let unsigned = parts.uri.clone();
+            self.signer(ctx)
+                .sign(&mut parts, None)
+                .await
+                .map_err(|e| new_request_sign_error(e.into()))?;
+            if parts.uri != unsigned {
+                source_header = build_header_value(&parts.uri.to_string())?;
+                source_header.set_sensitive(true);
+            }
+        }
         let target = self.build_path_url(to);
 
         let mut req = Request::put(&target)
-            .header(constants::X_MS_COPY_SOURCE, source)
+            .header(constants::X_MS_COPY_SOURCE, source_header)
             .header(CONTENT_LENGTH, 0);
 
         // Set SSE headers.
@@ -845,13 +864,10 @@ impl AzblobCore {
             req = req.header(IF_MATCH, if_match);
         }
 
-        let req = req
-            .extension(Operation::Copy)
+        req.extension(Operation::Copy)
             .extension(ServiceOperation("CopyBlob"))
             .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
-        Ok(req)
+            .map_err(new_request_build_error)
     }
 
     pub async fn azblob_copy_blob(
@@ -861,7 +877,7 @@ impl AzblobCore {
         to: &str,
         args: OpCopy,
     ) -> Result<Response<Buffer>> {
-        let req = self.azblob_copy_blob_request(from, to, &args)?;
+        let req = self.azblob_copy_blob_request(ctx, from, to, &args).await?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
@@ -1008,6 +1024,53 @@ mod tests {
             request_signer: Arc::new(RequestSigner::new()),
             signers: HttpTransportCache::new(),
         }
+    }
+
+    #[tokio::test]
+    async fn test_copy_blob_source_carries_only_sas_credential() {
+        let copy_source = async |credential: StaticCredentialProvider, args: OpCopy| {
+            let core = AzblobCore {
+                skip_signature: false,
+                credential_provider: Arc::new(credential),
+                ..test_core()
+            };
+            let req = core
+                .azblob_copy_blob_request(&OperationContext::default(), "a", "b", &args)
+                .await
+                .expect("must build");
+            let source = &req.headers()[constants::X_MS_COPY_SOURCE];
+            (source.to_str().unwrap().to_string(), source.is_sensitive())
+        };
+        let sas = || StaticCredentialProvider::new_sas_token("sv=x&sig=y");
+        let url = "https://acc.blob.core.windows.net/c/a";
+
+        assert_eq!(
+            copy_source(
+                StaticCredentialProvider::new_shared_key("acc", "a2V5"),
+                OpCopy::new()
+            )
+            .await,
+            (url.to_string(), false)
+        );
+        assert_eq!(
+            copy_source(sas(), OpCopy::new()).await,
+            (format!("{url}?sv=x&sig=y"), true)
+        );
+        let versioned = OpCopy::from_options(
+            &Capability {
+                copy_with_source_version: true,
+                ..Default::default()
+            },
+            options::CopyOptions {
+                source_version: Some("v1".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            copy_source(sas(), versioned).await,
+            (format!("{url}?versionid=v1&sv=x&sig=y"), true)
+        );
     }
 
     #[test]
@@ -1322,15 +1385,21 @@ mod tests {
         assert!(second.headers().get(IF_NONE_MATCH).is_none());
     }
 
-    #[test]
-    fn copy_blob_request_includes_sse_headers() {
+    #[tokio::test]
+    async fn copy_blob_request_includes_sse_headers() {
         let mut core = test_core();
         core.encryption_key = Some(HeaderValue::from_static("dGVzdGtleQ=="));
         core.encryption_key_sha256 = Some(HeaderValue::from_static("c2hhMjU2"));
         core.encryption_algorithm = Some(HeaderValue::from_static("AES256"));
 
         let req = core
-            .azblob_copy_blob_request("src.txt", "dst.txt", &OpCopy::default())
+            .azblob_copy_blob_request(
+                &OperationContext::default(),
+                "src.txt",
+                "dst.txt",
+                &OpCopy::default(),
+            )
+            .await
             .expect("copy request must build");
 
         let key = req
@@ -1355,8 +1424,8 @@ mod tests {
         assert!(alg.is_sensitive());
     }
 
-    #[test]
-    fn if_not_exists_and_if_none_match_do_not_emit_duplicate_header() {
+    #[tokio::test]
+    async fn if_not_exists_and_if_none_match_do_not_emit_duplicate_header() {
         let core = test_core();
         let (write_args, _) = OpWrite::from_options(
             &Capability {
@@ -1399,8 +1468,14 @@ mod tests {
         .expect("copy options must lower");
 
         for req in [
-            core.azblob_copy_blob_request("a.txt", "b.txt", &copy_args)
-                .expect("copy blob request must build"),
+            core.azblob_copy_blob_request(
+                &OperationContext::default(),
+                "a.txt",
+                "b.txt",
+                &copy_args,
+            )
+            .await
+            .expect("copy blob request must build"),
             core.azblob_complete_copy_block_list_request("b.txt", vec![Uuid::nil()], &copy_args)
                 .expect("copy block list request must build"),
         ] {

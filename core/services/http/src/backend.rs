@@ -106,8 +106,8 @@ impl Builder for HttpBuilder {
         debug!("backend build started: {:?}", self);
 
         let endpoint = match &self.config.endpoint {
-            Some(v) if !v.is_empty() => v,
-            _ => {
+            Some(v) => v,
+            None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                     .with_context("service", HTTP_SCHEME));
             }

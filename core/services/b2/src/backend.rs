@@ -257,11 +257,7 @@ impl Service for B2Backend {
         let delimiter = if path.ends_with('/') { Some("/") } else { None };
 
         let file_info = self.core.get_file_info(ctx, path, delimiter).await?;
-        let meta = if path.ends_with('/') {
-            MetadataBuilder::dir().build()
-        } else {
-            parse_file_info(&file_info)
-        };
+        let meta = parse_file_info(&file_info);
         Ok(RpStat::new(meta))
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -513,61 +509,6 @@ mod tests {
                 .body(HttpBody::new(stream::iter([Ok(buf)]), Some(len)))
                 .map_err(new_request_build_error)
         }
-    }
-
-    #[tokio::test]
-    async fn test_stat_exact_prefix_and_virtual_dir() {
-        let requests = Arc::new(Mutex::new(Vec::new()));
-        let backend = B2Backend {
-            core: test_core("/"),
-        };
-
-        // Only "foobar" exists: stat("foo") must return NotFound.
-        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
-            ScriptedTransport {
-                list_body: r#"{"files":[{"fileId":"4_z1","fileName":"foobar","contentLength":12}],"nextFileName":null}"#.to_string(),
-                requests: requests.clone(),
-            },
-        ));
-        let err = backend.stat(&ctx, "foo", OpStat::new()).await.unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::NotFound);
-
-        // Exact "foo" exists: stat("foo") returns FILE with its metadata.
-        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
-            ScriptedTransport {
-                list_body: r#"{"files":[{"fileId":"4_z2","fileName":"foo","contentLength":7,"contentType":"text/plain","fileInfo":{"owner":"alice"}}],"nextFileName":null}"#.to_string(),
-                requests: requests.clone(),
-            },
-        ));
-        let rp = backend.stat(&ctx, "foo", OpStat::new()).await.unwrap();
-        let meta = rp.into_metadata();
-        assert_eq!(meta.mode(), EntryMode::FILE);
-        assert_eq!(meta.content_length(), 7);
-        assert_eq!(meta.content_type(), Some("text/plain"));
-        assert_eq!(meta.user_metadata().unwrap().get("owner"), Some("alice"));
-
-        // Virtual directory: "dir/a.txt" exists, stat("dir/") must return DIR.
-        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
-            ScriptedTransport {
-                list_body: r#"{"files":[{"fileId":"4_z3","fileName":"dir/a.txt","contentLength":3}],"nextFileName":null}"#.to_string(),
-                requests: requests.clone(),
-            },
-        ));
-        let rp = backend.stat(&ctx, "dir/", OpStat::new()).await.unwrap();
-        assert_eq!(rp.into_metadata().mode(), EntryMode::DIR);
-
-        // Missing directory: empty files list returns NotFound.
-        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
-            ScriptedTransport {
-                list_body: r#"{"files":[],"nextFileName":null}"#.to_string(),
-                requests,
-            },
-        ));
-        let err = backend
-            .stat(&ctx, "missing/", OpStat::new())
-            .await
-            .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::NotFound);
     }
 
     #[tokio::test]

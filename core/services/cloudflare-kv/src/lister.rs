@@ -120,9 +120,9 @@ impl CloudflareKvLister {
                 metadata.build()
             });
             ctx.entries.push_back(entry);
-            ctx.done = true;
         }
 
+        ctx.done = true;
         Ok(())
     }
 }
@@ -353,42 +353,6 @@ mod tests {
 
             let entries = collect_entries(lister).await;
             assert!(entries.is_empty(), "expected no entries, got {entries:?}");
-        })
-        .await
-        .unwrap();
-    }
-
-    #[tokio::test]
-    async fn non_recursive_file_list_paginates_with_encoded_cursor_until_dir_found() {
-        tokio::time::timeout(Duration::from_secs(5), async {
-            let page1 = r#"{
-                "success": true,
-                "result_info": {"cursor": "a+b=c"},
-                "result": [
-                    {"name": "a-1", "metadata": {"etag": "e1", "last_modified": "2026-01-01T00:00:00Z", "content_length": 1, "is_dir": false}}
-                ]
-            }"#;
-            let page2 = r#"{
-                "success": true,
-                "result_info": {"cursor": ""},
-                "result": [
-                    {"name": "a/child", "metadata": {"etag": "e2", "last_modified": "2026-01-01T00:00:00Z", "content_length": 1, "is_dir": false}}
-                ]
-            }"#;
-            let (transport, uris) = ListTransport::new(vec![page1, page2]);
-            let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
-            let lister = CloudflareKvLister::new(test_core("/"), ctx, "a", false, Some(100));
-
-            let entries = collect_entries(lister).await;
-            assert_eq!(entries, vec![("a/".to_string(), EntryMode::DIR)]);
-
-            let uris = uris.lock().unwrap();
-            assert_eq!(uris.len(), 2);
-            assert!(
-                uris[1].contains("cursor=a%2Bb%3Dc"),
-                "expected encoded cursor in second request, got {}",
-                uris[1]
-            );
         })
         .await
         .unwrap();

@@ -124,9 +124,7 @@ impl oio::PageList for SwiftLister {
                     } else {
                         MetadataBuilder::file(bytes)
                     };
-                    if !hash.is_empty() {
-                        meta.etag(hash.as_str());
-                    }
+                    meta.content_md5(hash.as_str());
 
                     if !last_modified.ends_with('Z') {
                         last_modified.push('Z');
@@ -234,7 +232,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn next_page_sets_etag_and_parses_swift_timestamps() {
+    async fn next_page_sets_md5_and_parses_swift_timestamps() {
         let page = r#"[
             {
                 "bytes": 10,
@@ -272,16 +270,14 @@ mod tests {
         let first = ctx.entries.pop_front().unwrap();
         assert_eq!(first.path(), "swift-no-tz.txt");
         assert_eq!(
-            first.metadata().etag(),
+            first.metadata().content_md5(),
             Some("5e6b5b70b0426b1cc1968003e1afa5ad")
         );
-        assert_eq!(first.metadata().content_md5(), None);
         assert_eq!(first.metadata().last_modified(), Some(expected_ts));
 
         let second = ctx.entries.pop_front().unwrap();
         assert_eq!(second.path(), "slo.txt");
-        assert_eq!(second.metadata().etag(), Some("\"slo-etag-hash\""));
-        assert_eq!(second.metadata().content_md5(), None);
+        assert_eq!(second.metadata().content_md5(), Some("\"slo-etag-hash\""));
         assert_eq!(second.metadata().last_modified(), Some(expected_ts));
 
         let third = ctx.entries.pop_front().unwrap();

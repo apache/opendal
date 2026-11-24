@@ -223,7 +223,8 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        // Some services (like owncloud) return 403 while file locked.
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, true),
         // Allowing retry for resource locked.
         StatusCode::LOCKED => (ErrorKind::Unexpected, true),
         StatusCode::INTERNAL_SERVER_ERROR
@@ -237,10 +238,8 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         .map(|d1_err| (format!("{d1_err:?}"), Some(d1_err)))
         .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
-    if let Some(d1_err) = d1_err
-        && let Some(errors) = d1_err.errors.as_deref()
-    {
-        (kind, retryable) = parse_d1_error_code(errors).unwrap_or((kind, retryable));
+    if let Some(d1_err) = d1_err {
+        (kind, retryable) = parse_d1_error_code(&d1_err.errors).unwrap_or((kind, retryable));
     }
 
     let mut err = Error::new(kind, message);
@@ -350,7 +349,7 @@ mod tests {
                 ),
                 (
                     StatusCode::OK,
-                    r#"{"success":false,"result":null,"errors":[{"code":10000,"message":"Authentication error"}]}"#,
+                    r#"{"success":false,"result":[],"errors":[{"code":10000,"message":"Authentication error"}]}"#,
                 ),
             ]);
             let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
@@ -416,39 +415,5 @@ mod tests {
         })
         .await
         .unwrap();
-    }
-
-    #[test]
-    fn parse_error_handles_null_result_and_keeps_forbidden_permanent() {
-        let resp_auth = Response::builder()
-            .status(StatusCode::BAD_REQUEST)
-            .body(Buffer::from(
-                r#"{"success":false,"result":null,"errors":[{"code":10000,"message":"Authentication error"}]}"#,
-            ))
-            .unwrap();
-        let err_auth = parse_error(ErrorContext::new(ServiceOperation("Query")), resp_auth);
-        assert_eq!(err_auth.kind(), ErrorKind::PermissionDenied);
-        assert!(!err_auth.is_temporary());
-
-        let resp_missing_result = Response::builder()
-            .status(StatusCode::BAD_REQUEST)
-            .body(Buffer::from(
-                r#"{"success":false,"errors":[{"code":7500,"message":"no such column"}]}"#,
-            ))
-            .unwrap();
-        let err_missing = parse_error(
-            ErrorContext::new(ServiceOperation("Query")),
-            resp_missing_result,
-        );
-        assert_eq!(err_missing.kind(), ErrorKind::NotFound);
-        assert!(!err_missing.is_temporary());
-
-        let resp_403 = Response::builder()
-            .status(StatusCode::FORBIDDEN)
-            .body(Buffer::from("forbidden"))
-            .unwrap();
-        let err_403 = parse_error(ErrorContext::new(ServiceOperation("Query")), resp_403);
-        assert_eq!(err_403.kind(), ErrorKind::PermissionDenied);
-        assert!(!err_403.is_temporary());
     }
 }

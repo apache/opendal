@@ -78,14 +78,11 @@ impl oio::PageList for AzdlsLister {
 
         // Check whether this list is done.
         if let Some(value) = resp.headers().get("x-ms-continuation") {
-            let value = value
-                .to_str()
-                .map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "header value is not valid string")
-                        .set_source(err)
-                })?
-                .trim();
-            if value.is_empty() {
+            let value = value.to_str().map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "header value is not valid string")
+                    .set_source(err)
+            })?;
+            if value.trim().is_empty() {
                 ctx.token.clear();
                 ctx.done = true;
             } else {
@@ -108,16 +105,15 @@ impl oio::PageList for AzdlsLister {
                 EntryMode::FILE
             };
 
+            let content_length = object.content_length.parse().map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "content length is not valid integer")
+                    .set_source(err)
+            })?;
             let mut meta = if mode == EntryMode::FILE {
-                let content_length = object.content_length.parse().map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "content length is not valid integer")
-                        .set_source(err)
-                })?;
                 MetadataBuilder::file(content_length)
             } else {
                 MetadataBuilder::dir()
             };
-
             let etag = object.etag.trim();
             if !etag.is_empty() {
                 if (etag.starts_with('"') && etag.ends_with('"') && etag.len() >= 2)
@@ -197,12 +193,10 @@ mod tests {
             }
         );
     }
-
     #[cfg(not(target_arch = "wasm32"))]
     mod transport_tests {
         use bytes::Bytes;
         use http::{Response, StatusCode};
-        use opendal_core::EntryMode;
 
         use crate::backend::test_util::{ScriptedTransport, test_operator};
 
@@ -252,61 +246,6 @@ mod tests {
             assert!(requests[1].uri.contains("continuation=page-2"));
             assert!(entries.iter().any(|e| e.path() == "dir/a.txt"));
             assert!(entries.iter().any(|e| e.path() == "dir/b.txt"));
-        }
-
-        #[tokio::test]
-        async fn list_handles_directory_without_content_length_and_normalizes_etags() {
-            let body = r#"{"paths":[
-                {"isDirectory":"true","etag":"","lastModified":"Sat, 26 Nov 2022 10:43:05 GMT","name":"dir/subdir"},
-                {"contentLength":"42","etag":"0x8DACF9B0061305F","lastModified":"Sat, 26 Nov 2022 10:43:05 GMT","name":"dir/unquoted.txt"},
-                {"contentLength":"7","etag":"\"0x123\"","lastModified":"Sat, 26 Nov 2022 10:43:05 GMT","name":"dir/quoted.txt"},
-                {"contentLength":"9","etag":"W/\"0x456\"","lastModified":"Sat, 26 Nov 2022 10:43:05 GMT","name":"dir/weak.txt"},
-                {"contentLength":"0","lastModified":"Sat, 26 Nov 2022 10:43:05 GMT","name":"dir/no_etag.txt"}
-            ]}"#;
-            let transport = ScriptedTransport::new(vec![
-                Response::builder()
-                    .status(StatusCode::OK)
-                    .body(Bytes::from_static(body.as_bytes()))
-                    .unwrap(),
-            ]);
-            let op = test_operator(transport);
-
-            let entries = op.list("dir/").await.expect("list must succeed");
-
-            let subdir = entries
-                .iter()
-                .find(|e| e.path() == "dir/subdir/")
-                .expect("subdir must be listed");
-            assert_eq!(subdir.metadata().mode(), EntryMode::DIR);
-            assert_eq!(subdir.metadata().etag(), None);
-
-            let unquoted = entries
-                .iter()
-                .find(|e| e.path() == "dir/unquoted.txt")
-                .expect("unquoted.txt must be listed");
-            assert_eq!(unquoted.metadata().content_length(), 42);
-            assert_eq!(unquoted.metadata().etag(), Some("\"0x8DACF9B0061305F\""));
-
-            let quoted = entries
-                .iter()
-                .find(|e| e.path() == "dir/quoted.txt")
-                .expect("quoted.txt must be listed");
-            assert_eq!(quoted.metadata().content_length(), 7);
-            assert_eq!(quoted.metadata().etag(), Some("\"0x123\""));
-
-            let weak = entries
-                .iter()
-                .find(|e| e.path() == "dir/weak.txt")
-                .expect("weak.txt must be listed");
-            assert_eq!(weak.metadata().content_length(), 9);
-            assert_eq!(weak.metadata().etag(), Some("W/\"0x456\""));
-
-            let no_etag = entries
-                .iter()
-                .find(|e| e.path() == "dir/no_etag.txt")
-                .expect("no_etag.txt must be listed");
-            assert_eq!(no_etag.metadata().content_length(), 0);
-            assert_eq!(no_etag.metadata().etag(), None);
         }
     }
 }

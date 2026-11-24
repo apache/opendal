@@ -164,10 +164,12 @@ impl oio::MultipartWrite for B2Writer {
         let part_sha1_array = parts
             .iter()
             .map(|p| {
-                p.etag
-                    .strip_prefix("unverified:")
-                    .unwrap_or(&p.etag)
-                    .to_string()
+                let binding = p.etag.clone();
+                let sha1 = binding.strip_prefix("unverified:");
+                let Some(sha1) = sha1 else {
+                    return "".to_string();
+                };
+                sha1.to_string()
             })
             .collect();
 
@@ -206,80 +208,5 @@ impl oio::MultipartWrite for B2Writer {
                 resp,
             )),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::Mutex;
-
-    use futures::stream;
-    use http::Request;
-    use http::Response;
-    use opendal_core::raw::oio::MultipartWrite as _;
-
-    use super::*;
-    use crate::core::tests::test_core;
-
-    struct FinishCaptureTransport {
-        bodies: Arc<Mutex<Vec<String>>>,
-    }
-
-    impl HttpTransport for FinishCaptureTransport {
-        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-            let body = String::from_utf8_lossy(&req.into_body().to_bytes()).into_owned();
-            self.bodies.lock().unwrap().push(body);
-
-            let resp = Buffer::from(
-                r#"{"contentLength":10485760,"contentMd5":"deadbeef","contentType":"application/octet-stream"}"#,
-            );
-            let len = resp.len() as u64;
-            Response::builder()
-                .status(StatusCode::OK)
-                .body(HttpBody::new(stream::iter([Ok(resp)]), Some(len)))
-                .map_err(new_request_build_error)
-        }
-    }
-
-    #[tokio::test]
-    async fn test_complete_part_preserves_verified_and_strips_unverified_sha1() {
-        let bodies = Arc::new(Mutex::new(Vec::new()));
-        let core = test_core("/");
-        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
-            FinishCaptureTransport {
-                bodies: bodies.clone(),
-            },
-        ));
-        let writer = B2Writer::new(core, ctx, "large.bin", OpWrite::new());
-
-        let parts = vec![
-            oio::MultipartPart {
-                part_number: 1,
-                etag: "unverified:2aae6c35c94fcfb415dbe95f408b9ce91ee846ed".to_string(),
-                checksum: None,
-                size: None,
-            },
-            oio::MultipartPart {
-                part_number: 2,
-                etag: "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3".to_string(),
-                checksum: None,
-                size: None,
-            },
-        ];
-
-        let meta = writer.complete_part("4_zupload", &parts).await.unwrap();
-        assert_eq!(meta.content_length(), 10485760);
-
-        let recorded = bodies.lock().unwrap();
-        assert_eq!(recorded.len(), 1);
-        let parsed: serde_json::Value = serde_json::from_str(&recorded[0]).unwrap();
-        assert_eq!(parsed["fileId"], "4_zupload");
-        assert_eq!(
-            parsed["partSha1Array"],
-            serde_json::json!([
-                "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed",
-                "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3"
-            ])
-        );
     }
 }

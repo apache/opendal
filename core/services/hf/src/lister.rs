@@ -32,15 +32,9 @@ struct FileTree {
 fn parse_next_cursor(link_str: &str) -> Option<String> {
     for link in link_str.split(',') {
         if link.contains("rel=\"next\"") || link.contains("rel='next'") {
-            let Some((_, rest)) = link.split_once('<') else {
-                continue;
-            };
-            let Some((url, _)) = rest.split_once('>') else {
-                continue;
-            };
-            let Some((_, query)) = url.split_once('?') else {
-                continue;
-            };
+            let (_, rest) = link.split_once('<')?;
+            let (url, _) = rest.split_once('>')?;
+            let (_, query) = url.split_once('?')?;
             if let Some(cursor) = query
                 .split('&')
                 .find_map(|p| p.strip_prefix("cursor="))

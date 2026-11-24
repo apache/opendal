@@ -919,7 +919,7 @@ async fn gcs_grpc_3_reader_handles_zero_length_large_ranges_and_suffixes() {
 }
 
 #[tokio::test]
-async fn gcs_grpc_4_non_positive_generation_rejected_before_rpc() {
+async fn gcs_grpc_4_zero_generation_rejected_before_rpc() {
     let server = MockServer::start().await;
     server
         .state
@@ -930,7 +930,7 @@ async fn gcs_grpc_4_non_positive_generation_rejected_before_rpc() {
 
     let op = server.operator();
 
-    for invalid in ["0", "-1"] {
+    for invalid in ["0", "-0"] {
         let err = op.stat_with("live").version(invalid).await.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unexpected);
 

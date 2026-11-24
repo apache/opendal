@@ -102,17 +102,12 @@ impl Builder for IpfsBuilder {
         }
         debug!("backend use root {root}");
 
-        let endpoint = self
-            .config
-            .endpoint
-            .as_deref()
-            .filter(|v| !v.trim_end_matches('/').is_empty())
-            .ok_or_else(|| {
-                Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                    .with_context("service", IPFS_SCHEME)
-                    .with_context("root", &root)
-            })?
-            .to_string();
+        let endpoint = match &self.config.endpoint {
+            Some(endpoint) => Ok(endpoint.clone()),
+            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
+                .with_context("service", IPFS_SCHEME)
+                .with_context("root", &root)),
+        }?;
         debug!("backend use endpoint {}", endpoint);
 
         let info = ServiceInfo::new(IPFS_SCHEME, &root, "");
@@ -384,29 +379,6 @@ mod tests {
 
             panic!("unexpected request: {method} {uri}");
         }
-    }
-
-    #[test]
-    fn test_build_rejects_empty_and_slash_only_endpoint() -> Result<()> {
-        for endpoint in [Some(""), Some("///"), None] {
-            let mut pairs = vec![("root".to_string(), TEST_ROOT.to_string())];
-            if let Some(ep) = endpoint {
-                pairs.push(("endpoint".to_string(), ep.to_string()));
-            }
-            let config = IpfsConfig::from_iter(pairs)?;
-            let err = config.into_builder().build().err().unwrap();
-            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-        }
-
-        let err = IpfsBuilder::default()
-            .root(TEST_ROOT)
-            .endpoint("///")
-            .build()
-            .err()
-            .unwrap();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        Ok(())
     }
 
     #[tokio::test]

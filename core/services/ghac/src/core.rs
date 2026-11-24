@@ -327,18 +327,10 @@ impl GhacCore {
         offset: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        if size == 0 {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "ghac v1 upload chunk size must be greater than zero",
-            ));
-        }
-        let end = offset.checked_add(size - 1).ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "ghac v1 upload content range overflows u64",
-            )
-        })?;
+        let end = size
+            .checked_sub(1)
+            .and_then(|last| offset.checked_add(last))
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "invalid ghac v1 upload range"))?;
 
         let mut req = Request::patch(upload_url);
         req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));

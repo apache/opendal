@@ -219,10 +219,6 @@ impl DbfsCore {
 
     pub async fn dbfs_ensure_parent_path(&self, ctx: &OperationContext, path: &str) -> Result<()> {
         let parent = get_parent(path);
-        if parent == "/" && self.root == "/" {
-            return Ok(());
-        }
-
         let resp = self.dbfs_get_status(ctx, parent).await?;
 
         match resp.status() {

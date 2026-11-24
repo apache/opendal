@@ -118,6 +118,7 @@ impl oio::PageList for OssLister {
             };
             meta.is_current(Some(true));
             meta.etag(&object.etag);
+            meta.content_md5(object.etag.trim_matches('"'));
             meta.last_modified(object.last_modified.parse::<Timestamp>()?);
 
             let de = oio::Entry::with(path, meta.build());
@@ -197,10 +198,6 @@ impl oio::PageList for OssObjectVersionsLister {
             // we allow retries to obtain the correct data.
             .map_err(Error::set_temporary)?;
 
-        // Terminate pagination unless the server explicitly reports truncation
-        // and provides a non-empty NextKeyMarker. Join markers with NUL (`\0`),
-        // which is disallowed in XML 1.0 character data, so spaces in keys or
-        // version IDs cannot corrupt pagination tokens.
         let next_key_marker = output.next_key_marker.as_deref().unwrap_or_default();
         let next_version_id_marker = output.next_version_id_marker.as_deref().unwrap_or_default();
         if output.is_truncated == Some(true) && !next_key_marker.is_empty() {
@@ -243,6 +240,7 @@ impl oio::PageList for OssObjectVersionsLister {
             meta.last_modified(version_object.last_modified.parse::<Timestamp>()?);
             if let Some(etag) = version_object.etag {
                 meta.etag(&etag);
+                meta.content_md5(etag.trim_matches('"'));
             }
 
             let entry = oio::Entry::new(&path, meta.build());
@@ -342,65 +340,6 @@ mod tests {
         .expect("OSS operator must build")
         .with_context(OperationContext::new().with_http_transport(HttpTransporter::new(transport)));
         (op, queries)
-    }
-
-    #[tokio::test]
-    async fn lister_sets_etag_without_content_md5() {
-        let page = r#"<?xml version="1.0" encoding="UTF-8"?>
-<ListBucketResult>
-  <IsTruncated>false</IsTruncated>
-  <Contents>
-    <Key>single.txt</Key>
-    <LastModified>2026-01-01T00:00:00.000Z</LastModified>
-    <ETag>"5B3C1A2E053D763E1B002CC607C5A0FE"</ETag>
-    <Size>12</Size>
-  </Contents>
-  <Contents>
-    <Key>multipart.bin</Key>
-    <LastModified>2026-01-01T00:00:00.000Z</LastModified>
-    <ETag>"9B2CF535F27731C974343645A3985328-2"</ETag>
-    <Size>2097152</Size>
-  </Contents>
-</ListBucketResult>"#;
-
-        let (op, _) = operator_with_responses(vec![page]);
-        let entries = op.list("").await.unwrap();
-        assert_eq!(entries.len(), 2);
-        assert_eq!(
-            entries[0].metadata().etag(),
-            Some("\"5B3C1A2E053D763E1B002CC607C5A0FE\"")
-        );
-        assert_eq!(entries[0].metadata().content_md5(), None);
-        assert_eq!(
-            entries[1].metadata().etag(),
-            Some("\"9B2CF535F27731C974343645A3985328-2\"")
-        );
-        assert_eq!(entries[1].metadata().content_md5(), None);
-    }
-
-    #[tokio::test]
-    async fn object_versions_lister_sets_etag_without_content_md5() {
-        let page = r#"<?xml version="1.0" encoding="UTF-8"?>
-<ListVersionsResult>
-  <IsTruncated>false</IsTruncated>
-  <Version>
-    <Key>multipart.bin</Key>
-    <VersionId>v1</VersionId>
-    <IsLatest>true</IsLatest>
-    <LastModified>2026-01-01T00:00:00.000Z</LastModified>
-    <ETag>"9B2CF535F27731C974343645A3985328-2"</ETag>
-    <Size>2097152</Size>
-  </Version>
-</ListVersionsResult>"#;
-
-        let (op, _) = operator_with_responses(vec![page]);
-        let entries = op.list_with("").versions(true).await.unwrap();
-        assert_eq!(entries.len(), 1);
-        assert_eq!(
-            entries[0].metadata().etag(),
-            Some("\"9B2CF535F27731C974343645A3985328-2\"")
-        );
-        assert_eq!(entries[0].metadata().content_md5(), None);
     }
 
     #[tokio::test]

@@ -28,11 +28,9 @@ use opendal_core::*;
 /// response data from d1
 #[derive(Deserialize, Debug)]
 pub struct D1Response {
-    #[serde(default)]
-    pub result: Option<Vec<D1Result>>,
+    pub result: Vec<D1Result>,
     pub success: bool,
-    #[serde(default)]
-    pub errors: Option<Vec<D1Error>>,
+    pub errors: Vec<D1Error>,
 }
 
 impl D1Response {
@@ -54,7 +52,7 @@ impl D1Response {
     }
 
     pub fn get_result(&self, key: &str) -> Result<Option<Buffer>, Error> {
-        let Some(first_result) = self.result.as_deref().and_then(|r| r.first()) else {
+        let Some(first_result) = self.result.first() else {
             return Ok(None);
         };
         let Some(row) = first_result.results.first() else {
@@ -86,7 +84,7 @@ impl D1Response {
     }
 
     pub fn get_usize_result(&self, key: &str) -> Result<Option<usize>, Error> {
-        let Some(first_result) = self.result.as_deref().and_then(|r| r.first()) else {
+        let Some(first_result) = self.result.first() else {
             return Ok(None);
         };
         let Some(row) = first_result.results.first() else {
@@ -122,7 +120,6 @@ impl D1Response {
 
 #[derive(Deserialize, Debug)]
 pub struct D1Result {
-    #[serde(default)]
     pub results: Vec<Map<String, Value>>,
 }
 
@@ -167,7 +164,7 @@ mod test {
             "messages": []
         }"#;
         let response: D1Response = serde_json::from_str(data).unwrap();
-        println!("{:?}", response.result.as_ref().unwrap()[0].results[0]);
+        println!("{:?}", response.result[0].results[0]);
     }
 
     #[test]

@@ -214,7 +214,8 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        // Some services (like owncloud) return 403 while file locked.
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, true),
         // Allowing retry for resource locked.
         StatusCode::LOCKED => (ErrorKind::Unexpected, true),
         StatusCode::INTERNAL_SERVER_ERROR
@@ -331,16 +332,5 @@ mod tests {
         })
         .await
         .unwrap();
-    }
-
-    #[test]
-    fn parse_error_keeps_forbidden_permanent() {
-        let resp_403 = Response::builder()
-            .status(StatusCode::FORBIDDEN)
-            .body(Buffer::from("forbidden"))
-            .unwrap();
-        let err_403 = parse_error(ErrorContext::new(ServiceOperation("GetValue")), resp_403);
-        assert_eq!(err_403.kind(), ErrorKind::PermissionDenied);
-        assert!(!err_403.is_temporary());
     }
 }

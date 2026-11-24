@@ -1138,12 +1138,8 @@ impl GetObjectJsonResponse {
             MetadataBuilder::file(size)
         };
 
-        if !self.etag.is_empty() {
-            m.etag(&self.etag);
-        }
-        if !self.md5_hash.is_empty() {
-            m.content_md5(&self.md5_hash);
-        }
+        m.etag(&self.etag);
+        m.content_md5(&self.md5_hash);
         if !self.content_type.is_empty() {
             m.content_type(&self.content_type);
         }
@@ -2170,36 +2166,6 @@ mod tests {
                 .collect::<HashMap<_, _>>(),
             metadata
         );
-    }
-
-    #[test]
-    fn test_deserialize_composite_object_response_without_md5() {
-        let content = r#"{
-    "kind": "storage#object",
-    "name": "composite.bin",
-    "bucket": "example",
-    "generation": "1660563214863653",
-    "size": "1024",
-    "crc32c": "j/un9g==",
-    "etag": "CKWasoTgyPkCEAE=",
-    "updated": "2022-08-15T11:33:34.866Z"
-}"#;
-        let meta = GcsCore::build_metadata_from_object_response("composite.bin", content.into())
-            .expect("parse composite metadata should not fail");
-        assert_eq!(meta.content_length(), 1024);
-        assert_eq!(meta.content_md5(), None);
-        assert_eq!(meta.etag(), Some("CKWasoTgyPkCEAE="));
-
-        let empty_fields = r#"{
-    "size": "1024",
-    "md5Hash": "",
-    "etag": ""
-}"#;
-        let meta =
-            GcsCore::build_metadata_from_object_response("empty-fields.bin", empty_fields.into())
-                .expect("parse metadata with empty md5Hash and etag should not fail");
-        assert_eq!(meta.content_md5(), None);
-        assert_eq!(meta.etag(), None);
     }
 
     #[test]

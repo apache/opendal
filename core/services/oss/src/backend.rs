@@ -189,22 +189,22 @@ impl OssBuilder {
     /// preprocess the endpoint option
     fn parse_endpoint(
         &self,
-        endpoint: Option<&str>,
+        endpoint: &Option<String>,
         bucket: &str,
         addressing_style: AddressingStyle,
     ) -> Result<(String, String)> {
-        let (endpoint, host) = match endpoint {
+        let (endpoint, host) = match endpoint.clone() {
             Some(ep) => {
                 let uri = ep.parse::<Uri>().map_err(|err| {
                     Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
                         .with_context("service", OSS_SCHEME)
-                        .with_context("endpoint", ep)
+                        .with_context("endpoint", &ep)
                         .set_source(err)
                 })?;
                 let host = uri.host().ok_or_else(|| {
                     Error::new(ErrorKind::ConfigInvalid, "endpoint host is empty")
                         .with_context("service", OSS_SCHEME)
-                        .with_context("endpoint", ep)
+                        .with_context("endpoint", &ep)
                 })?;
                 let full_host = match addressing_style {
                     AddressingStyle::Virtual => {
@@ -221,6 +221,11 @@ impl OssBuilder {
                             host.to_string()
                         }
                     }
+                };
+                if let Some(port) = uri.port_u16() {
+                    format!("{bucket}.{host}:{port}")
+                } else {
+                    format!("{bucket}.{host}")
                 };
                 let endpoint = match uri.scheme_str() {
                     Some(scheme_str) => match scheme_str {
@@ -449,7 +454,7 @@ impl Builder for OssBuilder {
 
         // Use the operation endpoint for signing unless a separate endpoint is configured.
         let (endpoint, host) = self.parse_endpoint(
-            self.config.endpoint.as_deref(),
+            &self.config.endpoint,
             bucket,
             (&self.config.addressing_style).try_into()?,
         )?;
@@ -457,7 +462,7 @@ impl Builder for OssBuilder {
 
         let presign_endpoint = if self.config.presign_endpoint.is_some() {
             self.parse_endpoint(
-                self.config.presign_endpoint.as_deref(),
+                &self.config.presign_endpoint,
                 bucket,
                 (&self.config.presign_addressing_style).try_into()?,
             )?

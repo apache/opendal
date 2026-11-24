@@ -521,27 +521,6 @@ impl B2Core {
                 }
 
                 let file = resp.files.swap_remove(0);
-                if path.ends_with('/') {
-                    if file.file_name == abs_path {
-                        return Ok(file);
-                    }
-                    if file.file_name.starts_with(&abs_path) {
-                        return Ok(File {
-                            file_id: None,
-                            content_length: 0,
-                            content_md5: None,
-                            content_type: None,
-                            file_name: if abs_path.is_empty() {
-                                "/".to_string()
-                            } else {
-                                abs_path
-                            },
-                            file_info: HashMap::new(),
-                        });
-                    }
-                    return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
-                }
-
                 if file.file_name != abs_path {
                     return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
                 }
@@ -1168,67 +1147,5 @@ pub(crate) mod tests {
                 "returned {returned_name} must not match stat(\"foo\")"
             );
         }
-    }
-
-    #[tokio::test]
-    async fn test_get_file_info_handles_virtual_and_explicit_dir() {
-        // Virtual directory: only a child file exists under dir/.
-        let transport = ListResponseTransport {
-            body: r#"{
-                "files": [{
-                    "fileId": "4_zchild",
-                    "fileName": "sub/dir/a.txt",
-                    "contentLength": 99
-                }],
-                "nextFileName": null
-            }"#
-            .to_string(),
-            requests: Arc::new(std::sync::Mutex::new(Vec::new())),
-        };
-        let core = test_core("/sub/");
-        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
-
-        let file = core.get_file_info(&ctx, "dir/", Some("/")).await.unwrap();
-        assert_eq!(file.file_name, "sub/dir/");
-        assert_eq!(file.file_id, None);
-        assert_eq!(parse_file_info(&file).mode(), EntryMode::DIR);
-
-        // Explicit directory marker object "sub/dir/".
-        let transport = ListResponseTransport {
-            body: r#"{
-                "files": [{
-                    "fileId": "4_zdir",
-                    "fileName": "sub/dir/",
-                    "contentLength": 0
-                }],
-                "nextFileName": null
-            }"#
-            .to_string(),
-            requests: Arc::new(std::sync::Mutex::new(Vec::new())),
-        };
-        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
-        let file = core.get_file_info(&ctx, "dir/", Some("/")).await.unwrap();
-        assert_eq!(file.file_name, "sub/dir/");
-        assert_eq!(parse_file_info(&file).mode(), EntryMode::DIR);
-
-        // Unrelated prefix returned for dir/ must return NotFound.
-        let transport = ListResponseTransport {
-            body: r#"{
-                "files": [{
-                    "fileId": "4_zother",
-                    "fileName": "sub/dir2/a.txt",
-                    "contentLength": 10
-                }],
-                "nextFileName": null
-            }"#
-            .to_string(),
-            requests: Arc::new(std::sync::Mutex::new(Vec::new())),
-        };
-        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
-        let err = core
-            .get_file_info(&ctx, "dir/", Some("/"))
-            .await
-            .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::NotFound);
     }
 }

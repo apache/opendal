@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -100,32 +99,20 @@ impl oio::BatchDelete for CloudflareKvDeleter {
             ));
         }
 
-        let bs = resp.clone().into_body();
+        let bs = resp.into_body();
 
         let res: CfKvDeleteResponse =
             serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
         let result = match (res.success, res.result) {
             (true, Some(result)) => result,
-            (false, _) => {
-                return Err(parse_error(
-                    ErrorContext::new(ServiceOperation("BulkDelete")),
-                    resp,
-                ));
-            }
-            (true, None) => {
+            _ => {
                 return Err(Error::new(
                     ErrorKind::Unexpected,
                     "cloudflare_kv delete this key failed for reason we don't know",
                 ));
             }
         };
-
-        let unsuccessful_keys: HashSet<&str> = result
-            .unsuccessful_keys
-            .iter()
-            .map(String::as_str)
-            .collect();
 
         let mut batched_result = BatchDeleteResult {
             // `successful_key_count` is taken verbatim from the server response; cap it to
@@ -137,7 +124,7 @@ impl oio::BatchDelete for CloudflareKvDeleter {
         };
 
         for (item, key) in batch.into_iter().zip(keys.iter()) {
-            if unsuccessful_keys.contains(key.as_str()) {
+            if result.unsuccessful_keys.contains(key) {
                 batched_result.failed.push((
                     item.0,
                     item.1,

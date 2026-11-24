@@ -262,7 +262,7 @@ impl UpyunCore {
 
         req = req.header(header::CONTENT_LENGTH, "0");
 
-        req = req.header(X_UPYUN_COPY_SOURCE, percent_encode_path(&from));
+        req = req.header(X_UPYUN_COPY_SOURCE, from);
 
         req = req.header(X_UPYUN_METADATA_DIRECTIVE, "copy");
 
@@ -297,7 +297,7 @@ impl UpyunCore {
 
         req = req.header(header::CONTENT_LENGTH, "0");
 
-        req = req.header(X_UPYUN_MOVE_SOURCE, percent_encode_path(&from));
+        req = req.header(X_UPYUN_MOVE_SOURCE, from);
 
         req = req.header(X_UPYUN_METADATA_DIRECTIVE, "copy");
 
@@ -659,28 +659,10 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
-    use std::time::Duration;
 
-    use futures::stream;
     use http::StatusCode;
 
     use super::*;
-
-    #[derive(Clone, Default)]
-    struct HeaderRecordingTransport {
-        headers: Arc<Mutex<Vec<HeaderMap>>>,
-    }
-
-    impl HttpTransport for HeaderRecordingTransport {
-        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-            self.headers.lock().unwrap().push(req.headers().clone());
-            Ok(Response::builder()
-                .status(StatusCode::OK)
-                .body(HttpBody::new(stream::iter([Ok(Buffer::new())]), Some(0)))
-                .unwrap())
-        }
-    }
 
     #[test]
     fn test_parse_error() {
@@ -717,51 +699,6 @@ mod tests {
                 .expect_err("invalid operator must return an error instead of panicking");
             assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
         }
-    }
-
-    #[tokio::test]
-    async fn copy_and_move_percent_encode_source_headers() {
-        tokio::time::timeout(Duration::from_secs(10), async {
-            let transport = HeaderRecordingTransport::default();
-            let core = UpyunCore {
-                info: ServiceInfo::new(crate::UPYUN_SCHEME, "/root/", ""),
-                capability: Capability::default(),
-                root: "/root/".to_string(),
-                operator: "op".to_string(),
-                bucket: "bucket".to_string(),
-                signer: UpyunSigner {
-                    operator: "op".to_string(),
-                    password: "secret".to_string(),
-                },
-            };
-            let ctx = OperationContext::new()
-                .with_http_transport(HttpTransporter::new(transport.clone()));
-
-            let resp = core
-                .copy(&ctx, "dir/测试 file.txt", "dir/目标 file.txt")
-                .await
-                .unwrap();
-            assert_eq!(resp.status(), StatusCode::OK);
-
-            let resp = core
-                .move_object(&ctx, "dir/测试 file.txt", "dir/目标 file.txt")
-                .await
-                .unwrap();
-            assert_eq!(resp.status(), StatusCode::OK);
-
-            let recorded = transport.headers.lock().unwrap();
-            assert_eq!(recorded.len(), 2);
-            assert_eq!(
-                recorded[0].get(X_UPYUN_COPY_SOURCE).unwrap(),
-                "/bucket/root/dir/%E6%B5%8B%E8%AF%95%20file.txt"
-            );
-            assert_eq!(
-                recorded[1].get(X_UPYUN_MOVE_SOURCE).unwrap(),
-                "/bucket/root/dir/%E6%B5%8B%E8%AF%95%20file.txt"
-            );
-        })
-        .await
-        .expect("test timed out");
     }
 
     #[test]

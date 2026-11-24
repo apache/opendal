@@ -17,39 +17,43 @@
 
 use std::cell::Cell;
 use std::collections::VecDeque;
-use std::ffi::CString;
-use std::ffi::c_char;
-use std::sync::Mutex;
-use std::sync::RwLock;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
+use std::ffi::{CString, c_char};
+use std::sync::{Arc, Mutex};
 
 pub type LogCallback = extern "C" fn(u32, *const c_char);
+pub type FreeLogCallback = extern "C" fn(ErasedLogCallback);
+pub type ErasedLogCallback = unsafe extern "C" fn();
 
-/// Cap buffered log records so memory stays bounded if logs are emitted while
-/// no Haskell FFI call is actively draining them.
 const MAX_BUFFERED_LOGS: usize = 4096;
 
-struct HsLogger {
-    initialized: Mutex<bool>,
-    callback: RwLock<Option<LogCallback>>,
-    flush_lock: Mutex<()>,
-    pending: Mutex<VecDeque<(u32, CString)>>,
+struct Callback {
+    call: LogCallback,
+    free: FreeLogCallback,
 }
 
-static HS_LOGGER: HsLogger = HsLogger {
-    initialized: Mutex::new(false),
-    callback: RwLock::new(None),
-    flush_lock: Mutex::new(()),
-    pending: Mutex::new(VecDeque::new()),
-};
+impl Drop for Callback {
+    fn drop(&mut self) {
+        // SAFETY: GHC's hs_free_fun_ptr takes an erased function pointer.
+        // It releases the wrapper without calling it through this type.
+        let erased = unsafe { std::mem::transmute::<LogCallback, ErasedLogCallback>(self.call) };
+        (self.free)(erased);
+    }
+}
 
-static LOGGER_ENABLED: AtomicBool = AtomicBool::new(false);
+struct LoggerState {
+    callback: Option<Arc<Callback>>,
+    // The runtime can emit logs on threads that cannot call into a non-threaded GHC RTS.
+    pending: VecDeque<(u32, CString)>,
+}
+
+static HS_LOGGER: HsLogger = HsLogger(Mutex::new(LoggerState {
+    callback: None,
+    pending: VecDeque::new(),
+}));
+
+struct HsLogger(Mutex<LoggerState>);
 
 thread_local! {
-    /// Prevent re-entrant log flushing if a Haskell log action triggers
-    /// another OpenDAL FFI call on the same thread (which would otherwise
-    /// risk recursive `RwLock::read` deadlock or infinite log recursion).
     static IN_LOG_FLUSH: Cell<bool> = const { Cell::new(false) };
 }
 
@@ -57,12 +61,11 @@ struct InLogFlushGuard;
 
 impl Drop for InLogFlushGuard {
     fn drop(&mut self) {
-        IN_LOG_FLUSH.with(|flag| flag.set(false));
+        IN_LOG_FLUSH.set(false);
     }
 }
 
-/// RAII guard that flushes buffered log records on the calling Haskell OS
-/// thread right before an FFI entrypoint returns.
+/// Flush on return from a Haskell operation, after the runtime has finished polling it.
 pub(crate) struct FlushLogsGuard;
 
 impl Drop for FlushLogsGuard {
@@ -71,83 +74,43 @@ impl Drop for FlushLogsGuard {
     }
 }
 
-/// Install or replace the global Haskell log callback.
-///
-/// Registers the single static `HsLogger` with the `log` crate on first use
-/// and swaps the active callback under a write lock so any in-flight callback
-/// invocations complete before the previous `FunPtr` is returned to Haskell
-/// for `freeHaskellFunPtr`.
+/// Take ownership of the callback on success. A drain in progress keeps its
+/// callback alive until it finishes, even if the action installs a new logger.
 pub(crate) fn install_logger(
-    callback: LogCallback,
-) -> Result<Option<LogCallback>, log::SetLoggerError> {
-    // Deliver any buffered records to the previous callback before swapping it.
+    call: LogCallback,
+    free: FreeLogCallback,
+) -> Result<(), log::SetLoggerError> {
     flush_logs();
-
-    {
-        let mut initialized = HS_LOGGER
-            .initialized
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        if !*initialized {
+    let previous = {
+        let mut state = HS_LOGGER.0.lock().unwrap_or_else(|e| e.into_inner());
+        if state.callback.is_none() {
             log::set_logger(&HS_LOGGER)?;
             log::set_max_level(log::LevelFilter::Debug);
-            *initialized = true;
         }
-    }
-
-    let mut guard = HS_LOGGER
-        .callback
-        .write()
-        .unwrap_or_else(|e| e.into_inner());
-    let prev = guard.replace(callback);
-    LOGGER_ENABLED.store(true, Ordering::Release);
-    Ok(prev)
+        state.callback.replace(Arc::new(Callback { call, free }))
+    };
+    drop(previous);
+    Ok(())
 }
 
-/// Drain buffered log records and invoke the registered Haskell callback on
-/// the current (calling Haskell) OS thread.
-///
-/// Must only be called from a `safe` FFI entrypoint on the Haskell calling
-/// thread — never from Tokio worker threads or `ForeignPtr` GC finalizers.
-pub(crate) fn flush_logs() {
-    if !LOGGER_ENABLED.load(Ordering::Acquire) {
+/// Run callbacks only from safe FFI calls, with no logger locks held.
+fn flush_logs() {
+    if IN_LOG_FLUSH.replace(true) {
         return;
     }
+    let _guard = InLogFlushGuard;
 
-    let already_flushing = IN_LOG_FLUSH.with(|flag| {
-        if flag.get() {
-            true
-        } else {
-            flag.set(true);
-            false
+    let (callback, batch) = {
+        let mut state = HS_LOGGER.0.lock().unwrap_or_else(|e| e.into_inner());
+        if state.pending.is_empty() {
+            return;
         }
-    });
-    if already_flushing {
-        return;
-    }
-    let _reentrancy_guard = InLogFlushGuard;
-    // Serialize flushing so buffered records are delivered in FIFO order and
-    // any records popped by a concurrent thread finish invoking the callback
-    // before this call returns.
-    let _flush_guard = HS_LOGGER
-        .flush_lock
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-
-    let batch: Vec<(u32, CString)> = {
-        let mut pending = HS_LOGGER.pending.lock().unwrap_or_else(|e| e.into_inner());
-        pending.drain(..).collect()
+        (state.callback.clone(), std::mem::take(&mut state.pending))
     };
-    if batch.is_empty() {
-        return;
-    }
-
-    let guard = HS_LOGGER.callback.read().unwrap_or_else(|e| e.into_inner());
-    let Some(callback) = *guard else {
-        return;
-    };
-    for (level, msg) in batch {
-        callback(level, msg.as_ptr());
+    if let Some(callback) = callback {
+        for (level, msg) in batch {
+            (callback.call)(level, msg.as_ptr());
+        }
     }
 }
 
@@ -173,14 +136,11 @@ impl log::Log for HsLogger {
             log::Level::Trace => 0,
         };
 
-        // Never invoke the Haskell FunPtr directly from arbitrary Tokio worker
-        // threads or GC finalizers; enqueue and flush on the calling Haskell
-        // OS thread before the FFI call returns.
-        let mut pending = self.pending.lock().unwrap_or_else(|e| e.into_inner());
-        if pending.len() >= MAX_BUFFERED_LOGS {
-            pending.pop_front();
+        let mut state = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        if state.pending.len() >= MAX_BUFFERED_LOGS {
+            state.pending.pop_front();
         }
-        pending.push_back((c_level, c_str_msg));
+        state.pending.push_back((c_level, c_str_msg));
     }
 
     fn flush(&self) {}

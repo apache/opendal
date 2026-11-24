@@ -39,72 +39,48 @@ data FFIResult a = FFIResult
   }
   deriving (Show)
 
-ffiResultCodeOffset :: Int
-ffiResultCodeOffset = 0
-
-ffiResultDataPtrOffset :: Int
-ffiResultDataPtrOffset =
-  alignUp (ffiResultCodeOffset + sizeOf (undefined :: CUInt)) (alignment (undefined :: Ptr ()))
-
-ffiResultErrorMessageOffset :: Int
-ffiResultErrorMessageOffset =
-  alignUp (ffiResultDataPtrOffset + sizeOf (undefined :: Ptr ())) (alignment (undefined :: CString))
-
-ffiResultAlignment :: Int
-ffiResultAlignment =
-  maximum
-    [ alignment (undefined :: CUInt),
-      alignment (undefined :: Ptr ()),
-      alignment (undefined :: CString)
-    ]
-
-ffiResultSize :: Int
-ffiResultSize =
-  alignUp (ffiResultErrorMessageOffset + sizeOf (undefined :: CString)) ffiResultAlignment
-
 instance Storable (FFIResult a) where
-  sizeOf _ = ffiResultSize
-  alignment _ = ffiResultAlignment
+  sizeOf _ = sizeOf (undefined :: CSize) + sizeOf (undefined :: Ptr ()) + sizeOf (undefined :: CString)
+  alignment _ = alignment (undefined :: CSize)
   peek ptr = do
-    s <- peekByteOff ptr ffiResultCodeOffset
-    d <- peekByteOff ptr ffiResultDataPtrOffset
-    errMsg <- peekByteOff ptr ffiResultErrorMessageOffset
+    s <- peekByteOff ptr codeOffset
+    d <- peekByteOff ptr dataPtrOffset
+    errMsg <- peekByteOff ptr errorMessageOffset
     return $ FFIResult s d errMsg
+    where
+      codeOffset = 0
+      dataPtrOffset = sizeOf (undefined :: CSize)
+      errorMessageOffset = dataPtrOffset + sizeOf (undefined :: Ptr ())
   poke ptr (FFIResult s d errMsg) = do
-    pokeByteOff ptr ffiResultCodeOffset s
-    pokeByteOff ptr ffiResultDataPtrOffset d
-    pokeByteOff ptr ffiResultErrorMessageOffset errMsg
+    pokeByteOff ptr codeOffset s
+    pokeByteOff ptr dataPtrOffset d
+    pokeByteOff ptr errorMessageOffset errMsg
+    where
+      codeOffset = 0
+      dataPtrOffset = sizeOf (undefined :: CSize)
+      errorMessageOffset = dataPtrOffset + sizeOf (undefined :: Ptr ())
 
 data ByteSlice = ByteSlice
   { bsData :: Ptr CChar,
     bsLen :: CSize
   }
 
-byteSliceDataOffset :: Int
-byteSliceDataOffset = 0
-
-byteSliceLenOffset :: Int
-byteSliceLenOffset =
-  alignUp (byteSliceDataOffset + sizeOf (undefined :: Ptr CChar)) (alignment (undefined :: CSize))
-
-byteSliceAlignment :: Int
-byteSliceAlignment =
-  max (alignment (undefined :: Ptr CChar)) (alignment (undefined :: CSize))
-
-byteSliceSize :: Int
-byteSliceSize =
-  alignUp (byteSliceLenOffset + sizeOf (undefined :: CSize)) byteSliceAlignment
-
 instance Storable ByteSlice where
-  sizeOf _ = byteSliceSize
-  alignment _ = byteSliceAlignment
+  sizeOf _ = sizeOf (undefined :: Ptr CChar) + sizeOf (undefined :: CSize)
+  alignment _ = alignment (undefined :: CSize)
   peek ptr = do
-    bsDataPtr <- peekByteOff ptr byteSliceDataOffset
-    len <- peekByteOff ptr byteSliceLenOffset
+    bsDataPtr <- peekByteOff ptr dataOffset
+    len <- peekByteOff ptr lenOffset
     return $ ByteSlice bsDataPtr len
+    where
+      dataOffset = 0
+      lenOffset = sizeOf (undefined :: Ptr ())
   poke ptr (ByteSlice bsDataPtr len) = do
-    pokeByteOff ptr byteSliceDataOffset bsDataPtr
-    pokeByteOff ptr byteSliceLenOffset len
+    pokeByteOff ptr dataOffset bsDataPtr
+    pokeByteOff ptr lenOffset len
+    where
+      dataOffset = 0
+      lenOffset = sizeOf (undefined :: Ptr ())
 
 data FFIMetadata = FFIMetadata
   { ffiMode :: CUInt,
@@ -184,16 +160,20 @@ instance Storable FFIMetadata where
     pokeByteOff ptr ffiMetadataETagOffset eTag
     pokeByteOff ptr ffiMetadataLastModifiedOffset lastModified
 
-foreign import ccall "via_map_ffi"
+foreign import ccall safe "via_map_ffi"
   c_via_map_ffi ::
     CString ->
     Ptr CString ->
     Ptr CString ->
     CSize ->
     FunPtr (CUInt -> CString -> IO ()) ->
-    Ptr (FunPtr (CUInt -> CString -> IO ())) ->
+    FunPtr (FunPtr () -> IO ()) ->
     Ptr (FFIResult RawOperator) ->
     IO ()
+
+-- Rust calls the RTS destructor when the retired callback is no longer in use.
+foreign import ccall "&hs_free_fun_ptr"
+  c_free_log_fn :: FunPtr (FunPtr () -> IO ())
 
 foreign import ccall "wrapper"
   wrapLogFn :: (CUInt -> CString -> IO ()) -> IO (FunPtr (CUInt -> CString -> IO ()))

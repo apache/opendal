@@ -123,7 +123,10 @@ data OperatorConfig = OperatorConfig
     ocScheme :: String,
     -- | The config for the operator services. For example, "endpoint" and "access_key_id" for s3. The config is same as rust core.
     ocConfig :: HashMap String String,
-    -- | The log action for the operator. If it's `Nothing`, the operator won't enable logging.
+    -- | Enable logging for this operator and set the process-wide log action.
+    -- Successful construction with a log action replaces the previous action.
+    -- Log delivery already in progress can finish with the previous action.
+    -- Concurrent operations can invoke the action concurrently.
     ocLogAction :: Maybe (LogAction IO Message)
   }
 
@@ -431,29 +434,25 @@ newOperator (OperatorConfig scheme hashMap maybeLogger) = do
       withMany withUtf8CString (map snd keysAndValues) $ \cValues ->
         allocaArray (length keysAndValues) $ \cKeysPtr ->
           allocaArray (length keysAndValues) $ \cValuesPtr ->
-            alloca $ \prevLogFnPtr ->
-              alloca $ \ffiResultPtr -> mask_ $ do
-                poke prevLogFnPtr nullFunPtr
-                logFnPtr <- case maybeLogger of
-                  Just logger -> wrapLogFn (logFn logger)
-                  Nothing -> return nullFunPtr
-                pokeArray cKeysPtr cKeys
-                pokeArray cValuesPtr cValues
-                c_via_map_ffi cScheme cKeysPtr cValuesPtr (fromIntegral $ length keysAndValues) logFnPtr prevLogFnPtr ffiResultPtr
-                  `onException` when (logFnPtr /= nullFunPtr) (freeHaskellFunPtr logFnPtr)
-                ffiResult <- peek ffiResultPtr
-                if ffiCode ffiResult == 0
-                  then do
-                    prevCb <- peek prevLogFnPtr
-                    when (prevCb /= nullFunPtr) (freeHaskellFunPtr prevCb)
-                    op <-
-                      Operator
-                        <$> newForeignPtr c_free_operator (dataPtr ffiResult)
-                        `onException` freeOperator (dataPtr ffiResult)
-                    return $ Right op
-                  else do
-                    when (logFnPtr /= nullFunPtr) (freeHaskellFunPtr logFnPtr)
-                    Left <$> parseError ffiResult
+            alloca $ \ffiResultPtr -> mask_ $ do
+              pokeArray cKeysPtr cKeys
+              pokeArray cValuesPtr cValues
+              logFnPtr <- case maybeLogger of
+                Just logger -> wrapLogFn (logFn logger)
+                Nothing -> return nullFunPtr
+              -- The non-interruptible FFI call takes the callback only on success.
+              c_via_map_ffi cScheme cKeysPtr cValuesPtr (fromIntegral $ length keysAndValues) logFnPtr c_free_log_fn ffiResultPtr
+              ffiResult <- peek ffiResultPtr
+              if ffiCode ffiResult == 0
+                then do
+                  op <-
+                    Operator
+                      <$> newForeignPtr c_free_operator (dataPtr ffiResult)
+                      `onException` freeOperator (dataPtr ffiResult)
+                  return $ Right op
+                else do
+                  when (logFnPtr /= nullFunPtr) (freeHaskellFunPtr logFnPtr)
+                  Left <$> parseError ffiResult
   where
     logFn logger enumSeverity cStr =
       when (cStr /= nullPtr) $

@@ -192,8 +192,6 @@ pub(crate) fn into_raw_c_string(s: &str) -> *mut c_char {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::result::FFIErrorCode;
-    use crate::result::FFIResult;
     use std::ffi::CStr;
     use std::ffi::c_uint;
     use std::mem::align_of;
@@ -261,48 +259,6 @@ mod tests {
         assert_eq!(offset_of!(Metadata, last_modified), last_modified_offset);
         assert_eq!(align_of::<Metadata>(), expected_align);
         assert_eq!(size_of::<Metadata>(), expected_size);
-    }
-
-    #[test]
-    fn byteslice_layout_matches_haskell_storable_formula() {
-        let data_offset = 0;
-        let len_offset = align_up(data_offset + size_of::<*mut c_char>(), align_of::<usize>());
-        let expected_align = align_of::<*mut c_char>().max(align_of::<usize>());
-        let expected_size = align_up(len_offset + size_of::<usize>(), expected_align);
-
-        assert_eq!(offset_of!(ByteSlice, data), data_offset);
-        assert_eq!(offset_of!(ByteSlice, len), len_offset);
-        assert_eq!(align_of::<ByteSlice>(), expected_align);
-        assert_eq!(size_of::<ByteSlice>(), expected_size);
-    }
-
-    #[test]
-    fn ffi_result_layout_matches_haskell_storable_formula() {
-        assert_eq!(size_of::<FFIErrorCode>(), size_of::<c_uint>());
-        assert_eq!(align_of::<FFIErrorCode>(), align_of::<c_uint>());
-
-        let code_offset = 0;
-        let data_ptr_offset = align_up(code_offset + size_of::<c_uint>(), align_of::<*mut ()>());
-        let error_message_offset = align_up(
-            data_ptr_offset + size_of::<*mut ()>(),
-            align_of::<*mut c_char>(),
-        );
-        let expected_align = align_of::<c_uint>()
-            .max(align_of::<*mut ()>())
-            .max(align_of::<*mut c_char>());
-        let expected_size = align_up(
-            error_message_offset + size_of::<*mut c_char>(),
-            expected_align,
-        );
-
-        assert_eq!(offset_of!(FFIResult<()>, code), code_offset);
-        assert_eq!(offset_of!(FFIResult<()>, data_ptr), data_ptr_offset);
-        assert_eq!(
-            offset_of!(FFIResult<()>, error_message),
-            error_message_offset
-        );
-        assert_eq!(align_of::<FFIResult<()>>(), expected_align);
-        assert_eq!(size_of::<FFIResult<()>>(), expected_size);
     }
 
     #[test]

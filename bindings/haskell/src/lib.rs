@@ -25,8 +25,7 @@ use std::os::raw::c_char;
 use std::sync::LazyLock;
 
 use ::opendal as od;
-use logger::FlushLogsGuard;
-use logger::LogCallback;
+use logger::{FlushLogsGuard, FreeLogCallback, LogCallback};
 use od::layers::LoggingLayer;
 use od::layers::RetryLayer;
 use od::options;
@@ -61,9 +60,10 @@ unsafe fn c_str_arg<'a>(ptr: *const c_char) -> Option<&'a str> {
 /// * `scheme` points to a nul-terminated string, or is null.
 /// * When `len > 0`, `keys` and `values` point to arrays of `len` valid
 ///   nul-terminated strings.
-/// * `prev_callback` is null or a valid pointer with space for one
-///   `Option<LogCallback>`. On success when `callback` replaces an earlier
-///   callback, the previous callback is written to `*prev_callback`.
+/// * On success, Rust takes ownership of `callback` when present. It must
+///   remain valid until `free_callback` is invoked with it. The destructor
+///   must remain valid and may run on any thread draining logs through the
+///   Haskell FFI. On failure, ownership remains with the caller.
 /// * `result` is a valid pointer with space for one `FFIResult`.
 ///
 /// # Panics
@@ -77,14 +77,10 @@ pub unsafe extern "C" fn via_map_ffi(
     values: *const *const c_char,
     len: usize,
     callback: Option<LogCallback>,
-    prev_callback: *mut Option<LogCallback>,
+    free_callback: FreeLogCallback,
     result: *mut FFIResult<od::blocking::Operator>,
 ) {
     unsafe {
-        if !prev_callback.is_null() {
-            *prev_callback = None;
-        }
-
         let scheme = match c_str_arg(scheme) {
             Some(s) => s,
             None => {
@@ -154,23 +150,14 @@ pub unsafe extern "C" fn via_map_ffi(
             }
         };
 
-        if let Some(callback) = callback {
-            match logger::install_logger(callback) {
-                Ok(prev) => {
-                    if !prev_callback.is_null() {
-                        *prev_callback = prev;
-                    }
-                    logger::flush_logs();
-                }
-                Err(e) => {
-                    drop(op);
-                    *result = FFIResult::err_with_source(
-                        "Failed to register logger",
-                        od::Error::new(od::ErrorKind::Unexpected, e.to_string().as_str()),
-                    );
-                    return;
-                }
-            }
+        if let Some(callback) = callback
+            && let Err(e) = logger::install_logger(callback, free_callback)
+        {
+            *result = FFIResult::err_with_source(
+                "Failed to register logger",
+                od::Error::new(od::ErrorKind::Unexpected, e.to_string().as_str()),
+            );
+            return;
         }
 
         *result = FFIResult::ok(op);
@@ -919,6 +906,7 @@ pub unsafe extern "C" fn free_writer(writer: *mut blocking::Writer) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use logger::ErasedLogCallback;
     use std::ffi::CStr;
     use std::ptr;
     use types::{free_bool, free_byteslice, free_metadata, free_string};
@@ -930,6 +918,8 @@ mod tests {
         let op = od::blocking::Operator::new(operator).unwrap();
         Box::into_raw(Box::new(op))
     }
+
+    extern "C" fn unused_free_callback(_: ErasedLogCallback) {}
 
     #[test]
     fn ffi_result_layout_matches_abi() {
@@ -954,7 +944,7 @@ mod tests {
                 values.as_ptr(),
                 1,
                 None,
-                ptr::null_mut(),
+                unused_free_callback,
                 &mut result,
             );
             assert_eq!(result.code, result::FFIErrorCode::FFIError);
@@ -975,7 +965,7 @@ mod tests {
                 ptr::null(),
                 2,
                 None,
-                ptr::null_mut(),
+                unused_free_callback,
                 &mut result,
             );
             assert_eq!(result.code, result::FFIErrorCode::FFIError);
@@ -994,7 +984,7 @@ mod tests {
                 ptr::null(),
                 0,
                 None,
-                ptr::null_mut(),
+                unused_free_callback,
                 &mut result,
             );
             assert_eq!(result.code, result::FFIErrorCode::Ok);
@@ -1275,19 +1265,13 @@ mod tests {
 
     #[test]
     fn logger_lifecycle_failed_build_and_second_operator() {
-        use std::sync::Mutex;
         use std::sync::atomic::AtomicBool;
         use std::sync::atomic::AtomicUsize;
         use std::sync::atomic::Ordering;
 
-        assert_eq!(
-            std::mem::size_of::<Option<LogCallback>>(),
-            std::mem::size_of::<*const ()>()
-        );
-
-        static LOGGER_TEST_LOCK: Mutex<()> = Mutex::new(());
         static CB1_COUNT: AtomicUsize = AtomicUsize::new(0);
         static CB2_COUNT: AtomicUsize = AtomicUsize::new(0);
+        static RELEASED_COUNT: AtomicUsize = AtomicUsize::new(0);
         static CB_FAIL_COUNT: AtomicUsize = AtomicUsize::new(0);
         static INVOKED_ON_TOKIO_THREAD: AtomicBool = AtomicBool::new(false);
 
@@ -1311,7 +1295,15 @@ mod tests {
             CB_FAIL_COUNT.fetch_add(1, Ordering::SeqCst);
         }
 
-        let _lock = LOGGER_TEST_LOCK.lock().unwrap();
+        extern "C" fn release_callback(callback: ErasedLogCallback) {
+            if callback as usize == cb1 as LogCallback as usize {
+                RELEASED_COUNT.fetch_add(1, Ordering::SeqCst);
+            } else {
+                RELEASED_COUNT.fetch_add(100, Ordering::SeqCst);
+            }
+        }
+
+        RELEASED_COUNT.store(0, Ordering::SeqCst);
         CB1_COUNT.store(0, Ordering::SeqCst);
         CB2_COUNT.store(0, Ordering::SeqCst);
         CB_FAIL_COUNT.store(0, Ordering::SeqCst);
@@ -1319,7 +1311,6 @@ mod tests {
 
         unsafe {
             // 1. Failing operator construction must not install or poison the logger.
-            let mut prev: Option<LogCallback> = None;
             let mut bad_result = FFIResult::<od::blocking::Operator>::default();
             via_map_ffi(
                 c"nonexistent-scheme".as_ptr(),
@@ -1327,11 +1318,11 @@ mod tests {
                 ptr::null(),
                 0,
                 Some(cb_fail),
-                &mut prev,
+                release_callback,
                 &mut bad_result,
             );
             assert_ne!(bad_result.code, result::FFIErrorCode::Ok);
-            assert!(prev.is_none());
+            assert_eq!(RELEASED_COUNT.load(Ordering::SeqCst), 0);
             free_string(bad_result.error_message);
 
             // 2. First valid operator with logging succeeds and invokes cb1 on caller thread.
@@ -1342,11 +1333,11 @@ mod tests {
                 ptr::null(),
                 0,
                 Some(cb1),
-                &mut prev,
+                release_callback,
                 &mut op1_result,
             );
             assert_eq!(op1_result.code, result::FFIErrorCode::Ok);
-            assert!(prev.is_none());
+            assert_eq!(RELEASED_COUNT.load(Ordering::SeqCst), 0);
             let op1 = op1_result.data_ptr;
 
             let mut write_result = FFIResult::<()>::default();
@@ -1355,7 +1346,7 @@ mod tests {
             assert!(CB1_COUNT.load(Ordering::SeqCst) > 0);
             assert_eq!(CB_FAIL_COUNT.load(Ordering::SeqCst), 0);
 
-            // 3. Second valid operator with logging succeeds, returns cb1 as previous, and uses cb2.
+            // 3. Replacing the logger releases the previously installed callback.
             let mut op2_result = FFIResult::<od::blocking::Operator>::default();
             via_map_ffi(
                 c"memory".as_ptr(),
@@ -1363,11 +1354,11 @@ mod tests {
                 ptr::null(),
                 0,
                 Some(cb2),
-                &mut prev,
+                release_callback,
                 &mut op2_result,
             );
             assert_eq!(op2_result.code, result::FFIErrorCode::Ok);
-            assert_eq!(prev.map(|f| f as usize), Some(cb1 as LogCallback as usize));
+            assert_eq!(RELEASED_COUNT.load(Ordering::SeqCst), 1);
             let op2 = op2_result.data_ptr;
 
             let cb1_before = CB1_COUNT.load(Ordering::SeqCst);
@@ -1385,11 +1376,11 @@ mod tests {
                 ptr::null(),
                 0,
                 Some(cb_fail),
-                &mut prev,
+                release_callback,
                 &mut bad2_result,
             );
             assert_ne!(bad2_result.code, result::FFIErrorCode::Ok);
-            assert!(prev.is_none());
+            assert_eq!(RELEASED_COUNT.load(Ordering::SeqCst), 1);
             free_string(bad2_result.error_message);
 
             let cb2_before = CB2_COUNT.load(Ordering::SeqCst);

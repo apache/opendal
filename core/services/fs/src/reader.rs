@@ -67,16 +67,30 @@ impl oio::PositionRead for FsReader {
                     DirectIoAlignment::open(&path, options, ServiceOperation("OpenForRead"))?;
                 (file, Some(alignment))
             } else {
-                (File::open(path).map_err(new_std_io_error)?, None)
+                (File::open(&path).map_err(new_std_io_error)?, None)
             };
             #[cfg(not(target_os = "linux"))]
-            let file = File::open(path).map_err(new_std_io_error)?;
+            let file = File::open(&path).map_err(|err| {
+                #[cfg(windows)]
+                if err.kind() == std::io::ErrorKind::PermissionDenied
+                    && std::fs::metadata(&path).is_ok_and(|meta| meta.is_dir())
+                {
+                    return Error::new(ErrorKind::IsADirectory, "read path is a directory")
+                        .set_source(err);
+                }
+                new_std_io_error(err)
+            })?;
+
+            let metadata = file.metadata().map_err(new_std_io_error)?;
+            if metadata.is_dir() {
+                return Err(Error::new(
+                    ErrorKind::IsADirectory,
+                    "read path is a directory",
+                ));
+            }
 
             if if_modified_since.is_some() || if_unmodified_since.is_some() {
-                let modified = file
-                    .metadata()
-                    .and_then(|metadata| metadata.modified())
-                    .map_err(new_std_io_error)?;
+                let modified = metadata.modified().map_err(new_std_io_error)?;
                 let modified = Timestamp::try_from(modified)?;
                 if if_modified_since.is_some_and(|since| modified <= since) {
                     return Err(Error::new(
@@ -131,5 +145,55 @@ impl oio::PositionRead for FsReader {
         handle.core.buf_pool.put(bs);
 
         Ok(Buffer::from(frozen))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opendal_core::raw::oio::Read;
+
+    #[tokio::test]
+    async fn test_read_directory_returns_is_a_directory() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir(temp_dir.path().join("dir")).unwrap();
+
+        let service = crate::Fs::default()
+            .root(temp_dir.path().to_str().unwrap())
+            .build()
+            .unwrap();
+        let raw_reader = service
+            .read(&OperationContext::new(), "dir", OpRead::default())
+            .unwrap();
+        let err = raw_reader
+            .read(BytesRange::new(0, Some(1)))
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+
+        let op =
+            Operator::new(crate::Fs::default().root(temp_dir.path().to_str().unwrap())).unwrap();
+
+        let err = op.read("dir").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+
+        let err = op.read_with("dir").range(0..1).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+
+        let err = op
+            .read_with("dir")
+            .if_modified_since(Timestamp::MAX)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+
+        let reader = op.reader("dir").await.unwrap();
+        let err = reader.read(..).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
     }
 }

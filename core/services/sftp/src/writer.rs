@@ -15,45 +15,49 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::pin::Pin;
-
-use bytes::Buf;
+use bytes::Bytes;
 use openssh_sftp_client::file::File;
-use openssh_sftp_client::file::TokioCompatFile;
-use tokio::io::AsyncWriteExt;
 
+use super::core::SftpConnection;
+use super::core::parse_sftp_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct SftpWriter {
-    /// TODO: maybe we can use `File` directly?
-    file: Pin<Box<TokioCompatFile>>,
+    file: Option<File>,
+    // Keep the connection checked out until after the file handle closes.
+    _conn: Option<SftpConnection>,
 }
 
 impl SftpWriter {
-    pub fn new(file: File) -> Self {
+    pub fn new(file: File, conn: SftpConnection) -> Self {
         SftpWriter {
-            file: Box::pin(TokioCompatFile::new(file)),
+            file: Some(file),
+            _conn: Some(conn),
         }
     }
 }
 
 impl oio::Write for SftpWriter {
-    async fn write(&mut self, mut bs: Buffer) -> Result<()> {
-        while bs.has_remaining() {
-            let n = self
-                .file
-                .write(bs.chunk())
-                .await
-                .map_err(new_std_io_error)?;
-            bs.advance(n);
-        }
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        let file = self.file.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "sftp writer has already been closed")
+        })?;
+
+        let mut chunks: Vec<Bytes> = bs.into_iter().collect();
+        file.write_all_zero_copy(&mut chunks)
+            .await
+            .map_err(parse_sftp_error)?;
 
         Ok(())
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        self.file.shutdown().await.map_err(new_std_io_error)?;
+        if let Some(file) = self.file.take() {
+            let res = file.close().await.map_err(parse_sftp_error);
+            self._conn = None;
+            res?;
+        }
 
         Ok(MetadataBuilder::unknown().build())
     }

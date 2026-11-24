@@ -17,6 +17,10 @@
 
 package opendal
 
+import "errors"
+
+var errInvalidUTF8 = errors.New("string is not valid UTF-8")
+
 func copyCStringAndFree(ptr *byte, free func(*byte)) string {
 	if ptr == nil {
 		return ""

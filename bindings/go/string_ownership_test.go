@@ -366,6 +366,9 @@ func TestNewMetadataCopiesAllFieldsAndFreesOwnedValues(t *testing.T) {
 	if meta.LastModified().UnixMilli() != 1700000000000 {
 		t.Fatalf("LastModified().UnixMilli() = %d, want 1700000000000", meta.LastModified().UnixMilli())
 	}
+	if meta.LastModified().Location() != time.UTC {
+		t.Fatalf("LastModified().Location() = %v, want UTC", meta.LastModified().Location())
+	}
 	if meta.Mode() != EntryModeDir {
 		t.Fatalf("Mode() = %d, want %d", meta.Mode(), EntryModeDir)
 	}

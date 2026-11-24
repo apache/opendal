@@ -19,12 +19,23 @@ package opendal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"runtime"
 	"time"
 	"unsafe"
 )
+
+func presignExpireSeconds(expire time.Duration) (uint64, error) {
+	if expire <= 0 {
+		return 0, errors.New("presign expire must be positive")
+	}
+	if expire < time.Second {
+		return 0, errors.New("presign expire must be at least 1 second")
+	}
+	return uint64(expire / time.Second), nil
+}
 
 // PresignRead returns a presigned HTTP request that can be used to read the object at the given path.
 func (op *Operator) PresignRead(ctx context.Context, path string, expire time.Duration, opts ...WithReadFn) (*http.Request, error) {
@@ -34,6 +45,10 @@ func (op *Operator) PresignRead(ctx context.Context, path string, expire time.Du
 	}
 	defer release()
 	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
+	expireSeconds, err := presignExpireSeconds(expire)
+	if err != nil {
 		return nil, err
 	}
 
@@ -48,7 +63,7 @@ func (op *Operator) PresignRead(ctx context.Context, path string, expire time.Du
 		defer ffiReadOptionsFree.symbol(op.ctx)(cOpts)
 	}
 	req, err := withCancelTokenValue(op.ctx, ctx, func(token *opendalCancelToken) (*opendalPresignedRequest, error) {
-		return ffiOperatorPresignRead.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts, token)
+		return ffiOperatorPresignRead.symbol(op.ctx)(inner, path, expireSeconds, cOpts, token)
 	})
 	runtime.KeepAlive(keepAlive)
 	return op.buildPresignedRequest(req, err)
@@ -64,6 +79,10 @@ func (op *Operator) PresignWrite(ctx context.Context, path string, expire time.D
 	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
+	expireSeconds, err := presignExpireSeconds(expire)
+	if err != nil {
+		return nil, err
+	}
 
 	var cOpts *opendalWriteOptions
 	var keepAlive writeOptionsKeepAlive
@@ -76,7 +95,7 @@ func (op *Operator) PresignWrite(ctx context.Context, path string, expire time.D
 		defer ffiWriteOptionsFree.symbol(op.ctx)(cOpts)
 	}
 	req, err := withCancelTokenValue(op.ctx, ctx, func(token *opendalCancelToken) (*opendalPresignedRequest, error) {
-		return ffiOperatorPresignWrite.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts, token)
+		return ffiOperatorPresignWrite.symbol(op.ctx)(inner, path, expireSeconds, cOpts, token)
 	})
 	runtime.KeepAlive(keepAlive)
 	return op.buildPresignedRequest(req, err)
@@ -92,6 +111,10 @@ func (op *Operator) PresignDelete(ctx context.Context, path string, expire time.
 	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
+	expireSeconds, err := presignExpireSeconds(expire)
+	if err != nil {
+		return nil, err
+	}
 
 	var cOpts *opendalDeleteOptions
 	var keepAlive [][]byte
@@ -104,7 +127,7 @@ func (op *Operator) PresignDelete(ctx context.Context, path string, expire time.
 		defer ffiDeleteOptionsFree.symbol(op.ctx)(cOpts)
 	}
 	req, err := withCancelTokenValue(op.ctx, ctx, func(token *opendalCancelToken) (*opendalPresignedRequest, error) {
-		return ffiOperatorPresignDelete.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts, token)
+		return ffiOperatorPresignDelete.symbol(op.ctx)(inner, path, expireSeconds, cOpts, token)
 	})
 	runtime.KeepAlive(keepAlive)
 	return op.buildPresignedRequest(req, err)
@@ -120,6 +143,10 @@ func (op *Operator) PresignStat(ctx context.Context, path string, expire time.Du
 	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
+	expireSeconds, err := presignExpireSeconds(expire)
+	if err != nil {
+		return nil, err
+	}
 
 	var cOpts *opendalStatOptions
 	var keepAlive [][]byte
@@ -132,7 +159,7 @@ func (op *Operator) PresignStat(ctx context.Context, path string, expire time.Du
 		defer ffiStatOptionsFree.symbol(op.ctx)(cOpts)
 	}
 	req, err := withCancelTokenValue(op.ctx, ctx, func(token *opendalCancelToken) (*opendalPresignedRequest, error) {
-		return ffiOperatorPresignStat.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts, token)
+		return ffiOperatorPresignStat.symbol(op.ctx)(inner, path, expireSeconds, cOpts, token)
 	})
 	runtime.KeepAlive(keepAlive)
 	return op.buildPresignedRequest(req, err)

@@ -57,7 +57,7 @@ func CopyWithSourceVersion(sourceVersion string) WithCopyFn {
 // content length, avoiding extra metadata requests.
 func CopyWithSourceContentLengthHint(length uint64) WithCopyFn {
 	return func(o *copyOptions) {
-		o.sourceContentLengthHint = length
+		o.sourceContentLengthHint = &length
 	}
 }
 
@@ -79,7 +79,7 @@ type copyOptions struct {
 	ifNotExists             bool
 	ifMatch                 string
 	sourceVersion           string
-	sourceContentLengthHint uint64
+	sourceContentLengthHint *uint64
 	concurrent              uint
 	chunk                   uint
 }
@@ -148,6 +148,9 @@ func (op *Operator) Copy(ctx context.Context, src, dest string, opts ...WithCopy
 func parseCopyOptions(opts ...WithCopyFn) *copyOptions {
 	o := &copyOptions{}
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
 		opt(o)
 	}
 	return o
@@ -191,8 +194,8 @@ func newOpendalCopyOptions(ctx context.Context, o *copyOptions) (*opendalCopyOpt
 	if err := setString(o.sourceVersion, ffiCopyOptionsSetSourceVersion.symbol(ctx)); err != nil {
 		return fail(err)
 	}
-	if o.sourceContentLengthHint != 0 {
-		ffiCopyOptionsSetSourceContentLengthHint.symbol(ctx)(cOpts, o.sourceContentLengthHint)
+	if o.sourceContentLengthHint != nil {
+		ffiCopyOptionsSetSourceContentLengthHint.symbol(ctx)(cOpts, *o.sourceContentLengthHint)
 	}
 	if o.concurrent != 0 {
 		ffiCopyOptionsSetConcurrent.symbol(ctx)(cOpts, o.concurrent)

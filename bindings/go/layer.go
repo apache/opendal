@@ -122,8 +122,8 @@ func RetryMaxTimes(maxTimes int) RetryOption {
 // RetryFactor sets the retry layer backoff factor.
 func RetryFactor(factor float64) RetryOption {
 	return retryOptionFunc(func(config *retryConfig) error {
-		if math.IsNaN(factor) || math.IsInf(factor, 0) || factor < 1 {
-			return errors.New("retry factor must be finite and greater than or equal to 1")
+		if math.IsNaN(factor) || math.IsInf(factor, 0) || factor < 1 || factor > math.MaxFloat32 {
+			return errors.New("retry factor must be finite, greater than or equal to 1, and representable as float32")
 		}
 		config.factor = float32(factor)
 		return nil

@@ -20,7 +20,9 @@ package opendal
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"math"
 	"runtime"
 	"sync"
 	"time"
@@ -238,6 +240,9 @@ type readOptions struct {
 func parseReadOptions(opts ...WithReadFn) *readOptions {
 	o := &readOptions{}
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
 		opt(o)
 	}
 	return o
@@ -411,6 +416,9 @@ type readerOptions struct {
 func parseReaderOptions(opts ...WithReaderFn) *readerOptions {
 	o := &readerOptions{}
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
 		opt(o)
 	}
 	return o
@@ -663,6 +671,14 @@ func (r *Reader) SeekContext(ctx context.Context, offset int64, whence int) (int
 	if r.inner == nil {
 		return 0, ErrReaderClosed
 	}
+	if err := checkContext(ctx); err != nil {
+		return 0, err
+	}
+	switch whence {
+	case io.SeekStart, io.SeekCurrent, io.SeekEnd:
+	default:
+		return 0, fmt.Errorf("invalid whence: %d", whence)
+	}
 	return withCancelTokenValue(r.ctx, ctx, func(token *opendalCancelToken) (int64, error) {
 		return ffiReaderSeek.symbol(r.ctx)(r.inner, offset, whence, token)
 	})
@@ -842,10 +858,18 @@ var ffiReaderSeek = newFFI(
 	"opendal_reader_seek_with_cancel",
 	func(ctx context.Context, cFunc func(r *opendalReader, offset int64, whence int32, cancel *opendalCancelToken, pos *uint64) *opendalError) func(r *opendalReader, offset int64, whence int, cancel *opendalCancelToken) (int64, error) {
 		return func(r *opendalReader, offset int64, whence int, cancel *opendalCancelToken) (int64, error) {
+			switch whence {
+			case io.SeekStart, io.SeekCurrent, io.SeekEnd:
+			default:
+				return 0, fmt.Errorf("invalid whence: %d", whence)
+			}
 			var pos uint64
 			e := cFunc(r, offset, int32(whence), cancel, &pos)
 			if e != nil {
 				return 0, parseError(ctx, e)
+			}
+			if pos > math.MaxInt64 {
+				return 0, fmt.Errorf("seek position %d overflows int64", pos)
 			}
 			return int64(pos), nil
 		}

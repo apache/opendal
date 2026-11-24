@@ -43,7 +43,8 @@ var op = try opendal.Operator.init("memory", null);
 defer op.deinit();
 
 try op.write("/hello.txt", "Hello, World!");
-const data = try op.read("/hello.txt");
+var data = try op.read("/hello.txt");
+defer data.deinit();
 ```
 
 See the [User Guide](https://opendal.apache.org/docs/bindings/zig) for more.

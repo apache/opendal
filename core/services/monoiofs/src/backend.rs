@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::io;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -55,19 +56,33 @@ impl Builder for MonoiofsBuilder {
     type Config = MonoiofsConfig;
 
     fn build(self) -> Result<impl Service> {
-        let root = self.config.root.map(PathBuf::from).ok_or(
-            Error::new(ErrorKind::ConfigInvalid, "root is not specified")
-                .with_operation("Builder::build"),
-        )?;
-        if let Err(e) = std::fs::metadata(&root)
-            && e.kind() == io::ErrorKind::NotFound
-        {
-            std::fs::create_dir_all(&root).map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "create root dir failed")
+        let root = self
+            .config
+            .root
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from)
+            .ok_or_else(|| {
+                Error::new(ErrorKind::ConfigInvalid, "root is not specified")
                     .with_operation("Builder::build")
-                    .with_context("root", root.to_string_lossy())
-                    .set_source(e)
             })?;
+        match std::fs::metadata(&root) {
+            Ok(meta) if !meta.is_dir() => {
+                return Err(
+                    Error::new(ErrorKind::ConfigInvalid, "root is not a directory")
+                        .with_operation("Builder::build")
+                        .with_context("root", root.to_string_lossy()),
+                );
+            }
+            Ok(_) => {}
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                std::fs::create_dir_all(&root).map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "create root dir failed")
+                        .with_operation("Builder::build")
+                        .with_context("root", root.to_string_lossy())
+                        .set_source(e)
+                })?;
+            }
+            Err(_) => {}
         }
         let root = root.canonicalize().map_err(|e| {
             Error::new(
@@ -207,15 +222,28 @@ impl Service for MonoiofsBackend {
     ) -> Result<Self::Copier> {
         let core = self.core.clone();
         let from = self.core.prepare_path(from)?;
+        let to_path = self.core.prepare_path(to)?;
         let to = to.to_string();
 
         let copier = oio::OneShotCopier::new(async move {
-            // Ensure source exists and is not a directory before creating
-            // destination parent directories or opening/truncating destination.
-            let from_meta = core
+            // Ensure source exists, is not a directory, and does not alias destination
+            // before creating destination parent directories or opening/truncating destination.
+            let (from_meta, to_meta) = core
                 .dispatch({
                     let from = from.clone();
-                    move || monoio::fs::metadata(from)
+                    let to_path = to_path.clone();
+                    move || async move {
+                        let from_meta = monoio::fs::metadata(&from).await?;
+                        if from_meta.is_dir() {
+                            return Ok((from_meta, None));
+                        }
+                        let to_meta = match monoio::fs::metadata(&to_path).await {
+                            Ok(meta) => Some(meta),
+                            Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+                            Err(err) => return Err(err),
+                        };
+                        Ok((from_meta, to_meta))
+                    }
                 })
                 .await
                 .map_err(new_std_io_error)?;
@@ -224,6 +252,20 @@ impl Service for MonoiofsBackend {
                     ErrorKind::IsADirectory,
                     "copy source is a directory",
                 ));
+            }
+            if let Some(to_meta) = to_meta {
+                if to_meta.is_dir() {
+                    return Err(Error::new(
+                        ErrorKind::IsADirectory,
+                        "copy target is a directory",
+                    ));
+                }
+                if is_same_file(&from, &from_meta, &to_path, &to_meta) {
+                    return Err(Error::new(
+                        ErrorKind::IsSameFile,
+                        "copy source and destination refer to the same file",
+                    ));
+                }
             }
             let to = core.prepare_write_path(&to).await?;
             core.dispatch({
@@ -295,9 +337,108 @@ impl Service for MonoiofsBackend {
     }
 }
 
+fn is_same_file(
+    from: &Path,
+    from_meta: &monoio::fs::Metadata,
+    to: &Path,
+    to_meta: &monoio::fs::Metadata,
+) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let _ = (from, to);
+        from_meta.dev() == to_meta.dev() && from_meta.ino() == to_meta.ino()
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (from_meta, to_meta);
+        matches!(
+            (std::fs::canonicalize(from), std::fs::canonicalize(to)),
+            (Ok(from_canon), Ok(to_canon)) if from_canon == to_canon
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
+    use crate::MONOIOFS_SCHEME;
+
+    #[test]
+    fn test_builder_config_validation() {
+        let temp = tempfile::tempdir().unwrap();
+        let file_path = temp.path().join("not_a_dir");
+        std::fs::write(&file_path, b"data").unwrap();
+        let valid_root = temp.path().join("valid_root");
+        std::fs::create_dir(&valid_root).unwrap();
+
+        let err = MonoiofsBuilder::default().root("").build().err().unwrap();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "{err:?}");
+
+        let cfg = MonoiofsConfig::from_iter([("root".to_string(), String::new())]).unwrap();
+        let err = cfg.into_builder().build().err().unwrap();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "{err:?}");
+
+        let err = MonoiofsBuilder::default()
+            .root(file_path.to_str().unwrap())
+            .build()
+            .err()
+            .unwrap();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "{err:?}");
+
+        let backend = MonoiofsBuilder::default()
+            .root(valid_root.to_str().unwrap())
+            .build()
+            .unwrap();
+        assert_eq!(backend.info().scheme(), MONOIOFS_SCHEME);
+
+        let missing_root = temp.path().join("created_root");
+        let backend = MonoiofsBuilder::default()
+            .root(missing_root.to_str().unwrap())
+            .build()
+            .unwrap();
+        assert_eq!(backend.info().scheme(), MONOIOFS_SCHEME);
+        assert!(missing_root.is_dir());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_copy_same_file_alias_preserves_data() {
+        tokio::time::timeout(Duration::from_secs(30), async {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let root = temp_dir.path();
+            std::fs::write(root.join("real.txt"), b"important data").unwrap();
+            std::os::unix::fs::symlink("real.txt", root.join("link.txt")).unwrap();
+            std::fs::hard_link(root.join("real.txt"), root.join("hard.txt")).unwrap();
+            std::fs::create_dir(root.join("nested")).unwrap();
+            std::os::unix::fs::symlink("../real.txt", root.join("nested/link.txt")).unwrap();
+
+            let op =
+                Operator::new(MonoiofsBuilder::default().root(root.to_str().unwrap())).unwrap();
+
+            for (from, to) in [
+                ("real.txt", "link.txt"),
+                ("link.txt", "real.txt"),
+                ("real.txt", "hard.txt"),
+                ("hard.txt", "real.txt"),
+                ("link.txt", "hard.txt"),
+                ("real.txt", "nested/link.txt"),
+            ] {
+                let err = op.copy(from, to).await.unwrap_err();
+                assert_eq!(err.kind(), ErrorKind::IsSameFile, "{from} -> {to}: {err:?}");
+                assert!(!err.is_temporary(), "{from} -> {to}: {err:?}");
+                assert_eq!(
+                    std::fs::read(root.join("real.txt")).unwrap(),
+                    b"important data",
+                    "{from} -> {to} must preserve data"
+                );
+            }
+        })
+        .await
+        .unwrap();
+    }
 
     #[tokio::test]
     async fn test_copy_source_dir_preserves_destination() {

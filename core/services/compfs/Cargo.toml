@@ -51,4 +51,4 @@ rustix = { version = "1", features = ["fs"] }
 bytes = { workspace = true }
 rand = { workspace = true }
 tempfile = "3"
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

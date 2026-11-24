@@ -22,84 +22,6 @@ use std::sync::Arc;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-trait HdfsRenameOps {
-    fn metadata_is_file(&self, path: &str) -> io::Result<bool>;
-    fn create_dir(&self, path: &str) -> io::Result<()>;
-    fn remove_file(&self, path: &str) -> io::Result<()>;
-    fn rename_file(&self, from: &str, to: &str) -> io::Result<()>;
-}
-
-impl HdfsRenameOps for hdrs::Client {
-    fn metadata_is_file(&self, path: &str) -> io::Result<bool> {
-        hdrs::Client::metadata(self, path).map(|meta| meta.is_file())
-    }
-
-    fn create_dir(&self, path: &str) -> io::Result<()> {
-        hdrs::Client::create_dir(self, path)
-    }
-
-    fn remove_file(&self, path: &str) -> io::Result<()> {
-        hdrs::Client::remove_file(self, path)
-    }
-
-    fn rename_file(&self, from: &str, to: &str) -> io::Result<()> {
-        hdrs::Client::rename_file(self, from, to)
-    }
-}
-
-fn hdfs_rename_with<C: HdfsRenameOps>(
-    client: &C,
-    root: &str,
-    from: &str,
-    to: &str,
-    args: &OpRename,
-) -> Result<()> {
-    let from_path = build_rooted_absolute_path(root, from);
-    let from_is_file = client
-        .metadata_is_file(&from_path)
-        .map_err(new_std_io_error)?;
-    if !from_is_file {
-        return Err(
-            Error::new(ErrorKind::IsADirectory, "from path should be a file")
-                .with_context("from", &from_path),
-        );
-    }
-
-    let to_path = build_rooted_absolute_path(root, to);
-    match client.metadata_is_file(&to_path) {
-        Err(err) => {
-            // Early return if other error happened.
-            if err.kind() != io::ErrorKind::NotFound {
-                return Err(new_std_io_error(err));
-            }
-
-            client
-                .create_dir(get_parent(&to_path))
-                .map_err(new_std_io_error)?;
-        }
-        Ok(true) => {
-            if args.if_not_exists() {
-                return Err(Error::new(
-                    ErrorKind::ConditionNotMatch,
-                    "target path already exists while if_not_exists is set",
-                )
-                .with_context("to", &to_path));
-            }
-            client.remove_file(&to_path).map_err(new_std_io_error)?;
-        }
-        Ok(false) => {
-            return Err(Error::new(ErrorKind::IsADirectory, "path should be a file")
-                .with_context("to", &to_path));
-        }
-    }
-
-    client
-        .rename_file(&from_path, &to_path)
-        .map_err(|err| map_hdfs_rename_error(err, args.if_not_exists(), &to_path))?;
-
-    Ok(())
-}
-
 fn map_hdfs_rename_error(err: io::Error, if_not_exists: bool, to_path: &str) -> Error {
     if if_not_exists && err.kind() == io::ErrorKind::AlreadyExists {
         return Error::new(
@@ -176,7 +98,7 @@ impl HdfsCore {
         &self,
         path: &str,
         op: &OpWrite,
-    ) -> Result<(String, Option<String>, hdrs::AsyncFile, u64)> {
+    ) -> Result<(String, Option<String>, hdrs::AsyncFile, bool, u64)> {
         let target_path = build_rooted_absolute_path(&self.root, path);
         let mut initial_size = 0;
         let target_exists = match self.client.metadata(&target_path) {
@@ -221,7 +143,7 @@ impl HdfsCore {
             .await
             .map_err(new_std_io_error)?;
 
-        Ok((target_path, tmp_path, f, initial_size))
+        Ok((target_path, tmp_path, f, target_exists, initial_size))
     }
 
     pub fn hdfs_list(&self, path: &str) -> Result<Option<hdrs::Readdir>> {
@@ -240,7 +162,44 @@ impl HdfsCore {
     }
 
     pub fn hdfs_rename(&self, from: &str, to: &str, args: &OpRename) -> Result<()> {
-        hdfs_rename_with(self.client.as_ref(), &self.root, from, to, args)
+        let from_path = build_rooted_absolute_path(&self.root, from);
+        self.client.metadata(&from_path).map_err(new_std_io_error)?;
+
+        let to_path = build_rooted_absolute_path(&self.root, to);
+        let result = self.client.metadata(&to_path);
+        match result {
+            Err(err) => {
+                // Early return if other error happened.
+                if err.kind() != io::ErrorKind::NotFound {
+                    return Err(new_std_io_error(err));
+                }
+
+                self.ensure_parent_dir(&to_path)?;
+            }
+            Ok(metadata) => {
+                if metadata.is_file() {
+                    if args.if_not_exists() {
+                        return Err(Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "target path already exists while if_not_exists is set",
+                        )
+                        .with_context("to", &to_path));
+                    }
+                    self.client
+                        .remove_file(&to_path)
+                        .map_err(new_std_io_error)?;
+                } else {
+                    return Err(Error::new(ErrorKind::IsADirectory, "path should be a file")
+                        .with_context("to", &to_path));
+                }
+            }
+        }
+
+        self.client
+            .rename_file(&from_path, &to_path)
+            .map_err(|err| map_hdfs_rename_error(err, args.if_not_exists(), &to_path))?;
+
+        Ok(())
     }
 
     pub async fn hdfs_copy(&self, from: &str, to: &str) -> Result<Metadata> {
@@ -299,44 +258,7 @@ impl HdfsCore {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::sync::Mutex;
-
     use super::*;
-
-    #[derive(Default)]
-    struct MockRenameOps {
-        entries: HashMap<String, bool>,
-        ops: Mutex<Vec<String>>,
-    }
-
-    impl HdfsRenameOps for MockRenameOps {
-        fn metadata_is_file(&self, path: &str) -> io::Result<bool> {
-            self.ops.lock().unwrap().push(format!("metadata:{path}"));
-            self.entries
-                .get(path)
-                .copied()
-                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "not found"))
-        }
-
-        fn create_dir(&self, path: &str) -> io::Result<()> {
-            self.ops.lock().unwrap().push(format!("create_dir:{path}"));
-            Ok(())
-        }
-
-        fn remove_file(&self, path: &str) -> io::Result<()> {
-            self.ops.lock().unwrap().push(format!("remove:{path}"));
-            Ok(())
-        }
-
-        fn rename_file(&self, from: &str, to: &str) -> io::Result<()> {
-            self.ops
-                .lock()
-                .unwrap()
-                .push(format!("rename:{from}->{to}"));
-            Ok(())
-        }
-    }
 
     #[test]
     fn map_existing_target_error_to_condition_not_match() {
@@ -347,28 +269,5 @@ mod tests {
         );
 
         assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
-    }
-
-    #[test]
-    fn rename_rejects_directory_source_without_touching_destination() {
-        let client = MockRenameOps {
-            entries: HashMap::from([("/root/src-dir".to_string(), false)]),
-            ops: Mutex::new(Vec::new()),
-        };
-
-        let err = hdfs_rename_with(
-            &client,
-            "/root/",
-            "src-dir",
-            "new-parent/target",
-            &OpRename::default(),
-        )
-        .unwrap_err();
-
-        assert_eq!(err.kind(), ErrorKind::IsADirectory);
-        assert_eq!(
-            *client.ops.lock().unwrap(),
-            vec!["metadata:/root/src-dir".to_string()]
-        );
     }
 }

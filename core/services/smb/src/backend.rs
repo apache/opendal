@@ -263,14 +263,8 @@ impl Service for SmbBackend {
         let target = self.core.path(to)?;
         let parent = to.rsplit_once('/').map(|(parent, _)| parent.to_string());
         let core = self.core.clone();
-        // Recreate the copy future so retry layers can rerun after a temporary error.
-        Ok(oio::OneShotCopier::new_with(move || {
-            let core = core.clone();
-            let source = source.clone();
-            let target = target.clone();
-            let parent = parent.clone();
-            let op = op.clone();
-            async move { SmbCopier::copy(core, source, target, parent, op).await }
+        Ok(oio::OneShotCopier::new(async move {
+            SmbCopier::copy(core, source, target, parent, op).await
         }))
     }
 
@@ -387,43 +381,5 @@ mod tests {
             .build()
             .unwrap();
         assert_eq!(backend.info().root().as_ref(), "/documents/reports/");
-    }
-
-    #[tokio::test]
-    async fn copy_recreates_future_on_retry() {
-        use std::time::Duration;
-
-        use opendal_core::raw::oio::Copy;
-
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
-        drop(listener);
-
-        let backend = SmbBuilder::default()
-            .endpoint(&format!("127.0.0.1:{port}"))
-            .share("data")
-            .user("user")
-            .build()
-            .unwrap();
-        let ctx = OperationContext::default();
-        let mut copier = backend
-            .copy(&ctx, "source", "target", OpCopy::default())
-            .unwrap();
-
-        let first = tokio::time::timeout(Duration::from_secs(5), copier.close())
-            .await
-            .expect("first copy attempt should not hang")
-            .unwrap_err();
-        let second = tokio::time::timeout(Duration::from_secs(5), copier.close())
-            .await
-            .expect("retried copy attempt should not hang")
-            .unwrap_err();
-
-        assert_eq!(first.kind(), ErrorKind::Unexpected);
-        assert_eq!(second.kind(), ErrorKind::Unexpected);
-        assert!(
-            !second.message().contains("already been consumed"),
-            "retried copier must invoke the factory instead of failing as consumed: {second}"
-        );
     }
 }

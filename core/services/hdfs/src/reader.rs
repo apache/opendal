@@ -134,13 +134,15 @@ pub(super) trait HdfsWriteOpener: Send + Sync + 'static {
 
 impl HdfsWriteOpener for HdfsCore {
     async fn open(&self, path: &str, op: &OpWrite) -> Result<HdfsWriter<hdrs::AsyncFile>> {
-        let (target_path, tmp_path, f, initial_size) = self.hdfs_write(path, op).await?;
+        let (target_path, tmp_path, f, target_exists, initial_size) =
+            self.hdfs_write(path, op).await?;
 
         Ok(HdfsWriter::new(
             target_path,
             tmp_path,
             f,
             Arc::clone(&self.client),
+            target_exists,
             initial_size,
         ))
     }

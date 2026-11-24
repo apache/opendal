@@ -215,7 +215,10 @@ class AsyncOperator:
         ``scheme`` key selects the service, so a static type checker rejects a
         wrong scheme, a missing required key, an unknown key, and a wrong value
         type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
-        ``os.PathLike``, ``list``) are converted to the string form core consumes.
+        ``os.PathLike[str]``, and flat ``list`` or ``tuple`` of those) are
+        converted to the string form core consumes. ``bytes``-like objects,
+        non-dict ``Mapping``s, nested sequences, and other iterables raise
+        ``Unsupported``.
 
         Parameters
         ----------
@@ -937,7 +940,10 @@ class Operator:
         ``scheme`` key selects the service, so a static type checker rejects a
         wrong scheme, a missing required key, an unknown key, and a wrong value
         type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
-        ``os.PathLike``, ``list``) are converted to the string form core consumes.
+        ``os.PathLike[str]``, and flat ``list`` or ``tuple`` of those) are
+        converted to the string form core consumes. ``bytes``-like objects,
+        non-dict ``Mapping``s, nested sequences, and other iterables raise
+        ``Unsupported``.
 
         Parameters
         ----------

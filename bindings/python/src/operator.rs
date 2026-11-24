@@ -406,7 +406,10 @@ impl Operator {
     /// ``scheme`` key selects the service, so a static type checker rejects a
     /// wrong scheme, a missing required key, an unknown key, and a wrong value
     /// type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
-    /// ``os.PathLike``, ``list``) are converted to the string form core consumes.
+    /// ``os.PathLike[str]``, and flat ``list`` or ``tuple`` of those) are
+    /// converted to the string form core consumes. ``bytes``-like objects,
+    /// non-dict ``Mapping``s, nested sequences, and other iterables raise
+    /// ``Unsupported``.
     ///
     /// Parameters
     /// ----------
@@ -514,7 +517,7 @@ impl Operator {
 
         if matches!(mode, OpenMode::Read) {
             let reader_opts = kwargs
-                .map(|v| v.extract::<ReadOptions>())
+                .map(ReadOptions::from_open_kwargs)
                 .transpose()?
                 .unwrap_or_default();
             check_runtime_process()?;
@@ -1281,7 +1284,10 @@ impl AsyncOperator {
     /// ``scheme`` key selects the service, so a static type checker rejects a
     /// wrong scheme, a missing required key, an unknown key, and a wrong value
     /// type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
-    /// ``os.PathLike``, ``list``) are converted to the string form core consumes.
+    /// ``os.PathLike[str]``, and flat ``list`` or ``tuple`` of those) are
+    /// converted to the string form core consumes. ``bytes``-like objects,
+    /// non-dict ``Mapping``s, nested sequences, and other iterables raise
+    /// ``Unsupported``.
     ///
     /// Parameters
     /// ----------
@@ -1385,7 +1391,7 @@ impl AsyncOperator {
 
         if matches!(mode, OpenMode::Read) {
             let reader_opts = kwargs
-                .map(|v| v.extract::<ReadOptions>())
+                .map(ReadOptions::from_open_kwargs)
                 .transpose()?
                 .unwrap_or_default();
 

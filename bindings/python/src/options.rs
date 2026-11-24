@@ -88,6 +88,20 @@ fn downcast_kwargs<'a, 'py>(obj: Borrowed<'a, 'py, PyAny>) -> PyResult<pyo3::Bou
         .map_err(|_| PyErr::new::<PyTypeError, _>("Invalid type to convert, expected dict"))
 }
 
+const OPEN_READ_OPTION_KEYS: &[&str] = &[
+    "version",
+    "concurrent",
+    "chunk",
+    "gap",
+    "offset",
+    "prefetch",
+    "size",
+    "if_match",
+    "if_none_match",
+    "if_modified_since",
+    "if_unmodified_since",
+];
+
 const READ_OPTION_KEYS: &[&str] = &[
     "version",
     "concurrent",
@@ -160,6 +174,32 @@ impl<'a, 'py> FromPyObject<'a, 'py> for ReadOptions {
 }
 
 impl ReadOptions {
+    /// Extract reader options for `open(..., "rb")`.
+    ///
+    /// Rejects response header overrides (`content_type`, `cache_control`,
+    /// `content_disposition`) because `ocore::options::ReaderOptions` ignores
+    /// them; callers should use `read()` for response header overrides.
+    pub fn from_open_kwargs(dict: &pyo3::Bound<'_, PyDict>) -> PyResult<Self> {
+        reject_unknown_kwargs(dict, OPEN_READ_OPTION_KEYS)?;
+
+        Ok(Self {
+            version: extract_optional(dict, "version")?,
+            concurrent: extract_optional(dict, "concurrent")?,
+            chunk: extract_optional(dict, "chunk")?,
+            gap: extract_optional(dict, "gap")?,
+            offset: extract_optional(dict, "offset")?,
+            prefetch: extract_optional(dict, "prefetch")?,
+            size: extract_optional(dict, "size")?,
+            if_match: extract_optional(dict, "if_match")?,
+            if_none_match: extract_optional(dict, "if_none_match")?,
+            if_modified_since: extract_optional(dict, "if_modified_since")?,
+            if_unmodified_since: extract_optional(dict, "if_unmodified_since")?,
+            content_type: None,
+            cache_control: None,
+            content_disposition: None,
+        })
+    }
+
     pub fn make_range(&self) -> BytesRange {
         let offset = self.offset.unwrap_or_default();
 
@@ -474,5 +514,42 @@ impl From<DeleteOptions> for ocore::options::DeleteOptions {
             if_match: opts.if_match,
             ..Default::default()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_read_options_make_range_preserves_u64_values_above_u32_max() {
+        const FIVE_GIB: u64 = 5 * 1024 * 1024 * 1024;
+        const SIX_GIB: u64 = 6 * 1024 * 1024 * 1024;
+
+        let opts = ReadOptions {
+            offset: Some(FIVE_GIB),
+            size: Some(SIX_GIB),
+            ..Default::default()
+        };
+        let range = opts.make_range();
+        assert_eq!(range.offset(), FIVE_GIB);
+        assert_eq!(range.size(), Some(SIX_GIB));
+        assert_eq!(range, BytesRange::new(FIVE_GIB, Some(SIX_GIB)));
+
+        let open_ended = ReadOptions {
+            offset: Some(u64::from(u32::MAX) + 1),
+            size: None,
+            ..Default::default()
+        };
+        assert_eq!(open_ended.make_range().offset(), u64::from(u32::MAX) + 1);
+        assert_eq!(open_ended.make_range().size(), None);
+
+        let default_offset = ReadOptions {
+            offset: None,
+            size: Some(FIVE_GIB),
+            ..Default::default()
+        };
+        assert_eq!(default_offset.make_range().offset(), 0);
+        assert_eq!(default_offset.make_range().size(), Some(FIVE_GIB));
     }
 }

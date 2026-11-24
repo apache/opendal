@@ -54,6 +54,22 @@ def test_timeout_layer_rejects_invalid_values(kwargs):
 @pytest.mark.parametrize(
     "kwargs",
     [
+        {"timeout": 1e-10},
+        {"timeout": 1e-300},
+        {"timeout": sys.float_info.min},
+        {"io_timeout": 1e-10},
+        {"io_timeout": 1e-300},
+        {"io_timeout": sys.float_info.min},
+    ],
+)
+def test_timeout_layer_rejects_sub_nanosecond_values(kwargs):
+    with pytest.raises(ConfigInvalid, match="at least one nanosecond"):
+        opendal.layers.TimeoutLayer(**kwargs)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
         {},
         {"timeout": 1e-9},
         {"io_timeout": 1e-9},

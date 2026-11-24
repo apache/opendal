@@ -289,9 +289,6 @@ NONE_READ_OPTIONS = {
     "if_none_match": None,
     "if_modified_since": None,
     "if_unmodified_since": None,
-    "content_type": None,
-    "cache_control": None,
-    "content_disposition": None,
 }
 
 
@@ -324,6 +321,12 @@ INVALID_OPEN_KWARGS = [
     ("rb", {"if_not_exists": True}, "if_not_exists"),
     ("rb", {"content_encoding": "gzip"}, "content_encoding"),
     ("rb", {"user_metadata": {"a": "b"}}, "user_metadata"),
+    ("rb", {"content_type": "text/plain"}, "content_type"),
+    ("rb", {"content_type": None}, "content_type"),
+    ("rb", {"cache_control": "no-cache"}, "cache_control"),
+    ("rb", {"cache_control": None}, "cache_control"),
+    ("rb", {"content_disposition": "inline"}, "content_disposition"),
+    ("rb", {"content_disposition": None}, "content_disposition"),
     ("wb", {"offset": 0}, "offset"),
     ("wb", {"offset": None}, "offset"),
     ("wb", {"size": 10}, "size"),
@@ -355,3 +358,31 @@ async def test_async_open_rejects_unknown_and_cross_mode_kwargs(
     with pytest.raises(TypeError, match=key):
         await op.open("data", mode, **kwargs)
     assert await op.read("data") == b"original"
+
+
+def test_sync_read_accepts_response_header_overrides(local_operator):
+    local_operator.write("data", b"hello")
+    assert (
+        local_operator.read(
+            "data",
+            content_type="text/plain",
+            cache_control="no-cache",
+            content_disposition="inline",
+        )
+        == b"hello"
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_read_accepts_response_header_overrides(local_operator):
+    op = local_operator.to_async_operator()
+    await op.write("data", b"hello")
+    assert (
+        await op.read(
+            "data",
+            content_type="text/plain",
+            cache_control="no-cache",
+            content_disposition="inline",
+        )
+        == b"hello"
+    )

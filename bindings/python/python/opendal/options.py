@@ -173,9 +173,14 @@ class DeleteKwargs(TypedDict, total=False):
 class OpenKwargs(ReadKwargs, WriteKwargs, total=False):
     """Keyword arguments for `Operator.open` and `AsyncOperator.open`.
 
+    Accepted keys depend on `mode`: read modes (`"r"`, `"rb"`, `"br"`) accept
+    reader options only, while write, append, and create modes (`"w"`, `"wb"`,
+    `"ab"`, `"xb"`, etc.) accept writer options only.
+
     The `content_type`, `cache_control`, and `content_disposition` options
-    apply when writing, appending, or creating. Use the operator's `read()`
-    method to supply response header overrides.
+    apply only when writing, appending, or creating and raise `TypeError` in
+    read mode. Use the operator's `read()` method to supply response header
+    overrides.
     """
 
 

@@ -81,6 +81,7 @@ impl oio::PageList for DbfsLister {
 
 #[derive(Debug, Deserialize)]
 struct DbfsOutputList {
+    #[serde(default)]
     files: Vec<DbfsStatus>,
 }
 
@@ -90,4 +91,87 @@ struct DbfsStatus {
     is_dir: bool,
     file_size: i64,
     modification_time: i64,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::VecDeque;
+    use std::time::Duration;
+
+    use opendal_core::raw::oio::PageList;
+
+    use super::*;
+    use crate::core::test_support::RecordingTransport;
+
+    const TEST_TIMEOUT: Duration = Duration::from_secs(10);
+
+    #[tokio::test]
+    async fn next_page_handles_empty_json_object_for_empty_dir() {
+        tokio::time::timeout(TEST_TIMEOUT, async {
+            let transport = RecordingTransport::new([(StatusCode::OK, "{}")]);
+            let ctx = transport.context();
+            let core = Arc::new(DbfsCore {
+                root: "/".to_string(),
+                endpoint: "https://example.databricks.com".to_string(),
+                token: "tok".to_string(),
+            });
+
+            let lister = DbfsLister::new(core, ctx, "/".to_string());
+            let mut page_ctx = oio::PageContext {
+                done: false,
+                token: String::new(),
+                entries: VecDeque::new(),
+            };
+            lister.next_page(&mut page_ctx).await.unwrap();
+
+            assert!(page_ctx.done);
+            assert!(page_ctx.entries.is_empty());
+
+            let reqs = transport.requests();
+            assert_eq!(reqs.len(), 1);
+            assert_eq!(
+                reqs[0].uri,
+                "https://example.databricks.com/api/2.0/dbfs/list?path=/"
+            );
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    #[tokio::test]
+    async fn next_page_parses_files_and_dirs() {
+        tokio::time::timeout(TEST_TIMEOUT, async {
+            let body = r#"{
+                "files": [
+                    {"path": "/root/sub", "is_dir": true, "file_size": 0, "modification_time": 1700000000000},
+                    {"path": "/root/a.txt", "is_dir": false, "file_size": 42, "modification_time": 1700000001000}
+                ]
+            }"#;
+            let transport = RecordingTransport::new([(StatusCode::OK, body)]);
+            let ctx = transport.context();
+            let core = Arc::new(DbfsCore {
+                root: "/root/".to_string(),
+                endpoint: "https://example.databricks.com".to_string(),
+                token: "tok".to_string(),
+            });
+
+            let lister = DbfsLister::new(core, ctx, "/".to_string());
+            let mut page_ctx = oio::PageContext {
+                done: false,
+                token: String::new(),
+                entries: VecDeque::new(),
+            };
+            lister.next_page(&mut page_ctx).await.unwrap();
+
+            assert!(page_ctx.done);
+            assert_eq!(page_ctx.entries.len(), 2);
+            assert_eq!(page_ctx.entries[0].path(), "sub/");
+            assert_eq!(page_ctx.entries[0].metadata().mode(), EntryMode::DIR);
+            assert_eq!(page_ctx.entries[1].path(), "a.txt");
+            assert_eq!(page_ctx.entries[1].metadata().mode(), EntryMode::FILE);
+            assert_eq!(page_ctx.entries[1].metadata().content_length(), 42);
+        })
+        .await
+        .expect("test timed out");
+    }
 }

@@ -604,6 +604,24 @@ impl S3Builder {
         true
     }
 
+    /// Normalize an endpoint by ensuring it has a lowercase `http://` or
+    /// `https://` scheme prefix without misclassifying scheme-less hostnames
+    /// that begin with `"http"` (for example `http-proxy.internal:9000`).
+    fn normalize_endpoint_scheme(endpoint: &str) -> String {
+        if let Some(prefix) = endpoint.get(..7)
+            && prefix.eq_ignore_ascii_case("http://")
+        {
+            format!("http://{}", &endpoint[7..])
+        } else if let Some(prefix) = endpoint.get(..8)
+            && prefix.eq_ignore_ascii_case("https://")
+        {
+            format!("https://{}", &endpoint[8..])
+        } else {
+            // Prefix https if endpoint doesn't start with scheme.
+            format!("https://{endpoint}")
+        }
+    }
+
     /// Build endpoint with given region.
     fn build_endpoint(config: &S3Config, region: &str) -> String {
         let bucket = {
@@ -613,14 +631,7 @@ impl S3Builder {
         };
 
         let mut endpoint = match &config.endpoint {
-            Some(endpoint) => {
-                if endpoint.starts_with("http") {
-                    endpoint.to_string()
-                } else {
-                    // Prefix https if endpoint doesn't start with scheme.
-                    format!("https://{endpoint}")
-                }
-            }
+            Some(endpoint) => Self::normalize_endpoint_scheme(endpoint),
             None => "https://s3.amazonaws.com".to_string(),
         };
 
@@ -674,11 +685,7 @@ impl S3Builder {
 
         let endpoint = match &config.endpoint {
             Some(endpoint) => {
-                let endpoint = if endpoint.starts_with("http") {
-                    endpoint.to_string()
-                } else {
-                    format!("https://{endpoint}")
-                };
+                let endpoint = Self::normalize_endpoint_scheme(endpoint);
                 let endpoint = Url::parse(&endpoint).map_err(|err| {
                     Self::invalid_s3_express_config("invalid S3 endpoint").set_source(err)
                 })?;
@@ -822,12 +829,7 @@ impl S3Builder {
         let endpoint = endpoint.trim_end_matches('/');
 
         // Make sure the endpoint contains the scheme.
-        let mut endpoint = if endpoint.starts_with("http") {
-            endpoint.to_string()
-        } else {
-            // Prefix https if endpoint doesn't start with scheme.
-            format!("https://{endpoint}")
-        };
+        let mut endpoint = Self::normalize_endpoint_scheme(endpoint);
 
         // Remove bucket name from endpoint.
         endpoint = endpoint.replace(&format!("//{bucket}."), "//");
@@ -1169,114 +1171,129 @@ impl S3Builder {
             is_express: is_s3_express,
         };
 
+        // S3 CreateMultipartUpload does not support MD5 checksum_algorithm;
+        // only single-shot PutObject supports Content-MD5.
+        let s3_write_can_multi = !matches!(checksum_algorithm, Some(ChecksumAlgorithm::Md5));
+
+        let mut capability = Capability {
+            stat: true,
+            stat_with_if_match: true,
+            stat_with_if_none_match: true,
+            stat_with_if_modified_since: true,
+            stat_with_if_unmodified_since: true,
+            stat_with_override_cache_control: true,
+            stat_with_override_content_disposition: true,
+            stat_with_override_content_type: true,
+            stat_with_version: !is_s3_express,
+
+            read: true,
+            read_with_if_match: true,
+            read_with_if_none_match: true,
+            read_with_if_modified_since: true,
+            read_with_if_unmodified_since: true,
+            read_with_override_cache_control: true,
+            read_with_override_content_disposition: true,
+            read_with_override_content_type: true,
+            read_with_version: !is_s3_express,
+            read_with_suffix: true,
+
+            write: true,
+            write_can_empty: true,
+            write_can_multi: s3_write_can_multi,
+            write_can_append: true,
+            write_can_copy_from: checksum_algorithm.is_none(),
+
+            write_with_cache_control: true,
+            write_with_content_type: true,
+            write_with_content_disposition: true,
+            write_with_content_encoding: !is_s3_express,
+            write_with_content_language: true,
+            write_with_if_match: true,
+            write_with_if_not_exists: true,
+            write_with_user_metadata: true,
+
+            // The min multipart size of S3 is 5 MiB.
+            //
+            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+            write_multi_min_size: Some(5 * 1024 * 1024),
+            // The max multipart size of S3 is 5 GiB.
+            //
+            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                Some(5 * 1024 * 1024 * 1024)
+            } else {
+                Some(usize::MAX)
+            },
+            // S3 allows at most 10,000 parts and 5 GiB for each part.
+            //
+            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+            write_total_max_size: if cfg!(target_pointer_width = "64") {
+                Some(10_000 * 5 * 1024 * 1024 * 1024)
+            } else {
+                None
+            },
+
+            delete: true,
+            delete_max_size: Some(DEFAULT_BATCH_MAX_OPERATIONS),
+            delete_with_version: !is_s3_express,
+            delete_with_if_match: true,
+
+            copy: true,
+            copy_can_multi: true,
+            copy_with_if_not_exists: true,
+            copy_with_if_match: true,
+            copy_with_source_version: !is_s3_express,
+            copy_with_user_metadata: true,
+            copy_with_content_type: true,
+            copy_with_content_language: true,
+            // The min multipart size of S3 is 5 MiB.
+            //
+            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+            copy_multi_min_size: Some(5 * 1024 * 1024),
+            // The max multipart size of S3 is 5 GiB.
+            //
+            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+            copy_multi_max_size: if cfg!(target_pointer_width = "64") {
+                Some(5 * 1024 * 1024 * 1024)
+            } else {
+                Some(usize::MAX)
+            },
+
+            restore: !is_s3_express,
+            restore_with_version: !is_s3_express,
+            restore_with_if_not_exists: !is_s3_express,
+
+            list: true,
+            list_with_limit: true,
+            list_with_start_after: !is_s3_express,
+            list_with_recursive: !is_s3_express,
+            list_with_versions: !is_s3_express,
+            list_with_deleted: !is_s3_express,
+
+            presign: true,
+            presign_stat: true,
+            presign_read: true,
+            presign_write: true,
+            presign_delete: true,
+
+            shared: true,
+
+            ..Default::default()
+        };
+
+        if !s3_write_can_multi {
+            capability.write_multi_min_size = None;
+            capability.write_multi_max_size = None;
+            #[cfg(target_pointer_width = "64")]
+            {
+                capability.write_total_max_size = Some(5 * 1024 * 1024 * 1024);
+            }
+        }
+
         Ok(S3Backend {
             core: Arc::new(S3Core {
                 info: ServiceInfo::new(scheme, &root, bucket),
-                capability: Capability {
-                    stat: true,
-                    stat_with_if_match: true,
-                    stat_with_if_none_match: true,
-                    stat_with_if_modified_since: true,
-                    stat_with_if_unmodified_since: true,
-                    stat_with_override_cache_control: true,
-                    stat_with_override_content_disposition: true,
-                    stat_with_override_content_type: true,
-                    stat_with_version: !is_s3_express,
-
-                    read: true,
-                    read_with_if_match: true,
-                    read_with_if_none_match: true,
-                    read_with_if_modified_since: true,
-                    read_with_if_unmodified_since: true,
-                    read_with_override_cache_control: true,
-                    read_with_override_content_disposition: true,
-                    read_with_override_content_type: true,
-                    read_with_version: !is_s3_express,
-                    read_with_suffix: true,
-
-                    write: true,
-                    write_can_empty: true,
-                    write_can_multi: true,
-                    write_can_append: true,
-                    write_can_copy_from: checksum_algorithm.is_none(),
-
-                    write_with_cache_control: true,
-                    write_with_content_type: true,
-                    write_with_content_disposition: true,
-                    write_with_content_encoding: !is_s3_express,
-                    write_with_content_language: true,
-                    write_with_if_match: true,
-                    write_with_if_not_exists: true,
-                    write_with_user_metadata: true,
-
-                    // The min multipart size of S3 is 5 MiB.
-                    //
-                    // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
-                    write_multi_min_size: Some(5 * 1024 * 1024),
-                    // The max multipart size of S3 is 5 GiB.
-                    //
-                    // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
-                    write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                        Some(5 * 1024 * 1024 * 1024)
-                    } else {
-                        Some(usize::MAX)
-                    },
-                    // S3 allows at most 10,000 parts and 5 GiB for each part.
-                    //
-                    // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
-                    write_total_max_size: if cfg!(target_pointer_width = "64") {
-                        Some(10_000 * 5 * 1024 * 1024 * 1024)
-                    } else {
-                        None
-                    },
-
-                    delete: true,
-                    delete_max_size: Some(DEFAULT_BATCH_MAX_OPERATIONS),
-                    delete_with_version: !is_s3_express,
-                    delete_with_if_match: true,
-
-                    copy: true,
-                    copy_can_multi: true,
-                    copy_with_if_not_exists: true,
-                    copy_with_if_match: true,
-                    copy_with_source_version: !is_s3_express,
-                    copy_with_user_metadata: true,
-                    copy_with_content_type: true,
-                    copy_with_content_language: true,
-                    // The min multipart size of S3 is 5 MiB.
-                    //
-                    // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
-                    copy_multi_min_size: Some(5 * 1024 * 1024),
-                    // The max multipart size of S3 is 5 GiB.
-                    //
-                    // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
-                    copy_multi_max_size: if cfg!(target_pointer_width = "64") {
-                        Some(5 * 1024 * 1024 * 1024)
-                    } else {
-                        Some(usize::MAX)
-                    },
-
-                    restore: !is_s3_express,
-                    restore_with_version: !is_s3_express,
-                    restore_with_if_not_exists: !is_s3_express,
-
-                    list: true,
-                    list_with_limit: true,
-                    list_with_start_after: !is_s3_express,
-                    list_with_recursive: !is_s3_express,
-                    list_with_versions: !is_s3_express,
-                    list_with_deleted: !is_s3_express,
-
-                    presign: true,
-                    presign_stat: true,
-                    presign_read: true,
-                    presign_write: true,
-                    presign_delete: true,
-
-                    shared: true,
-
-                    ..Default::default()
-                },
+                capability,
                 bucket: bucket.to_string(),
                 endpoint,
                 root,
@@ -3716,6 +3733,49 @@ mod tests {
         assert_eq!(builder.config.profile.as_deref(), Some("selected"));
     }
 
+    #[tokio::test]
+    async fn test_presign_write_omits_checksum_headers() {
+        for (algorithm, header_name) in
+            [("crc32c", "x-amz-checksum-crc32c"), ("md5", "content-md5")]
+        {
+            let op = Operator::new(
+                S3Builder::default()
+                    .bucket("test")
+                    .region("us-east-1")
+                    .endpoint("http://127.0.0.1:9000")
+                    .access_key_id("test-access-key")
+                    .secret_access_key("test-secret-key")
+                    .disable_config_load()
+                    .disable_ec2_metadata()
+                    .checksum_algorithm(algorithm),
+            )
+            .unwrap();
+
+            let presigned = op
+                .presign_write("test.txt", std::time::Duration::from_secs(60))
+                .await
+                .unwrap();
+
+            assert!(
+                !presigned.header().contains_key(header_name),
+                "presign_write with {algorithm} must not attach {header_name}: {:?}",
+                presigned.header()
+            );
+
+            let url = url::Url::parse(&presigned.uri().to_string()).unwrap();
+            let signed_headers = url
+                .query_pairs()
+                .find_map(|(k, v)| (k == "X-Amz-SignedHeaders").then(|| v.into_owned()))
+                .expect("presigned URL must contain X-Amz-SignedHeaders");
+            assert!(
+                !signed_headers
+                    .split(';')
+                    .any(|h| h.eq_ignore_ascii_case(header_name)),
+                "presign_write with {algorithm} must not sign {header_name}: {signed_headers}"
+            );
+        }
+    }
+
     #[test]
     fn test_write_can_copy_from_capability() {
         let backend = S3Builder::default()
@@ -3725,6 +3785,12 @@ mod tests {
             .build()
             .unwrap();
         assert!(backend.capability().write_can_copy_from);
+        assert!(backend.capability().write_can_multi);
+        assert_eq!(
+            backend.capability().write_multi_min_size,
+            Some(5 * 1024 * 1024)
+        );
+        assert!(backend.capability().write_multi_max_size.is_some());
 
         let backend = S3Builder::default()
             .bucket("test")
@@ -3734,6 +3800,28 @@ mod tests {
             .build()
             .unwrap();
         assert!(!backend.capability().write_can_copy_from);
+        assert!(backend.capability().write_can_multi);
+        assert_eq!(
+            backend.capability().write_multi_min_size,
+            Some(5 * 1024 * 1024)
+        );
+
+        let backend = S3Builder::default()
+            .bucket("test")
+            .region("us-east-1")
+            .endpoint("http://127.0.0.1:9000")
+            .checksum_algorithm("md5")
+            .build()
+            .unwrap();
+        assert!(!backend.capability().write_can_copy_from);
+        assert!(!backend.capability().write_can_multi);
+        assert_eq!(backend.capability().write_multi_min_size, None);
+        assert_eq!(backend.capability().write_multi_max_size, None);
+        #[cfg(target_pointer_width = "64")]
+        assert_eq!(
+            backend.capability().write_total_max_size,
+            Some(5 * 1024 * 1024 * 1024)
+        );
     }
 
     #[test]
@@ -3787,6 +3875,47 @@ mod tests {
             let endpoint = S3Builder::build_endpoint(&b.config, "us-east-2");
             assert_eq!(endpoint, "https://test.s3.us-east-2.amazonaws.com");
         }
+    }
+
+    #[tokio::test]
+    async fn test_build_endpoint_scheme_prefix() {
+        let cases = [
+            (
+                "http-proxy.internal:9000",
+                "https://http-proxy.internal:9000/test",
+            ),
+            ("httpbin.org", "https://httpbin.org/test"),
+            ("https-proxy.internal", "https://https-proxy.internal/test"),
+            ("http://127.0.0.1:9000", "http://127.0.0.1:9000/test"),
+            ("HTTP://127.0.0.1:9000", "http://127.0.0.1:9000/test"),
+            (
+                "HTTPS://s3.amazonaws.com",
+                "https://s3.us-east-2.amazonaws.com/test",
+            ),
+        ];
+
+        for (input, expected) in cases {
+            let builder = S3Builder::default().bucket("test").endpoint(input);
+            assert_eq!(
+                S3Builder::build_endpoint(&builder.config, "us-east-2"),
+                expected,
+                "endpoint={input}"
+            );
+        }
+
+        assert_eq!(
+            S3Builder::detect_region("HTTPS://s3.amazonaws.com", "test").await,
+            Some("us-east-1".to_string())
+        );
+
+        let express_builder = S3Builder::default()
+            .bucket("example--usw2-az1--x-s3")
+            .endpoint("http-proxy.internal:9000");
+        assert!(
+            S3Builder::resolve_s3_express_config(&express_builder.config, "us-west-2")
+                .expect("non-AWS schemeless http-prefixed host must parse cleanly")
+                .is_none()
+        );
     }
 
     #[test]

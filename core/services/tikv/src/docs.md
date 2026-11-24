@@ -32,8 +32,9 @@ use opendal_service_tikv::Tikv;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Tikv::default()
-        .endpoints(vec!["127.0.0.1:2379".to_string()]);
+    let builder = Tikv::default()
+        .endpoints(vec!["127.0.0.1:2379".to_string()])
+        .insecure();
 
     let op: Operator = Operator::new(builder)?;
     Ok(())

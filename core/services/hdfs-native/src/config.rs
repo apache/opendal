@@ -83,24 +83,33 @@ impl opendal_core::Configurator for HdfsNativeConfig {
 
 pub fn init_hdfs_config(name_node_uri: &str) -> HashMap<String, String> {
     let namenodes = name_node_uri
-        .split(",")
+        .split(',')
         .filter_map(|s| {
-            if !s.is_empty() {
-                Some(s.trim_start_matches("hdfs://").trim_end_matches("/"))
-            } else {
+            let entry = s
+                .trim()
+                .trim_start_matches(HDFS_SCHEME_PREFIX)
+                .trim_end_matches('/')
+                .trim();
+            if entry.is_empty() || entry.eq_ignore_ascii_case("hdfs:") {
                 None
+            } else {
+                Some(entry)
             }
         })
         .collect::<Vec<&str>>();
+    if namenodes.is_empty() {
+        return HashMap::new();
+    }
+
     let mut hdfs_config = HashMap::new();
-    let mut ha_config_namenodes_vec = Vec::new();
+    let mut ha_config_namenodes_vec = Vec::with_capacity(namenodes.len());
     for (index, namenode) in namenodes.iter().enumerate() {
         hdfs_config.insert(
             format!(
                 "{}.{}.nn{}",
                 HA_NAMENODE_RPC_ADDRESS_PREFIX, HDFS_DEFAULT_AUTHORITY, index
             ),
-            namenode.to_string(),
+            (*namenode).to_string(),
         );
         ha_config_namenodes_vec.push(format!("nn{}", index));
     }
@@ -170,5 +179,26 @@ mod tests {
             hdfs_config.get("dfs.namenode.rpc-address.nameservice.nn1"),
             Some(&"namenode2:9000".to_string())
         );
+    }
+
+    #[test]
+    fn init_hdfs_config_ignores_empty_entries() {
+        assert!(init_hdfs_config("").is_empty());
+        assert!(init_hdfs_config("hdfs://").is_empty());
+        assert!(init_hdfs_config("hdfs://,hdfs:///").is_empty());
+        assert!(init_hdfs_config(" , ").is_empty());
+    }
+
+    #[test]
+    fn from_uri_sets_logical_nameservice() {
+        let uri = OperatorUri::new(
+            "hdfs-native://mycluster/user/project",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = HdfsNativeConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.name_node.as_deref(), Some("hdfs://mycluster"));
+        assert_eq!(cfg.root.as_deref(), Some("user/project"));
     }
 }

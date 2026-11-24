@@ -68,22 +68,20 @@ try op.blockingWrite(&payload, to: "hello.txt")
 
 ## Error handling
 
-Both `Operator.init` and the blocking operations throw `OperatorError`:
+Both `Operator.init` and the blocking operations throw `OperatorError`, which
+exposes public `code` (`UInt32`) and `message` (`Data`) properties:
 
 ```swift
+import Foundation
 import OpenDAL
 
 do {
     let op = try Operator(scheme: "memory")
     let _ = try op.blockingRead("/does-not-exist")
 } catch let err as OperatorError {
-    print("OpenDAL operation failed: \(err)")
+    let message = String(data: err.message, encoding: .utf8) ?? ""
+    print("OpenDAL operation failed (code \(err.code)): \(message)")
 } catch {
     print("unexpected error: \(error)")
 }
 ```
-
-> **Note:** `OperatorError` has `code` (UInt32) and `message` (Data) fields
-> internally, but they are not declared `public` and cannot be accessed from
-> consuming packages. Until they are exposed, use the error's string
-> representation via `\(err)` or `err.localizedDescription`.

@@ -105,20 +105,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_delete_maps_401_and_429_and_conditional_404() -> Result<()> {
+    async fn test_delete_maps_unauthorized_and_conditional_not_found() -> Result<()> {
         let err = operator_with_status(StatusCode::UNAUTHORIZED)?
             .delete("file.txt")
             .await
             .unwrap_err();
         assert_eq!(err.kind(), ErrorKind::PermissionDenied);
         assert!(!err.is_temporary());
-
-        let err = operator_with_status(StatusCode::TOO_MANY_REQUESTS)?
-            .delete("file.txt")
-            .await
-            .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::RateLimited);
-        assert!(err.is_temporary());
 
         let err = operator_with_status(StatusCode::NOT_FOUND)?
             .delete_with("file.txt")

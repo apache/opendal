@@ -1866,25 +1866,6 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_error_maps_401_and_429() {
-        let resp_401 = Response::builder()
-            .status(StatusCode::UNAUTHORIZED)
-            .body(Buffer::from("unauthorized"))
-            .unwrap();
-        let err_401 = parse_error(ErrorContext::new(ServiceOperation("Get")), resp_401);
-        assert_eq!(err_401.kind(), ErrorKind::PermissionDenied);
-        assert!(!err_401.is_temporary());
-
-        let resp_429 = Response::builder()
-            .status(StatusCode::TOO_MANY_REQUESTS)
-            .body(Buffer::from("rate limited"))
-            .unwrap();
-        let err_429 = parse_error(ErrorContext::new(ServiceOperation("Get")), resp_429);
-        assert_eq!(err_429.kind(), ErrorKind::RateLimited);
-        assert!(err_429.is_temporary());
-    }
-
-    #[test]
     fn test_deserialize_extension_resourcetype_elements() {
         let xml = r#"<?xml version="1.0" encoding="utf-8"?>
         <D:multistatus xmlns:D="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav" xmlns:card="urn:ietf:params:xml:ns:carddav">
@@ -2123,7 +2104,6 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
-        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         // Allowing retry for resource locked.
         StatusCode::LOCKED => (ErrorKind::Unexpected, true),
         StatusCode::INTERNAL_SERVER_ERROR

@@ -207,53 +207,21 @@ impl ManageObject for Manager {
 }
 
 mod err {
-    use std::io;
-
     use suppaftp::FtpError;
     use suppaftp::Status;
 
     use opendal_core::Error;
     use opendal_core::ErrorKind;
 
-    fn classify_io_error(err: &io::Error) -> (ErrorKind, bool) {
-        match err.kind() {
-            io::ErrorKind::PermissionDenied => (ErrorKind::PermissionDenied, false),
-            io::ErrorKind::NotFound => (ErrorKind::NotFound, false),
-            io::ErrorKind::TimedOut
-            | io::ErrorKind::ConnectionRefused
-            | io::ErrorKind::ConnectionReset
-            | io::ErrorKind::ConnectionAborted
-            | io::ErrorKind::NotConnected
-            | io::ErrorKind::NetworkUnreachable
-            | io::ErrorKind::HostUnreachable
-            | io::ErrorKind::BrokenPipe
-            | io::ErrorKind::UnexpectedEof
-            | io::ErrorKind::Interrupted
-            | io::ErrorKind::WouldBlock => (ErrorKind::Unexpected, true),
-            _ => (ErrorKind::Unexpected, false),
-        }
-    }
-
     pub(crate) fn format_ftp_error(err: FtpError) -> Error {
         let (kind, retryable) = match &err {
-            // Allow retry for transient 4xx FTP replies (RFC 959 §4.2).
             FtpError::UnexpectedResponse(resp) => match resp.status {
-                Status::NotAvailable
-                | Status::CannotOpenDataConnection
-                | Status::TransferAborted
-                | Status::HostUnavailable
-                | Status::RequestFileActionIgnored
-                | Status::ActionAborted
-                | Status::RequestedActionNotTaken => (ErrorKind::Unexpected, true),
-                Status::NotLoggedIn | Status::StoringNeedAccount | Status::InvalidCredentials => {
-                    (ErrorKind::PermissionDenied, false)
-                }
+                Status::NotAvailable => (ErrorKind::Unexpected, true),
+                Status::NotLoggedIn => (ErrorKind::PermissionDenied, false),
                 Status::FileUnavailable => (ErrorKind::NotFound, false),
                 _ => (ErrorKind::Unexpected, false),
             },
-            // Allow retry bad response.
             FtpError::BadResponse => (ErrorKind::Unexpected, true),
-            FtpError::ConnectionError(io_err) => classify_io_error(io_err),
             _ => (ErrorKind::Unexpected, false),
         };
 
@@ -271,8 +239,6 @@ pub(super) use err::*;
 
 #[cfg(test)]
 mod tests {
-    use std::io;
-
     use super::*;
 
     #[test]
@@ -298,78 +264,5 @@ mod tests {
                 "unparsable cert alongside valid native certs must be ignored"
             );
         }
-    }
-
-    #[test]
-    fn test_format_ftp_error_classification() {
-        for status in [
-            Status::NotLoggedIn,
-            Status::StoringNeedAccount,
-            Status::InvalidCredentials,
-        ] {
-            let err = format_ftp_error(FtpError::UnexpectedResponse(Response::new(
-                status,
-                Vec::new(),
-            )));
-            assert_eq!(err.kind(), ErrorKind::PermissionDenied, "{status:?}");
-            assert!(!err.is_temporary(), "{status:?} must not be temporary");
-        }
-
-        for status in [
-            Status::NotAvailable,
-            Status::CannotOpenDataConnection,
-            Status::TransferAborted,
-            Status::HostUnavailable,
-            Status::RequestFileActionIgnored,
-            Status::ActionAborted,
-            Status::RequestedActionNotTaken,
-        ] {
-            let err = format_ftp_error(FtpError::UnexpectedResponse(Response::new(
-                status,
-                Vec::new(),
-            )));
-            assert_eq!(err.kind(), ErrorKind::Unexpected, "{status:?}");
-            assert!(err.is_temporary(), "{status:?} must be temporary");
-        }
-
-        let not_found = format_ftp_error(FtpError::UnexpectedResponse(Response::new(
-            Status::FileUnavailable,
-            Vec::new(),
-        )));
-        assert_eq!(not_found.kind(), ErrorKind::NotFound);
-        assert!(!not_found.is_temporary());
-
-        for io_kind in [
-            io::ErrorKind::ConnectionReset,
-            io::ErrorKind::TimedOut,
-            io::ErrorKind::BrokenPipe,
-            io::ErrorKind::ConnectionRefused,
-            io::ErrorKind::UnexpectedEof,
-        ] {
-            let err = format_ftp_error(FtpError::ConnectionError(io::Error::new(
-                io_kind,
-                "network error",
-            )));
-            assert_eq!(err.kind(), ErrorKind::Unexpected, "{io_kind:?}");
-            assert!(err.is_temporary(), "{io_kind:?} must be temporary");
-        }
-
-        let perm = format_ftp_error(FtpError::ConnectionError(io::Error::new(
-            io::ErrorKind::PermissionDenied,
-            "denied",
-        )));
-        assert_eq!(perm.kind(), ErrorKind::PermissionDenied);
-        assert!(!perm.is_temporary());
-
-        let invalid = format_ftp_error(FtpError::ConnectionError(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "invalid",
-        )));
-        assert_eq!(invalid.kind(), ErrorKind::Unexpected);
-        assert!(!invalid.is_temporary());
-
-        let bad_resp = format_ftp_error(FtpError::BadResponse);
-        assert_eq!(bad_resp.kind(), ErrorKind::Unexpected);
-        assert!(bad_resp.is_temporary());
     }
 }

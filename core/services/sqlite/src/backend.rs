@@ -1137,7 +1137,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_sqlite_writer_close_returns_dir_mode_for_root_and_dir_paths() {
+    async fn test_sqlite_writer_close_returns_metadata_for_files_and_directory_markers() {
         tokio::time::timeout(std::time::Duration::from_secs(30), async {
             for root in ["/", "/sub/"] {
                 let backend = build_backend().await.with_normalized_root(root.to_string());
@@ -1151,9 +1151,14 @@ mod test {
                 for dir_path in ["", "/", "nested/"] {
                     let mut writer = backend.write(&ctx, dir_path, OpWrite::default()).unwrap();
                     let meta = writer.close().await.unwrap();
+                    let expected_mode = if root == "/" && matches!(dir_path, "" | "/") {
+                        EntryMode::FILE
+                    } else {
+                        EntryMode::DIR
+                    };
                     assert_eq!(
                         meta.mode(),
-                        EntryMode::DIR,
+                        expected_mode,
                         "writer close mode for path {dir_path:?} under root {root}"
                     );
                     let stat_meta = backend

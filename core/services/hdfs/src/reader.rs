@@ -19,7 +19,6 @@ use super::core::HdfsCore;
 use super::writer::HdfsWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
-use std::future::Future;
 use std::sync::Arc;
 
 /// Reader returned by this backend.
@@ -74,15 +73,15 @@ impl oio::PositionRead for HdfsReader {
     }
 }
 
-pub struct HdfsLazyWriter<C: HdfsWriteOpener = HdfsCore> {
-    core: Arc<C>,
+pub struct HdfsLazyWriter {
+    core: Arc<HdfsCore>,
     path: String,
     op: OpWrite,
     inner: Option<HdfsWriter<hdrs::AsyncFile>>,
 }
 
-impl<C: HdfsWriteOpener> HdfsLazyWriter<C> {
-    pub(super) fn new(core: Arc<C>, path: &str, op: OpWrite) -> Self {
+impl HdfsLazyWriter {
+    pub(super) fn new(core: Arc<HdfsCore>, path: &str, op: OpWrite) -> Self {
         Self {
             core,
             path: path.to_string(),
@@ -93,14 +92,23 @@ impl<C: HdfsWriteOpener> HdfsLazyWriter<C> {
 
     async fn inner(&mut self) -> Result<&mut HdfsWriter<hdrs::AsyncFile>> {
         if self.inner.is_none() {
-            self.inner = Some(self.core.open(&self.path, &self.op).await?);
+            let (target_path, tmp_path, file, target_exists, initial_size) =
+                self.core.hdfs_write(&self.path, &self.op).await?;
+            self.inner = Some(HdfsWriter::new(
+                target_path,
+                tmp_path,
+                file,
+                Arc::clone(&self.core.client),
+                target_exists,
+                initial_size,
+            ));
         }
 
         Ok(self.inner.as_mut().expect("writer must be initialized"))
     }
 }
 
-impl<C: HdfsWriteOpener> oio::Write for HdfsLazyWriter<C> {
+impl oio::Write for HdfsLazyWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         self.inner().await?.write(bs).await
     }
@@ -117,74 +125,5 @@ impl<C: HdfsWriteOpener> oio::Write for HdfsLazyWriter<C> {
                 "HdfsWriter doesn't support abort",
             )),
         }
-    }
-}
-
-/// Opens the underlying HDFS writer on the first write or close.
-///
-/// A fake opener lets tests verify that aborting an unused writer does not
-/// connect to HDFS.
-pub(super) trait HdfsWriteOpener: Send + Sync + 'static {
-    fn open(
-        &self,
-        path: &str,
-        op: &OpWrite,
-    ) -> impl Future<Output = Result<HdfsWriter<hdrs::AsyncFile>>> + Send;
-}
-
-impl HdfsWriteOpener for HdfsCore {
-    async fn open(&self, path: &str, op: &OpWrite) -> Result<HdfsWriter<hdrs::AsyncFile>> {
-        let (target_path, tmp_path, f, target_exists, initial_size) =
-            self.hdfs_write(path, op).await?;
-
-        Ok(HdfsWriter::new(
-            target_path,
-            tmp_path,
-            f,
-            Arc::clone(&self.client),
-            target_exists,
-            initial_size,
-        ))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::atomic::AtomicUsize;
-    use std::sync::atomic::Ordering;
-
-    use opendal_core::raw::oio::Write;
-
-    use super::*;
-
-    struct FakeOpener {
-        calls: Arc<AtomicUsize>,
-    }
-
-    impl HdfsWriteOpener for FakeOpener {
-        async fn open(&self, _: &str, _: &OpWrite) -> Result<HdfsWriter<hdrs::AsyncFile>> {
-            self.calls.fetch_add(1, Ordering::SeqCst);
-            Err(Error::new(
-                ErrorKind::Unexpected,
-                "unused writer must not open the target",
-            ))
-        }
-    }
-
-    #[tokio::test]
-    async fn abort_unused_writer_does_not_connect() {
-        let calls = Arc::new(AtomicUsize::new(0));
-        let mut writer = HdfsLazyWriter::new(
-            Arc::new(FakeOpener {
-                calls: Arc::clone(&calls),
-            }),
-            "new-dir/nested/file.txt",
-            OpWrite::default(),
-        );
-
-        let err = writer.abort().await.unwrap_err();
-
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-        assert_eq!(calls.load(Ordering::SeqCst), 0);
     }
 }

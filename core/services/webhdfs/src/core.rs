@@ -300,7 +300,7 @@ impl WebhdfsCore {
         let base = format!("{}/webhdfs/v1/{}", self.endpoint, percent_encode_path(&p));
         let mut query = QueryPairsWriter::new(&base).push("op", "LISTSTATUS_BATCH");
         if !start_after.is_empty() {
-            query = query.push("startAfter", &percent_encode_query_value(start_after));
+            query = query.push("startAfter", &percent_encode_path(start_after));
         }
         let url = self.push_auth_query(query).finish();
 
@@ -481,9 +481,7 @@ fn classify_forbidden_error(
         "PathIsNotEmptyDirectoryException" | "AlreadyBeingCreatedException" => {
             (ErrorKind::Conflict, false)
         }
-        "SafeModeException" | "StandbyException" | "RetriableException" => {
-            (ErrorKind::Unexpected, true)
-        }
+        "SafeModeException" | "StandbyException" => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, false),
     }
 }
@@ -499,7 +497,6 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::UNAUTHORIZED => (ErrorKind::PermissionDenied, false),
         StatusCode::FORBIDDEN => classify_forbidden_error(ctx, remote_error.as_ref()),
-        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         // passing invalid arguments will return BAD_REQUEST
         // should be un-retryable
         StatusCode::BAD_REQUEST => (ErrorKind::Unexpected, false),
@@ -629,7 +626,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_forbidden_exceptions_and_rate_limit() {
+    fn test_parse_forbidden_exceptions() {
         for (class, exception, expected_kind, expected_temporary) in [
             (
                 "org.apache.hadoop.security.AccessControlException",
@@ -707,7 +704,7 @@ mod tests {
                 "org.apache.hadoop.ipc.RetriableException",
                 "RetriableException",
                 ErrorKind::Unexpected,
-                true,
+                false,
             ),
         ] {
             let body = serde_json::json!({
@@ -734,15 +731,6 @@ mod tests {
         let err = parse_error(ErrorContext::new(ServiceOperation("Test")), plain_403);
         assert_eq!(err.kind(), ErrorKind::PermissionDenied);
         assert!(!err.is_temporary());
-
-        // HTTP 429 maps to temporary RateLimited.
-        let rate_limited = Response::builder()
-            .status(StatusCode::TOO_MANY_REQUESTS)
-            .body(Buffer::from("Too Many Requests"))
-            .unwrap();
-        let err = parse_error(ErrorContext::new(ServiceOperation("Test")), rate_limited);
-        assert_eq!(err.kind(), ErrorKind::RateLimited);
-        assert!(err.is_temporary());
     }
 
     #[tokio::test]

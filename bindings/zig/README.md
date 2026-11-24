@@ -37,6 +37,7 @@ The build pulls the C binding header from `../c/include/opendal.h` and links aga
 ## Quick example
 
 ```zig
+const std = @import("std");
 const opendal = @import("opendal");
 
 var op = try opendal.Operator.init("memory", null);
@@ -45,9 +46,14 @@ defer op.deinit();
 try op.write("/hello.txt", "Hello, World!");
 var data = try op.read("/hello.txt");
 defer data.deinit();
+std.debug.print("{s}\n", .{data.slice()});
 ```
 
-See the [User Guide](https://opendal.apache.org/docs/bindings/zig) for more.
+Use `std.fmt.allocPrintZ` or `allocator.dupeZ` for paths and schemes you build
+at runtime. The operator accepts `[:0]const u8` for these inputs.
+
+See the [User Guide](https://opendal.apache.org/docs/bindings/zig) for more. If you
+already use the binding, see the [Zig migration notes](../../core/core/src/docs/upgrade.md#zig-binding).
 
 ## Contributing
 

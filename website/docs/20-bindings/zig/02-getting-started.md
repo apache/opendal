@@ -25,12 +25,30 @@ no external service.
 `Operator.init` takes a NUL-terminated service scheme and an optional pointer to
 an `opendal_operator_options` struct. Passing `null` uses defaults.
 
-Scheme and path parameters use `[:0]const u8`. String literals work directly. To
-construct a path at runtime, use `std.fmt.allocPrintZ` or `allocator.dupeZ` and
-free it when you are done.
+`read` returns a `Bytes` owner. Use `slice()` to borrow the data, then call
+`deinit()` when you are done. Keep a single owner for each allocation.
 
-`read` returns a `Bytes` owner. Use `slice()` to access the data, then call
-`deinit()` when you are done.
+## Runtime paths and schemes
+
+Scheme and path parameters use `[:0]const u8`. String literals work directly.
+Use UTF-8 text without embedded NUL bytes. This example copies a scheme
+name from a `[]const u8` with `allocator.dupeZ` and formats a path from `id`
+with `std.fmt.allocPrintZ`. Free both strings with the allocator that created
+them.
+
+```zig
+const scheme = try allocator.dupeZ(u8, scheme_name);
+defer allocator.free(scheme);
+var op = try opendal.Operator.init(scheme, null);
+defer op.deinit();
+
+const path = try std.fmt.allocPrintZ(allocator, "/object-{d}.txt", .{id});
+defer allocator.free(path);
+try op.write(path, "Hello, World!");
+var data = try op.read(path);
+defer data.deinit();
+std.debug.print("{s}\n", .{data.slice()});
+```
 
 ## Listing a directory
 
@@ -58,9 +76,10 @@ while (try lister.next()) |entry| {
 }
 ```
 
-`Entry.name()` and `Entry.path()` return `OwnedString` values. Keep the owner
+`Entry.name()` and `Entry.path()` return `OwnedString` values. Keep each owner
 alive while using its slice. You can pass `path.slice()` directly to operations
-such as `read` or `stat`.
+such as `read` or `stat`. The same ownership rules apply to strings from
+`OperatorInfo` and to any value returned by `contentType()` or `etag()`.
 
 ## Passing service options
 

@@ -477,9 +477,16 @@ class Lister {
       return *this;
     }
 
-    bool operator!=(const Iterator &other) const {
-      return current_entry_ != std::nullopt ||
-             other.current_entry_ != std::nullopt;
+    bool operator==(const Iterator &other) const noexcept {
+      if (!current_entry_.has_value() && !other.current_entry_.has_value()) {
+        return true;
+      }
+      return current_entry_.has_value() && other.current_entry_.has_value() &&
+             &lister_ == &other.lister_;
+    }
+
+    bool operator!=(const Iterator &other) const noexcept {
+      return !(*this == other);
     }
 
    protected:

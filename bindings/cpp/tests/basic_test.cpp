@@ -652,4 +652,188 @@ TEST(OpenDALReaderTest, ReaderStreamSeekBegEndErrorsAndAcrossBuffers) {
   EXPECT_EQ(stream.get(), static_cast<unsigned char>(data[507]));
 }
 
+TEST(OpenDALHandleTest, DefaultConstructedOperatorThrows) {
+  opendal::Operator op;
+  EXPECT_FALSE(op.Available());
+
+  EXPECT_THROW(op.Read("a"), std::logic_error);
+  EXPECT_THROW(op.Read("a", opendal::ReadOptions{}), std::logic_error);
+  EXPECT_THROW(op.Write("a", "data"), std::logic_error);
+  EXPECT_THROW(op.Write("a", "data", opendal::WriteOptions{}),
+               std::logic_error);
+  EXPECT_THROW(op.Exists("a"), std::logic_error);
+  EXPECT_THROW(op.CreateDir("dir/"), std::logic_error);
+  EXPECT_THROW(op.Copy("a", "b"), std::logic_error);
+  EXPECT_THROW(op.Copy("a", "b", opendal::CopyOptions{}), std::logic_error);
+  EXPECT_THROW(op.Rename("a", "b"), std::logic_error);
+  EXPECT_THROW(op.Rename("a", "b", opendal::RenameOptions{}), std::logic_error);
+  EXPECT_THROW(op.Remove("a"), std::logic_error);
+  EXPECT_THROW(op.Remove("a", opendal::DeleteOptions{}), std::logic_error);
+  EXPECT_THROW(op.RemoveAll({"a"}), std::logic_error);
+  EXPECT_THROW(op.Stat("a"), std::logic_error);
+  EXPECT_THROW(op.Stat("a", opendal::StatOptions{}), std::logic_error);
+  EXPECT_THROW(op.List("dir/"), std::logic_error);
+  EXPECT_THROW(op.List("dir/", opendal::ListOptions{}), std::logic_error);
+  EXPECT_THROW(op.GetLister("dir/"), std::logic_error);
+  EXPECT_THROW(op.GetLister("dir/", opendal::ListOptions{}), std::logic_error);
+  EXPECT_THROW(op.GetReader("a"), std::logic_error);
+  EXPECT_THROW(op.GetReader("a", opendal::ReaderOptions{}), std::logic_error);
+  EXPECT_THROW(op.GetWriter("a"), std::logic_error);
+  EXPECT_THROW(op.GetWriter("a", opendal::WriteOptions{}), std::logic_error);
+  EXPECT_THROW(op.Info(), std::logic_error);
+}
+
+TEST(OpenDALHandleTest, MovedFromHandlesThrowAndMovedToHandlesWork) {
+  opendal::Operator src("memory");
+  ASSERT_TRUE(src.Available());
+
+  // Move construction
+  opendal::Operator moved(std::move(src));
+  EXPECT_FALSE(src.Available());
+  EXPECT_TRUE(moved.Available());
+  EXPECT_THROW(src.Exists("a"), std::logic_error);
+  EXPECT_THROW(src.Info(), std::logic_error);
+
+  // Move assignment
+  opendal::Operator op;
+  op = std::move(moved);
+  EXPECT_FALSE(moved.Available());
+  EXPECT_TRUE(op.Available());
+  EXPECT_THROW(moved.Stat("a"), std::logic_error);
+
+  op.Write("dir/file", "hello world");
+  EXPECT_EQ(op.Read("dir/file"), "hello world");
+
+  // Moved-from Reader
+  {
+    auto r1 = op.GetReader("dir/file");
+    auto r2 = std::move(r1);
+    char buf[5] = {};
+
+    EXPECT_THROW(r1.Read(buf, sizeof(buf)), std::logic_error);
+    EXPECT_THROW(r1.Read(nullptr, 0), std::logic_error);
+    EXPECT_THROW(r1.ReadAt(buf, sizeof(buf), 0), std::logic_error);
+    EXPECT_THROW(r1.ReadAt(nullptr, 0, 0), std::logic_error);
+    EXPECT_THROW(r1.Seek(0, std::ios::cur), std::logic_error);
+    EXPECT_THROW((void)opendal::ReaderStream(std::move(r1)), std::logic_error);
+
+    ASSERT_EQ(r2.Read(buf, sizeof(buf)), 5);
+    EXPECT_EQ(std::string_view(buf, 5), "hello");
+  }
+
+  // Moved-from Writer
+  {
+    auto w1 = op.GetWriter("dir/written");
+    auto w2 = std::move(w1);
+
+    EXPECT_THROW(w1.Write("abc"), std::logic_error);
+    EXPECT_THROW(w1.Flush(), std::logic_error);
+    EXPECT_THROW(w1.Close(), std::logic_error);
+
+    w2.Write("committed");
+    w2.Flush();
+    w2.Close();
+    EXPECT_EQ(op.Read("dir/written"), "committed");
+  }
+
+  // Moved-from Lister
+  {
+    auto l1 = op.GetLister("dir/");
+    auto l2 = std::move(l1);
+
+    EXPECT_THROW(l1.Next(), std::logic_error);
+    EXPECT_THROW(l1.begin(), std::logic_error);
+
+    std::unordered_set<std::string> paths;
+    for (const auto &entry : l2) {
+      paths.insert(entry.path);
+    }
+    EXPECT_TRUE(paths.find("dir/file") != paths.end());
+    EXPECT_TRUE(paths.find("dir/written") != paths.end());
+  }
+}
+
+TEST(OpenDALReaderTest, SeekRejectsOverflowWithoutMutatingPosition) {
+  opendal::Operator op("memory");
+  op.Write("seek_overflow", "0123456789");
+
+  auto reader = op.GetReader("seek_overflow");
+  constexpr std::streamoff kMax = (std::numeric_limits<std::streamoff>::max)();
+
+  ASSERT_EQ(reader.Seek(3, std::ios::beg), 3);
+
+  // Seek past INT64_MAX from end must throw and keep position unchanged.
+  EXPECT_THROW(reader.Seek(kMax, std::ios::end), std::exception);
+  EXPECT_EQ(reader.Seek(0, std::ios::cur), 3);
+
+  // Seek past INT64_MAX from current position must throw and keep position.
+  EXPECT_THROW(reader.Seek(kMax, std::ios::cur), std::exception);
+  EXPECT_EQ(reader.Seek(0, std::ios::cur), 3);
+
+  // Seeking exactly to INT64_MAX is representable in std::streampos.
+  EXPECT_EQ(reader.Seek(kMax, std::ios::beg), std::streampos(kMax));
+  EXPECT_EQ(reader.Seek(0, std::ios::cur), std::streampos(kMax));
+
+  // Advancing by 1 past INT64_MAX must throw and keep position at INT64_MAX.
+  EXPECT_THROW(reader.Seek(1, std::ios::cur), std::exception);
+  EXPECT_EQ(reader.Seek(0, std::ios::cur), std::streampos(kMax));
+
+  // Reader stays usable after rejected seeks.
+  ASSERT_EQ(reader.Seek(3, std::ios::beg), 3);
+  char buf[4] = {};
+  ASSERT_EQ(reader.Read(buf, sizeof(buf)), 4);
+  EXPECT_EQ(std::string_view(buf, 4), "3456");
+}
+
+TEST(OpenDALListerTest, IteratorEqualityAndTraversal) {
+  opendal::Operator op("memory");
+  op.CreateDir("iter_dir/");
+  op.Write("iter_dir/a", "1");
+  op.Write("iter_dir/b", "2");
+
+  auto lister = op.GetLister("iter_dir/");
+  auto it = lister.begin();
+  auto end = lister.end();
+
+  EXPECT_TRUE(it == it);
+  EXPECT_FALSE(it != it);
+  EXPECT_TRUE(end == end);
+  EXPECT_FALSE(end != end);
+  EXPECT_TRUE(it != end);
+  EXPECT_FALSE(it == end);
+  EXPECT_TRUE(end != it);
+  EXPECT_FALSE(end == it);
+
+  // Active iterators from distinct listers compare unequal; end iterators equal.
+  auto other_lister = op.GetLister("iter_dir/");
+  auto other_it = other_lister.begin();
+  EXPECT_FALSE(it == other_it);
+  EXPECT_TRUE(it != other_it);
+  EXPECT_TRUE(end == other_lister.end());
+  EXPECT_FALSE(end != other_lister.end());
+
+  std::unordered_set<std::string> paths;
+  for (; it != end; ++it) {
+    EXPECT_TRUE(it == it);
+    EXPECT_FALSE(it != it);
+    paths.insert((*it).path);
+  }
+
+  EXPECT_TRUE(it == end);
+  EXPECT_FALSE(it != end);
+  EXPECT_TRUE(it == it);
+  EXPECT_FALSE(it != it);
+  EXPECT_THAT(paths, ::testing::UnorderedElementsAre("iter_dir/", "iter_dir/a",
+                                                     "iter_dir/b"));
+
+  // Empty listing: begin() equals end() and is reflexive.
+  auto empty_lister = op.GetLister("nonexistent_prefix/");
+  auto empty_it = empty_lister.begin();
+  auto empty_end = empty_lister.end();
+  EXPECT_TRUE(empty_it == empty_it);
+  EXPECT_FALSE(empty_it != empty_it);
+  EXPECT_TRUE(empty_it == empty_end);
+  EXPECT_FALSE(empty_it != empty_end);
+}
+
 } // namespace opendal::test

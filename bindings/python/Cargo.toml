@@ -64,6 +64,13 @@ default = [
   "services-supabase",
   "services-tigris",
   "services-wasabi",
+  "services-b2-s3",
+  "services-cos-s3",
+  "services-gcs-s3",
+  "services-lakefs-s3",
+  "services-oss-s3",
+  "services-swift-s3api",
+  "services-tos-s3",
   "services-s3",
   "services-webdav",
   "services-webhdfs",
@@ -126,6 +133,7 @@ services-azblob = ["opendal/services-azblob"]
 services-azdls = ["opendal/services-azdls"]
 services-azfile = ["opendal/services-azfile"]
 services-b2 = ["opendal/services-b2"]
+services-b2-s3 = ["opendal/services-b2-s3"]
 services-cacache = ["opendal/services-cacache"]
 services-ceph-rgw = ["opendal/services-ceph-rgw"]
 services-cloudflare-kv = [
@@ -135,6 +143,7 @@ services-compfs = [
   "opendal/services-compfs",
 ] # FIXME EXCLUDED: Needs tests/ maintenance
 services-cos = ["opendal/services-cos"]
+services-cos-s3 = ["opendal/services-cos-s3"]
 services-d1 = ["opendal/services-d1"] # FIXME EXCLUDED: Needs tests/ maintenance
 services-dashmap = ["opendal/services-dashmap"]
 services-dbfs = [
@@ -154,6 +163,7 @@ services-ftp = ["opendal/services-ftp"]
 services-garage = ["opendal/services-garage"]
 services-gcs = ["opendal/services-gcs"]
 services-gcs-grpc = ["opendal/services-gcs-grpc"]
+services-gcs-s3 = ["opendal/services-gcs-s3"]
 services-gdrive = ["opendal/services-gdrive"]
 services-ghac = ["opendal/services-ghac"]
 services-github = ["opendal/services-github"]
@@ -178,6 +188,7 @@ services-koofr = ["opendal/services-koofr"]
 services-lakefs = [
   "opendal/services-lakefs",
 ] # FIXME EXCLUDED: Needs tests/ maintenance
+services-lakefs-s3 = ["opendal/services-lakefs-s3"]
 services-memcached = ["opendal/services-memcached"]
 services-memory = ["opendal/services-memory"]
 services-mini-moka = ["opendal/services-mini-moka"]
@@ -196,6 +207,7 @@ services-opfs = [
   "opendal/services-opfs",
 ] # FIXME EXCLUDED: Needs tests/ maintenance
 services-oss = ["opendal/services-oss"]
+services-oss-s3 = ["opendal/services-oss-s3"]
 services-ovhcloud = ["opendal/services-ovhcloud"]
 services-pcloud = [
   "opendal/services-pcloud",
@@ -224,11 +236,13 @@ services-surrealdb = [
   "opendal/services-surrealdb",
 ] # FIXME EXCLUDED: Needs tests/ maintenance
 services-swift = ["opendal/services-swift"]
+services-swift-s3api = ["opendal/services-swift-s3api"]
 services-tigris = ["opendal/services-tigris"]
 services-tikv = [
   "opendal/services-tikv",
 ] # FIXME EXCLUDED: this service needs protoc
 services-tos = ["opendal/services-tos"]
+services-tos-s3 = ["opendal/services-tos-s3"]
 services-upyun = ["opendal/services-upyun"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-vercel-blob = [

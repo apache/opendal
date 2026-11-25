@@ -43,12 +43,16 @@ pub enum Scheme {
     Azfile,
     #[cfg(feature = "services-b2")]
     B2,
+    #[cfg(feature = "services-b2-s3")]
+    B2S3,
     #[cfg(feature = "services-cacache")]
     Cacache,
     #[cfg(feature = "services-ceph-rgw")]
     CephRgw,
     #[cfg(feature = "services-cos")]
     Cos,
+    #[cfg(feature = "services-cos-s3")]
+    CosS3,
     #[cfg(feature = "services-dashmap")]
     Dashmap,
     #[cfg(feature = "services-dropbox")]
@@ -67,6 +71,8 @@ pub enum Scheme {
     Gcs,
     #[cfg(feature = "services-gcs-grpc")]
     GcsGrpc,
+    #[cfg(feature = "services-gcs-s3")]
+    GcsS3,
     #[cfg(feature = "services-gdrive")]
     Gdrive,
     #[cfg(feature = "services-ghac")]
@@ -95,6 +101,8 @@ pub enum Scheme {
     Ipmfs,
     #[cfg(feature = "services-koofr")]
     Koofr,
+    #[cfg(feature = "services-lakefs-s3")]
+    LakefsS3,
     #[cfg(feature = "services-memcached")]
     Memcached,
     #[cfg(feature = "services-memory")]
@@ -119,6 +127,8 @@ pub enum Scheme {
     Onedrive,
     #[cfg(feature = "services-oss")]
     Oss,
+    #[cfg(feature = "services-oss-s3")]
+    OssS3,
     #[cfg(feature = "services-ovhcloud")]
     Ovhcloud,
     #[cfg(feature = "services-persy")]
@@ -157,10 +167,14 @@ pub enum Scheme {
     Supabase,
     #[cfg(feature = "services-swift")]
     Swift,
+    #[cfg(feature = "services-swift-s3api")]
+    SwiftS3api,
     #[cfg(feature = "services-tigris")]
     Tigris,
     #[cfg(feature = "services-tos")]
     Tos,
+    #[cfg(feature = "services-tos-s3")]
+    TosS3,
     #[cfg(feature = "services-upyun")]
     Upyun,
     #[cfg(feature = "services-vercel-artifacts")]
@@ -229,12 +243,16 @@ impl_enum_to_str!(
         Azfile => "azfile",
         #[cfg(feature = "services-b2")]
         B2 => "b2",
+        #[cfg(feature = "services-b2-s3")]
+        B2S3 => "b2-s3",
         #[cfg(feature = "services-cacache")]
         Cacache => "cacache",
         #[cfg(feature = "services-ceph-rgw")]
         CephRgw => "ceph-rgw",
         #[cfg(feature = "services-cos")]
         Cos => "cos",
+        #[cfg(feature = "services-cos-s3")]
+        CosS3 => "cos-s3",
         #[cfg(feature = "services-dashmap")]
         Dashmap => "dashmap",
         #[cfg(feature = "services-dropbox")]
@@ -253,6 +271,8 @@ impl_enum_to_str!(
         Gcs => "gcs",
         #[cfg(feature = "services-gcs-grpc")]
         GcsGrpc => "gcs-grpc",
+        #[cfg(feature = "services-gcs-s3")]
+        GcsS3 => "gcs-s3",
         #[cfg(feature = "services-gdrive")]
         Gdrive => "gdrive",
         #[cfg(feature = "services-ghac")]
@@ -281,6 +301,8 @@ impl_enum_to_str!(
         Ipmfs => "ipmfs",
         #[cfg(feature = "services-koofr")]
         Koofr => "koofr",
+        #[cfg(feature = "services-lakefs-s3")]
+        LakefsS3 => "lakefs-s3",
         #[cfg(feature = "services-memcached")]
         Memcached => "memcached",
         #[cfg(feature = "services-memory")]
@@ -305,6 +327,8 @@ impl_enum_to_str!(
         Onedrive => "onedrive",
         #[cfg(feature = "services-oss")]
         Oss => "oss",
+        #[cfg(feature = "services-oss-s3")]
+        OssS3 => "oss-s3",
         #[cfg(feature = "services-ovhcloud")]
         Ovhcloud => "ovhcloud",
         #[cfg(feature = "services-persy")]
@@ -343,10 +367,14 @@ impl_enum_to_str!(
         Supabase => "supabase",
         #[cfg(feature = "services-swift")]
         Swift => "swift",
+        #[cfg(feature = "services-swift-s3api")]
+        SwiftS3api => "swift-s3api",
         #[cfg(feature = "services-tigris")]
         Tigris => "tigris",
         #[cfg(feature = "services-tos")]
         Tos => "tos",
+        #[cfg(feature = "services-tos-s3")]
+        TosS3 => "tos-s3",
         #[cfg(feature = "services-upyun")]
         Upyun => "upyun",
         #[cfg(feature = "services-vercel-artifacts")]

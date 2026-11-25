@@ -35,15 +35,20 @@ mod reader;
 mod writer;
 
 mod akamai_config;
+mod b2_s3_config;
 mod ceph_rgw_config;
+mod cos_s3_config;
 mod exoscale_config;
 mod garage_config;
+mod gcs_s3_config;
 mod hetzner_config;
 mod ibm_cos_config;
 mod idrive_e2_config;
 mod ionos_config;
+mod lakefs_s3_config;
 mod neon_config;
 mod oci_config;
+mod oss_s3_config;
 mod ovhcloud_config;
 mod qingstor_config;
 mod rustfs_config;
@@ -52,28 +57,37 @@ mod seaweedfs_config;
 mod spaces_config;
 mod storj_config;
 mod supabase_config;
+mod swift_s3api_config;
 mod tigris_config;
+mod tos_s3_config;
 mod wasabi_config;
 
 #[cfg(test)]
 mod preset_tests;
 
 pub use akamai_config::{AKAMAI_SCHEME, Akamai, AkamaiConfig, register_akamai_service};
+pub use b2_s3_config::{B2_S3_SCHEME, B2S3, B2S3Config, register_b2_s3_service};
 pub use backend::S3Builder as S3;
 pub use ceph_rgw_config::{CEPH_RGW_SCHEME, CephRgw, CephRgwConfig, register_ceph_rgw_service};
 pub use config::S3Config;
+pub use cos_s3_config::{COS_S3_SCHEME, CosS3, CosS3Config, register_cos_s3_service};
 pub use exoscale_config::{EXOSCALE_SCHEME, Exoscale, ExoscaleConfig, register_exoscale_service};
 pub use garage_config::{GARAGE_SCHEME, Garage, GarageConfig, register_garage_service};
+pub use gcs_s3_config::{GCS_S3_SCHEME, GcsS3, GcsS3Config, register_gcs_s3_service};
 pub use hetzner_config::{HETZNER_SCHEME, Hetzner, HetznerConfig, register_hetzner_service};
 pub use ibm_cos_config::{IBM_COS_SCHEME, IbmCos, IbmCosConfig, register_ibm_cos_service};
 pub use idrive_e2_config::{
     IDRIVE_E2_SCHEME, IdriveE2, IdriveE2Config, register_idrive_e2_service,
 };
 pub use ionos_config::{IONOS_SCHEME, Ionos, IonosConfig, register_ionos_service};
+pub use lakefs_s3_config::{
+    LAKEFS_S3_SCHEME, LakefsS3, LakefsS3Config, register_lakefs_s3_service,
+};
 pub use minio::MinioBuilder as Minio;
 pub use minio_config::MinioConfig;
 pub use neon_config::{NEON_SCHEME, Neon, NeonConfig, register_neon_service};
 pub use oci_config::{OCI_SCHEME, Oci, OciConfig, register_oci_service};
+pub use oss_s3_config::{OSS_S3_SCHEME, OssS3, OssS3Config, register_oss_s3_service};
 pub use ovhcloud_config::{OVHCLOUD_SCHEME, Ovhcloud, OvhcloudConfig, register_ovhcloud_service};
 pub use qingstor_config::{QINGSTOR_SCHEME, Qingstor, QingstorConfig, register_qingstor_service};
 pub use r2::R2Builder as R2;
@@ -86,7 +100,11 @@ pub use seaweedfs_config::{
 pub use spaces_config::{SPACES_SCHEME, Spaces, SpacesConfig, register_spaces_service};
 pub use storj_config::{STORJ_SCHEME, Storj, StorjConfig, register_storj_service};
 pub use supabase_config::{SUPABASE_SCHEME, Supabase, SupabaseConfig, register_supabase_service};
+pub use swift_s3api_config::{
+    SWIFT_S3API_SCHEME, SwiftS3api, SwiftS3apiConfig, register_swift_s3api_service,
+};
 pub use tigris_config::{TIGRIS_SCHEME, Tigris, TigrisConfig, register_tigris_service};
+pub use tos_s3_config::{TOS_S3_SCHEME, TosS3, TosS3Config, register_tos_s3_service};
 pub use wasabi_config::{WASABI_SCHEME, Wasabi, WasabiConfig, register_wasabi_service};
 
 /// Re-export of the [`reqsign_aws_v4`] crate that this service signs requests

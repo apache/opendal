@@ -28,6 +28,9 @@ configuration contract:
 
 The presets own provider defaults and validation. Their capabilities describe the
 shared S3 implementation. Check the provider guides for endpoint-specific limits.
+Presets built on the shared credential chain accept a provider's key pair
+explicitly or load it from the standard AWS environment variables or shared
+credentials file. Explicit credentials take precedence.
 Use the generic [`crate::S3`] builder for AWS S3, for compatible services without
 a built-in preset, or when an application requires S3 options outside a preset's
 contract.
@@ -40,52 +43,36 @@ contract.
 builder.bucket("<bucket_name>");
 ```
 
-### Alibaba Object Storage Service (OSS)
+### Native services and S3 presets
 
-[OSS](https://www.alibabacloud.com/product/object-storage-service) is a s3 compatible service provided by [Alibaba Cloud](https://www.alibabacloud.com).
+The facade registers the native services under their existing schemes. The
+S3 presets use separate schemes and their own Cargo features. Enable the
+corresponding preset feature to select an S3 API explicitly.
 
-To connect to OSS, we need to set:
+- Use [`crate::B2S3`] or the `b2-s3` scheme for Backblaze B2.
+- Use [`crate::CosS3`] or the `cos-s3` scheme for Tencent Cloud COS.
+- Use [`crate::GcsS3`] or the `gcs-s3` scheme for Google Cloud Storage.
+- Use [`crate::LakefsS3`] or the `lakefs-s3` scheme for the lakeFS S3 Gateway.
+- Use [`crate::OssS3`] or the `oss-s3` scheme for Alibaba Cloud OSS.
+- Use [`crate::SwiftS3api`] or the `swift-s3api` scheme for OpenStack Swift s3api.
+- Use [`crate::TosS3`] or the `tos-s3` scheme for Volcengine and BytePlus TOS.
 
-- `endpoint`: The endpoint of oss, for example: `https://oss-cn-hangzhou.aliyuncs.com`
-- `bucket`: The bucket name of oss.
-
-> OSS provide internal endpoint for used at alibabacloud internally, please visit [OSS Regions and endpoints](https://www.alibabacloud.com/help/en/object-storage-service/latest/regions-and-endpoints) for more details.
-
-> OSS only supports the virtual host style, users could meet errors like:
->
-> ```xml
-> <?xml version="1.0" encoding="UTF-8"?>
-> <Error>
->  <Code>SecondLevelDomainForbidden</Code>
->  <Message>The bucket you are attempting to access must be addressed using OSS third level domain.</Message>
->  <RequestId>62A1C265292C0632377F021F</RequestId>
->  <HostId>oss-cn-hangzhou.aliyuncs.com</HostId>
-> </Error>
-> ```
->
-> In that case, please enable virtual host style for requesting.
+Applications can override a scheme in the process-wide operator registry.
+For example, enable `services-gcs-s3` in the facade and register `GcsS3`
+for `gcs` after initializing the default registry.
 
 ```rust,ignore
-builder.endpoint("https://oss-cn-hangzhou.aliyuncs.com");
-builder.region("<region>");
-builder.bucket("<bucket_name>");
-builder.enable_virtual_host_style();
+use opendal::{Operator, OperatorRegistry, services::GcsS3};
+
+opendal::init_default_registry();
+OperatorRegistry::get().register::<GcsS3>("gcs");
+let op = Operator::from_uri("gcs://example-bucket/prefix")?;
 ```
 
-### Tencent Cloud Object Storage (COS)
-
-[COS](https://intl.cloud.tencent.com/products/cos) is a s3 compatible service provided by [Tencent Cloud](https://intl.cloud.tencent.com/).
-
-To connect to COS, we need to set:
-
-- `endpoint`: The endpoint of cos, for example: `https://cos.ap-beijing.myqcloud.com`
-- `bucket`: The bucket name of cos.
-
-### Google Cloud Storage XML API
-[Google Cloud Storage XML API](https://cloud.google.com/storage/docs/xml-api/overview) provides s3 compatible API.
-- `endpoint`: The endpoint of Google Cloud Storage XML API, for example: `https://storage.googleapis.com`
-- `bucket`: The bucket name.
-- To access GCS via S3 API, please enable `features = ["native-tls"]` in your `Cargo.toml` to avoid connection being reset when using `rustls`. Tracking in <https://github.com/seanmonstar/reqwest/issues/1809>
+After an override, URIs use the selected preset's fields and URI syntax.
+In particular, the Swift and lakeFS presets use the URI authority for the
+bucket and take the gateway URL in the `endpoint` option. The native Swift
+and lakeFS schemes use the authority for the endpoint.
 
 ### Copy with metadata replacement
 

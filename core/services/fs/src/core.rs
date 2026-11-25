@@ -583,56 +583,71 @@ async fn is_same_file(
 }
 
 #[cfg(windows)]
-fn windows_is_same_file(from: &Path, to: &Path) -> bool {
+fn windows_file_identity_from_raw(
+    volume_serial_number: u64,
+    file_id: [u8; 16],
+) -> Option<(u64, [u8; 16])> {
+    // Reject zero volume serials or zero 128-bit file IDs so filesystems without
+    // stable file identities fall back to canonical path comparison instead of
+    // falsely matching distinct files.
+    (volume_serial_number != 0 && file_id != [0u8; 16]).then_some((volume_serial_number, file_id))
+}
+
+#[cfg(windows)]
+fn windows_file_identity(file: &std::fs::File) -> Option<(u64, [u8; 16])> {
     use std::ffi::c_void;
-    use std::mem::MaybeUninit;
+    use std::mem::{MaybeUninit, size_of};
     use std::os::windows::io::AsRawHandle;
 
+    // `FILE_INFO_BY_HANDLE_CLASS::FileIdInfo` (18) returns the 64-bit volume
+    // serial number and full 128-bit file ID, avoiding 64-bit index collisions
+    // on ReFS.
+    const FILE_ID_INFO_CLASS: i32 = 18;
+
     #[repr(C)]
-    struct ByHandleFileInformation {
-        dw_file_attributes: u32,
-        ft_creation_time: [u32; 2],
-        ft_last_access_time: [u32; 2],
-        ft_last_write_time: [u32; 2],
-        dw_volume_serial_number: u32,
-        n_file_size_high: u32,
-        n_file_size_low: u32,
-        n_number_of_links: u32,
-        n_file_index_high: u32,
-        n_file_index_low: u32,
+    struct FileIdInfo {
+        volume_serial_number: u64,
+        file_id: [u8; 16],
     }
 
     #[link(name = "kernel32")]
     unsafe extern "system" {
-        fn GetFileInformationByHandle(
+        fn GetFileInformationByHandleEx(
             h_file: *mut c_void,
-            lp_file_information: *mut ByHandleFileInformation,
+            file_information_class: i32,
+            lp_file_information: *mut c_void,
+            dw_buffer_size: u32,
         ) -> i32;
     }
 
-    fn file_identity(file: &std::fs::File) -> Option<(u32, u32, u32)> {
-        let mut info = MaybeUninit::<ByHandleFileInformation>::zeroed();
-        // SAFETY: `file` holds a valid open handle and `info` points to writable
-        // memory matching Win32 `BY_HANDLE_FILE_INFORMATION`.
-        let ok = unsafe { GetFileInformationByHandle(file.as_raw_handle(), info.as_mut_ptr()) };
-        if ok == 0 {
-            return None;
-        }
-        // SAFETY: `GetFileInformationByHandle` succeeded and initialized `info`.
-        let info = unsafe { info.assume_init() };
-        let id = (
-            info.dw_volume_serial_number,
-            info.n_file_index_high,
-            info.n_file_index_low,
-        );
-        // Some virtual or network filesystems report all zeros instead of a real file ID.
-        (id != (0, 0, 0)).then_some(id)
+    let mut info = MaybeUninit::<FileIdInfo>::zeroed();
+    // SAFETY: `file` holds a valid open handle and `info` points to writable
+    // memory matching Win32 `FILE_ID_INFO` (24 bytes).
+    let ok = unsafe {
+        GetFileInformationByHandleEx(
+            file.as_raw_handle(),
+            FILE_ID_INFO_CLASS,
+            info.as_mut_ptr().cast(),
+            size_of::<FileIdInfo>() as u32,
+        )
+    };
+    if ok == 0 {
+        return None;
     }
+    // SAFETY: `GetFileInformationByHandleEx` succeeded and initialized `info`.
+    let info = unsafe { info.assume_init() };
+    windows_file_identity_from_raw(info.volume_serial_number, info.file_id)
+}
 
-    // Keep both handles open simultaneously so Windows cannot reuse a file index
+#[cfg(windows)]
+fn windows_is_same_file(from: &Path, to: &Path) -> bool {
+    // Keep both handles open simultaneously so Windows cannot reuse a file ID
     // between queries.
     if let (Ok(from_file), Ok(to_file)) = (std::fs::File::open(from), std::fs::File::open(to))
-        && let (Some(from_id), Some(to_id)) = (file_identity(&from_file), file_identity(&to_file))
+        && let (Some(from_id), Some(to_id)) = (
+            windows_file_identity(&from_file),
+            windows_file_identity(&to_file),
+        )
     {
         return from_id == to_id;
     }
@@ -1205,5 +1220,38 @@ mod tests {
         // Copying to a distinct file still succeeds normally.
         op.copy("real.txt", "other.txt").await.unwrap();
         assert_eq!(std::fs::read(root.join("other.txt")).unwrap(), b"important");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_windows_file_identity_rejects_zero_components_and_matches_hardlinks() {
+        assert_eq!(windows_file_identity_from_raw(0, [1u8; 16]), None);
+        assert_eq!(windows_file_identity_from_raw(42, [0u8; 16]), None);
+        assert_eq!(windows_file_identity_from_raw(0, [0u8; 16]), None);
+        assert_eq!(
+            windows_file_identity_from_raw(42, [1u8; 16]),
+            Some((42, [1u8; 16]))
+        );
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+        let real_path = root.join("real.txt");
+        let hard_path = root.join("hard.txt");
+        let other_path = root.join("other.txt");
+        std::fs::write(&real_path, b"a").unwrap();
+        std::fs::hard_link(&real_path, &hard_path).unwrap();
+        std::fs::write(&other_path, b"b").unwrap();
+
+        let real_f = std::fs::File::open(&real_path).unwrap();
+        let hard_f = std::fs::File::open(&hard_path).unwrap();
+        let other_f = std::fs::File::open(&other_path).unwrap();
+
+        let real_id = windows_file_identity(&real_f).expect("NTFS file must have 128-bit file ID");
+        let hard_id = windows_file_identity(&hard_f).expect("hard link must have 128-bit file ID");
+        let other_id =
+            windows_file_identity(&other_f).expect("distinct file must have 128-bit file ID");
+
+        assert_eq!(real_id, hard_id);
+        assert_ne!(real_id, other_id);
     }
 }

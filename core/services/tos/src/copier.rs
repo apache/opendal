@@ -107,10 +107,13 @@ impl oio::MultipartCopy for TosCopier {
     }
 
     async fn copy_once(&self) -> Result<Metadata> {
-        let resp = self
-            .core
-            .tos_copy_object(&self.ctx, &self.from, &self.to, &self.args)
-            .await?;
+        let req = self.core.tos_copy_object_request(
+            &self.from,
+            &self.to,
+            None,
+            self.args.if_not_exists(),
+        )?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         match resp.status() {
             StatusCode::OK => {

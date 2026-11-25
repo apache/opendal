@@ -134,11 +134,11 @@ impl TosCore {
         Ok(Request::from_parts(parts, body))
     }
 
-    pub async fn send(
+    pub async fn sign(
         &self,
         ctx: &OperationContext,
         req: Request<Buffer>,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Request<Buffer>> {
         let (mut parts, body) = req.into_parts();
 
         if !self.skip_signature {
@@ -156,12 +156,16 @@ impl TosCore {
                 .expect("user agent must be valid header value"),
         );
 
-        let resp = ctx
-            .http_transport()
-            .send(Request::from_parts(parts, body))
-            .await?;
+        Ok(Request::from_parts(parts, body))
+    }
 
-        Ok(resp)
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        let req = self.sign(ctx, req).await?;
+        ctx.http_transport().send(req).await
     }
 
     pub async fn fetch(
@@ -533,13 +537,13 @@ impl TosCore {
         self.send(ctx, req).await
     }
 
-    pub async fn tos_copy_object(
+    pub fn tos_copy_object_request(
         &self,
-        ctx: &OperationContext,
         from: &str,
         to: &str,
-        args: &OpCopy,
-    ) -> Result<Response<Buffer>> {
+        source_version: Option<&str>,
+        if_not_exists: bool,
+    ) -> Result<Request<Buffer>> {
         let source = build_absolute_path(&self.root, from);
         let target = build_absolute_path(&self.root, to);
 
@@ -549,23 +553,23 @@ impl TosCore {
             self.endpoint_domain,
             percent_encode_path(&target)
         );
-        let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
+        let mut source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
+        if let Some(version) = source_version {
+            source.push_str(&format!("?versionId={}", percent_encode_query(version)));
+        }
 
         let mut req = Request::put(&url)
             .header(constants::X_TOS_COPY_SOURCE, source)
             .header(constants::X_TOS_ACL, "default");
 
-        if args.if_not_exists() {
+        if if_not_exists {
             req = req.header(constants::X_TOS_FORBID_OVERWRITE, "true");
         }
 
-        let req = req
-            .extension(Operation::Copy)
+        req.extension(Operation::Copy)
             .extension(ServiceOperation("CopyObject"))
             .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
-        self.send(ctx, req).await
+            .map_err(new_request_build_error)
     }
 
     pub async fn tos_initiate_multipart_copy(

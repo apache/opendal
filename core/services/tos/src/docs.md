@@ -21,6 +21,23 @@ Use [`crate::TosConfig`] for serializable configuration and this builder's
 methods for direct construction. The field and method documentation defines
 accepted values, defaults, and environment interaction.
 
+## Restore
+
+Enable versioning on the TOS bucket before deleting objects you intend to
+recover. `Operator::restore` leaves a live object as is. It lists versions of
+the requested key and removes its current delete marker by version ID when a
+recoverable data version exists. Each call removes one marker. A key with no
+live or recoverable data version returns `NotFound`. The caller needs permission
+to list object versions and delete the selected marker.
+
+`Operator::restore_with(...).version(...)` uses TOS CopyObject to create a new
+current version from the selected source version. The caller needs permission
+to read the source version and write the destination. TOS CopyObject limits
+apply. A restore with a version and `if_not_exists(true)` returns `Unsupported`.
+
+If TOS fails to confirm the mutation, check the current state before retrying.
+The request may already have removed a marker or created a version.
+
 ## Example
 
 ### Via Builder

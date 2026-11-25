@@ -1050,14 +1050,12 @@ pub fn parse_propstat(propstat: &Propstat) -> Result<Metadata> {
         m.etag(v);
     }
 
-    // https://www.rfc-editor.org/rfc/rfc4918#section-14.18
-    let Some(getlastmodified) = getlastmodified else {
-        return Err(Error::new(
-            ErrorKind::Unexpected,
-            "propfind response missing getlastmodified",
-        ));
-    };
-    m.last_modified(Timestamp::parse_rfc2822(getlastmodified)?);
+    // RFC 4918 section 15.7 only requires `getlastmodified` on resources whose
+    // GET returns `Last-Modified`, so servers may omit it, e.g. for
+    // collections or backends without modification times.
+    if let Some(getlastmodified) = getlastmodified {
+        m.last_modified(Timestamp::parse_rfc2822(getlastmodified)?);
+    }
 
     // the storage services have returned all the properties
     Ok(m.build())
@@ -1285,6 +1283,40 @@ mod tests {
         let meta = parse_propstats(&response.propstat).unwrap();
         assert!(meta.is_dir());
         assert_eq!(meta.etag(), Some("\"example-etag\""));
+    }
+
+    #[test]
+    fn test_parse_propstat_without_getlastmodified() {
+        let file = Propstat {
+            status: "HTTP/1.1 200 OK".to_string(),
+            prop: Prop {
+                getlastmodified: None,
+                getetag: None,
+                getcontentlength: Some("5".to_string()),
+                getcontenttype: None,
+                resourcetype: ResourceTypeContainer::default(),
+            },
+        };
+        let meta = parse_propstat(&file).unwrap();
+        assert!(meta.is_file());
+        assert_eq!(meta.content_length(), 5);
+        assert_eq!(meta.last_modified(), None);
+
+        let dir = Propstat {
+            status: "HTTP/1.1 200 OK".to_string(),
+            prop: Prop {
+                getlastmodified: None,
+                getetag: None,
+                getcontentlength: None,
+                getcontenttype: None,
+                resourcetype: ResourceTypeContainer {
+                    collection: Some(Collection {}),
+                },
+            },
+        };
+        let meta = parse_propstat(&dir).unwrap();
+        assert!(meta.is_dir());
+        assert_eq!(meta.last_modified(), None);
     }
 
     #[test]

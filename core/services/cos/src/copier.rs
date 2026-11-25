@@ -32,11 +32,10 @@ use opendal_core::*;
 // Upload Part Copy accepts 1 MiB through 5 GiB, except for the final part.
 // https://www.tencentcloud.com/document/product/436/8287
 pub(crate) const COS_COPY_MIN_PART_SIZE: usize = 1024 * 1024;
-pub(crate) const COS_COPY_MAX_PART_SIZE: usize = if usize::BITS >= 64 {
-    (5 * 1024 * 1024 * 1024_u64) as usize
-} else {
-    usize::MAX
-};
+#[cfg(target_pointer_width = "64")]
+pub(crate) const COS_COPY_MAX_PART_SIZE: usize = 5 * 1024 * 1024 * 1024;
+#[cfg(not(target_pointer_width = "64"))]
+pub(crate) const COS_COPY_MAX_PART_SIZE: usize = usize::MAX;
 const COS_MAX_COPY_PARTS: u64 = 10_000;
 
 pub type CosCopiers = oio::MultipartCopier<CosCopier>;

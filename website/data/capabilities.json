@@ -1237,6 +1237,7 @@
       "scheme": "cos",
       "native": {
         "copy": true,
+        "copy_can_multi": true,
         "copy_with_if_not_exists": true,
         "copy_with_source_version": true,
         "delete": true,
@@ -1274,6 +1275,13 @@
         "write_with_user_metadata": true
       },
       "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (4,294,967,295 B on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "1 MiB"
+        },
         "write_multi_max_size": {
           "display": "5 GiB",
           "condition": "64-bit targets (`usize::MAX` on 32-bit)"

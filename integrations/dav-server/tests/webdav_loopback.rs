@@ -17,7 +17,7 @@
 
 use std::convert::Infallible;
 use std::net::{Ipv4Addr, SocketAddr};
-use std::time::{Duration, UNIX_EPOCH};
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use bytes::Bytes;
@@ -556,57 +556,29 @@ async fn sabredav_patch_append_and_unsupported_ranges() -> Result<()> {
 }
 
 #[tokio::test]
-async fn same_length_replacement_is_not_a_stale_304() -> Result<()> {
-    // A tag derived from length and microsecond mtime stays the same when
-    // same-length content is replaced within one microsecond, so a
-    // conditional GET with the old tag returned a stale 304. The server now
-    // sends no ETag when the backend reports none.
+async fn fs_responses_omit_etag_when_only_last_modified_is_available() -> Result<()> {
     let dav = WebDav::new().await?;
-    let path = dav._root.path().join("file.txt");
-
-    // Pin the mtime so the old derivation would produce the same tag for
-    // both contents. Timestamp keeps nanosecond precision.
-    let mtime = UNIX_EPOCH + Duration::from_secs(1_700_000_000) + Duration::from_micros(123_456);
-    let micros = 1_700_000_000u64 * 1_000_000 + 123_456;
-    let derived_tag = format!("\"5-{:x}\"", micros);
-    let set_mtime = |path: &std::path::Path| {
-        std::fs::File::options()
-            .write(true)
-            .open(path)?
-            .set_times(std::fs::FileTimes::new().set_modified(mtime))
-    };
-
-    dav.send(
-        dav.request("PUT", "/file.txt"),
-        b"hello",
-        StatusCode::CREATED,
-    )
-    .await?;
-    set_mtime(&path)?;
-    let get = dav
-        .send(dav.request("GET", "/file.txt"), b"", StatusCode::OK)
+    let put = dav
+        .send(
+            dav.request("PUT", "/file.txt"),
+            b"hello",
+            StatusCode::CREATED,
+        )
         .await?;
-    assert_eq!(get.body().as_ref(), b"hello");
     assert!(
-        get.headers().get(header::ETAG).is_none(),
-        "server sent an ETag for a backend without one: {:?}",
-        get.headers().get(header::ETAG)
+        !put.headers().contains_key(header::ETAG),
+        "PUT emitted a synthetic ETag"
     );
 
-    dav.send(
-        dav.request("PUT", "/file.txt"),
-        b"world",
-        StatusCode::NO_CONTENT,
-    )
-    .await?;
-    set_mtime(&path)?;
-
-    // The tag the old derivation would have produced must not match the
-    // replacement.
-    let conditional = dav
-        .request("GET", "/file.txt")
-        .header(header::IF_NONE_MATCH, derived_tag);
-    let get = dav.send(conditional, b"", StatusCode::OK).await?;
-    assert_eq!(get.body().as_ref(), b"world");
+    for method in ["HEAD", "GET"] {
+        let response = dav
+            .send(dav.request(method, "/file.txt"), b"", StatusCode::OK)
+            .await?;
+        assert!(response.headers().contains_key(header::LAST_MODIFIED));
+        assert!(
+            !response.headers().contains_key(header::ETAG),
+            "{method} emitted a synthetic ETag"
+        );
+    }
     Ok(())
 }

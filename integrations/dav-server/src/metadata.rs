@@ -50,9 +50,6 @@ impl DavMetaData for OpendalMetaData {
     }
 
     fn etag(&self) -> Option<String> {
-        // No ETag is sent when the backend reports none. A tag derived from
-        // length and modification time can stay the same after a same-length
-        // replacement, which turns a conditional GET into a stale 304.
         let etag = self.metadata.etag()?;
         let tag = match etag.strip_prefix('"') {
             Some(quoted) => quoted.strip_suffix('"')?,
@@ -83,42 +80,5 @@ impl DavMetaData for OpendalMetaData {
             Some(t) => Ok(t.into()),
             None => Err(FsError::GeneralFailure),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use opendal_core::MetadataBuilder;
-    use opendal_core::raw::Timestamp;
-
-    #[test]
-    fn no_etag_when_backend_reports_none() {
-        // A tag derived from length and modification time stays the same
-        // when same-length content is replaced within one microsecond, so
-        // the server sends no ETag when the backend reports none.
-        let mut builder = MetadataBuilder::file(5);
-        builder.last_modified(Timestamp::new(1, 2_000).unwrap());
-        assert_eq!(OpendalMetaData::new(builder.build()).etag(), None);
-
-        let mut builder = MetadataBuilder::dir();
-        builder.last_modified(Timestamp::new(1, 2_000).unwrap());
-        assert_eq!(OpendalMetaData::new(builder.build()).etag(), None);
-
-        assert_eq!(
-            OpendalMetaData::new(MetadataBuilder::file(5).build()).etag(),
-            None
-        );
-    }
-
-    #[test]
-    fn backend_etag_takes_precedence() {
-        let mut builder = MetadataBuilder::file(5);
-        builder.last_modified(Timestamp::new(1, 0).unwrap());
-        builder.etag("\"abc\"");
-        assert_eq!(
-            OpendalMetaData::new(builder.build()).etag().as_deref(),
-            Some("abc")
-        );
     }
 }

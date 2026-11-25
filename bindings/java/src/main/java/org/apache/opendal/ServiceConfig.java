@@ -51,6 +51,71 @@ public interface ServiceConfig {
     Map<String, String> configMap();
 
     /**
+     * Configuration for service akamai.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Akamai implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style bucket addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>HTTPS S3 base URL for the bucket’s region and endpoint type.</p>
+         */
+        public final @NonNull String endpoint;
+        /**
+         * <p>Signing region. Defaults to <code>us-east-1</code>.</p>
+         */
+        public final String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "akamai";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            map.put("endpoint", endpoint);
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service aliyun-drive.
      */
     @Builder
@@ -594,6 +659,71 @@ public interface ServiceConfig {
             final HashMap<String, String> map = new HashMap<>();
             if (datadir != null) {
                 map.put("datadir", datadir);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service ceph-rgw.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class CephRgw implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style addressing when the gateway has a matching <code>rgw_dns_name</code> or zonegroup hostname.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>HTTP(S) base URL of the RADOS Gateway S3 API.</p>
+         */
+        public final @NonNull String endpoint;
+        /**
+         * <p>Signing region. Defaults to <code>us-east-1</code>.</p>
+         */
+        public final String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "ceph-rgw";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            map.put("endpoint", endpoint);
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
             }
             return map;
         }
@@ -1243,6 +1373,69 @@ public interface ServiceConfig {
             }
             if (root != null) {
                 map.put("root", root);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service garage.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Garage implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style addressing when the cluster has a matching <code>root_domain</code>.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>HTTP(S) base URL of the cluster’s S3 API.</p>
+         */
+        public final @NonNull String endpoint;
+        /**
+         * <p>Signing region from <code>s3_region</code> in the cluster’s <code>[s3_api]</code> configuration.</p>
+         */
+        public final @NonNull String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "garage";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            map.put("endpoint", endpoint);
+            map.put("region", region);
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
             }
             return map;
         }
@@ -2063,6 +2256,188 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service ibm-cos.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class IbmCos implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style bucket addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>HTTPS S3 base URL for the bucket’s storage location and network access type.</p>
+         */
+        public final @NonNull String endpoint;
+        /**
+         * <p>Signing region. Defaults to <code>us-standard</code>.</p>
+         */
+        public final String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "ibm-cos";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            map.put("endpoint", endpoint);
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service idrive-e2.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class IdriveE2 implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Endpoint Access URL associated with the IDrive e2 access key.</p>
+         */
+        public final @NonNull String endpoint;
+        /**
+         * <p>Signing region. Defaults to <code>us-east-1</code>.</p>
+         */
+        public final String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "idrive-e2";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            map.put("endpoint", endpoint);
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service ionos.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Ionos implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Explicit HTTP(S) S3 base endpoint. By default, OpenDAL selects the
+         * endpoint from the bucket’s region.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Bucket region from the IONOS endpoint table, also used for signing.</p>
+         */
+        public final @NonNull String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "ionos";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            map.put("region", region);
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service ipfs.
      */
     @Builder
@@ -2684,6 +3059,65 @@ public interface ServiceConfig {
             }
             if (valueField != null) {
                 map.put("value_field", valueField);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service neon.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Neon implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>HTTPS S3 endpoint of the Neon branch, or an HTTP(S) custom endpoint.</p>
+         */
+        public final @NonNull String endpoint;
+        /**
+         * <p>Signing region. Defaults to the project region in a standard Neon branch URL.
+         * Required with a custom endpoint.</p>
+         */
+        public final String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "neon";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            map.put("endpoint", endpoint);
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
             }
             return map;
         }
@@ -3664,6 +4098,71 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service rustfs.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Rustfs implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style addressing when the deployment has a matching <code>RUSTFS_SERVER_DOMAINS</code>.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>HTTP(S) base URL of the deployment’s S3 API.</p>
+         */
+        public final @NonNull String endpoint;
+        /**
+         * <p>Signing region. Defaults to <code>us-east-1</code>.</p>
+         */
+        public final String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "rustfs";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            map.put("endpoint", endpoint);
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service s3.
      */
     @Builder
@@ -4220,6 +4719,71 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service seaweedfs.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Seaweedfs implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style addressing when the gateway has a matching <code>domainName</code>.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>HTTP(S) base URL of the deployment’s S3 gateway.</p>
+         */
+        public final @NonNull String endpoint;
+        /**
+         * <p>Signing region. Defaults to <code>us-east-1</code>.</p>
+         */
+        public final String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "seaweedfs";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            map.put("endpoint", endpoint);
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service sftp.
      */
     @Builder
@@ -4483,6 +5047,64 @@ public interface ServiceConfig {
             }
             if (valueField != null) {
                 map.put("value_field", valueField);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service storj.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Storj implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>HTTPS gateway URL issued with the S3 key pair for the access grant.</p>
+         */
+        public final @NonNull String endpoint;
+        /**
+         * <p>Signing region. Defaults to <code>us-east-1</code>.</p>
+         */
+        public final String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "storj";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            map.put("endpoint", endpoint);
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
             }
             return map;
         }

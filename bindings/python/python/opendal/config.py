@@ -51,6 +51,27 @@ if TYPE_CHECKING:
     from typing import NotRequired, Required
 
 
+class AkamaiConfig(TypedDict):
+    """Configuration for the `akamai` service."""
+
+    scheme: Required[Literal["akamai"]]
+    """The service scheme; fixed to `"akamai"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style bucket addressing."""
+    endpoint: Required[str]
+    """HTTPS S3 base URL for the bucket’s region and endpoint type."""
+    region: NotRequired[str]
+    """Signing region. Defaults to `us-east-1`."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+
+
 class AliyunDriveConfig(TypedDict):
     """Configuration for the `aliyun-drive` service."""
 
@@ -202,6 +223,27 @@ class CacacheConfig(TypedDict):
     """That path to the cacache data directory."""
 
 
+class CephRgwConfig(TypedDict):
+    """Configuration for the `ceph-rgw` service."""
+
+    scheme: Required[Literal["ceph-rgw"]]
+    """The service scheme; fixed to `"ceph-rgw"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style addressing when the gateway has a matching `rgw_dns_name` or zonegroup hostname."""
+    endpoint: Required[str]
+    """HTTP(S) base URL of the RADOS Gateway S3 API."""
+    region: NotRequired[str]
+    """Signing region. Defaults to `us-east-1`."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+
+
 class CosConfig(TypedDict):
     """Configuration for the `cos` service."""
 
@@ -321,6 +363,27 @@ class FtpConfig(TypedDict):
     """root of this backend"""
     user: NotRequired[str]
     """user of this backend"""
+
+
+class GarageConfig(TypedDict):
+    """Configuration for the `garage` service."""
+
+    scheme: Required[Literal["garage"]]
+    """The service scheme; fixed to `"garage"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style addressing when the cluster has a matching `root_domain`."""
+    endpoint: Required[str]
+    """HTTP(S) base URL of the cluster’s S3 API."""
+    region: Required[str]
+    """Signing region from `s3_region` in the cluster’s `[s3_api]` configuration."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
 
 
 class GcsConfig(TypedDict):
@@ -533,6 +596,65 @@ class HttpConfig(TypedDict):
     """username of this backend"""
 
 
+class IbmCosConfig(TypedDict):
+    """Configuration for the `ibm-cos` service."""
+
+    scheme: Required[Literal["ibm-cos"]]
+    """The service scheme; fixed to `"ibm-cos"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style bucket addressing."""
+    endpoint: Required[str]
+    """HTTPS S3 base URL for the bucket’s storage location and network access type."""
+    region: NotRequired[str]
+    """Signing region. Defaults to `us-standard`."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+
+
+class IdriveE2Config(TypedDict):
+    """Configuration for the `idrive-e2` service."""
+
+    scheme: Required[Literal["idrive-e2"]]
+    """The service scheme; fixed to `"idrive-e2"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    endpoint: Required[str]
+    """Endpoint Access URL associated with the IDrive e2 access key."""
+    region: NotRequired[str]
+    """Signing region. Defaults to `us-east-1`."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+
+
+class IonosConfig(TypedDict):
+    """Configuration for the `ionos` service."""
+
+    scheme: Required[Literal["ionos"]]
+    """The service scheme; fixed to `"ionos"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) S3 base endpoint. By default, OpenDAL selects the endpoint from the bucket’s region."""
+    region: Required[str]
+    """Bucket region from the IONOS endpoint table, also used for signing."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+
+
 class IpfsConfig(TypedDict):
     """Configuration for the `ipfs` service."""
 
@@ -689,6 +811,25 @@ class MysqlConfig(TypedDict):
     """The table name for mysql."""
     value_field: NotRequired[str]
     """The value field name for mysql."""
+
+
+class NeonConfig(TypedDict):
+    """Configuration for the `neon` service."""
+
+    scheme: Required[Literal["neon"]]
+    """The service scheme; fixed to `"neon"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    endpoint: Required[str]
+    """HTTPS S3 endpoint of the Neon branch, or an HTTP(S) custom endpoint."""
+    region: NotRequired[str]
+    """Signing region. Defaults to the project region in a standard Neon branch URL. Required with a custom endpoint."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
 
 
 class ObsConfig(TypedDict):
@@ -942,6 +1083,27 @@ class RedisConfig(TypedDict):
     """the username to connect redis service.  default is None"""
 
 
+class RustfsConfig(TypedDict):
+    """Configuration for the `rustfs` service."""
+
+    scheme: Required[Literal["rustfs"]]
+    """The service scheme; fixed to `"rustfs"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style addressing when the deployment has a matching `RUSTFS_SERVER_DOMAINS`."""
+    endpoint: Required[str]
+    """HTTP(S) base URL of the deployment’s S3 API."""
+    region: NotRequired[str]
+    """Signing region. Defaults to `us-east-1`."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+
+
 class S3Config(TypedDict):
     """Configuration for the `s3` service."""
 
@@ -1069,6 +1231,27 @@ class SeafileConfig(TypedDict):
     """username of this backend."""
 
 
+class SeaweedfsConfig(TypedDict):
+    """Configuration for the `seaweedfs` service."""
+
+    scheme: Required[Literal["seaweedfs"]]
+    """The service scheme; fixed to `"seaweedfs"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style addressing when the gateway has a matching `domainName`."""
+    endpoint: Required[str]
+    """HTTP(S) base URL of the deployment’s S3 gateway."""
+    region: NotRequired[str]
+    """Signing region. Defaults to `us-east-1`."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+
+
 class SftpConfig(TypedDict):
     """Configuration for the `sftp` service."""
 
@@ -1145,6 +1328,25 @@ class SqliteConfig(TypedDict):
     """Set the table name of the sqlite service to read/write."""
     value_field: NotRequired[str]
     """Set the value field name of the sqlite service to read/write.  Default to `value` if not specified."""
+
+
+class StorjConfig(TypedDict):
+    """Configuration for the `storj` service."""
+
+    scheme: Required[Literal["storj"]]
+    """The service scheme; fixed to `"storj"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    endpoint: Required[str]
+    """HTTPS gateway URL issued with the S3 key pair for the access grant."""
+    region: NotRequired[str]
+    """Signing region. Defaults to `us-east-1`."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
 
 
 class SupabaseConfig(TypedDict):
@@ -1352,13 +1554,15 @@ class YandexDiskConfig(TypedDict):
 
 
 ServiceConfig = (
-    AliyunDriveConfig
+    AkamaiConfig
+    | AliyunDriveConfig
     | AlluxioConfig
     | AzblobConfig
     | AzdlsConfig
     | AzfileConfig
     | B2Config
     | CacacheConfig
+    | CephRgwConfig
     | CosConfig
     | DashmapConfig
     | DropboxConfig
@@ -1366,6 +1570,7 @@ ServiceConfig = (
     | FoyerConfig
     | FsConfig
     | FtpConfig
+    | GarageConfig
     | GcsConfig
     | GcsGrpcConfig
     | GdriveConfig
@@ -1376,6 +1581,9 @@ ServiceConfig = (
     | HetznerConfig
     | HfConfig
     | HttpConfig
+    | IbmCosConfig
+    | IdriveE2Config
+    | IonosConfig
     | IpfsConfig
     | IpmfsConfig
     | KoofrConfig
@@ -1386,6 +1594,7 @@ ServiceConfig = (
     | MokaConfig
     | MongodbConfig
     | MysqlConfig
+    | NeonConfig
     | ObsConfig
     | OciConfig
     | OnedriveConfig
@@ -1397,13 +1606,16 @@ ServiceConfig = (
     | R2Config
     | RedbConfig
     | RedisConfig
+    | RustfsConfig
     | S3Config
     | ScalewayConfig
     | SeafileConfig
+    | SeaweedfsConfig
     | SftpConfig
     | SledConfig
     | SpacesConfig
     | SqliteConfig
+    | StorjConfig
     | SupabaseConfig
     | SwiftConfig
     | TigrisConfig
@@ -1419,6 +1631,7 @@ ServiceConfig = (
 
 __all__ = [
     "ServiceConfig",
+    "AkamaiConfig",
     "AliyunDriveConfig",
     "AlluxioConfig",
     "AzblobConfig",
@@ -1426,6 +1639,7 @@ __all__ = [
     "AzfileConfig",
     "B2Config",
     "CacacheConfig",
+    "CephRgwConfig",
     "CosConfig",
     "DashmapConfig",
     "DropboxConfig",
@@ -1433,6 +1647,7 @@ __all__ = [
     "FoyerConfig",
     "FsConfig",
     "FtpConfig",
+    "GarageConfig",
     "GcsConfig",
     "GcsGrpcConfig",
     "GdriveConfig",
@@ -1443,6 +1658,9 @@ __all__ = [
     "HetznerConfig",
     "HfConfig",
     "HttpConfig",
+    "IbmCosConfig",
+    "IdriveE2Config",
+    "IonosConfig",
     "IpfsConfig",
     "IpmfsConfig",
     "KoofrConfig",
@@ -1453,6 +1671,7 @@ __all__ = [
     "MokaConfig",
     "MongodbConfig",
     "MysqlConfig",
+    "NeonConfig",
     "ObsConfig",
     "OciConfig",
     "OnedriveConfig",
@@ -1464,13 +1683,16 @@ __all__ = [
     "R2Config",
     "RedbConfig",
     "RedisConfig",
+    "RustfsConfig",
     "S3Config",
     "ScalewayConfig",
     "SeafileConfig",
+    "SeaweedfsConfig",
     "SftpConfig",
     "SledConfig",
     "SpacesConfig",
     "SqliteConfig",
+    "StorjConfig",
     "SupabaseConfig",
     "SwiftConfig",
     "TigrisConfig",

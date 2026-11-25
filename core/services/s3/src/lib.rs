@@ -34,13 +34,23 @@ mod r2_config;
 mod reader;
 mod writer;
 
+mod akamai_config;
+mod ceph_rgw_config;
 mod exoscale_config;
+mod garage_config;
 mod hetzner_config;
+mod ibm_cos_config;
+mod idrive_e2_config;
+mod ionos_config;
+mod neon_config;
 mod oci_config;
 mod ovhcloud_config;
 mod qingstor_config;
+mod rustfs_config;
 mod scaleway_config;
+mod seaweedfs_config;
 mod spaces_config;
+mod storj_config;
 mod supabase_config;
 mod tigris_config;
 mod wasabi_config;
@@ -48,19 +58,33 @@ mod wasabi_config;
 #[cfg(test)]
 mod preset_tests;
 
+pub use akamai_config::{AKAMAI_SCHEME, Akamai, AkamaiConfig, register_akamai_service};
 pub use backend::S3Builder as S3;
+pub use ceph_rgw_config::{CEPH_RGW_SCHEME, CephRgw, CephRgwConfig, register_ceph_rgw_service};
 pub use config::S3Config;
 pub use exoscale_config::{EXOSCALE_SCHEME, Exoscale, ExoscaleConfig, register_exoscale_service};
+pub use garage_config::{GARAGE_SCHEME, Garage, GarageConfig, register_garage_service};
 pub use hetzner_config::{HETZNER_SCHEME, Hetzner, HetznerConfig, register_hetzner_service};
+pub use ibm_cos_config::{IBM_COS_SCHEME, IbmCos, IbmCosConfig, register_ibm_cos_service};
+pub use idrive_e2_config::{
+    IDRIVE_E2_SCHEME, IdriveE2, IdriveE2Config, register_idrive_e2_service,
+};
+pub use ionos_config::{IONOS_SCHEME, Ionos, IonosConfig, register_ionos_service};
 pub use minio::MinioBuilder as Minio;
 pub use minio_config::MinioConfig;
+pub use neon_config::{NEON_SCHEME, Neon, NeonConfig, register_neon_service};
 pub use oci_config::{OCI_SCHEME, Oci, OciConfig, register_oci_service};
 pub use ovhcloud_config::{OVHCLOUD_SCHEME, Ovhcloud, OvhcloudConfig, register_ovhcloud_service};
 pub use qingstor_config::{QINGSTOR_SCHEME, Qingstor, QingstorConfig, register_qingstor_service};
 pub use r2::R2Builder as R2;
 pub use r2_config::R2Config;
+pub use rustfs_config::{RUSTFS_SCHEME, Rustfs, RustfsConfig, register_rustfs_service};
 pub use scaleway_config::{SCALEWAY_SCHEME, Scaleway, ScalewayConfig, register_scaleway_service};
+pub use seaweedfs_config::{
+    SEAWEEDFS_SCHEME, Seaweedfs, SeaweedfsConfig, register_seaweedfs_service,
+};
 pub use spaces_config::{SPACES_SCHEME, Spaces, SpacesConfig, register_spaces_service};
+pub use storj_config::{STORJ_SCHEME, Storj, StorjConfig, register_storj_service};
 pub use supabase_config::{SUPABASE_SCHEME, Supabase, SupabaseConfig, register_supabase_service};
 pub use tigris_config::{TIGRIS_SCHEME, Tigris, TigrisConfig, register_tigris_service};
 pub use wasabi_config::{WASABI_SCHEME, Wasabi, WasabiConfig, register_wasabi_service};

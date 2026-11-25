@@ -877,11 +877,9 @@ impl S3Builder {
         // - `br-xxx.storage.c-6.us-east-2.aws.neon.tech` => `us-east-2`
         //
         // Reference: <https://neon.com/docs/storage/s3-compatibility>
-        if let Some((_, region)) = endpoint
+        if let Some(region) = endpoint
             .strip_prefix("https://")
-            .and_then(|v| v.strip_suffix(".aws.neon.tech"))
-            .and_then(|v| v.split_once(".storage."))
-            .and_then(|(_, v)| v.split_once('.'))
+            .and_then(crate::neon_config::region_from_branch_host)
         {
             return Some(region.to_string());
         }

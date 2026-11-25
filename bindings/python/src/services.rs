@@ -29,6 +29,8 @@ use crate::*;
 #[pyo3(rename_all = "PascalCase")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Scheme {
+    #[cfg(feature = "services-akamai")]
+    Akamai,
     #[cfg(feature = "services-aliyun-drive")]
     AliyunDrive,
     #[cfg(feature = "services-alluxio")]
@@ -43,6 +45,8 @@ pub enum Scheme {
     B2,
     #[cfg(feature = "services-cacache")]
     Cacache,
+    #[cfg(feature = "services-ceph-rgw")]
+    CephRgw,
     #[cfg(feature = "services-cos")]
     Cos,
     #[cfg(feature = "services-dashmap")]
@@ -57,6 +61,8 @@ pub enum Scheme {
     Fs,
     #[cfg(feature = "services-ftp")]
     Ftp,
+    #[cfg(feature = "services-garage")]
+    Garage,
     #[cfg(feature = "services-gcs")]
     Gcs,
     #[cfg(feature = "services-gcs-grpc")]
@@ -77,6 +83,12 @@ pub enum Scheme {
     Hf,
     #[cfg(feature = "services-http")]
     Http,
+    #[cfg(feature = "services-ibm-cos")]
+    IbmCos,
+    #[cfg(feature = "services-idrive-e2")]
+    IdriveE2,
+    #[cfg(feature = "services-ionos")]
+    Ionos,
     #[cfg(feature = "services-ipfs")]
     Ipfs,
     #[cfg(feature = "services-ipmfs")]
@@ -97,6 +109,8 @@ pub enum Scheme {
     Mongodb,
     #[cfg(feature = "services-mysql")]
     Mysql,
+    #[cfg(feature = "services-neon")]
+    Neon,
     #[cfg(feature = "services-obs")]
     Obs,
     #[cfg(feature = "services-oci")]
@@ -119,12 +133,16 @@ pub enum Scheme {
     Redb,
     #[cfg(feature = "services-redis")]
     Redis,
+    #[cfg(feature = "services-rustfs")]
+    Rustfs,
     #[cfg(feature = "services-s3")]
     S3,
     #[cfg(feature = "services-scaleway")]
     Scaleway,
     #[cfg(feature = "services-seafile")]
     Seafile,
+    #[cfg(feature = "services-seaweedfs")]
+    Seaweedfs,
     #[cfg(feature = "services-sftp")]
     Sftp,
     #[cfg(feature = "services-sled")]
@@ -133,6 +151,8 @@ pub enum Scheme {
     Spaces,
     #[cfg(feature = "services-sqlite")]
     Sqlite,
+    #[cfg(feature = "services-storj")]
+    Storj,
     #[cfg(feature = "services-supabase")]
     Supabase,
     #[cfg(feature = "services-swift")]
@@ -195,6 +215,8 @@ macro_rules! impl_enum_to_str {
 
 impl_enum_to_str!(
     Scheme {
+        #[cfg(feature = "services-akamai")]
+        Akamai => "akamai",
         #[cfg(feature = "services-aliyun-drive")]
         AliyunDrive => "aliyun-drive",
         #[cfg(feature = "services-alluxio")]
@@ -209,6 +231,8 @@ impl_enum_to_str!(
         B2 => "b2",
         #[cfg(feature = "services-cacache")]
         Cacache => "cacache",
+        #[cfg(feature = "services-ceph-rgw")]
+        CephRgw => "ceph-rgw",
         #[cfg(feature = "services-cos")]
         Cos => "cos",
         #[cfg(feature = "services-dashmap")]
@@ -223,6 +247,8 @@ impl_enum_to_str!(
         Fs => "fs",
         #[cfg(feature = "services-ftp")]
         Ftp => "ftp",
+        #[cfg(feature = "services-garage")]
+        Garage => "garage",
         #[cfg(feature = "services-gcs")]
         Gcs => "gcs",
         #[cfg(feature = "services-gcs-grpc")]
@@ -243,6 +269,12 @@ impl_enum_to_str!(
         Hf => "hf",
         #[cfg(feature = "services-http")]
         Http => "http",
+        #[cfg(feature = "services-ibm-cos")]
+        IbmCos => "ibm-cos",
+        #[cfg(feature = "services-idrive-e2")]
+        IdriveE2 => "idrive-e2",
+        #[cfg(feature = "services-ionos")]
+        Ionos => "ionos",
         #[cfg(feature = "services-ipfs")]
         Ipfs => "ipfs",
         #[cfg(feature = "services-ipmfs")]
@@ -263,6 +295,8 @@ impl_enum_to_str!(
         Mongodb => "mongodb",
         #[cfg(feature = "services-mysql")]
         Mysql => "mysql",
+        #[cfg(feature = "services-neon")]
+        Neon => "neon",
         #[cfg(feature = "services-obs")]
         Obs => "obs",
         #[cfg(feature = "services-oci")]
@@ -285,12 +319,16 @@ impl_enum_to_str!(
         Redb => "redb",
         #[cfg(feature = "services-redis")]
         Redis => "redis",
+        #[cfg(feature = "services-rustfs")]
+        Rustfs => "rustfs",
         #[cfg(feature = "services-s3")]
         S3 => "s3",
         #[cfg(feature = "services-scaleway")]
         Scaleway => "scaleway",
         #[cfg(feature = "services-seafile")]
         Seafile => "seafile",
+        #[cfg(feature = "services-seaweedfs")]
+        Seaweedfs => "seaweedfs",
         #[cfg(feature = "services-sftp")]
         Sftp => "sftp",
         #[cfg(feature = "services-sled")]
@@ -299,6 +337,8 @@ impl_enum_to_str!(
         Spaces => "spaces",
         #[cfg(feature = "services-sqlite")]
         Sqlite => "sqlite",
+        #[cfg(feature = "services-storj")]
+        Storj => "storj",
         #[cfg(feature = "services-supabase")]
         Supabase => "supabase",
         #[cfg(feature = "services-swift")]

@@ -274,11 +274,32 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-minio")]
     opendal_service_s3::register_minio_service(registry);
 
+    #[cfg(feature = "services-akamai")]
+    opendal_service_s3::register_akamai_service(registry);
+
+    #[cfg(feature = "services-ceph-rgw")]
+    opendal_service_s3::register_ceph_rgw_service(registry);
+
     #[cfg(feature = "services-exoscale")]
     opendal_service_s3::register_exoscale_service(registry);
 
+    #[cfg(feature = "services-garage")]
+    opendal_service_s3::register_garage_service(registry);
+
     #[cfg(feature = "services-hetzner")]
     opendal_service_s3::register_hetzner_service(registry);
+
+    #[cfg(feature = "services-ibm-cos")]
+    opendal_service_s3::register_ibm_cos_service(registry);
+
+    #[cfg(feature = "services-idrive-e2")]
+    opendal_service_s3::register_idrive_e2_service(registry);
+
+    #[cfg(feature = "services-ionos")]
+    opendal_service_s3::register_ionos_service(registry);
+
+    #[cfg(feature = "services-neon")]
+    opendal_service_s3::register_neon_service(registry);
 
     #[cfg(feature = "services-oci")]
     opendal_service_s3::register_oci_service(registry);
@@ -289,11 +310,20 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-qingstor")]
     opendal_service_s3::register_qingstor_service(registry);
 
+    #[cfg(feature = "services-rustfs")]
+    opendal_service_s3::register_rustfs_service(registry);
+
     #[cfg(feature = "services-scaleway")]
     opendal_service_s3::register_scaleway_service(registry);
 
+    #[cfg(feature = "services-seaweedfs")]
+    opendal_service_s3::register_seaweedfs_service(registry);
+
     #[cfg(feature = "services-spaces")]
     opendal_service_s3::register_spaces_service(registry);
+
+    #[cfg(feature = "services-storj")]
+    opendal_service_s3::register_storj_service(registry);
 
     #[cfg(feature = "services-supabase")]
     opendal_service_s3::register_supabase_service(registry);
@@ -477,16 +507,34 @@ pub mod services {
     pub use opendal_service_redis::*;
     #[cfg(feature = "services-rocksdb")]
     pub use opendal_service_rocksdb::*;
+    #[cfg(feature = "services-akamai")]
+    pub use opendal_service_s3::{AKAMAI_SCHEME, Akamai, AkamaiConfig, register_akamai_service};
+    #[cfg(feature = "services-ceph-rgw")]
+    pub use opendal_service_s3::{
+        CEPH_RGW_SCHEME, CephRgw, CephRgwConfig, register_ceph_rgw_service,
+    };
     #[cfg(feature = "services-exoscale")]
     pub use opendal_service_s3::{
         EXOSCALE_SCHEME, Exoscale, ExoscaleConfig, register_exoscale_service,
     };
+    #[cfg(feature = "services-garage")]
+    pub use opendal_service_s3::{GARAGE_SCHEME, Garage, GarageConfig, register_garage_service};
     #[cfg(feature = "services-hetzner")]
     pub use opendal_service_s3::{
         HETZNER_SCHEME, Hetzner, HetznerConfig, register_hetzner_service,
     };
+    #[cfg(feature = "services-ibm-cos")]
+    pub use opendal_service_s3::{IBM_COS_SCHEME, IbmCos, IbmCosConfig, register_ibm_cos_service};
+    #[cfg(feature = "services-idrive-e2")]
+    pub use opendal_service_s3::{
+        IDRIVE_E2_SCHEME, IdriveE2, IdriveE2Config, register_idrive_e2_service,
+    };
+    #[cfg(feature = "services-ionos")]
+    pub use opendal_service_s3::{IONOS_SCHEME, Ionos, IonosConfig, register_ionos_service};
     #[cfg(feature = "services-minio")]
     pub use opendal_service_s3::{MINIO_SCHEME, Minio, MinioConfig, register_minio_service};
+    #[cfg(feature = "services-neon")]
+    pub use opendal_service_s3::{NEON_SCHEME, Neon, NeonConfig, register_neon_service};
     #[cfg(feature = "services-oci")]
     pub use opendal_service_s3::{OCI_SCHEME, Oci, OciConfig, register_oci_service};
     #[cfg(feature = "services-ovhcloud")]
@@ -499,14 +547,22 @@ pub mod services {
     };
     #[cfg(feature = "services-r2")]
     pub use opendal_service_s3::{R2, R2_SCHEME, R2Config, register_r2_service};
+    #[cfg(feature = "services-rustfs")]
+    pub use opendal_service_s3::{RUSTFS_SCHEME, Rustfs, RustfsConfig, register_rustfs_service};
     #[cfg(feature = "services-s3")]
     pub use opendal_service_s3::{S3, S3_SCHEME, S3Config, register_s3_service, reqsign_aws_v4};
     #[cfg(feature = "services-scaleway")]
     pub use opendal_service_s3::{
         SCALEWAY_SCHEME, Scaleway, ScalewayConfig, register_scaleway_service,
     };
+    #[cfg(feature = "services-seaweedfs")]
+    pub use opendal_service_s3::{
+        SEAWEEDFS_SCHEME, Seaweedfs, SeaweedfsConfig, register_seaweedfs_service,
+    };
     #[cfg(feature = "services-spaces")]
     pub use opendal_service_s3::{SPACES_SCHEME, Spaces, SpacesConfig, register_spaces_service};
+    #[cfg(feature = "services-storj")]
+    pub use opendal_service_s3::{STORJ_SCHEME, Storj, StorjConfig, register_storj_service};
     #[cfg(feature = "services-supabase")]
     pub use opendal_service_s3::{
         SUPABASE_SCHEME, Supabase, SupabaseConfig, register_supabase_service,
@@ -585,13 +641,23 @@ mod service_feature_tests {
         assert!(!schemes.contains("minio"));
 
         for (scheme, enabled) in [
+            ("akamai", cfg!(feature = "services-akamai")),
+            ("ceph-rgw", cfg!(feature = "services-ceph-rgw")),
             ("exoscale", cfg!(feature = "services-exoscale")),
+            ("garage", cfg!(feature = "services-garage")),
             ("hetzner", cfg!(feature = "services-hetzner")),
+            ("ibm-cos", cfg!(feature = "services-ibm-cos")),
+            ("idrive-e2", cfg!(feature = "services-idrive-e2")),
+            ("ionos", cfg!(feature = "services-ionos")),
+            ("neon", cfg!(feature = "services-neon")),
             ("oci", cfg!(feature = "services-oci")),
             ("ovhcloud", cfg!(feature = "services-ovhcloud")),
             ("qingstor", cfg!(feature = "services-qingstor")),
+            ("rustfs", cfg!(feature = "services-rustfs")),
             ("scaleway", cfg!(feature = "services-scaleway")),
+            ("seaweedfs", cfg!(feature = "services-seaweedfs")),
             ("spaces", cfg!(feature = "services-spaces")),
+            ("storj", cfg!(feature = "services-storj")),
             ("supabase", cfg!(feature = "services-supabase")),
             ("tigris", cfg!(feature = "services-tigris")),
             ("wasabi", cfg!(feature = "services-wasabi")),
@@ -603,6 +669,43 @@ mod service_feature_tests {
         {
             let op = Operator::from_uri("tigris://example-bucket/root").unwrap();
             assert_eq!(op.info().scheme(), "tigris");
+            assert_eq!(op.info().name(), "example-bucket");
+            assert_eq!(op.info().root(), "/root/");
+        }
+    }
+
+    #[cfg(feature = "services-garage")]
+    #[test]
+    fn garage_builds_from_uri_iter_and_typed_config() {
+        use crate::services::{GARAGE_SCHEME, Garage, GarageConfig};
+
+        let options = [("endpoint", "http://127.0.0.1:3900"), ("region", "garage")];
+        let from_uri = Operator::from_uri(("garage://example-bucket/root", options)).unwrap();
+        let from_iter = Operator::via_iter(
+            GARAGE_SCHEME,
+            options
+                .into_iter()
+                .chain([("bucket", "example-bucket"), ("root", "root")])
+                .map(|(key, value)| (key.to_owned(), value.to_owned())),
+        )
+        .unwrap();
+        let mut config = GarageConfig::default();
+        config.bucket = "example-bucket".into();
+        config.root = Some("root".into());
+        config.endpoint = "http://127.0.0.1:3900".into();
+        config.region = "garage".into();
+        let from_config = Operator::from_config(config).unwrap();
+        let from_builder = Operator::new(
+            Garage::default()
+                .bucket("example-bucket")
+                .root("root")
+                .endpoint("http://127.0.0.1:3900")
+                .region("garage"),
+        )
+        .unwrap();
+
+        for op in [from_uri, from_iter, from_config, from_builder] {
+            assert_eq!(op.info().scheme(), GARAGE_SCHEME);
             assert_eq!(op.info().name(), "example-bucket");
             assert_eq!(op.info().root(), "/root/");
         }

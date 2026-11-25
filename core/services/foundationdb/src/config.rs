@@ -36,6 +36,18 @@ impl opendal_core::Configurator for FoundationdbConfig {
     type Builder = FoundationdbBuilder;
 
     fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
+        // With no URI path, the builder would open the default cluster.
+        if !uri.options().contains_key("config_path")
+            && let Some(host) = uri.name()
+            && !host.eq_ignore_ascii_case("localhost")
+        {
+            return Err(opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
+                "foundationdb uri must not contain a host, use foundationdb:///path",
+            )
+            .with_context("host", host));
+        }
+
         let mut map = uri.options().clone();
 
         if let Some(path) = uri.root()
@@ -57,21 +69,56 @@ impl opendal_core::Configurator for FoundationdbConfig {
 mod tests {
     use super::*;
     use opendal_core::Configurator;
+    use opendal_core::ErrorKind;
     use opendal_core::OperatorUri;
+    use opendal_core::Result;
 
     #[test]
-    fn from_uri_sets_config_path_and_root() {
-        let uri = OperatorUri::new(
+    fn from_uri_sets_config_path_and_root() -> Result<()> {
+        for base in [
             "foundationdb:///etc/foundationdb/fdb.cluster?root=data",
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+            "foundationdb://LOCALHOST/etc/foundationdb/fdb.cluster?root=data",
+        ] {
+            let uri = OperatorUri::new(base, [])?;
+            let cfg = FoundationdbConfig::from_uri(&uri)?;
+            assert_eq!(
+                cfg.config_path.as_deref(),
+                Some("/etc/foundationdb/fdb.cluster")
+            );
+            assert_eq!(cfg.root.as_deref(), Some("data"));
+        }
+        Ok(())
+    }
 
-        let cfg = FoundationdbConfig::from_uri(&uri).unwrap();
-        assert_eq!(
-            cfg.config_path.as_deref(),
-            Some("/etc/foundationdb/fdb.cluster")
-        );
-        assert_eq!(cfg.root.as_deref(), Some("data"));
+    #[test]
+    fn from_uri_rejects_host_without_config_path_option() -> Result<()> {
+        for base in [
+            "foundationdb://remote.example/etc/foundationdb/fdb.cluster?root=data",
+            "foundationdb://remote.example?root=data",
+        ] {
+            let uri = OperatorUri::new(base, [])?;
+            let err = FoundationdbConfig::from_uri(&uri).unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "{base}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn from_uri_preserves_explicit_config_path() -> Result<()> {
+        for (base, expected) in [
+            (
+                "foundationdb://remote.example/uri.cluster?config_path=/explicit.cluster",
+                Some("/explicit.cluster"),
+            ),
+            (
+                "foundationdb://remote.example/uri.cluster?config_path=",
+                None,
+            ),
+        ] {
+            let uri = OperatorUri::new(base, [])?;
+            let cfg = FoundationdbConfig::from_uri(&uri)?;
+            assert_eq!(cfg.config_path.as_deref(), expected);
+        }
+        Ok(())
     }
 }

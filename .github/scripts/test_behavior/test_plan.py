@@ -323,6 +323,25 @@ class BehaviorTestPlan(unittest.TestCase):
         go_oses = {target["os"] for target in result["binding_go"]}
         self.assertEqual(go_oses, {"ubuntu-latest", "windows-latest", "macos-latest"})
 
+    def test_nightly_local_keeps_ftp_for_core_and_respects_native_binding_support(self):
+        result = plan([], mode="nightly-local")
+        core_setups = {
+            (case["service"], setup)
+            for target in result["core"]
+            for case in target["cases"]
+            for setup in case["setups"]
+        }
+        self.assertIn(("ftp", "vsftpd"), core_setups)
+
+        for language in ("java", "dotnet"):
+            with self.subTest(language=language):
+                binding_services = {
+                    case["service"]
+                    for target in result[f"binding_{language}"]
+                    for case in target["cases"]
+                }
+                self.assertNotIn("ftp", binding_services)
+
     def test_nightly_live_ignores_empty_diff_and_excludes_local_setups(self):
         result = plan([], mode="nightly-live")
         self.assertTrue(result["components"]["core"])

@@ -48,6 +48,7 @@ pub fn register_cos_service(registry: &opendal_core::OperatorRegistry) {
 
 mod backend;
 mod config;
+mod copier;
 mod core;
 mod deleter;
 mod lister;

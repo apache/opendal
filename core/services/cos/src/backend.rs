@@ -31,6 +31,7 @@ use reqsign_tencent_cos::StaticCredentialProvider;
 
 use super::COS_SCHEME;
 use super::config::CosConfig;
+use super::copier::{COS_COPY_MAX_PART_SIZE, COS_COPY_MIN_PART_SIZE, CosCopier, CosCopiers};
 use super::core::parse_error;
 use super::core::*;
 use super::deleter::CosDeleter;
@@ -270,6 +271,9 @@ impl Builder for CosBuilder {
             delete: true,
             delete_with_version: true,
             copy: true,
+            copy_can_multi: true,
+            copy_multi_min_size: Some(COS_COPY_MIN_PART_SIZE),
+            copy_multi_max_size: Some(COS_COPY_MAX_PART_SIZE),
 
             list: true,
             list_with_recursive: true,
@@ -313,7 +317,7 @@ impl Service for CosBackend {
     type Writer = CosWriters;
     type Lister = CosListers;
     type Deleter = oio::OneShotDeleter<CosDeleter>;
-    type Copier = oio::OneShotCopier;
+    type Copier = CosCopiers;
     type Composer = ();
 
     fn info(&self) -> ServiceInfo {
@@ -442,46 +446,7 @@ impl Service for CosBackend {
         to: &str,
         args: OpCopy,
     ) -> Result<Self::Copier> {
-        let core = self.core.clone();
-        let ctx = ctx.clone();
-        let from = from.to_string();
-        let to = to.to_string();
-        Ok(oio::OneShotCopier::new(async move {
-            let source_size = match args.source_content_length_hint() {
-                Some(size) => size,
-                None => {
-                    let stat_args = options::StatOptions {
-                        version: args.source_version().map(str::to_owned),
-                        ..Default::default()
-                    }
-                    .into();
-                    let resp = core.cos_head_object(&ctx, &from, &stat_args).await?;
-                    match resp.status() {
-                        StatusCode::OK => {
-                            parse_into_metadata(&from, resp.headers())?.content_length()
-                        }
-                        _ => {
-                            return Err(parse_error(
-                                ErrorContext::new(ServiceOperation("HeadObject")),
-                                resp,
-                            ));
-                        }
-                    }
-                }
-            };
-            let resp = core.cos_copy_object(&ctx, &from, &to, &args).await?;
-
-            let status = resp.status();
-
-            match status {
-                StatusCode::OK => Ok(MetadataBuilder::file(source_size).build()),
-                _ => Err(parse_error(
-                    ErrorContext::new(ServiceOperation("CopyObject"))
-                        .with_if_not_exists(args.if_not_exists()),
-                    resp,
-                )),
-            }
-        }))
+        Ok(CosCopier::multipart(self.core.clone(), ctx, from, to, args))
     }
 
     async fn rename(

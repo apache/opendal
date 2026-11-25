@@ -433,17 +433,37 @@ impl CosCore {
         self.send(ctx, req).await
     }
 
+    pub fn cos_initiate_multipart_upload_request(
+        &self,
+        path: &str,
+        if_not_exists: bool,
+        operation: Operation,
+    ) -> http::request::Builder {
+        let p = build_absolute_path(&self.root, path);
+        let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
+        let mut req = Request::post(url)
+            .extension(operation)
+            .extension(ServiceOperation("InitiateMultipartUpload"));
+
+        // COS checks the guard here and again when completing the upload.
+        // ref: https://www.tencentcloud.com/document/product/436/7746
+        if if_not_exists {
+            req = req.header("x-cos-forbid-overwrite", "true");
+        }
+        req
+    }
+
     pub async fn cos_initiate_multipart_upload(
         &self,
         ctx: &OperationContext,
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_absolute_path(&self.root, path);
-
-        let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
-
-        let mut req = Request::post(&url);
+        let mut req = self.cos_initiate_multipart_upload_request(
+            path,
+            args.if_not_exists(),
+            Operation::Write,
+        );
 
         if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime)
@@ -457,26 +477,11 @@ impl CosCore {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
-        // COS evaluates x-cos-forbid-overwrite on both InitiateMultipartUpload and
-        // CompleteMultipartUpload, so a multipart if_not_exists write has to carry it
-        // on both requests. Setting it only on the simple PutObject path lets large
-        // uploads silently overwrite an existing object.
-        //
-        // ref: https://www.tencentcloud.com/document/product/436/7746
-        if args.if_not_exists() {
-            req = req.header("x-cos-forbid-overwrite", "true");
-        }
-
-        // Set user metadata headers.
         if let Some(user_metadata) = args.user_metadata() {
             for (key, value) in user_metadata {
                 req = req.header(format!("x-cos-meta-{key}"), value)
             }
         }
-
-        let req = req
-            .extension(Operation::Write)
-            .extension(ServiceOperation("InitiateMultipartUpload"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let req = self.sign(ctx, req).await?;
@@ -517,14 +522,14 @@ impl CosCore {
         self.send(ctx, req).await
     }
 
-    pub async fn cos_complete_multipart_upload(
+    pub fn cos_complete_multipart_upload_request(
         &self,
-        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
-        args: &OpWrite,
-    ) -> Result<Response<Buffer>> {
+        if_not_exists: bool,
+        operation: Operation,
+    ) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path);
 
         let url = format!(
@@ -546,21 +551,14 @@ impl CosCore {
         // if_not_exists guard has to be repeated here alongside InitiateMultipartUpload.
         //
         // ref: https://www.tencentcloud.com/document/product/436/7742
-        if args.if_not_exists() {
+        if if_not_exists {
             req = req.header("x-cos-forbid-overwrite", "true");
         }
 
-        let req = req
-            .extension(Operation::Write)
-            .extension(ServiceOperation("CompleteMultipartUpload"));
-
-        let req = req
+        req.extension(operation)
+            .extension(ServiceOperation("CompleteMultipartUpload"))
             .body(Buffer::from(Bytes::from(content)))
-            .map_err(new_request_build_error)?;
-
-        let req = self.sign(ctx, req).await?;
-
-        self.send(ctx, req).await
+            .map_err(new_request_build_error)
     }
 
     /// Abort an on-going multipart upload.
@@ -899,6 +897,7 @@ pub(crate) struct ErrorContext {
     service_operation: ServiceOperation,
     caller_condition: bool,
     if_not_exists: bool,
+    source_if_match: bool,
 }
 
 impl ErrorContext {
@@ -907,7 +906,13 @@ impl ErrorContext {
             service_operation,
             caller_condition: false,
             if_not_exists: false,
+            source_if_match: false,
         }
+    }
+
+    pub(crate) const fn with_source_if_match(mut self) -> Self {
+        self.source_if_match = true;
+        self
     }
 
     pub(crate) const fn with_caller_condition(mut self, caller_condition: bool) -> Self {
@@ -936,6 +941,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
+        StatusCode::PRECONDITION_FAILED if ctx.source_if_match => (ErrorKind::Conflict, false),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
@@ -950,6 +956,9 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         match cos_error.code.as_str() {
             "PreconditionFailed" if ctx.caller_condition => {
                 (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
+            }
+            "PreconditionFailed" if ctx.source_if_match => {
+                (kind, retryable) = (ErrorKind::Conflict, false);
             }
             "FileAlreadyExists" if ctx.if_not_exists => {
                 (kind, retryable) = (ErrorKind::ConditionNotMatch, false);

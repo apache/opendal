@@ -59,7 +59,9 @@ COS can copy large files in server-side parts. Set `chunk` on
 `Operator::copy_with` or `Operator::copier_with` to select a part size. COS
 accepts parts from 1 MiB to 5 GiB, with a smaller final part, and allows up to
 10,000 parts. Smaller files use Copy Object. A multipart copy fails if the
-source ETag changes between parts.
+source ETag changes between parts. Multipart copy needs permission to read the
+source object's tags (`cos:GetObjectTagging`), which COS stores on the destination
+when the upload completes.
 
 Copies with `if_not_exists` use Copy Object, which supports this condition in
 buckets that have never enabled versioning.

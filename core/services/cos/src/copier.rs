@@ -21,18 +21,16 @@ use std::sync::OnceLock;
 use bytes::Buf;
 use http::HeaderMap;
 use http::Request;
-use http::Response;
 use http::StatusCode;
 use http::header::{CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_ENCODING, CONTENT_LANGUAGE};
 use http::header::{CONTENT_LENGTH, CONTENT_TYPE, EXPIRES};
-use serde::Deserialize;
 
 use crate::core::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 // Upload Part Copy accepts 1 MiB through 5 GiB, except for the final part.
-// https://www.tencentcloud.com/document/product/436/7750
+// https://www.tencentcloud.com/document/product/436/8287
 pub(crate) const COS_COPY_MIN_PART_SIZE: usize = 1024 * 1024;
 pub(crate) const COS_COPY_MAX_PART_SIZE: usize = if usize::BITS >= 64 {
     (5 * 1024 * 1024 * 1024_u64) as usize
@@ -129,44 +127,15 @@ impl CosCopier {
     }
 }
 
-#[derive(Deserialize)]
-struct CopyResult {
-    #[serde(default, rename = "ETag")]
-    etag: String,
-}
-
-// COS can embed a service error in an HTTP 200 response to a copied part or completion.
-fn copy_result_etag(ctx: ErrorContext, response: Response<Buffer>) -> Result<(HeaderMap, String)> {
-    if response.status() != StatusCode::OK {
-        return Err(parse_error(ctx, response));
-    }
-    let (parts, body) = response.into_parts();
-    let result: CopyResult =
-        quick_xml::de::from_reader(body.clone().reader()).map_err(new_xml_deserialize_error)?;
-    if result.etag.is_empty() {
-        return Err(parse_error(ctx, Response::from_parts(parts, body)));
-    }
-    Ok((parts.headers, result.etag))
-}
-
 impl oio::MultipartCopy for CosCopier {
     async fn source_metadata(&self) -> Result<Metadata> {
         Ok(self.load_source().await?.metadata.clone())
     }
 
     async fn copy_once(&self) -> Result<Metadata> {
-        let resp = self
-            .core
+        self.core
             .cos_copy_object(&self.ctx, &self.from, &self.to, &self.args)
-            .await?;
-        match resp.status() {
-            StatusCode::OK => Ok(MetadataBuilder::unknown().build()),
-            _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("CopyObject"))
-                    .with_if_not_exists(self.args.if_not_exists()),
-                resp,
-            )),
-        }
+            .await
     }
 
     async fn initiate_copy(&self) -> Result<String> {
@@ -218,6 +187,17 @@ impl oio::MultipartCopy for CosCopier {
             if name.as_str().starts_with("x-cos-meta-") {
                 req = req.header(name, value);
             }
+        }
+        let source_version = self.args.source_version().or(parse_header_to_str(
+            &source.headers,
+            constants::X_COS_VERSION_ID,
+        )?);
+        let tags = self
+            .core
+            .cos_get_object_tags(&self.ctx, &self.from, source_version)
+            .await?;
+        if !tags.is_empty() {
+            req = req.header("x-cos-tagging", tags);
         }
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
         let req = self.core.sign(&self.ctx, req).await?;
@@ -281,13 +261,13 @@ impl oio::MultipartCopy for CosCopier {
             .map_err(new_request_build_error)?;
         let req = self.core.sign(&self.ctx, req).await?;
         let resp = self.core.send(&self.ctx, req).await?;
-        let (_, etag) = copy_result_etag(
+        let (_, result) = parse_copy_response(
             ErrorContext::new(ServiceOperation("UploadPartCopy")).with_source_if_match(),
             resp,
         )?;
         Ok(oio::MultipartPart {
             part_number,
-            etag,
+            etag: result.etag,
             checksum: None,
             size: range.size(),
         })
@@ -313,14 +293,20 @@ impl oio::MultipartCopy for CosCopier {
             Operation::Copy,
         )?;
         let req = self.core.sign(&self.ctx, req).await?;
-        let resp = self.core.send(&self.ctx, req).await?;
-        let (headers, etag) = copy_result_etag(
+        // COS starts the response before committing. A lost response can leave a committed
+        // object whose upload ID no longer exists.
+        let resp = self.core.send(&self.ctx, req).await.map_err(|err| {
+            err.with_context("service_operation", "CompleteMultipartUpload")
+                .set_permanent()
+        })?;
+        let (headers, result) = parse_copy_response(
             ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
             resp,
-        )?;
+        )
+        .map_err(Error::set_permanent)?;
 
         let mut metadata = MetadataBuilder::unknown();
-        metadata.etag(etag);
+        metadata.etag(result.etag);
         if let Some(version) = parse_header_to_str(&headers, constants::X_COS_VERSION_ID)?
             && version != "null"
         {
@@ -341,5 +327,66 @@ impl oio::MultipartCopy for CosCopier {
                 resp,
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use http::Response;
+    use oio::MultipartCopy;
+
+    use super::*;
+
+    struct LostCompletionResponse;
+
+    impl HttpTransport for LostCompletionResponse {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            assert_eq!(
+                req.extensions().get::<ServiceOperation>().unwrap().0,
+                "CompleteMultipartUpload"
+            );
+            Err(Error::new(ErrorKind::Unexpected, "synthetic connection loss").set_temporary())
+        }
+    }
+
+    #[tokio::test]
+    async fn copy_completion_does_not_retry_a_lost_response() {
+        let core = Arc::new(CosCore {
+            info: ServiceInfo::new(crate::COS_SCHEME, "/", "test"),
+            capability: Capability::default(),
+            bucket: "test".to_owned(),
+            root: "/".to_owned(),
+            endpoint: "https://cos.example.com".to_owned(),
+            sign_ctx: reqsign_core::Context::new(),
+            credential_provider: Arc::new(reqsign_tencent_cos::StaticCredentialProvider::new(
+                "test", "test",
+            )),
+            request_signer: Arc::new(reqsign_tencent_cos::RequestSigner::new()),
+            signers: HttpTransportCache::new(),
+        });
+        let ctx = OperationContext::default()
+            .with_http_transport(HttpTransporter::new(LostCompletionResponse));
+        let copier = CosCopier {
+            core,
+            ctx,
+            from: "source".to_owned(),
+            to: "target".to_owned(),
+            args: OpCopy::default(),
+            part_size: COS_COPY_MIN_PART_SIZE as u64,
+            source: OnceLock::new(),
+        };
+        let parts = [oio::MultipartPart {
+            part_number: 1,
+            etag: "\"copied\"".to_owned(),
+            checksum: None,
+            size: Some(1),
+        }];
+        let error = copier
+            .complete_copy("test-upload", &parts)
+            .await
+            .unwrap_err();
+        assert_eq!(error.message(), "synthetic connection loss");
+        assert!(error.to_string().contains("CompleteMultipartUpload"));
+        assert!(!error.is_temporary());
     }
 }

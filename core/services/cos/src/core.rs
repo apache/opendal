@@ -366,7 +366,7 @@ impl CosCore {
         from: &str,
         to: &str,
         args: &OpCopy,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Metadata> {
         let source = build_absolute_path(&self.root, from);
         let target = build_absolute_path(&self.root, to);
 
@@ -394,7 +394,70 @@ impl CosCore {
 
         let req = self.sign(ctx, req).await?;
 
-        self.send(ctx, req).await
+        let resp = self.send(ctx, req).await?;
+        let (headers, result) = parse_copy_response(
+            ErrorContext::new(ServiceOperation("CopyObject"))
+                .with_if_not_exists(args.if_not_exists()),
+            resp,
+        )?;
+        let mut meta = MetadataBuilder::unknown();
+        meta.etag(result.etag);
+        if let Some(value) = result.last_modified {
+            meta.last_modified(value.parse().map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "invalid COS CopyObject LastModified")
+                    .with_context("service_operation", "CopyObject")
+                    .set_source(err)
+            })?);
+        }
+        let version = result
+            .version_id
+            .as_deref()
+            .or(parse_header_to_str(&headers, constants::X_COS_VERSION_ID)?);
+        if let Some(version) = version.filter(|version| !version.is_empty() && *version != "null") {
+            meta.version(version);
+        }
+        Ok(meta.build())
+    }
+
+    pub async fn cos_get_object_tags(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        version: Option<&str>,
+    ) -> Result<String> {
+        let path = build_absolute_path(&self.root, path);
+        let mut url = format!("{}/{}?tagging", self.endpoint, percent_encode_path(&path));
+        if let Some(version) = version {
+            url.push_str("&versionId=");
+            url.push_str(&percent_encode_path(version));
+        }
+        let operation = ServiceOperation("GetObjectTagging");
+        let req = Request::get(url)
+            .extension(Operation::Copy)
+            .extension(operation)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        let req = self.sign(ctx, req).await?;
+        let resp = self.send(ctx, req).await?;
+        if resp.status() != StatusCode::OK {
+            if resp.status() == StatusCode::NOT_FOUND
+                && de::from_reader::<_, CosError>(resp.body().clone().reader())
+                    .is_ok_and(|error| error.code == "NoSuchTagSet")
+            {
+                return Ok(String::new());
+            }
+            return Err(parse_error(ErrorContext::new(operation), resp));
+        }
+        let tags: ObjectTagging = de::from_reader(resp.into_body().reader()).map_err(|err| {
+            new_xml_deserialize_error(err).with_context("service_operation", operation.0)
+        })?;
+        let mut pairs = Vec::new();
+        for tag in tags.tag_set.tags {
+            let key = percent_encode_path(&tag.key).replace('/', "%2F");
+            let value = percent_encode_path(&tag.value).replace('/', "%2F");
+            pairs.push(format!("{key}={value}"));
+        }
+        Ok(pairs.join("&"))
     }
 
     pub async fn cos_list_objects(
@@ -626,6 +689,25 @@ impl CosCore {
 
         self.send(ctx, req).await
     }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct ObjectTagging {
+    tag_set: ObjectTagSet,
+}
+
+#[derive(Deserialize)]
+struct ObjectTagSet {
+    #[serde(default, rename = "Tag")]
+    tags: Vec<ObjectTag>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct ObjectTag {
+    key: String,
+    value: String,
 }
 
 /// Result of CreateMultipartUpload
@@ -927,14 +1009,8 @@ impl ErrorContext {
     }
 }
 
-/// Parse an error response using its service request context.
-pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
-    let (parts, body) = resp.into_parts();
-    let bs = body.to_bytes();
-
-    let cos_error = de::from_reader::<_, CosError>(bs.clone().reader()).ok();
-
-    let (mut kind, mut retryable) = match parts.status {
+fn classify_error(ctx: ErrorContext, status: StatusCode, code: Option<&str>) -> (ErrorKind, bool) {
+    let (mut kind, mut retryable) = match status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
@@ -952,8 +1028,8 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    if let Some(cos_error) = &cos_error {
-        match cos_error.code.as_str() {
+    if let Some(code) = code {
+        match code {
             "PreconditionFailed" if ctx.caller_condition => {
                 (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
             }
@@ -974,7 +1050,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
                 (kind, retryable) = (ErrorKind::Conflict, false);
             }
             _ if matches!(
-                parts.status,
+                status,
                 StatusCode::CONFLICT | StatusCode::PRECONDITION_FAILED
             ) =>
             {
@@ -984,6 +1060,19 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         }
     }
 
+    (kind, retryable)
+}
+
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
+    let cos_error = de::from_reader::<_, CosError>(bs.clone().reader()).ok();
+    let (kind, retryable) = classify_error(
+        ctx,
+        parts.status,
+        cos_error.as_ref().map(|error| error.code.as_str()),
+    );
     let message = match cos_error {
         Some(cos_error) => format!("{cos_error:?}"),
         None => String::from_utf8_lossy(&bs).into_owned(),
@@ -1000,6 +1089,102 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     err
 }
 
+#[derive(Deserialize)]
+enum CopyResponse {
+    CopyObjectResult(CosCopyResult),
+    CopyPartResult(CosCopyResult),
+    CompleteMultipartUploadResult(CosCopyResult),
+    Error(EmbeddedCopyError),
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub(crate) struct CosCopyResult {
+    #[serde(rename = "ETag")]
+    pub etag: String,
+    pub last_modified: Option<String>,
+    pub version_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct EmbeddedCopyError {
+    code: String,
+    message: Option<String>,
+    resource: Option<String>,
+    request_id: Option<String>,
+    trace_id: Option<String>,
+}
+
+pub(crate) fn parse_copy_response(
+    ctx: ErrorContext,
+    response: Response<Buffer>,
+) -> Result<(http::HeaderMap, CosCopyResult)> {
+    if response.status() != StatusCode::OK {
+        return Err(parse_error(ctx, response));
+    }
+
+    let (parts, body) = response.into_parts();
+    let operation = ctx.service_operation.0;
+    let result = de::from_reader::<_, CopyResponse>(body.reader());
+    let error = match (operation, result) {
+        ("CopyObject", Ok(CopyResponse::CopyObjectResult(result)))
+        | ("UploadPartCopy", Ok(CopyResponse::CopyPartResult(result)))
+        | ("CompleteMultipartUpload", Ok(CopyResponse::CompleteMultipartUploadResult(result))) => {
+            if !result.etag.trim().is_empty() {
+                return Ok((parts.headers, result));
+            }
+            Error::new(ErrorKind::Unexpected, "COS copy response has an empty ETag")
+        }
+        (_, Ok(CopyResponse::Error(error))) if !error.code.trim().is_empty() => {
+            let code = error.code.as_str();
+            let (kind, retryable) = match code {
+                "AccessDenied" => (ErrorKind::PermissionDenied, false),
+                "NoSuchKey" | "NoSuchUpload" | "NoSuchVersion" => (ErrorKind::NotFound, false),
+                "InvalidRange" => (ErrorKind::RangeNotSatisfied, false),
+                // COS overwrites the same part when its upload ID and part number are reused.
+                // Tencent's Java SDK retries these service codes for copied parts.
+                "InternalError" | "ServiceUnavailable" if operation == "UploadPartCopy" => {
+                    (ErrorKind::Unexpected, true)
+                }
+                "SlowDown" if operation == "UploadPartCopy" => (ErrorKind::RateLimited, true),
+                _ => classify_error(ctx, StatusCode::OK, Some(code)),
+            };
+            let mut err = Error::new(
+                kind,
+                error
+                    .message
+                    .as_deref()
+                    .filter(|message| !message.is_empty())
+                    .unwrap_or("COS returned an error in the copy response"),
+            )
+            .with_context("service_code", code);
+            for (key, value) in [
+                ("resource", error.resource),
+                ("request_id", error.request_id),
+                ("trace_id", error.trace_id),
+            ] {
+                if let Some(value) = value {
+                    err = err.with_context(key, value);
+                }
+            }
+            if retryable { err.set_temporary() } else { err }
+        }
+        (_, Ok(CopyResponse::Error(_))) => Error::new(
+            ErrorKind::Unexpected,
+            "COS copy error response has an empty code",
+        ),
+        (_, Ok(_)) => Error::new(ErrorKind::Unexpected, "unexpected COS copy result element"),
+        (_, Err(err)) => {
+            Error::new(ErrorKind::Unexpected, "invalid COS copy response XML").set_source(err)
+        }
+    };
+    Err(with_error_response_context(
+        error.with_context("service_operation", operation),
+        parts,
+    ))
+}
+
 #[cfg(test)]
 mod error_tests {
     use super::*;
@@ -1013,6 +1198,71 @@ mod error_tests {
             .body(body)
             .expect("response must build");
         parse_error(ctx, resp)
+    }
+
+    #[test]
+    fn embedded_copy_errors_keep_native_context_and_replay_semantics() {
+        let copy = ErrorContext::new(ServiceOperation("CopyObject")).with_if_not_exists(true);
+        let part = ErrorContext::new(ServiceOperation("UploadPartCopy")).with_source_if_match();
+        let complete = ErrorContext::new(ServiceOperation("CompleteMultipartUpload"));
+        for (ctx, code, kind, retryable) in [
+            (
+                copy,
+                "FileAlreadyExists",
+                ErrorKind::ConditionNotMatch,
+                false,
+            ),
+            (part, "PreconditionFailed", ErrorKind::Conflict, false),
+            (part, "SlowDown", ErrorKind::RateLimited, true),
+            (complete, "SlowDown", ErrorKind::Unexpected, false),
+            (complete, "NoSuchUpload", ErrorKind::NotFound, false),
+        ] {
+            let body = format!(
+                " \n<Error><Code>{code}</Code><Message>synthetic service error</Message>\
+                 <RequestId>test-request</RequestId><TraceId>test-trace</TraceId></Error>"
+            );
+            let err = parse_copy_response(ctx, Response::new(Buffer::from(body)))
+                .err()
+                .expect("a service error cannot be a successful copy");
+            assert_eq!(err.kind(), kind, "{code}");
+            assert_eq!(err.is_temporary(), retryable, "{code}");
+            assert_eq!(err.message(), "synthetic service error");
+            let diagnostic = err.to_string();
+            for expected in [ctx.service_operation.0, code, "test-request", "test-trace"] {
+                assert!(diagnostic.contains(expected), "{diagnostic}");
+            }
+        }
+    }
+
+    #[test]
+    fn copy_success_requires_the_operation_result_and_etag() {
+        let ctx = ErrorContext::new(ServiceOperation("CopyObject"));
+        let body = " \n<?xml version=\"1.0\"?>\n<CopyObjectResult><ETag>&quot;copied&quot;</ETag>\
+                    <LastModified>2020-04-10T18:20:30Z</LastModified><VersionId>target-version</VersionId>\
+                    </CopyObjectResult>";
+        let (_, result) = parse_copy_response(ctx, Response::new(Buffer::from(body))).unwrap();
+        assert_eq!(result.etag, "\"copied\"");
+        assert_eq!(
+            result.last_modified.as_deref(),
+            Some("2020-04-10T18:20:30Z")
+        );
+        assert_eq!(result.version_id.as_deref(), Some("target-version"));
+
+        for (body, diagnostic) in [
+            ("<CopyObjectResult/>", "missing field `ETag`"),
+            (
+                "<CopyPartResult><ETag>wrong-result</ETag></CopyPartResult>",
+                "unexpected COS copy result element",
+            ),
+            ("<Error/>", "missing field `Code`"),
+        ] {
+            let err = parse_copy_response(ctx, Response::new(Buffer::from(body)))
+                .err()
+                .expect("invalid results cannot succeed");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(!err.is_temporary());
+            assert!(err.to_string().contains(diagnostic), "{err}");
+        }
     }
 
     #[test]

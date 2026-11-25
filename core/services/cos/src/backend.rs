@@ -476,17 +476,10 @@ impl Service for CosBackend {
                     ..Default::default()
                 },
             )?;
-            let resp = self
-                .core
+            self.core
                 .cos_copy_object(ctx, path, path, &copy_args)
                 .await?;
-            return match resp.status() {
-                StatusCode::OK => Ok(RpRestore::new()),
-                _ => Err(parse_error(
-                    ErrorContext::new(ServiceOperation("CopyObject")),
-                    resp,
-                )),
-            };
+            return Ok(RpRestore::new());
         }
 
         let resp = self

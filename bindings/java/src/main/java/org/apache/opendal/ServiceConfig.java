@@ -638,6 +638,71 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service b2-s3.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class B2S3 implements ServiceConfig {
+        /**
+         * <p>Backblaze application key ID (<code>keyID</code>).</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>HTTP(S) base endpoint override.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Bucket region from the S3 endpoint. Also used to sign requests.</p>
+         */
+        public final @NonNull String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Backblaze application key (<code>applicationKey</code>).</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "b2-s3";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            map.put("region", region);
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service cacache.
      */
     @Builder
@@ -894,6 +959,71 @@ public interface ServiceConfig {
             }
             if (securityToken != null) {
                 map.put("security_token", securityToken);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service cos-s3.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class CosS3 implements ServiceConfig {
+        /**
+         * <p>Tencent Cloud <code>SecretId</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Full COS bucket name including the numeric <code>APPID</code> suffix.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>HTTP(S) base endpoint override.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>COS bucket region. Also used to sign requests.</p>
+         */
+        public final @NonNull String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Tencent Cloud <code>SecretKey</code>.</p>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>Session token for temporary credentials. Requires both keys.</p>
+         */
+        public final String sessionToken;
+
+        @Override
+        public String scheme() {
+            return "cos-s3";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            map.put("region", region);
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            if (sessionToken != null) {
+                map.put("session_token", sessionToken);
             }
             return map;
         }
@@ -1653,6 +1783,73 @@ public interface ServiceConfig {
             }
             if (token != null) {
                 map.put("token", token);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service gcs-s3.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class GcsS3 implements ServiceConfig {
+        /**
+         * <p>Cloud Storage HMAC access ID.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style addressing for DNS-compatible buckets without dots.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>HTTP(S) XML API base endpoint. Defaults to <code>https://storage.googleapis.com</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Signing region. Defaults to <code>auto</code>.</p>
+         */
+        public final String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Cloud Storage HMAC secret.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "gcs-s3";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
             }
             return map;
         }
@@ -2613,6 +2810,76 @@ public interface ServiceConfig {
             }
             if (username != null) {
                 map.put("username", username);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service lakefs-s3.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class LakefsS3 implements ServiceConfig {
+        /**
+         * <p>lakeFS access key ID.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>lakeFS repository name as exposed by the S3 Gateway.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style addressing when the gateway is configured for it.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>HTTP(S) base URL of the lakeFS S3 Gateway.</p>
+         */
+        public final @NonNull String endpoint;
+        /**
+         * <p>Signing region. Defaults to <code>us-east-1</code>.</p>
+         */
+        public final String region;
+        /**
+         * <p>S3 key prefix starting with a branch or other lakeFS reference.</p>
+         */
+        public final @NonNull String root;
+        /**
+         * <p>lakeFS secret access key.</p>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>Session token from issued lakeFS Enterprise temporary credentials. Requires both keys.</p>
+         */
+        public final String sessionToken;
+
+        @Override
+        public String scheme() {
+            return "lakefs-s3";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            map.put("endpoint", endpoint);
+            if (region != null) {
+                map.put("region", region);
+            }
+            map.put("root", root);
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            if (sessionToken != null) {
+                map.put("session_token", sessionToken);
             }
             return map;
         }
@@ -3593,6 +3860,71 @@ public interface ServiceConfig {
             }
             if (stsEndpoint != null) {
                 map.put("sts_endpoint", stsEndpoint);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service oss-s3.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class OssS3 implements ServiceConfig {
+        /**
+         * <p>Alibaba Cloud RAM AccessKey ID.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>HTTP(S) base endpoint override.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>OSS bucket region. Also used to sign requests.</p>
+         */
+        public final @NonNull String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Alibaba Cloud RAM AccessKey secret.</p>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>Session token for temporary credentials. Requires both keys.</p>
+         */
+        public final String sessionToken;
+
+        @Override
+        public String scheme() {
+            return "oss-s3";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            map.put("region", region);
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            if (sessionToken != null) {
+                map.put("session_token", sessionToken);
             }
             return map;
         }
@@ -5336,6 +5668,71 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service swift-s3api.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class SwiftS3api implements ServiceConfig {
+        /**
+         * <p>S3 access key ID, such as the access key from a Keystone EC2 credential.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Swift container name as exposed by <code>s3api</code>.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style addressing when the proxy defines a matching <code>storage_domain</code>.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>HTTP(S) base URL of the Swift proxy with <code>s3api</code> enabled.</p>
+         */
+        public final @NonNull String endpoint;
+        /**
+         * <p>Signing region configured as <code>location</code> in <code>s3api</code>. Defaults to <code>us-east-1</code>.</p>
+         */
+        public final String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>S3 secret access key, such as the secret from a Keystone EC2 credential.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "swift-s3api";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            map.put("endpoint", endpoint);
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service tigris.
      */
     @Builder
@@ -5516,6 +5913,62 @@ public interface ServiceConfig {
             }
             if (skipSignature != null) {
                 map.put("skip_signature", String.valueOf(skipSignature));
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service tos-s3.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class TosS3 implements ServiceConfig {
+        /**
+         * <p>TOS access key ID.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>HTTP(S) S3-compatible base endpoint for the selected TOS product and region.</p>
+         */
+        public final @NonNull String endpoint;
+        /**
+         * <p>Signing region for the selected TOS S3 endpoint.</p>
+         */
+        public final @NonNull String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>TOS secret access key.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "tos-s3";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            map.put("endpoint", endpoint);
+            map.put("region", region);
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
             }
             return map;
         }

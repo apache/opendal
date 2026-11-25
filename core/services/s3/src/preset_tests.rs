@@ -30,6 +30,13 @@ fn registry() -> &'static OperatorRegistry {
     let registry = OperatorRegistry::get();
     for register in [
         register_akamai_service as fn(&OperatorRegistry),
+        register_b2_s3_service,
+        register_cos_s3_service,
+        register_gcs_s3_service,
+        register_lakefs_s3_service,
+        register_oss_s3_service,
+        register_swift_s3api_service,
+        register_tos_s3_service,
         register_ceph_rgw_service,
         register_exoscale_service,
         register_garage_service,
@@ -63,8 +70,9 @@ async fn presign(uri: &str, options: &[(&str, &str)]) -> (Url, String) {
     let op = registry()
         .load((uri, options.iter().copied().chain(credentials)))
         .unwrap_or_else(|error| panic!("{uri}: {error}"));
-    assert_eq!(op.info().scheme(), uri.split_once(':').unwrap().0);
-    assert_eq!(op.info().root(), "/root/");
+    let provider_uri = Url::parse(uri).unwrap();
+    assert_eq!(op.info().scheme(), provider_uri.scheme());
+    assert_eq!(op.info().root(), format!("{}/", provider_uri.path()));
 
     let request = op
         .presign_read("file", Duration::from_secs(60))
@@ -83,7 +91,7 @@ async fn presign(uri: &str, options: &[(&str, &str)]) -> (Url, String) {
 
 #[tokio::test]
 async fn provider_uris_use_documented_endpoints_and_signing_regions() {
-    let cases: [(&str, Options<'_>, &str, &str, &str); 20] = [
+    let cases: &[(&str, Options<'_>, &str, &str, &str)] = &[
         (
             "akamai://bucket/root",
             &[("endpoint", "https://us-sea-9.linodeobjects.com")],
@@ -233,9 +241,81 @@ async fn provider_uris_use_documented_endpoints_and_signing_regions() {
             "/bucket/root/file",
             "eu-west-2",
         ),
+        (
+            "b2-s3://bucket/root",
+            &[("region", "us-west-004")],
+            "s3.us-west-004.backblazeb2.com",
+            "/bucket/root/file",
+            "us-west-004",
+        ),
+        (
+            "gcs-s3://bucket.example.com/root",
+            &[],
+            "storage.googleapis.com",
+            "/bucket.example.com/root/file",
+            "auto",
+        ),
+        (
+            "oss-s3://bucket/root",
+            &[("region", "cn-hangzhou")],
+            "bucket.s3.oss-cn-hangzhou.aliyuncs.com",
+            "/root/file",
+            "cn-hangzhou",
+        ),
+        (
+            "cos-s3://bucket-name-1250000000/root",
+            &[("region", "ap-guangzhou")],
+            "bucket-name-1250000000.cos.ap-guangzhou.myqcloud.com",
+            "/root/file",
+            "ap-guangzhou",
+        ),
+        (
+            "tos-s3://bucket/root",
+            &[
+                ("endpoint", "https://tos-s3-cn-beijing.volces.com"),
+                ("region", "cn-beijing"),
+            ],
+            "bucket.tos-s3-cn-beijing.volces.com",
+            "/root/file",
+            "cn-beijing",
+        ),
+        (
+            "tos-s3://bucket/root",
+            &[
+                ("endpoint", "https://tos-s3-cn-beijing.bytepluses.com.cn"),
+                ("region", "cn-beijing"),
+            ],
+            "bucket.tos-s3-cn-beijing.bytepluses.com.cn",
+            "/root/file",
+            "cn-beijing",
+        ),
+        (
+            "tos-s3://bucket/root",
+            &[
+                ("endpoint", "https://tos-s3-ap-southeast-1.bytepluses.com"),
+                ("region", "ap-southeast-1"),
+            ],
+            "bucket.tos-s3-ap-southeast-1.bytepluses.com",
+            "/root/file",
+            "ap-southeast-1",
+        ),
+        (
+            "swift-s3api://container/root",
+            &[("endpoint", "https://swift.example.com")],
+            "swift.example.com",
+            "/container/root/file",
+            "us-east-1",
+        ),
+        (
+            "lakefs-s3://example-repo/dev/data",
+            &[("endpoint", "https://lakefs.example.com")],
+            "lakefs.example.com",
+            "/example-repo/dev/data/file",
+            "us-east-1",
+        ),
     ];
 
-    for (uri, options, expected_host, expected_path, expected_region) in cases {
+    for &(uri, options, expected_host, expected_path, expected_region) in cases {
         let (url, region) = presign(uri, options).await;
         assert_eq!(url.host_str(), Some(expected_host), "{uri}");
         assert_eq!(url.path(), expected_path, "{uri}");
@@ -333,6 +413,53 @@ async fn deployment_options_override_signing_region_and_addressing() {
     assert_eq!(url.host_str(), Some("s3.eu-central-4.ionoscloud.com"));
     assert_eq!(url.path(), "/bucket/root/file");
     assert_eq!(region, "eu-central-4");
+
+    let (url, region) = presign(
+        "oss-s3://bucket/root",
+        &[
+            (
+                "endpoint",
+                "https://s3.oss-cn-hangzhou-internal.aliyuncs.com",
+            ),
+            ("region", "cn-hangzhou"),
+        ],
+    )
+    .await;
+    assert_eq!(
+        url.host_str(),
+        Some("bucket.s3.oss-cn-hangzhou-internal.aliyuncs.com")
+    );
+    assert_eq!(url.path(), "/root/file");
+    assert_eq!(region, "cn-hangzhou");
+
+    let (url, region) = presign(
+        "swift-s3api://container/root",
+        &[
+            ("endpoint", "https://s3.swift.example.com"),
+            ("region", "swift-local"),
+            ("enable_virtual_host_style", "true"),
+        ],
+    )
+    .await;
+    assert_eq!(url.host_str(), Some("container.s3.swift.example.com"));
+    assert_eq!(url.path(), "/root/file");
+    assert_eq!(region, "swift-local");
+
+    let (url, region) = presign(
+        "lakefs-s3://team-a--example-repo/dev",
+        &[
+            ("endpoint", "https://s3.lakefs.example.com"),
+            ("region", "lakefs-local"),
+            ("enable_virtual_host_style", "true"),
+        ],
+    )
+    .await;
+    assert_eq!(
+        url.host_str(),
+        Some("team-a--example-repo.s3.lakefs.example.com")
+    );
+    assert_eq!(url.path(), "/dev/file");
+    assert_eq!(region, "lakefs-local");
 }
 
 #[tokio::test]
@@ -350,6 +477,21 @@ async fn presets_presign_with_the_supplied_session_token() {
         (
             "wasabi://bucket/root",
             &[("region", "us-east-1")][..],
+            "us-east-1",
+        ),
+        (
+            "cos-s3://bucket-1250000000/root",
+            &[("region", "ap-guangzhou")][..],
+            "ap-guangzhou",
+        ),
+        (
+            "oss-s3://bucket/root",
+            &[("region", "cn-hangzhou")][..],
+            "cn-hangzhou",
+        ),
+        (
+            "lakefs-s3://example-repo/root",
+            &[("endpoint", "https://lakefs.example.com")][..],
             "us-east-1",
         ),
     ] {
@@ -438,6 +580,69 @@ fn invalid_provider_connection_options_fail_during_construction() {
             .load((format!("{scheme}://bucket/root"), options.iter().copied()))
             .unwrap_err();
         assert_eq!(error.kind(), ErrorKind::ConfigInvalid, "{scheme}");
+        assert!(error.to_string().contains(message), "{error}");
+    }
+}
+
+#[test]
+fn native_coexisting_presets_reject_incomplete_or_incompatible_options() {
+    let cases: &[(&str, Options<'_>, &str)] = &[
+        (
+            "tos-s3://bucket/root",
+            &[("region", "cn-beijing")],
+            "endpoint must be an HTTP(S) base URL",
+        ),
+        (
+            "tos-s3://bucket/root",
+            &[("endpoint", "https://tos-s3-cn-beijing.volces.com")],
+            "region must not be empty",
+        ),
+        (
+            "cos-s3://bucket/root",
+            &[("region", "ap-guangzhou")],
+            "numeric APPID suffix",
+        ),
+        (
+            "swift-s3api://container/root",
+            &[
+                ("endpoint", "https://swift.example.com"),
+                ("token", "swift-token"),
+            ],
+            "unknown field `token`",
+        ),
+        (
+            "lakefs-s3://example-repo",
+            &[("endpoint", "https://lakefs.example.com")],
+            "root must start with a lakeFS branch or reference",
+        ),
+        (
+            "lakefs-s3://example-repo",
+            &[
+                ("endpoint", "https://lakefs.example.com"),
+                ("root", "/./../"),
+            ],
+            "root must start with a lakeFS branch or reference",
+        ),
+        (
+            "lakefs-s3://example-repo/dev",
+            &[
+                ("endpoint", "https://lakefs.example.com"),
+                ("branch", "main"),
+            ],
+            "unknown field `branch`",
+        ),
+        (
+            "oss-s3://bucket/root",
+            &[
+                ("region", "cn-hangzhou"),
+                ("enable_virtual_host_style", "false"),
+            ],
+            "unknown field `enable_virtual_host_style`",
+        ),
+    ];
+    for &(uri, options, message) in cases {
+        let error = registry().load((uri, options.iter().copied())).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::ConfigInvalid, "{uri}");
         assert!(error.to_string().contains(message), "{error}");
     }
 }

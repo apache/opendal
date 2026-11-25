@@ -757,6 +757,102 @@
       ]
     },
     {
+      "name": "b2-s3",
+      "scheme": "b2-s3",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "example-bucket",
+          "comments": "Bucket name."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "us-west-004",
+          "comments": "Bucket region from the S3 endpoint. Also used to sign requests."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "example": "https://s3.us-west-004.backblazeb2.com",
+          "comments": "HTTP(S) base endpoint override."
+        },
+        {
+          "name": "enable_virtual_host_style",
+          "type": "bool",
+          "required": false,
+          "group": "General",
+          "default": "false",
+          "comments": "Use virtual-hosted-style addressing."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Backblaze application key ID (`keyID`)."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Backblaze application key (`applicationKey`)."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"b2-s3\", [\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n    (\"region\".to_string(), \"us-west-004\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"b2-s3\", [\n    // --- General ---\n    // Root within the bucket. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // Bucket name.\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n\n    // Bucket region from the S3 endpoint. Also used to sign requests.\n    (\"region\".to_string(), \"us-west-004\".to_string()),\n\n    // HTTP(S) base endpoint override.\n    // (\"endpoint\".to_string(), \"https://s3.us-west-004.backblazeb2.com\".to_string()),\n\n    // Use virtual-hosted-style addressing.\n    // (\"enable_virtual_host_style\".to_string(), \"false\".to_string()),\n    // --- Credentials ---\n    // Backblaze application key ID (`keyID`).\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Backblaze application key (`applicationKey`).\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"example-bucket\");\nconfig.put(\"region\", \"us-west-004\");\nOperator operator = Operator.of(\"b2-s3\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// Bucket name.\nconfig.put(\"bucket\", \"example-bucket\");\n\n// Bucket region from the S3 endpoint. Also used to sign requests.\nconfig.put(\"region\", \"us-west-004\");\n\n// HTTP(S) base endpoint override.\n// config.put(\"endpoint\", \"https://s3.us-west-004.backblazeb2.com\");\n\n// Use virtual-hosted-style addressing.\n// config.put(\"enable_virtual_host_style\", \"false\");\n// --- Credentials ---\n// Backblaze application key ID (`keyID`).\n// config.put(\"access_key_id\", \"...\");\n\n// Backblaze application key (`applicationKey`).\n// config.put(\"secret_access_key\", \"...\");\nOperator operator = Operator.of(\"b2-s3\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"b2-s3\",\n    bucket=\"example-bucket\",\n    region=\"us-west-004\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"b2-s3\",\n    # --- General ---\n    # Root within the bucket. The default is `/`.\n    # root=\"/\",\n\n    # Bucket name.\n    bucket=\"example-bucket\",\n\n    # Bucket region from the S3 endpoint. Also used to sign requests.\n    region=\"us-west-004\",\n\n    # HTTP(S) base endpoint override.\n    # endpoint=\"https://s3.us-west-004.backblazeb2.com\",\n\n    # Use virtual-hosted-style addressing.\n    # enable_virtual_host_style=\"false\",\n    # --- Credentials ---\n    # Backblaze application key ID (`keyID`).\n    # access_key_id=\"...\",\n\n    # Backblaze application key (`applicationKey`).\n    # secret_access_key=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"b2-s3\", {\n  bucket: \"example-bucket\",\n  region: \"us-west-004\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"b2-s3\", {\n  // --- General ---\n  // Root within the bucket. The default is `/`.\n  // root: \"/\",\n\n  // Bucket name.\n  bucket: \"example-bucket\",\n\n  // Bucket region from the S3 endpoint. Also used to sign requests.\n  region: \"us-west-004\",\n\n  // HTTP(S) base endpoint override.\n  // endpoint: \"https://s3.us-west-004.backblazeb2.com\",\n\n  // Use virtual-hosted-style addressing.\n  // enable_virtual_host_style: \"false\",\n  // --- Credentials ---\n  // Backblaze application key ID (`keyID`).\n  // access_key_id: \"...\",\n\n  // Backblaze application key (`applicationKey`).\n  // secret_access_key: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"b2-s3\", {\n  \"bucket\" => \"example-bucket\",\n  \"region\" => \"us-west-004\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"b2-s3\", {\n  # --- General ---\n  # Root within the bucket. The default is `/`.\n  # \"root\" => \"/\",\n\n  # Bucket name.\n  \"bucket\" => \"example-bucket\",\n\n  # Bucket region from the S3 endpoint. Also used to sign requests.\n  \"region\" => \"us-west-004\",\n\n  # HTTP(S) base endpoint override.\n  # \"endpoint\" => \"https://s3.us-west-004.backblazeb2.com\",\n\n  # Use virtual-hosted-style addressing.\n  # \"enable_virtual_host_style\" => \"false\",\n  # --- Credentials ---\n  # Backblaze application key ID (`keyID`).\n  # \"access_key_id\" => \"...\",\n\n  # Backblaze application key (`applicationKey`).\n  # \"secret_access_key\" => \"...\",\n})"
+        }
+      ]
+    },
+    {
       "name": "cacache",
       "scheme": "cacache",
       "groups": [
@@ -1110,6 +1206,101 @@
           "language": "go",
           "minimal": "import (\n\t\"github.com/apache/opendal-go-services/cos\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(cos.Scheme, opendal.OperatorOptions{\n})",
           "full": "import (\n\t\"github.com/apache/opendal-go-services/cos\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(cos.Scheme, opendal.OperatorOptions{\n\t// Root of this backend.\n\t// \"root\": \"...\",\n\n\t// Endpoint of this backend.\n\t// \"endpoint\": \"...\",\n\n\t// Secret ID of this backend.\n\t// \"secret_id\": \"...\",\n\n\t// Secret key of this backend.\n\t// \"secret_key\": \"...\",\n\n\t// Security token (a.k.a. session token) of this backend.\n\t//\n\t// This is used for temporary credentials issued by Tencent Cloud STS\n\t// (e.g. `GetFederationToken` / `AssumeRole`). When `security_token` is\n\t// provided, it will be used together with `secret_id` and `secret_key`\n\t// to sign requests, and the `x-cos-security-token` header will be\n\t// attached automatically by the signer.\n\t//\n\t// If this field is not set, OpenDAL will also fall back to reading\n\t// the token from environment variables `TENCENTCLOUD_TOKEN`,\n\t// `TENCENTCLOUD_SECURITY_TOKEN` or `QCLOUD_SECRET_TOKEN` (unless\n\t// `disable_config_load` is enabled).\n\t// \"security_token\": \"...\",\n\n\t// Bucket of this backend.\n\t// \"bucket\": \"...\",\n\n\t// Disable config load so that opendal will not load config from\n\t// \"disable_config_load\": \"true\",\n})"
+        }
+      ]
+    },
+    {
+      "name": "cos-s3",
+      "scheme": "cos-s3",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "example-bucket-1250000000",
+          "comments": "Full COS bucket name including the numeric `APPID` suffix."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "ap-guangzhou",
+          "comments": "COS bucket region. Also used to sign requests."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "example": "https://cos.ap-guangzhou.myqcloud.com",
+          "comments": "HTTP(S) base endpoint override."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Tencent Cloud `SecretId`."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Tencent Cloud `SecretKey`."
+        },
+        {
+          "name": "session_token",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Session token for temporary credentials. Requires both keys."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"cos-s3\", [\n    (\"bucket\".to_string(), \"example-bucket-1250000000\".to_string()),\n    (\"region\".to_string(), \"ap-guangzhou\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"cos-s3\", [\n    // --- General ---\n    // Root within the bucket. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // Full COS bucket name including the numeric `APPID` suffix.\n    (\"bucket\".to_string(), \"example-bucket-1250000000\".to_string()),\n\n    // COS bucket region. Also used to sign requests.\n    (\"region\".to_string(), \"ap-guangzhou\".to_string()),\n\n    // HTTP(S) base endpoint override.\n    // (\"endpoint\".to_string(), \"https://cos.ap-guangzhou.myqcloud.com\".to_string()),\n    // --- Credentials ---\n    // Tencent Cloud `SecretId`.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Tencent Cloud `SecretKey`.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n\n    // Session token for temporary credentials. Requires both keys.\n    // (\"session_token\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"example-bucket-1250000000\");\nconfig.put(\"region\", \"ap-guangzhou\");\nOperator operator = Operator.of(\"cos-s3\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// Full COS bucket name including the numeric `APPID` suffix.\nconfig.put(\"bucket\", \"example-bucket-1250000000\");\n\n// COS bucket region. Also used to sign requests.\nconfig.put(\"region\", \"ap-guangzhou\");\n\n// HTTP(S) base endpoint override.\n// config.put(\"endpoint\", \"https://cos.ap-guangzhou.myqcloud.com\");\n// --- Credentials ---\n// Tencent Cloud `SecretId`.\n// config.put(\"access_key_id\", \"...\");\n\n// Tencent Cloud `SecretKey`.\n// config.put(\"secret_access_key\", \"...\");\n\n// Session token for temporary credentials. Requires both keys.\n// config.put(\"session_token\", \"...\");\nOperator operator = Operator.of(\"cos-s3\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"cos-s3\",\n    bucket=\"example-bucket-1250000000\",\n    region=\"ap-guangzhou\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"cos-s3\",\n    # --- General ---\n    # Root within the bucket. The default is `/`.\n    # root=\"/\",\n\n    # Full COS bucket name including the numeric `APPID` suffix.\n    bucket=\"example-bucket-1250000000\",\n\n    # COS bucket region. Also used to sign requests.\n    region=\"ap-guangzhou\",\n\n    # HTTP(S) base endpoint override.\n    # endpoint=\"https://cos.ap-guangzhou.myqcloud.com\",\n    # --- Credentials ---\n    # Tencent Cloud `SecretId`.\n    # access_key_id=\"...\",\n\n    # Tencent Cloud `SecretKey`.\n    # secret_access_key=\"...\",\n\n    # Session token for temporary credentials. Requires both keys.\n    # session_token=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"cos-s3\", {\n  bucket: \"example-bucket-1250000000\",\n  region: \"ap-guangzhou\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"cos-s3\", {\n  // --- General ---\n  // Root within the bucket. The default is `/`.\n  // root: \"/\",\n\n  // Full COS bucket name including the numeric `APPID` suffix.\n  bucket: \"example-bucket-1250000000\",\n\n  // COS bucket region. Also used to sign requests.\n  region: \"ap-guangzhou\",\n\n  // HTTP(S) base endpoint override.\n  // endpoint: \"https://cos.ap-guangzhou.myqcloud.com\",\n  // --- Credentials ---\n  // Tencent Cloud `SecretId`.\n  // access_key_id: \"...\",\n\n  // Tencent Cloud `SecretKey`.\n  // secret_access_key: \"...\",\n\n  // Session token for temporary credentials. Requires both keys.\n  // session_token: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"cos-s3\", {\n  \"bucket\" => \"example-bucket-1250000000\",\n  \"region\" => \"ap-guangzhou\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"cos-s3\", {\n  # --- General ---\n  # Root within the bucket. The default is `/`.\n  # \"root\" => \"/\",\n\n  # Full COS bucket name including the numeric `APPID` suffix.\n  \"bucket\" => \"example-bucket-1250000000\",\n\n  # COS bucket region. Also used to sign requests.\n  \"region\" => \"ap-guangzhou\",\n\n  # HTTP(S) base endpoint override.\n  # \"endpoint\" => \"https://cos.ap-guangzhou.myqcloud.com\",\n  # --- Credentials ---\n  # Tencent Cloud `SecretId`.\n  # \"access_key_id\" => \"...\",\n\n  # Tencent Cloud `SecretKey`.\n  # \"secret_access_key\" => \"...\",\n\n  # Session token for temporary credentials. Requires both keys.\n  # \"session_token\" => \"...\",\n})"
         }
       ]
     },
@@ -2188,6 +2379,102 @@
           "language": "go",
           "minimal": "import (\n\t\"github.com/apache/opendal-go-services/gcs-grpc\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(gcs-grpc.Scheme, opendal.OperatorOptions{\n\t\"bucket\": \"...\",\n})",
           "full": "import (\n\t\"github.com/apache/opendal-go-services/gcs-grpc\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(gcs-grpc.Scheme, opendal.OperatorOptions{\n\t// Root path for all operations.\n\t// \"root\": \"...\",\n\n\t// Bucket name.\n\t\"bucket\": \"...\",\n\n\t// gRPC endpoint.\n\t// \"endpoint\": \"...\",\n\n\t// OAuth 2.0 scope.\n\t// \"scope\": \"...\",\n\n\t// Service account used by the GCE metadata server.\n\t// \"service_account\": \"...\",\n\n\t// Base64-encoded service account credential.\n\t// \"credential\": \"...\",\n\n\t// Path to a service account credential file.\n\t// \"credential_path\": \"...\",\n\n\t// Send requests without authentication.\n\t// \"skip_signature\": \"true\",\n\n\t// Disable the GCE metadata credential provider.\n\t// \"disable_vm_metadata\": \"true\",\n\n\t// Disable environment and well-known credential loading.\n\t// \"disable_config_load\": \"true\",\n\n\t// OAuth 2.0 access token.\n\t// \"token\": \"...\",\n})"
+        }
+      ]
+    },
+    {
+      "name": "gcs-s3",
+      "scheme": "gcs-s3",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "example-bucket",
+          "comments": "Bucket name."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "https://storage.googleapis.com",
+          "comments": "HTTP(S) XML API base endpoint. Defaults to `https://storage.googleapis.com`."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "auto",
+          "comments": "Signing region. Defaults to `auto`."
+        },
+        {
+          "name": "enable_virtual_host_style",
+          "type": "bool",
+          "required": false,
+          "group": "General",
+          "default": "false",
+          "comments": "Use virtual-hosted-style addressing for DNS-compatible buckets without dots."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Cloud Storage HMAC access ID."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Cloud Storage HMAC secret."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"gcs-s3\", [\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"gcs-s3\", [\n    // --- General ---\n    // Root within the bucket. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // Bucket name.\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n\n    // HTTP(S) XML API base endpoint. Defaults to `https://storage.googleapis.com`.\n    // (\"endpoint\".to_string(), \"https://storage.googleapis.com\".to_string()),\n\n    // Signing region. Defaults to `auto`.\n    // (\"region\".to_string(), \"auto\".to_string()),\n\n    // Use virtual-hosted-style addressing for DNS-compatible buckets without dots.\n    // (\"enable_virtual_host_style\".to_string(), \"false\".to_string()),\n    // --- Credentials ---\n    // Cloud Storage HMAC access ID.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Cloud Storage HMAC secret.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"example-bucket\");\nOperator operator = Operator.of(\"gcs-s3\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// Bucket name.\nconfig.put(\"bucket\", \"example-bucket\");\n\n// HTTP(S) XML API base endpoint. Defaults to `https://storage.googleapis.com`.\n// config.put(\"endpoint\", \"https://storage.googleapis.com\");\n\n// Signing region. Defaults to `auto`.\n// config.put(\"region\", \"auto\");\n\n// Use virtual-hosted-style addressing for DNS-compatible buckets without dots.\n// config.put(\"enable_virtual_host_style\", \"false\");\n// --- Credentials ---\n// Cloud Storage HMAC access ID.\n// config.put(\"access_key_id\", \"...\");\n\n// Cloud Storage HMAC secret.\n// config.put(\"secret_access_key\", \"...\");\nOperator operator = Operator.of(\"gcs-s3\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"gcs-s3\",\n    bucket=\"example-bucket\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"gcs-s3\",\n    # --- General ---\n    # Root within the bucket. The default is `/`.\n    # root=\"/\",\n\n    # Bucket name.\n    bucket=\"example-bucket\",\n\n    # HTTP(S) XML API base endpoint. Defaults to `https://storage.googleapis.com`.\n    # endpoint=\"https://storage.googleapis.com\",\n\n    # Signing region. Defaults to `auto`.\n    # region=\"auto\",\n\n    # Use virtual-hosted-style addressing for DNS-compatible buckets without dots.\n    # enable_virtual_host_style=\"false\",\n    # --- Credentials ---\n    # Cloud Storage HMAC access ID.\n    # access_key_id=\"...\",\n\n    # Cloud Storage HMAC secret.\n    # secret_access_key=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"gcs-s3\", {\n  bucket: \"example-bucket\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"gcs-s3\", {\n  // --- General ---\n  // Root within the bucket. The default is `/`.\n  // root: \"/\",\n\n  // Bucket name.\n  bucket: \"example-bucket\",\n\n  // HTTP(S) XML API base endpoint. Defaults to `https://storage.googleapis.com`.\n  // endpoint: \"https://storage.googleapis.com\",\n\n  // Signing region. Defaults to `auto`.\n  // region: \"auto\",\n\n  // Use virtual-hosted-style addressing for DNS-compatible buckets without dots.\n  // enable_virtual_host_style: \"false\",\n  // --- Credentials ---\n  // Cloud Storage HMAC access ID.\n  // access_key_id: \"...\",\n\n  // Cloud Storage HMAC secret.\n  // secret_access_key: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"gcs-s3\", {\n  \"bucket\" => \"example-bucket\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"gcs-s3\", {\n  # --- General ---\n  # Root within the bucket. The default is `/`.\n  # \"root\" => \"/\",\n\n  # Bucket name.\n  \"bucket\" => \"example-bucket\",\n\n  # HTTP(S) XML API base endpoint. Defaults to `https://storage.googleapis.com`.\n  # \"endpoint\" => \"https://storage.googleapis.com\",\n\n  # Signing region. Defaults to `auto`.\n  # \"region\" => \"auto\",\n\n  # Use virtual-hosted-style addressing for DNS-compatible buckets without dots.\n  # \"enable_virtual_host_style\" => \"false\",\n  # --- Credentials ---\n  # Cloud Storage HMAC access ID.\n  # \"access_key_id\" => \"...\",\n\n  # Cloud Storage HMAC secret.\n  # \"secret_access_key\" => \"...\",\n})"
         }
       ]
     },
@@ -3650,6 +3937,109 @@
       ]
     },
     {
+      "name": "lakefs-s3",
+      "scheme": "lakefs-s3",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "dev/data",
+          "comments": "S3 key prefix starting with a branch or other lakeFS reference."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "example-repo",
+          "comments": "lakeFS repository name as exposed by the S3 Gateway."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "https://lakefs.example.com",
+          "comments": "HTTP(S) base URL of the lakeFS S3 Gateway."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "us-east-1",
+          "comments": "Signing region. Defaults to `us-east-1`."
+        },
+        {
+          "name": "enable_virtual_host_style",
+          "type": "bool",
+          "required": false,
+          "group": "General",
+          "default": "false",
+          "comments": "Use virtual-hosted-style addressing when the gateway is configured for it."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "lakeFS access key ID."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "lakeFS secret access key."
+        },
+        {
+          "name": "session_token",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Session token from issued lakeFS Enterprise temporary credentials. Requires both keys."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"lakefs-s3\", [\n    (\"root\".to_string(), \"dev/data\".to_string()),\n    (\"bucket\".to_string(), \"example-repo\".to_string()),\n    (\"endpoint\".to_string(), \"https://lakefs.example.com\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"lakefs-s3\", [\n    // --- General ---\n    // S3 key prefix starting with a branch or other lakeFS reference.\n    (\"root\".to_string(), \"dev/data\".to_string()),\n\n    // lakeFS repository name as exposed by the S3 Gateway.\n    (\"bucket\".to_string(), \"example-repo\".to_string()),\n\n    // HTTP(S) base URL of the lakeFS S3 Gateway.\n    (\"endpoint\".to_string(), \"https://lakefs.example.com\".to_string()),\n\n    // Signing region. Defaults to `us-east-1`.\n    // (\"region\".to_string(), \"us-east-1\".to_string()),\n\n    // Use virtual-hosted-style addressing when the gateway is configured for it.\n    // (\"enable_virtual_host_style\".to_string(), \"false\".to_string()),\n    // --- Credentials ---\n    // lakeFS access key ID.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // lakeFS secret access key.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n\n    // Session token from issued lakeFS Enterprise temporary credentials. Requires both keys.\n    // (\"session_token\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"root\", \"dev/data\");\nconfig.put(\"bucket\", \"example-repo\");\nconfig.put(\"endpoint\", \"https://lakefs.example.com\");\nOperator operator = Operator.of(\"lakefs-s3\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// S3 key prefix starting with a branch or other lakeFS reference.\nconfig.put(\"root\", \"dev/data\");\n\n// lakeFS repository name as exposed by the S3 Gateway.\nconfig.put(\"bucket\", \"example-repo\");\n\n// HTTP(S) base URL of the lakeFS S3 Gateway.\nconfig.put(\"endpoint\", \"https://lakefs.example.com\");\n\n// Signing region. Defaults to `us-east-1`.\n// config.put(\"region\", \"us-east-1\");\n\n// Use virtual-hosted-style addressing when the gateway is configured for it.\n// config.put(\"enable_virtual_host_style\", \"false\");\n// --- Credentials ---\n// lakeFS access key ID.\n// config.put(\"access_key_id\", \"...\");\n\n// lakeFS secret access key.\n// config.put(\"secret_access_key\", \"...\");\n\n// Session token from issued lakeFS Enterprise temporary credentials. Requires both keys.\n// config.put(\"session_token\", \"...\");\nOperator operator = Operator.of(\"lakefs-s3\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"lakefs-s3\",\n    root=\"dev/data\",\n    bucket=\"example-repo\",\n    endpoint=\"https://lakefs.example.com\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"lakefs-s3\",\n    # --- General ---\n    # S3 key prefix starting with a branch or other lakeFS reference.\n    root=\"dev/data\",\n\n    # lakeFS repository name as exposed by the S3 Gateway.\n    bucket=\"example-repo\",\n\n    # HTTP(S) base URL of the lakeFS S3 Gateway.\n    endpoint=\"https://lakefs.example.com\",\n\n    # Signing region. Defaults to `us-east-1`.\n    # region=\"us-east-1\",\n\n    # Use virtual-hosted-style addressing when the gateway is configured for it.\n    # enable_virtual_host_style=\"false\",\n    # --- Credentials ---\n    # lakeFS access key ID.\n    # access_key_id=\"...\",\n\n    # lakeFS secret access key.\n    # secret_access_key=\"...\",\n\n    # Session token from issued lakeFS Enterprise temporary credentials. Requires both keys.\n    # session_token=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"lakefs-s3\", {\n  root: \"dev/data\",\n  bucket: \"example-repo\",\n  endpoint: \"https://lakefs.example.com\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"lakefs-s3\", {\n  // --- General ---\n  // S3 key prefix starting with a branch or other lakeFS reference.\n  root: \"dev/data\",\n\n  // lakeFS repository name as exposed by the S3 Gateway.\n  bucket: \"example-repo\",\n\n  // HTTP(S) base URL of the lakeFS S3 Gateway.\n  endpoint: \"https://lakefs.example.com\",\n\n  // Signing region. Defaults to `us-east-1`.\n  // region: \"us-east-1\",\n\n  // Use virtual-hosted-style addressing when the gateway is configured for it.\n  // enable_virtual_host_style: \"false\",\n  // --- Credentials ---\n  // lakeFS access key ID.\n  // access_key_id: \"...\",\n\n  // lakeFS secret access key.\n  // secret_access_key: \"...\",\n\n  // Session token from issued lakeFS Enterprise temporary credentials. Requires both keys.\n  // session_token: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"lakefs-s3\", {\n  \"root\" => \"dev/data\",\n  \"bucket\" => \"example-repo\",\n  \"endpoint\" => \"https://lakefs.example.com\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"lakefs-s3\", {\n  # --- General ---\n  # S3 key prefix starting with a branch or other lakeFS reference.\n  \"root\" => \"dev/data\",\n\n  # lakeFS repository name as exposed by the S3 Gateway.\n  \"bucket\" => \"example-repo\",\n\n  # HTTP(S) base URL of the lakeFS S3 Gateway.\n  \"endpoint\" => \"https://lakefs.example.com\",\n\n  # Signing region. Defaults to `us-east-1`.\n  # \"region\" => \"us-east-1\",\n\n  # Use virtual-hosted-style addressing when the gateway is configured for it.\n  # \"enable_virtual_host_style\" => \"false\",\n  # --- Credentials ---\n  # lakeFS access key ID.\n  # \"access_key_id\" => \"...\",\n\n  # lakeFS secret access key.\n  # \"secret_access_key\" => \"...\",\n\n  # Session token from issued lakeFS Enterprise temporary credentials. Requires both keys.\n  # \"session_token\" => \"...\",\n})"
+        }
+      ]
+    },
+    {
       "name": "memcached",
       "scheme": "memcached",
       "groups": [
@@ -4882,6 +5272,101 @@
           "language": "go",
           "minimal": "import (\n\t\"github.com/apache/opendal-go-services/oss\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(oss.Scheme, opendal.OperatorOptions{\n\t\"bucket\": \"...\",\n})",
           "full": "import (\n\t\"github.com/apache/opendal-go-services/oss\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(oss.Scheme, opendal.OperatorOptions{\n\t// Root for oss.\n\t// \"root\": \"...\",\n\n\t// Endpoint for oss.\n\t// \"endpoint\": \"...\",\n\n\t// Presign endpoint for oss.\n\t// \"presign_endpoint\": \"...\",\n\n\t// Bucket for oss.\n\t\"bucket\": \"...\",\n\n\t// Addressing style for oss.\n\t// \"addressing_style\": \"...\",\n\n\t// Pre sign addressing style for oss.\n\t// \"presign_addressing_style\": \"...\",\n\n\t// Server side encryption for oss.\n\t// \"server_side_encryption\": \"...\",\n\n\t// Server side encryption key id for oss.\n\t// \"server_side_encryption_key_id\": \"...\",\n\n\t// Skip signature will skip loading credentials and signing requests.\n\t// \"skip_signature\": \"true\",\n\n\t// Disable loading credentials from ambient sources.\n\t//\n\t// This removes the environment provider and the OSS profile, Alibaba\n\t// Cloud shared credentials, Alibaba Cloud CLI config, and\n\t// `ALIBABA_CLOUD_CREDENTIALS_URI` sources. Explicit access keys, OIDC\n\t// options that are all set on the builder, and the `role_arn` AssumeRole\n\t// flow remain enabled, and ECS instance RAM role credentials keep loading\n\t// from instance metadata.\n\t// \"disable_config_load\": \"true\",\n\n\t// Access key id for oss.\n\t//\n\t// - this field if it's `is_some`\n\t// - env value: `ALIBABA_CLOUD_ACCESS_KEY_ID`\n\t// \"access_key_id\": \"...\",\n\n\t// Access key secret for oss.\n\t//\n\t// - this field if it's `is_some`\n\t// - env value: `ALIBABA_CLOUD_ACCESS_KEY_SECRET`\n\t// \"access_key_secret\": \"...\",\n\n\t// `security_token` will be loaded from\n\t//\n\t// - this field if it's `is_some`\n\t// - env value: `ALIBABA_CLOUD_SECURITY_TOKEN`\n\t// \"security_token\": \"...\",\n\n\t// If `role_arn` is set, we will use already known config as source\n\t// credential to assume role with `role_arn`.\n\t//\n\t// - this field if it's `is_some`\n\t// - env value: `ALIBABA_CLOUD_ROLE_ARN`\n\t// \"role_arn\": \"...\",\n\n\t// role_session_name for this backend.\n\t// \"role_session_name\": \"...\",\n\n\t// `oidc_provider_arn` will be loaded from\n\t//\n\t// - this field if it's `is_some`\n\t// - env value: `ALIBABA_CLOUD_OIDC_PROVIDER_ARN`\n\t// \"oidc_provider_arn\": \"...\",\n\n\t// `oidc_token_file` will be loaded from\n\t//\n\t// - this field if it's `is_some`\n\t// - env value: `ALIBABA_CLOUD_OIDC_TOKEN_FILE`\n\t// \"oidc_token_file\": \"...\",\n\n\t// `sts_endpoint` will be loaded from\n\t//\n\t// - this field if it's `is_some`\n\t// - env value: `ALIBABA_CLOUD_STS_ENDPOINT`\n\t// \"sts_endpoint\": \"...\",\n\n\t// external_id for this backend.\n\t// \"external_id\": \"...\",\n})"
+        }
+      ]
+    },
+    {
+      "name": "oss-s3",
+      "scheme": "oss-s3",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "example-bucket",
+          "comments": "Bucket name."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "cn-hangzhou",
+          "comments": "OSS bucket region. Also used to sign requests."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "example": "https://s3.oss-cn-hangzhou-internal.aliyuncs.com",
+          "comments": "HTTP(S) base endpoint override."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Alibaba Cloud RAM AccessKey ID."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Alibaba Cloud RAM AccessKey secret."
+        },
+        {
+          "name": "session_token",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Session token for temporary credentials. Requires both keys."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"oss-s3\", [\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n    (\"region\".to_string(), \"cn-hangzhou\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"oss-s3\", [\n    // --- General ---\n    // Root within the bucket. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // Bucket name.\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n\n    // OSS bucket region. Also used to sign requests.\n    (\"region\".to_string(), \"cn-hangzhou\".to_string()),\n\n    // HTTP(S) base endpoint override.\n    // (\"endpoint\".to_string(), \"https://s3.oss-cn-hangzhou-internal.aliyuncs.com\".to_string()),\n    // --- Credentials ---\n    // Alibaba Cloud RAM AccessKey ID.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Alibaba Cloud RAM AccessKey secret.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n\n    // Session token for temporary credentials. Requires both keys.\n    // (\"session_token\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"example-bucket\");\nconfig.put(\"region\", \"cn-hangzhou\");\nOperator operator = Operator.of(\"oss-s3\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// Bucket name.\nconfig.put(\"bucket\", \"example-bucket\");\n\n// OSS bucket region. Also used to sign requests.\nconfig.put(\"region\", \"cn-hangzhou\");\n\n// HTTP(S) base endpoint override.\n// config.put(\"endpoint\", \"https://s3.oss-cn-hangzhou-internal.aliyuncs.com\");\n// --- Credentials ---\n// Alibaba Cloud RAM AccessKey ID.\n// config.put(\"access_key_id\", \"...\");\n\n// Alibaba Cloud RAM AccessKey secret.\n// config.put(\"secret_access_key\", \"...\");\n\n// Session token for temporary credentials. Requires both keys.\n// config.put(\"session_token\", \"...\");\nOperator operator = Operator.of(\"oss-s3\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"oss-s3\",\n    bucket=\"example-bucket\",\n    region=\"cn-hangzhou\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"oss-s3\",\n    # --- General ---\n    # Root within the bucket. The default is `/`.\n    # root=\"/\",\n\n    # Bucket name.\n    bucket=\"example-bucket\",\n\n    # OSS bucket region. Also used to sign requests.\n    region=\"cn-hangzhou\",\n\n    # HTTP(S) base endpoint override.\n    # endpoint=\"https://s3.oss-cn-hangzhou-internal.aliyuncs.com\",\n    # --- Credentials ---\n    # Alibaba Cloud RAM AccessKey ID.\n    # access_key_id=\"...\",\n\n    # Alibaba Cloud RAM AccessKey secret.\n    # secret_access_key=\"...\",\n\n    # Session token for temporary credentials. Requires both keys.\n    # session_token=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"oss-s3\", {\n  bucket: \"example-bucket\",\n  region: \"cn-hangzhou\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"oss-s3\", {\n  // --- General ---\n  // Root within the bucket. The default is `/`.\n  // root: \"/\",\n\n  // Bucket name.\n  bucket: \"example-bucket\",\n\n  // OSS bucket region. Also used to sign requests.\n  region: \"cn-hangzhou\",\n\n  // HTTP(S) base endpoint override.\n  // endpoint: \"https://s3.oss-cn-hangzhou-internal.aliyuncs.com\",\n  // --- Credentials ---\n  // Alibaba Cloud RAM AccessKey ID.\n  // access_key_id: \"...\",\n\n  // Alibaba Cloud RAM AccessKey secret.\n  // secret_access_key: \"...\",\n\n  // Session token for temporary credentials. Requires both keys.\n  // session_token: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"oss-s3\", {\n  \"bucket\" => \"example-bucket\",\n  \"region\" => \"cn-hangzhou\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"oss-s3\", {\n  # --- General ---\n  # Root within the bucket. The default is `/`.\n  # \"root\" => \"/\",\n\n  # Bucket name.\n  \"bucket\" => \"example-bucket\",\n\n  # OSS bucket region. Also used to sign requests.\n  \"region\" => \"cn-hangzhou\",\n\n  # HTTP(S) base endpoint override.\n  # \"endpoint\" => \"https://s3.oss-cn-hangzhou-internal.aliyuncs.com\",\n  # --- Credentials ---\n  # Alibaba Cloud RAM AccessKey ID.\n  # \"access_key_id\" => \"...\",\n\n  # Alibaba Cloud RAM AccessKey secret.\n  # \"secret_access_key\" => \"...\",\n\n  # Session token for temporary credentials. Requires both keys.\n  # \"session_token\" => \"...\",\n})"
         }
       ]
     },
@@ -7092,6 +7577,102 @@
       ]
     },
     {
+      "name": "swift-s3api",
+      "scheme": "swift-s3api",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "example-container",
+          "comments": "Swift container name as exposed by `s3api`."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "https://swift.example.com",
+          "comments": "HTTP(S) base URL of the Swift proxy with `s3api` enabled."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "us-east-1",
+          "comments": "Signing region configured as `location` in `s3api`. Defaults to `us-east-1`."
+        },
+        {
+          "name": "enable_virtual_host_style",
+          "type": "bool",
+          "required": false,
+          "group": "General",
+          "default": "false",
+          "comments": "Use virtual-hosted-style addressing when the proxy defines a matching `storage_domain`."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "S3 access key ID, such as the access key from a Keystone EC2 credential."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "S3 secret access key, such as the secret from a Keystone EC2 credential."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"swift-s3api\", [\n    (\"bucket\".to_string(), \"example-container\".to_string()),\n    (\"endpoint\".to_string(), \"https://swift.example.com\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"swift-s3api\", [\n    // --- General ---\n    // Root within the bucket. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // Swift container name as exposed by `s3api`.\n    (\"bucket\".to_string(), \"example-container\".to_string()),\n\n    // HTTP(S) base URL of the Swift proxy with `s3api` enabled.\n    (\"endpoint\".to_string(), \"https://swift.example.com\".to_string()),\n\n    // Signing region configured as `location` in `s3api`. Defaults to `us-east-1`.\n    // (\"region\".to_string(), \"us-east-1\".to_string()),\n\n    // Use virtual-hosted-style addressing when the proxy defines a matching `storage_domain`.\n    // (\"enable_virtual_host_style\".to_string(), \"false\".to_string()),\n    // --- Credentials ---\n    // S3 access key ID, such as the access key from a Keystone EC2 credential.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // S3 secret access key, such as the secret from a Keystone EC2 credential.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"example-container\");\nconfig.put(\"endpoint\", \"https://swift.example.com\");\nOperator operator = Operator.of(\"swift-s3api\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// Swift container name as exposed by `s3api`.\nconfig.put(\"bucket\", \"example-container\");\n\n// HTTP(S) base URL of the Swift proxy with `s3api` enabled.\nconfig.put(\"endpoint\", \"https://swift.example.com\");\n\n// Signing region configured as `location` in `s3api`. Defaults to `us-east-1`.\n// config.put(\"region\", \"us-east-1\");\n\n// Use virtual-hosted-style addressing when the proxy defines a matching `storage_domain`.\n// config.put(\"enable_virtual_host_style\", \"false\");\n// --- Credentials ---\n// S3 access key ID, such as the access key from a Keystone EC2 credential.\n// config.put(\"access_key_id\", \"...\");\n\n// S3 secret access key, such as the secret from a Keystone EC2 credential.\n// config.put(\"secret_access_key\", \"...\");\nOperator operator = Operator.of(\"swift-s3api\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"swift-s3api\",\n    bucket=\"example-container\",\n    endpoint=\"https://swift.example.com\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"swift-s3api\",\n    # --- General ---\n    # Root within the bucket. The default is `/`.\n    # root=\"/\",\n\n    # Swift container name as exposed by `s3api`.\n    bucket=\"example-container\",\n\n    # HTTP(S) base URL of the Swift proxy with `s3api` enabled.\n    endpoint=\"https://swift.example.com\",\n\n    # Signing region configured as `location` in `s3api`. Defaults to `us-east-1`.\n    # region=\"us-east-1\",\n\n    # Use virtual-hosted-style addressing when the proxy defines a matching `storage_domain`.\n    # enable_virtual_host_style=\"false\",\n    # --- Credentials ---\n    # S3 access key ID, such as the access key from a Keystone EC2 credential.\n    # access_key_id=\"...\",\n\n    # S3 secret access key, such as the secret from a Keystone EC2 credential.\n    # secret_access_key=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"swift-s3api\", {\n  bucket: \"example-container\",\n  endpoint: \"https://swift.example.com\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"swift-s3api\", {\n  // --- General ---\n  // Root within the bucket. The default is `/`.\n  // root: \"/\",\n\n  // Swift container name as exposed by `s3api`.\n  bucket: \"example-container\",\n\n  // HTTP(S) base URL of the Swift proxy with `s3api` enabled.\n  endpoint: \"https://swift.example.com\",\n\n  // Signing region configured as `location` in `s3api`. Defaults to `us-east-1`.\n  // region: \"us-east-1\",\n\n  // Use virtual-hosted-style addressing when the proxy defines a matching `storage_domain`.\n  // enable_virtual_host_style: \"false\",\n  // --- Credentials ---\n  // S3 access key ID, such as the access key from a Keystone EC2 credential.\n  // access_key_id: \"...\",\n\n  // S3 secret access key, such as the secret from a Keystone EC2 credential.\n  // secret_access_key: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"swift-s3api\", {\n  \"bucket\" => \"example-container\",\n  \"endpoint\" => \"https://swift.example.com\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"swift-s3api\", {\n  # --- General ---\n  # Root within the bucket. The default is `/`.\n  # \"root\" => \"/\",\n\n  # Swift container name as exposed by `s3api`.\n  \"bucket\" => \"example-container\",\n\n  # HTTP(S) base URL of the Swift proxy with `s3api` enabled.\n  \"endpoint\" => \"https://swift.example.com\",\n\n  # Signing region configured as `location` in `s3api`. Defaults to `us-east-1`.\n  # \"region\" => \"us-east-1\",\n\n  # Use virtual-hosted-style addressing when the proxy defines a matching `storage_domain`.\n  # \"enable_virtual_host_style\" => \"false\",\n  # --- Credentials ---\n  # S3 access key ID, such as the access key from a Keystone EC2 credential.\n  # \"access_key_id\" => \"...\",\n\n  # S3 secret access key, such as the secret from a Keystone EC2 credential.\n  # \"secret_access_key\" => \"...\",\n})"
+        }
+      ]
+    },
+    {
       "name": "tigris",
       "scheme": "tigris",
       "groups": [
@@ -7371,6 +7952,94 @@
           "language": "go",
           "minimal": "import (\n\t\"github.com/apache/opendal-go-services/tos\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(tos.Scheme, opendal.OperatorOptions{\n\t\"bucket\": \"...\",\n})",
           "full": "import (\n\t\"github.com/apache/opendal-go-services/tos\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(tos.Scheme, opendal.OperatorOptions{\n\t// root of this backend.\n\t//\n\t// All operations will happen under this root.\n\t//\n\t// default to `/` if not set.\n\t// \"root\": \"...\",\n\n\t// bucket name of this backend.\n\t//\n\t// required.\n\t\"bucket\": \"...\",\n\n\t// endpoint of this backend.\n\t//\n\t// Endpoint must be full uri, e.g.\n\t// - TOS: `https://tos-cn-beijing.volces.com`\n\t// - TOS with region: `https://tos-{region}.volces.com`\n\t//\n\t// If user inputs endpoint without scheme like \"tos-cn-beijing.volces.com\", we\n\t// will prepend \"https://\" before it.\n\t// \"endpoint\": \"...\",\n\n\t// Region represent the signing region of this endpoint.\n\t//\n\t// Required if endpoint is not provided.\n\t//\n\t// - If region is set, we will take user's input first.\n\t// - If not, we will try to load it from environment.\n\t// - If still not set, default to `cn-beijing`.\n\t// \"region\": \"...\",\n\n\t// access_key_id of this backend.\n\t//\n\t// - If access_key_id is set, we will take user's input first.\n\t// - If not, we will try to load it from environment.\n\t// \"access_key_id\": \"...\",\n\n\t// secret_access_key of this backend.\n\t//\n\t// - If secret_access_key is set, we will take user's input first.\n\t// - If not, we will try to load it from environment.\n\t// \"secret_access_key\": \"...\",\n\n\t// security_token of this backend.\n\t//\n\t// This token will expire after sometime, it's recommended to set security_token\n\t// by hand.\n\t// \"security_token\": \"...\",\n\n\t// Disable config load so that opendal will not load config from\n\t// environment.\n\t//\n\t// For examples:\n\t//\n\t// - envs like `VOLCENGINE_ACCESS_KEY_ID`\n\t// \"disable_config_load\": \"true\",\n\n\t// Skip signature will skip loading credentials and signing requests.\n\t// \"skip_signature\": \"true\",\n})"
+        }
+      ]
+    },
+    {
+      "name": "tos-s3",
+      "scheme": "tos-s3",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "example-bucket",
+          "comments": "Bucket name."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "https://tos-s3-cn-beijing.volces.com",
+          "comments": "HTTP(S) S3-compatible base endpoint for the selected TOS product and region."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "cn-beijing",
+          "comments": "Signing region for the selected TOS S3 endpoint."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "TOS access key ID."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "TOS secret access key."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"tos-s3\", [\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n    (\"endpoint\".to_string(), \"https://tos-s3-cn-beijing.volces.com\".to_string()),\n    (\"region\".to_string(), \"cn-beijing\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"tos-s3\", [\n    // --- General ---\n    // Root within the bucket. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // Bucket name.\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n\n    // HTTP(S) S3-compatible base endpoint for the selected TOS product and region.\n    (\"endpoint\".to_string(), \"https://tos-s3-cn-beijing.volces.com\".to_string()),\n\n    // Signing region for the selected TOS S3 endpoint.\n    (\"region\".to_string(), \"cn-beijing\".to_string()),\n    // --- Credentials ---\n    // TOS access key ID.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // TOS secret access key.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"example-bucket\");\nconfig.put(\"endpoint\", \"https://tos-s3-cn-beijing.volces.com\");\nconfig.put(\"region\", \"cn-beijing\");\nOperator operator = Operator.of(\"tos-s3\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// Bucket name.\nconfig.put(\"bucket\", \"example-bucket\");\n\n// HTTP(S) S3-compatible base endpoint for the selected TOS product and region.\nconfig.put(\"endpoint\", \"https://tos-s3-cn-beijing.volces.com\");\n\n// Signing region for the selected TOS S3 endpoint.\nconfig.put(\"region\", \"cn-beijing\");\n// --- Credentials ---\n// TOS access key ID.\n// config.put(\"access_key_id\", \"...\");\n\n// TOS secret access key.\n// config.put(\"secret_access_key\", \"...\");\nOperator operator = Operator.of(\"tos-s3\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"tos-s3\",\n    bucket=\"example-bucket\",\n    endpoint=\"https://tos-s3-cn-beijing.volces.com\",\n    region=\"cn-beijing\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"tos-s3\",\n    # --- General ---\n    # Root within the bucket. The default is `/`.\n    # root=\"/\",\n\n    # Bucket name.\n    bucket=\"example-bucket\",\n\n    # HTTP(S) S3-compatible base endpoint for the selected TOS product and region.\n    endpoint=\"https://tos-s3-cn-beijing.volces.com\",\n\n    # Signing region for the selected TOS S3 endpoint.\n    region=\"cn-beijing\",\n    # --- Credentials ---\n    # TOS access key ID.\n    # access_key_id=\"...\",\n\n    # TOS secret access key.\n    # secret_access_key=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"tos-s3\", {\n  bucket: \"example-bucket\",\n  endpoint: \"https://tos-s3-cn-beijing.volces.com\",\n  region: \"cn-beijing\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"tos-s3\", {\n  // --- General ---\n  // Root within the bucket. The default is `/`.\n  // root: \"/\",\n\n  // Bucket name.\n  bucket: \"example-bucket\",\n\n  // HTTP(S) S3-compatible base endpoint for the selected TOS product and region.\n  endpoint: \"https://tos-s3-cn-beijing.volces.com\",\n\n  // Signing region for the selected TOS S3 endpoint.\n  region: \"cn-beijing\",\n  // --- Credentials ---\n  // TOS access key ID.\n  // access_key_id: \"...\",\n\n  // TOS secret access key.\n  // secret_access_key: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"tos-s3\", {\n  \"bucket\" => \"example-bucket\",\n  \"endpoint\" => \"https://tos-s3-cn-beijing.volces.com\",\n  \"region\" => \"cn-beijing\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"tos-s3\", {\n  # --- General ---\n  # Root within the bucket. The default is `/`.\n  # \"root\" => \"/\",\n\n  # Bucket name.\n  \"bucket\" => \"example-bucket\",\n\n  # HTTP(S) S3-compatible base endpoint for the selected TOS product and region.\n  \"endpoint\" => \"https://tos-s3-cn-beijing.volces.com\",\n\n  # Signing region for the selected TOS S3 endpoint.\n  \"region\" => \"cn-beijing\",\n  # --- Credentials ---\n  # TOS access key ID.\n  # \"access_key_id\" => \"...\",\n\n  # TOS secret access key.\n  # \"secret_access_key\" => \"...\",\n})"
         }
       ]
     },

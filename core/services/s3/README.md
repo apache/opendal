@@ -79,6 +79,13 @@ Services that send HTTP requests also require an HTTP transport in
 - [Supabase Storage preset](https://opendal.apache.org/services/supabase)
 - [Tigris preset](https://opendal.apache.org/services/tigris)
 - [Wasabi Object Storage preset](https://opendal.apache.org/services/wasabi)
+- [Backblaze B2 S3 preset](https://opendal.apache.org/services/b2-s3)
+- [Google Cloud Storage S3 preset](https://opendal.apache.org/services/gcs-s3)
+- [Alibaba Cloud OSS S3 preset](https://opendal.apache.org/services/oss-s3)
+- [Tencent Cloud COS S3 preset](https://opendal.apache.org/services/cos-s3)
+- [Volcengine and BytePlus TOS S3 preset](https://opendal.apache.org/services/tos-s3)
+- [OpenStack Swift s3api preset](https://opendal.apache.org/services/swift-s3api)
+- [lakeFS S3 Gateway preset](https://opendal.apache.org/services/lakefs-s3)
 - [Rust API documentation](https://docs.rs/opendal-service-s3)
 - [Apache OpenDAL documentation](https://opendal.apache.org/docs/)
 

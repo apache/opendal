@@ -133,6 +133,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-b2")]
     opendal_service_b2::register_b2_service(registry);
 
+    #[cfg(feature = "services-b2-s3")]
+    opendal_service_s3::register_b2_s3_service(registry);
+
     #[cfg(feature = "services-cacache")]
     opendal_service_cacache::register_cacache_service(registry);
 
@@ -144,6 +147,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
 
     #[cfg(feature = "services-cos")]
     opendal_service_cos::register_cos_service(registry);
+
+    #[cfg(feature = "services-cos-s3")]
+    opendal_service_s3::register_cos_s3_service(registry);
 
     #[cfg(feature = "services-d1")]
     opendal_service_d1::register_d1_service(registry);
@@ -174,6 +180,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
 
     #[cfg(feature = "services-gcs")]
     opendal_service_gcs::register_gcs_service(registry);
+
+    #[cfg(feature = "services-gcs-s3")]
+    opendal_service_s3::register_gcs_s3_service(registry);
 
     #[cfg(feature = "services-gcs-grpc")]
     opendal_service_gcs_grpc::register_gcs_grpc_service(registry);
@@ -223,6 +232,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-lakefs")]
     opendal_service_lakefs::register_lakefs_service(registry);
 
+    #[cfg(feature = "services-lakefs-s3")]
+    opendal_service_s3::register_lakefs_s3_service(registry);
+
     #[cfg(feature = "services-memcached")]
     opendal_service_memcached::register_memcached_service(registry);
 
@@ -249,6 +261,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
 
     #[cfg(feature = "services-oss")]
     opendal_service_oss::register_oss_service(registry);
+
+    #[cfg(feature = "services-oss-s3")]
+    opendal_service_s3::register_oss_s3_service(registry);
 
     #[cfg(feature = "services-pcloud")]
     opendal_service_pcloud::register_pcloud_service(registry);
@@ -355,11 +370,17 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-swift")]
     opendal_service_swift::register_swift_service(registry);
 
+    #[cfg(feature = "services-swift-s3api")]
+    opendal_service_s3::register_swift_s3api_service(registry);
+
     #[cfg(feature = "services-tikv")]
     opendal_service_tikv::register_tikv_service(registry);
 
     #[cfg(feature = "services-tos")]
     opendal_service_tos::register_tos_service(registry);
+
+    #[cfg(feature = "services-tos-s3")]
+    opendal_service_s3::register_tos_s3_service(registry);
 
     #[cfg(feature = "services-upyun")]
     opendal_service_upyun::register_upyun_service(registry);
@@ -509,16 +530,22 @@ pub mod services {
     pub use opendal_service_rocksdb::*;
     #[cfg(feature = "services-akamai")]
     pub use opendal_service_s3::{AKAMAI_SCHEME, Akamai, AkamaiConfig, register_akamai_service};
+    #[cfg(feature = "services-b2-s3")]
+    pub use opendal_service_s3::{B2_S3_SCHEME, B2S3, B2S3Config, register_b2_s3_service};
     #[cfg(feature = "services-ceph-rgw")]
     pub use opendal_service_s3::{
         CEPH_RGW_SCHEME, CephRgw, CephRgwConfig, register_ceph_rgw_service,
     };
+    #[cfg(feature = "services-cos-s3")]
+    pub use opendal_service_s3::{COS_S3_SCHEME, CosS3, CosS3Config, register_cos_s3_service};
     #[cfg(feature = "services-exoscale")]
     pub use opendal_service_s3::{
         EXOSCALE_SCHEME, Exoscale, ExoscaleConfig, register_exoscale_service,
     };
     #[cfg(feature = "services-garage")]
     pub use opendal_service_s3::{GARAGE_SCHEME, Garage, GarageConfig, register_garage_service};
+    #[cfg(feature = "services-gcs-s3")]
+    pub use opendal_service_s3::{GCS_S3_SCHEME, GcsS3, GcsS3Config, register_gcs_s3_service};
     #[cfg(feature = "services-hetzner")]
     pub use opendal_service_s3::{
         HETZNER_SCHEME, Hetzner, HetznerConfig, register_hetzner_service,
@@ -531,12 +558,18 @@ pub mod services {
     };
     #[cfg(feature = "services-ionos")]
     pub use opendal_service_s3::{IONOS_SCHEME, Ionos, IonosConfig, register_ionos_service};
+    #[cfg(feature = "services-lakefs-s3")]
+    pub use opendal_service_s3::{
+        LAKEFS_S3_SCHEME, LakefsS3, LakefsS3Config, register_lakefs_s3_service,
+    };
     #[cfg(feature = "services-minio")]
     pub use opendal_service_s3::{MINIO_SCHEME, Minio, MinioConfig, register_minio_service};
     #[cfg(feature = "services-neon")]
     pub use opendal_service_s3::{NEON_SCHEME, Neon, NeonConfig, register_neon_service};
     #[cfg(feature = "services-oci")]
     pub use opendal_service_s3::{OCI_SCHEME, Oci, OciConfig, register_oci_service};
+    #[cfg(feature = "services-oss-s3")]
+    pub use opendal_service_s3::{OSS_S3_SCHEME, OssS3, OssS3Config, register_oss_s3_service};
     #[cfg(feature = "services-ovhcloud")]
     pub use opendal_service_s3::{
         OVHCLOUD_SCHEME, Ovhcloud, OvhcloudConfig, register_ovhcloud_service,
@@ -567,8 +600,14 @@ pub mod services {
     pub use opendal_service_s3::{
         SUPABASE_SCHEME, Supabase, SupabaseConfig, register_supabase_service,
     };
+    #[cfg(feature = "services-swift-s3api")]
+    pub use opendal_service_s3::{
+        SWIFT_S3API_SCHEME, SwiftS3api, SwiftS3apiConfig, register_swift_s3api_service,
+    };
     #[cfg(feature = "services-tigris")]
     pub use opendal_service_s3::{TIGRIS_SCHEME, Tigris, TigrisConfig, register_tigris_service};
+    #[cfg(feature = "services-tos-s3")]
+    pub use opendal_service_s3::{TOS_S3_SCHEME, TosS3, TosS3Config, register_tos_s3_service};
     #[cfg(feature = "services-wasabi")]
     pub use opendal_service_s3::{WASABI_SCHEME, Wasabi, WasabiConfig, register_wasabi_service};
     #[cfg(feature = "services-seafile")]
@@ -661,6 +700,22 @@ mod service_feature_tests {
             ("supabase", cfg!(feature = "services-supabase")),
             ("tigris", cfg!(feature = "services-tigris")),
             ("wasabi", cfg!(feature = "services-wasabi")),
+            ("b2-s3", cfg!(feature = "services-b2-s3")),
+            ("cos-s3", cfg!(feature = "services-cos-s3")),
+            ("gcs-s3", cfg!(feature = "services-gcs-s3")),
+            ("lakefs-s3", cfg!(feature = "services-lakefs-s3")),
+            ("oss-s3", cfg!(feature = "services-oss-s3")),
+            ("swift-s3api", cfg!(feature = "services-swift-s3api")),
+            ("tos-s3", cfg!(feature = "services-tos-s3")),
+            ("b2", cfg!(feature = "services-b2")),
+            ("cos", cfg!(feature = "services-cos")),
+            ("cosn", cfg!(feature = "services-cos")),
+            ("gcs", cfg!(feature = "services-gcs")),
+            ("gcs-grpc", cfg!(feature = "services-gcs-grpc")),
+            ("lakefs", cfg!(feature = "services-lakefs")),
+            ("oss", cfg!(feature = "services-oss")),
+            ("swift", cfg!(feature = "services-swift")),
+            ("tos", cfg!(feature = "services-tos")),
         ] {
             assert_eq!(schemes.contains(scheme), enabled, "{scheme}");
         }
@@ -672,6 +727,70 @@ mod service_feature_tests {
             assert_eq!(op.info().name(), "example-bucket");
             assert_eq!(op.info().root(), "/root/");
         }
+    }
+
+    #[cfg(all(
+        feature = "services-b2",
+        feature = "services-cos",
+        feature = "services-gcs",
+        feature = "services-lakefs",
+        feature = "services-oss",
+        feature = "services-swift",
+        feature = "services-tos",
+    ))]
+    #[test]
+    fn native_uris_still_use_native_builders() -> Result<()> {
+        init_default_registry();
+
+        type Options<'a> = &'a [(&'a str, &'a str)];
+        let cases: &[(&str, Options<'_>, &str)] = &[
+            (
+                "b2://example-bucket/root",
+                &[
+                    ("bucket_id", "bucket-id"),
+                    ("application_key_id", "app-id"),
+                    ("application_key", "app-key"),
+                ],
+                "b2",
+            ),
+            (
+                "cos://example-bucket-1250000000/root",
+                &[("endpoint", "https://cos.ap-guangzhou.myqcloud.com")],
+                "cos",
+            ),
+            (
+                "cosn://example-bucket-1250000000/root",
+                &[("endpoint", "https://cos.ap-guangzhou.myqcloud.com")],
+                "cos",
+            ),
+            ("gcs://example-bucket/root", &[], "gcs"),
+            (
+                "lakefs://lakefs.example.com/repo/dev/root",
+                &[("username", "test-user"), ("password", "test-secret")],
+                "lakefs",
+            ),
+            (
+                "oss://example-bucket/root",
+                &[("endpoint", "https://oss-cn-hangzhou.aliyuncs.com")],
+                "oss",
+            ),
+            (
+                "swift://swift.example.com/container/root",
+                &[("token", "swift-token")],
+                "swift",
+            ),
+            ("tos://example-bucket/root", &[], "tos"),
+        ];
+        for &(uri, options, scheme) in cases {
+            let op = Operator::from_uri((uri, options.iter().copied()))?;
+            assert_eq!(op.info().scheme(), scheme, "{uri}");
+        }
+        #[cfg(feature = "services-gcs-grpc")]
+        {
+            let op = Operator::from_uri("gcs-grpc://example-bucket/root")?;
+            assert_eq!(op.info().scheme(), "gcs-grpc");
+        }
+        Ok(())
     }
 
     #[cfg(feature = "services-garage")]

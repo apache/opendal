@@ -214,6 +214,27 @@ class B2Config(TypedDict):
     """root of this backend.  All operations will happen under this root."""
 
 
+class B2S3Config(TypedDict):
+    """Configuration for the `b2-s3` service."""
+
+    scheme: Required[Literal["b2-s3"]]
+    """The service scheme; fixed to `"b2-s3"`."""
+    access_key_id: NotRequired[str]
+    """Backblaze application key ID (`keyID`)."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style addressing."""
+    endpoint: NotRequired[str]
+    """HTTP(S) base endpoint override."""
+    region: Required[str]
+    """Bucket region from the S3 endpoint. Also used to sign requests."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Backblaze application key (`applicationKey`)."""
+
+
 class CacacheConfig(TypedDict):
     """Configuration for the `cacache` service."""
 
@@ -265,6 +286,27 @@ class CosConfig(TypedDict):
     """Secret key of this backend."""
     security_token: NotRequired[str]
     """Security token (a.k.a. session token) of this backend.  This is used for temporary credentials issued by Tencent Cloud STS (e.g. `GetFederationToken` / `AssumeRole`). When `security_token` is provided, it will be used together with `secret_id` and `secret_key` to sign requests, and the `x-cos-security-token` header will be attached automatically by the signer.  If this field is not set, OpenDAL will also fall back to reading the token from environment variables `TENCENTCLOUD_TOKEN`, `TENCENTCLOUD_SECURITY_TOKEN` or `QCLOUD_SECRET_TOKEN` (unless `disable_config_load` is enabled)."""
+
+
+class CosS3Config(TypedDict):
+    """Configuration for the `cos-s3` service."""
+
+    scheme: Required[Literal["cos-s3"]]
+    """The service scheme; fixed to `"cos-s3"`."""
+    access_key_id: NotRequired[str]
+    """Tencent Cloud `SecretId`."""
+    bucket: Required[str]
+    """Full COS bucket name including the numeric `APPID` suffix."""
+    endpoint: NotRequired[str]
+    """HTTP(S) base endpoint override."""
+    region: Required[str]
+    """COS bucket region. Also used to sign requests."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Tencent Cloud `SecretKey`."""
+    session_token: NotRequired[str]
+    """Session token for temporary credentials. Requires both keys."""
 
 
 class DashmapConfig(TypedDict):
@@ -448,6 +490,27 @@ class GcsGrpcConfig(TypedDict):
     """Send requests without authentication."""
     token: NotRequired[str]
     """OAuth 2.0 access token."""
+
+
+class GcsS3Config(TypedDict):
+    """Configuration for the `gcs-s3` service."""
+
+    scheme: Required[Literal["gcs-s3"]]
+    """The service scheme; fixed to `"gcs-s3"`."""
+    access_key_id: NotRequired[str]
+    """Cloud Storage HMAC access ID."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style addressing for DNS-compatible buckets without dots."""
+    endpoint: NotRequired[str]
+    """HTTP(S) XML API base endpoint. Defaults to `https://storage.googleapis.com`."""
+    region: NotRequired[str]
+    """Signing region. Defaults to `auto`."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Cloud Storage HMAC secret."""
 
 
 class GdriveConfig(TypedDict):
@@ -690,6 +753,29 @@ class KoofrConfig(TypedDict):
     """password of this backend. (Must be the application password)"""
     root: NotRequired[str | os.PathLike[str]]
     """root of this backend.  All operations will happen under this root."""
+
+
+class LakefsS3Config(TypedDict):
+    """Configuration for the `lakefs-s3` service."""
+
+    scheme: Required[Literal["lakefs-s3"]]
+    """The service scheme; fixed to `"lakefs-s3"`."""
+    access_key_id: NotRequired[str]
+    """lakeFS access key ID."""
+    bucket: Required[str]
+    """lakeFS repository name as exposed by the S3 Gateway."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style addressing when the gateway is configured for it."""
+    endpoint: Required[str]
+    """HTTP(S) base URL of the lakeFS S3 Gateway."""
+    region: NotRequired[str]
+    """Signing region. Defaults to `us-east-1`."""
+    root: Required[str | os.PathLike[str]]
+    """S3 key prefix starting with a branch or other lakeFS reference."""
+    secret_access_key: NotRequired[str]
+    """lakeFS secret access key."""
+    session_token: NotRequired[str]
+    """Session token from issued lakeFS Enterprise temporary credentials. Requires both keys."""
 
 
 class MemcachedConfig(TypedDict):
@@ -948,6 +1034,27 @@ class OssConfig(TypedDict):
     """Skip signature will skip loading credentials and signing requests."""
     sts_endpoint: NotRequired[str]
     """`sts_endpoint` will be loaded from  - this field if it's `is_some` - env value: `ALIBABA_CLOUD_STS_ENDPOINT`"""
+
+
+class OssS3Config(TypedDict):
+    """Configuration for the `oss-s3` service."""
+
+    scheme: Required[Literal["oss-s3"]]
+    """The service scheme; fixed to `"oss-s3"`."""
+    access_key_id: NotRequired[str]
+    """Alibaba Cloud RAM AccessKey ID."""
+    bucket: Required[str]
+    """Bucket name."""
+    endpoint: NotRequired[str]
+    """HTTP(S) base endpoint override."""
+    region: Required[str]
+    """OSS bucket region. Also used to sign requests."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Alibaba Cloud RAM AccessKey secret."""
+    session_token: NotRequired[str]
+    """Session token for temporary credentials. Requires both keys."""
 
 
 class OvhcloudConfig(TypedDict):
@@ -1391,6 +1498,27 @@ class SwiftConfig(TypedDict):
     """The token for Swift."""
 
 
+class SwiftS3apiConfig(TypedDict):
+    """Configuration for the `swift-s3api` service."""
+
+    scheme: Required[Literal["swift-s3api"]]
+    """The service scheme; fixed to `"swift-s3api"`."""
+    access_key_id: NotRequired[str]
+    """S3 access key ID, such as the access key from a Keystone EC2 credential."""
+    bucket: Required[str]
+    """Swift container name as exposed by `s3api`."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style addressing when the proxy defines a matching `storage_domain`."""
+    endpoint: Required[str]
+    """HTTP(S) base URL of the Swift proxy with `s3api` enabled."""
+    region: NotRequired[str]
+    """Signing region configured as `location` in `s3api`. Defaults to `us-east-1`."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """S3 secret access key, such as the secret from a Keystone EC2 credential."""
+
+
 class TigrisConfig(TypedDict):
     """Configuration for the `tigris` service."""
 
@@ -1437,6 +1565,25 @@ class TosConfig(TypedDict):
     """security_token of this backend.  This token will expire after sometime, it's recommended to set security_token by hand."""
     skip_signature: NotRequired[bool]
     """Skip signature will skip loading credentials and signing requests."""
+
+
+class TosS3Config(TypedDict):
+    """Configuration for the `tos-s3` service."""
+
+    scheme: Required[Literal["tos-s3"]]
+    """The service scheme; fixed to `"tos-s3"`."""
+    access_key_id: NotRequired[str]
+    """TOS access key ID."""
+    bucket: Required[str]
+    """Bucket name."""
+    endpoint: Required[str]
+    """HTTP(S) S3-compatible base endpoint for the selected TOS product and region."""
+    region: Required[str]
+    """Signing region for the selected TOS S3 endpoint."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """TOS secret access key."""
 
 
 class UpyunConfig(TypedDict):
@@ -1561,9 +1708,11 @@ ServiceConfig = (
     | AzdlsConfig
     | AzfileConfig
     | B2Config
+    | B2S3Config
     | CacacheConfig
     | CephRgwConfig
     | CosConfig
+    | CosS3Config
     | DashmapConfig
     | DropboxConfig
     | ExoscaleConfig
@@ -1573,6 +1722,7 @@ ServiceConfig = (
     | GarageConfig
     | GcsConfig
     | GcsGrpcConfig
+    | GcsS3Config
     | GdriveConfig
     | GhacConfig
     | GithubConfig
@@ -1587,6 +1737,7 @@ ServiceConfig = (
     | IpfsConfig
     | IpmfsConfig
     | KoofrConfig
+    | LakefsS3Config
     | MemcachedConfig
     | MemoryConfig
     | MiniMokaConfig
@@ -1599,6 +1750,7 @@ ServiceConfig = (
     | OciConfig
     | OnedriveConfig
     | OssConfig
+    | OssS3Config
     | OvhcloudConfig
     | PersyConfig
     | PostgresqlConfig
@@ -1618,8 +1770,10 @@ ServiceConfig = (
     | StorjConfig
     | SupabaseConfig
     | SwiftConfig
+    | SwiftS3apiConfig
     | TigrisConfig
     | TosConfig
+    | TosS3Config
     | UpyunConfig
     | VercelArtifactsConfig
     | WasabiConfig
@@ -1638,9 +1792,11 @@ __all__ = [
     "AzdlsConfig",
     "AzfileConfig",
     "B2Config",
+    "B2S3Config",
     "CacacheConfig",
     "CephRgwConfig",
     "CosConfig",
+    "CosS3Config",
     "DashmapConfig",
     "DropboxConfig",
     "ExoscaleConfig",
@@ -1650,6 +1806,7 @@ __all__ = [
     "GarageConfig",
     "GcsConfig",
     "GcsGrpcConfig",
+    "GcsS3Config",
     "GdriveConfig",
     "GhacConfig",
     "GithubConfig",
@@ -1664,6 +1821,7 @@ __all__ = [
     "IpfsConfig",
     "IpmfsConfig",
     "KoofrConfig",
+    "LakefsS3Config",
     "MemcachedConfig",
     "MemoryConfig",
     "MiniMokaConfig",
@@ -1676,6 +1834,7 @@ __all__ = [
     "OciConfig",
     "OnedriveConfig",
     "OssConfig",
+    "OssS3Config",
     "OvhcloudConfig",
     "PersyConfig",
     "PostgresqlConfig",
@@ -1695,8 +1854,10 @@ __all__ = [
     "StorjConfig",
     "SupabaseConfig",
     "SwiftConfig",
+    "SwiftS3apiConfig",
     "TigrisConfig",
     "TosConfig",
+    "TosS3Config",
     "UpyunConfig",
     "VercelArtifactsConfig",
     "WasabiConfig",

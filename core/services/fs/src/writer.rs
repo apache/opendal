@@ -668,6 +668,34 @@ mod tests {
         assert!(staging_is_empty(&staging));
     }
 
+    #[tokio::test]
+    async fn test_staged_conditional_write_cleans_up_on_not_a_directory() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path().join("root");
+        let staging = temp_dir.path().join("staging");
+        std::fs::create_dir(&root).unwrap();
+        std::fs::create_dir(&staging).unwrap();
+
+        let op = operator(&root, Some(&staging));
+        let mut writer = op
+            .writer_with("sub/file")
+            .if_not_exists(true)
+            .await
+            .unwrap();
+        writer.write("data").await.unwrap();
+        assert!(!staging_is_empty(&staging));
+
+        // Replace the parent directory with a regular file before commit so
+        // the conditional publish fails permanently.
+        std::fs::remove_dir(root.join("sub")).unwrap();
+        std::fs::write(root.join("sub"), b"blocker").unwrap();
+
+        let err = writer.close().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotADirectory, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+        assert!(staging_is_empty(&staging));
+    }
+
     #[cfg(unix)]
     #[tokio::test]
     async fn test_staged_write_cleans_up_on_permission_denied() {

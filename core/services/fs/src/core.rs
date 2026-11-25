@@ -417,8 +417,18 @@ pub(super) fn publish_staged_file(from: &Path, to: &Path) -> Result<()> {
         // present, on both POSIX and Windows. Hard links require both paths on
         // one filesystem, which the atomic publish already requires for its
         // rename.
-        std::fs::hard_link(from, to)
-            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("Rename")), err))?;
+        std::fs::hard_link(from, to).map_err(|err| {
+            // Windows reports a regular file in place of the destination's
+            // parent as ERROR_INVALID_PARAMETER, which maps to a retryable
+            // error and keeps the staged file. Report it as ENOTDIR would be.
+            #[cfg(windows)]
+            if to.parent().is_some_and(|parent| parent.is_file()) {
+                return Error::new(ErrorKind::NotADirectory, "parent is not a directory")
+                    .set_source(err)
+                    .with_context("service_operation", "Rename");
+            }
+            parse_error(ErrorContext::new(ServiceOperation("Rename")), err)
+        })?;
 
         match std::fs::remove_file(from) {
             // A concurrent cleanup or an unusual filesystem may have removed

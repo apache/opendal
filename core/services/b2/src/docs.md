@@ -16,6 +16,13 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+## Presigned downloads
+
+`presign_read` and `presign_stat` both return a B2 download request that uses
+GET. Their option-bearing variants support overriding the response
+`Content-Type`, `Content-Disposition`, and `Cache-Control`. Use the returned
+method, URL, and headers to execute the request.
+
 ## Restore
 
 `restore(path)` removes one current B2 hide marker when a data version still

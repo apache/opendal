@@ -16,26 +16,29 @@
 ; under the License.
 
 (rule
- (targets libopendal_core.a dllopendal_core.so libopendal_core.so)
+ (targets libopendal_core.a dllopendal_core.so opendal_core_link_flags.sexp)
  (deps
+  ../Cargo.toml
   (glob_files *.rs))
  (action
   (progn
-   (run sh -c "cd %{project_root}/../.. && cargo build --release")
    (run sh -c
-     "if [ -f %{project_root}/../../target/release/libopendal_ocaml.so ]; then cp %{project_root}/../../target/release/libopendal_ocaml.so ./dllopendal_core.so; cp %{project_root}/../../target/release/libopendal_ocaml.so ./libopendal_core.so; else cp %{project_root}/../../target/release/libopendal_ocaml.dylib ./dllopendal_core.so; cp %{project_root}/../../target/release/libopendal_ocaml.dylib ./libopendal_core.so; fi")
-   (run sh -c
-     "echo 'void __opendal_core_dummy(void) {}' | cc -c -x c - -o opendal_core_dummy.o && ar crs libopendal_core.a opendal_core_dummy.o && rm opendal_core_dummy.o"))))
+     "cd %{project_root}/../.. && cargo rustc --release -- --print=native-static-libs=target/release/opendal_core_link_flags")
+   (run cp %{project_root}/../../target/release/libopendal_ocaml.a
+     libopendal_core.a)
+   (run sh -ec
+     "if [ '%{ocaml-config:system}' = macosx ]; then ext=dylib; else ext=so; fi\n     cp %{project_root}/../../target/release/libopendal_ocaml.$ext dllopendal_core.so")
+   (with-stdout-to
+    opendal_core_link_flags.sexp
+    (progn
+     (echo "(")
+     (run cat %{project_root}/../../target/release/opendal_core_link_flags)
+     (echo ")"))))))
 
 (library
  (name opendal_core)
  (public_name opendal.opendal_core)
  (foreign_archives opendal_core)
+ ; Static linking also needs Rust's system libraries and platform frameworks.
  (c_library_flags
-  (-lpthread -lc -lm)))
-
-(install
- (section lib)
- (package opendal)
- (files
-  (libopendal_core.so as opendal_core/libopendal_core.so)))
+  (:include opendal_core_link_flags.sexp)))

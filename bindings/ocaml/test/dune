@@ -15,20 +15,6 @@
 ; specific language governing permissions and limitations
 ; under the License.
 
-(executables
- (libraries opendal ounit2)
- (names test)
- (modules test))
-
-(rule
- (alias runtest)
- (deps ../src/libopendal_core.so)
- (action
-  (progn
-   (setenv
-    LD_LIBRARY_PATH
-    "../src:%{env:LD_LIBRARY_PATH=}"
-    (setenv
-     DYLD_LIBRARY_PATH
-     "../src:%{env:DYLD_LIBRARY_PATH=}"
-     (run ./test.exe))))))
+(test
+ (name test)
+ (libraries opendal ounit2))

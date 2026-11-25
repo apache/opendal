@@ -1271,6 +1271,101 @@
       ]
     },
     {
+      "name": "exoscale",
+      "scheme": "exoscale",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "example-bucket",
+          "comments": "Bucket name."
+        },
+        {
+          "name": "zone",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "ch-dk-2",
+          "comments": "Bucket zone, used as the signing region."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "Explicit HTTP(S) base endpoint. The default is `https://sos-<zone>.exo.io`."
+        },
+        {
+          "name": "enable_virtual_host_style",
+          "type": "bool",
+          "required": false,
+          "group": "General",
+          "default": "false",
+          "comments": "Use virtual-hosted-style bucket addressing."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Access key ID. Set this field together with `secret_access_key`."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Secret access key. Set this field together with `access_key_id`."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"exoscale\", [\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n    (\"zone\".to_string(), \"ch-dk-2\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"exoscale\", [\n    // --- General ---\n    // Root within the bucket. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // Bucket name.\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n\n    // Bucket zone, used as the signing region.\n    (\"zone\".to_string(), \"ch-dk-2\".to_string()),\n\n    // Explicit HTTP(S) base endpoint. The default is `https://sos-<zone>.exo.io`.\n    // (\"endpoint\".to_string(), \"...\".to_string()),\n\n    // Use virtual-hosted-style bucket addressing.\n    // (\"enable_virtual_host_style\".to_string(), \"false\".to_string()),\n    // --- Credentials ---\n    // Access key ID. Set this field together with `secret_access_key`.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Secret access key. Set this field together with `access_key_id`.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"example-bucket\");\nconfig.put(\"zone\", \"ch-dk-2\");\nOperator operator = Operator.of(\"exoscale\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// Bucket name.\nconfig.put(\"bucket\", \"example-bucket\");\n\n// Bucket zone, used as the signing region.\nconfig.put(\"zone\", \"ch-dk-2\");\n\n// Explicit HTTP(S) base endpoint. The default is `https://sos-<zone>.exo.io`.\n// config.put(\"endpoint\", \"...\");\n\n// Use virtual-hosted-style bucket addressing.\n// config.put(\"enable_virtual_host_style\", \"false\");\n// --- Credentials ---\n// Access key ID. Set this field together with `secret_access_key`.\n// config.put(\"access_key_id\", \"...\");\n\n// Secret access key. Set this field together with `access_key_id`.\n// config.put(\"secret_access_key\", \"...\");\nOperator operator = Operator.of(\"exoscale\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"exoscale\",\n    bucket=\"example-bucket\",\n    zone=\"ch-dk-2\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"exoscale\",\n    # --- General ---\n    # Root within the bucket. The default is `/`.\n    # root=\"/\",\n\n    # Bucket name.\n    bucket=\"example-bucket\",\n\n    # Bucket zone, used as the signing region.\n    zone=\"ch-dk-2\",\n\n    # Explicit HTTP(S) base endpoint. The default is `https://sos-<zone>.exo.io`.\n    # endpoint=\"...\",\n\n    # Use virtual-hosted-style bucket addressing.\n    # enable_virtual_host_style=\"false\",\n    # --- Credentials ---\n    # Access key ID. Set this field together with `secret_access_key`.\n    # access_key_id=\"...\",\n\n    # Secret access key. Set this field together with `access_key_id`.\n    # secret_access_key=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"exoscale\", {\n  bucket: \"example-bucket\",\n  zone: \"ch-dk-2\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"exoscale\", {\n  // --- General ---\n  // Root within the bucket. The default is `/`.\n  // root: \"/\",\n\n  // Bucket name.\n  bucket: \"example-bucket\",\n\n  // Bucket zone, used as the signing region.\n  zone: \"ch-dk-2\",\n\n  // Explicit HTTP(S) base endpoint. The default is `https://sos-<zone>.exo.io`.\n  // endpoint: \"...\",\n\n  // Use virtual-hosted-style bucket addressing.\n  // enable_virtual_host_style: \"false\",\n  // --- Credentials ---\n  // Access key ID. Set this field together with `secret_access_key`.\n  // access_key_id: \"...\",\n\n  // Secret access key. Set this field together with `access_key_id`.\n  // secret_access_key: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"exoscale\", {\n  \"bucket\" => \"example-bucket\",\n  \"zone\" => \"ch-dk-2\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"exoscale\", {\n  # --- General ---\n  # Root within the bucket. The default is `/`.\n  # \"root\" => \"/\",\n\n  # Bucket name.\n  \"bucket\" => \"example-bucket\",\n\n  # Bucket zone, used as the signing region.\n  \"zone\" => \"ch-dk-2\",\n\n  # Explicit HTTP(S) base endpoint. The default is `https://sos-<zone>.exo.io`.\n  # \"endpoint\" => \"...\",\n\n  # Use virtual-hosted-style bucket addressing.\n  # \"enable_virtual_host_style\" => \"false\",\n  # --- Credentials ---\n  # Access key ID. Set this field together with `secret_access_key`.\n  # \"access_key_id\" => \"...\",\n\n  # Secret access key. Set this field together with `access_key_id`.\n  # \"secret_access_key\" => \"...\",\n})"
+        }
+      ]
+    },
+    {
       "name": "foundationdb",
       "scheme": "foundationdb",
       "groups": [
@@ -2403,6 +2498,108 @@
           "language": "go",
           "minimal": "import (\n\t\"github.com/apache/opendal-go-services/hdfs-native\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(hdfs-native.Scheme, opendal.OperatorOptions{\n})",
           "full": "import (\n\t\"github.com/apache/opendal-go-services/hdfs-native\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(hdfs-native.Scheme, opendal.OperatorOptions{\n\t// work dir of this backend\n\t// \"root\": \"...\",\n\n\t// name_node of this backend\n\t// \"name_node\": \"...\",\n\n\t// other options for hdfs client\n\t// \"options\": \"...\",\n})"
+        }
+      ]
+    },
+    {
+      "name": "hetzner",
+      "scheme": "hetzner",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "example-bucket",
+          "comments": "Bucket name."
+        },
+        {
+          "name": "location",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "example": "fsn1",
+          "comments": "Bucket location. Required unless `endpoint` is set."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "Signing region. Defaults to `location`."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "Explicit HTTP(S) base endpoint. The default is `https://<location>.your-objectstorage.com`."
+        },
+        {
+          "name": "enable_virtual_host_style",
+          "type": "bool",
+          "required": false,
+          "group": "General",
+          "default": "true",
+          "comments": "Use virtual-hosted-style bucket addressing."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Access key ID. Set this field together with `secret_access_key`."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Secret access key. Set this field together with `access_key_id`."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"hetzner\", [\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n    (\"location\".to_string(), \"fsn1\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"hetzner\", [\n    // --- General ---\n    // Root within the bucket. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // Bucket name.\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n\n    // Bucket location. Required unless `endpoint` is set.\n    (\"location\".to_string(), \"fsn1\".to_string()),\n\n    // Signing region. Defaults to `location`.\n    // (\"region\".to_string(), \"...\".to_string()),\n\n    // Explicit HTTP(S) base endpoint. The default is `https://<location>.your-objectstorage.com`.\n    // (\"endpoint\".to_string(), \"...\".to_string()),\n\n    // Use virtual-hosted-style bucket addressing.\n    // (\"enable_virtual_host_style\".to_string(), \"true\".to_string()),\n    // --- Credentials ---\n    // Access key ID. Set this field together with `secret_access_key`.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Secret access key. Set this field together with `access_key_id`.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"example-bucket\");\nconfig.put(\"location\", \"fsn1\");\nOperator operator = Operator.of(\"hetzner\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// Bucket name.\nconfig.put(\"bucket\", \"example-bucket\");\n\n// Bucket location. Required unless `endpoint` is set.\nconfig.put(\"location\", \"fsn1\");\n\n// Signing region. Defaults to `location`.\n// config.put(\"region\", \"...\");\n\n// Explicit HTTP(S) base endpoint. The default is `https://<location>.your-objectstorage.com`.\n// config.put(\"endpoint\", \"...\");\n\n// Use virtual-hosted-style bucket addressing.\n// config.put(\"enable_virtual_host_style\", \"true\");\n// --- Credentials ---\n// Access key ID. Set this field together with `secret_access_key`.\n// config.put(\"access_key_id\", \"...\");\n\n// Secret access key. Set this field together with `access_key_id`.\n// config.put(\"secret_access_key\", \"...\");\nOperator operator = Operator.of(\"hetzner\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"hetzner\",\n    bucket=\"example-bucket\",\n    location=\"fsn1\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"hetzner\",\n    # --- General ---\n    # Root within the bucket. The default is `/`.\n    # root=\"/\",\n\n    # Bucket name.\n    bucket=\"example-bucket\",\n\n    # Bucket location. Required unless `endpoint` is set.\n    location=\"fsn1\",\n\n    # Signing region. Defaults to `location`.\n    # region=\"...\",\n\n    # Explicit HTTP(S) base endpoint. The default is `https://<location>.your-objectstorage.com`.\n    # endpoint=\"...\",\n\n    # Use virtual-hosted-style bucket addressing.\n    # enable_virtual_host_style=\"true\",\n    # --- Credentials ---\n    # Access key ID. Set this field together with `secret_access_key`.\n    # access_key_id=\"...\",\n\n    # Secret access key. Set this field together with `access_key_id`.\n    # secret_access_key=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"hetzner\", {\n  bucket: \"example-bucket\",\n  location: \"fsn1\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"hetzner\", {\n  // --- General ---\n  // Root within the bucket. The default is `/`.\n  // root: \"/\",\n\n  // Bucket name.\n  bucket: \"example-bucket\",\n\n  // Bucket location. Required unless `endpoint` is set.\n  location: \"fsn1\",\n\n  // Signing region. Defaults to `location`.\n  // region: \"...\",\n\n  // Explicit HTTP(S) base endpoint. The default is `https://<location>.your-objectstorage.com`.\n  // endpoint: \"...\",\n\n  // Use virtual-hosted-style bucket addressing.\n  // enable_virtual_host_style: \"true\",\n  // --- Credentials ---\n  // Access key ID. Set this field together with `secret_access_key`.\n  // access_key_id: \"...\",\n\n  // Secret access key. Set this field together with `access_key_id`.\n  // secret_access_key: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"hetzner\", {\n  \"bucket\" => \"example-bucket\",\n  \"location\" => \"fsn1\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"hetzner\", {\n  # --- General ---\n  # Root within the bucket. The default is `/`.\n  # \"root\" => \"/\",\n\n  # Bucket name.\n  \"bucket\" => \"example-bucket\",\n\n  # Bucket location. Required unless `endpoint` is set.\n  \"location\" => \"fsn1\",\n\n  # Signing region. Defaults to `location`.\n  # \"region\" => \"...\",\n\n  # Explicit HTTP(S) base endpoint. The default is `https://<location>.your-objectstorage.com`.\n  # \"endpoint\" => \"...\",\n\n  # Use virtual-hosted-style bucket addressing.\n  # \"enable_virtual_host_style\" => \"true\",\n  # --- Credentials ---\n  # Access key ID. Set this field together with `secret_access_key`.\n  # \"access_key_id\" => \"...\",\n\n  # Secret access key. Set this field together with `access_key_id`.\n  # \"secret_access_key\" => \"...\",\n})"
         }
       ]
     },
@@ -3601,6 +3798,101 @@
       ]
     },
     {
+      "name": "oci",
+      "scheme": "oci",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "example-bucket",
+          "comments": "Bucket name."
+        },
+        {
+          "name": "namespace",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "example": "example-namespace",
+          "comments": "Object Storage namespace. Required unless `endpoint` is set."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "us-ashburn-1",
+          "comments": "Bucket region, used as the signing region."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "Explicit HTTP(S) base endpoint. The default is\n`https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com`."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Access key ID. Set this field together with `secret_access_key`."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Secret access key. Set this field together with `access_key_id`."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"oci\", [\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n    (\"namespace\".to_string(), \"example-namespace\".to_string()),\n    (\"region\".to_string(), \"us-ashburn-1\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"oci\", [\n    // --- General ---\n    // Root within the bucket. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // Bucket name.\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n\n    // Object Storage namespace. Required unless `endpoint` is set.\n    (\"namespace\".to_string(), \"example-namespace\".to_string()),\n\n    // Bucket region, used as the signing region.\n    (\"region\".to_string(), \"us-ashburn-1\".to_string()),\n\n    // Explicit HTTP(S) base endpoint. The default is\n    // `https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com`.\n    // (\"endpoint\".to_string(), \"...\".to_string()),\n    // --- Credentials ---\n    // Access key ID. Set this field together with `secret_access_key`.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Secret access key. Set this field together with `access_key_id`.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"example-bucket\");\nconfig.put(\"namespace\", \"example-namespace\");\nconfig.put(\"region\", \"us-ashburn-1\");\nOperator operator = Operator.of(\"oci\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// Bucket name.\nconfig.put(\"bucket\", \"example-bucket\");\n\n// Object Storage namespace. Required unless `endpoint` is set.\nconfig.put(\"namespace\", \"example-namespace\");\n\n// Bucket region, used as the signing region.\nconfig.put(\"region\", \"us-ashburn-1\");\n\n// Explicit HTTP(S) base endpoint. The default is\n// `https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com`.\n// config.put(\"endpoint\", \"...\");\n// --- Credentials ---\n// Access key ID. Set this field together with `secret_access_key`.\n// config.put(\"access_key_id\", \"...\");\n\n// Secret access key. Set this field together with `access_key_id`.\n// config.put(\"secret_access_key\", \"...\");\nOperator operator = Operator.of(\"oci\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"oci\",\n    bucket=\"example-bucket\",\n    namespace=\"example-namespace\",\n    region=\"us-ashburn-1\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"oci\",\n    # --- General ---\n    # Root within the bucket. The default is `/`.\n    # root=\"/\",\n\n    # Bucket name.\n    bucket=\"example-bucket\",\n\n    # Object Storage namespace. Required unless `endpoint` is set.\n    namespace=\"example-namespace\",\n\n    # Bucket region, used as the signing region.\n    region=\"us-ashburn-1\",\n\n    # Explicit HTTP(S) base endpoint. The default is\n    # `https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com`.\n    # endpoint=\"...\",\n    # --- Credentials ---\n    # Access key ID. Set this field together with `secret_access_key`.\n    # access_key_id=\"...\",\n\n    # Secret access key. Set this field together with `access_key_id`.\n    # secret_access_key=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"oci\", {\n  bucket: \"example-bucket\",\n  namespace: \"example-namespace\",\n  region: \"us-ashburn-1\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"oci\", {\n  // --- General ---\n  // Root within the bucket. The default is `/`.\n  // root: \"/\",\n\n  // Bucket name.\n  bucket: \"example-bucket\",\n\n  // Object Storage namespace. Required unless `endpoint` is set.\n  namespace: \"example-namespace\",\n\n  // Bucket region, used as the signing region.\n  region: \"us-ashburn-1\",\n\n  // Explicit HTTP(S) base endpoint. The default is\n  // `https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com`.\n  // endpoint: \"...\",\n  // --- Credentials ---\n  // Access key ID. Set this field together with `secret_access_key`.\n  // access_key_id: \"...\",\n\n  // Secret access key. Set this field together with `access_key_id`.\n  // secret_access_key: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"oci\", {\n  \"bucket\" => \"example-bucket\",\n  \"namespace\" => \"example-namespace\",\n  \"region\" => \"us-ashburn-1\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"oci\", {\n  # --- General ---\n  # Root within the bucket. The default is `/`.\n  # \"root\" => \"/\",\n\n  # Bucket name.\n  \"bucket\" => \"example-bucket\",\n\n  # Object Storage namespace. Required unless `endpoint` is set.\n  \"namespace\" => \"example-namespace\",\n\n  # Bucket region, used as the signing region.\n  \"region\" => \"us-ashburn-1\",\n\n  # Explicit HTTP(S) base endpoint. The default is\n  # `https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com`.\n  # \"endpoint\" => \"...\",\n  # --- Credentials ---\n  # Access key ID. Set this field together with `secret_access_key`.\n  # \"access_key_id\" => \"...\",\n\n  # Secret access key. Set this field together with `access_key_id`.\n  # \"secret_access_key\" => \"...\",\n})"
+        }
+      ]
+    },
+    {
       "name": "onedrive",
       "scheme": "onedrive",
       "groups": [
@@ -3948,6 +4240,101 @@
       ]
     },
     {
+      "name": "ovhcloud",
+      "scheme": "ovhcloud",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "example-bucket",
+          "comments": "Bucket name."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "gra",
+          "comments": "Bucket region, used as the signing region."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "Explicit HTTP(S) base endpoint. The default is `https://s3.<region>.io.cloud.ovh.net`."
+        },
+        {
+          "name": "enable_virtual_host_style",
+          "type": "bool",
+          "required": false,
+          "group": "General",
+          "default": "true",
+          "comments": "Use virtual-hosted-style bucket addressing."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Access key ID. Set this field together with `secret_access_key`."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Secret access key. Set this field together with `access_key_id`."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"ovhcloud\", [\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n    (\"region\".to_string(), \"gra\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"ovhcloud\", [\n    // --- General ---\n    // Root within the bucket. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // Bucket name.\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n\n    // Bucket region, used as the signing region.\n    (\"region\".to_string(), \"gra\".to_string()),\n\n    // Explicit HTTP(S) base endpoint. The default is `https://s3.<region>.io.cloud.ovh.net`.\n    // (\"endpoint\".to_string(), \"...\".to_string()),\n\n    // Use virtual-hosted-style bucket addressing.\n    // (\"enable_virtual_host_style\".to_string(), \"true\".to_string()),\n    // --- Credentials ---\n    // Access key ID. Set this field together with `secret_access_key`.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Secret access key. Set this field together with `access_key_id`.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"example-bucket\");\nconfig.put(\"region\", \"gra\");\nOperator operator = Operator.of(\"ovhcloud\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// Bucket name.\nconfig.put(\"bucket\", \"example-bucket\");\n\n// Bucket region, used as the signing region.\nconfig.put(\"region\", \"gra\");\n\n// Explicit HTTP(S) base endpoint. The default is `https://s3.<region>.io.cloud.ovh.net`.\n// config.put(\"endpoint\", \"...\");\n\n// Use virtual-hosted-style bucket addressing.\n// config.put(\"enable_virtual_host_style\", \"true\");\n// --- Credentials ---\n// Access key ID. Set this field together with `secret_access_key`.\n// config.put(\"access_key_id\", \"...\");\n\n// Secret access key. Set this field together with `access_key_id`.\n// config.put(\"secret_access_key\", \"...\");\nOperator operator = Operator.of(\"ovhcloud\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"ovhcloud\",\n    bucket=\"example-bucket\",\n    region=\"gra\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"ovhcloud\",\n    # --- General ---\n    # Root within the bucket. The default is `/`.\n    # root=\"/\",\n\n    # Bucket name.\n    bucket=\"example-bucket\",\n\n    # Bucket region, used as the signing region.\n    region=\"gra\",\n\n    # Explicit HTTP(S) base endpoint. The default is `https://s3.<region>.io.cloud.ovh.net`.\n    # endpoint=\"...\",\n\n    # Use virtual-hosted-style bucket addressing.\n    # enable_virtual_host_style=\"true\",\n    # --- Credentials ---\n    # Access key ID. Set this field together with `secret_access_key`.\n    # access_key_id=\"...\",\n\n    # Secret access key. Set this field together with `access_key_id`.\n    # secret_access_key=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"ovhcloud\", {\n  bucket: \"example-bucket\",\n  region: \"gra\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"ovhcloud\", {\n  // --- General ---\n  // Root within the bucket. The default is `/`.\n  // root: \"/\",\n\n  // Bucket name.\n  bucket: \"example-bucket\",\n\n  // Bucket region, used as the signing region.\n  region: \"gra\",\n\n  // Explicit HTTP(S) base endpoint. The default is `https://s3.<region>.io.cloud.ovh.net`.\n  // endpoint: \"...\",\n\n  // Use virtual-hosted-style bucket addressing.\n  // enable_virtual_host_style: \"true\",\n  // --- Credentials ---\n  // Access key ID. Set this field together with `secret_access_key`.\n  // access_key_id: \"...\",\n\n  // Secret access key. Set this field together with `access_key_id`.\n  // secret_access_key: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"ovhcloud\", {\n  \"bucket\" => \"example-bucket\",\n  \"region\" => \"gra\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"ovhcloud\", {\n  # --- General ---\n  # Root within the bucket. The default is `/`.\n  # \"root\" => \"/\",\n\n  # Bucket name.\n  \"bucket\" => \"example-bucket\",\n\n  # Bucket region, used as the signing region.\n  \"region\" => \"gra\",\n\n  # Explicit HTTP(S) base endpoint. The default is `https://s3.<region>.io.cloud.ovh.net`.\n  # \"endpoint\" => \"...\",\n\n  # Use virtual-hosted-style bucket addressing.\n  # \"enable_virtual_host_style\" => \"true\",\n  # --- Credentials ---\n  # Access key ID. Set this field together with `secret_access_key`.\n  # \"access_key_id\" => \"...\",\n\n  # Secret access key. Set this field together with `access_key_id`.\n  # \"secret_access_key\" => \"...\",\n})"
+        }
+      ]
+    },
+    {
       "name": "pcloud",
       "scheme": "pcloud",
       "groups": [
@@ -4139,6 +4526,101 @@
           "language": "go",
           "minimal": "import (\n\t\"github.com/apache/opendal-go-services/postgresql\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(postgresql.Scheme, opendal.OperatorOptions{\n})",
           "full": "import (\n\t\"github.com/apache/opendal-go-services/postgresql\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(postgresql.Scheme, opendal.OperatorOptions{\n\t// Root of this backend.\n\t//\n\t// All operations will happen under this root.\n\t//\n\t// Default to `/` if not set.\n\t// \"root\": \"...\",\n\n\t// The URL should be with a scheme of either `postgres://` or `postgresql://`.\n\t//\n\t// - `postgresql://user@localhost`\n\t// - `postgresql://user:password@%2Fvar%2Flib%2Fpostgresql/mydb?connect_timeout=10`\n\t// - `postgresql://user@host1:1234,host2,host3:5678?target_session_attrs=read-write`\n\t// - `postgresql:///mydb?user=user&host=/var/lib/postgresql`\n\t//\n\t// For more information, please visit <https://docs.rs/sqlx/latest/sqlx/postgres/struct.PgConnectOptions.html>.\n\t// \"connection_string\": \"...\",\n\n\t// the table of postgresql\n\t// \"table\": \"...\",\n\n\t// the key field of postgresql\n\t// \"key_field\": \"...\",\n\n\t// the value field of postgresql\n\t// \"value_field\": \"...\",\n})"
+        }
+      ]
+    },
+    {
+      "name": "qingstor",
+      "scheme": "qingstor",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "example-bucket",
+          "comments": "Bucket name."
+        },
+        {
+          "name": "zone",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "pek3a",
+          "comments": "Bucket zone, used as the signing region."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "Explicit HTTP(S) base endpoint. The default is `https://s3.<zone>.qsstor.com`."
+        },
+        {
+          "name": "enable_virtual_host_style",
+          "type": "bool",
+          "required": false,
+          "group": "General",
+          "default": "false",
+          "comments": "Use virtual-hosted-style bucket addressing."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Access key ID. Set this field together with `secret_access_key`."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Secret access key. Set this field together with `access_key_id`."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"qingstor\", [\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n    (\"zone\".to_string(), \"pek3a\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"qingstor\", [\n    // --- General ---\n    // Root within the bucket. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // Bucket name.\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n\n    // Bucket zone, used as the signing region.\n    (\"zone\".to_string(), \"pek3a\".to_string()),\n\n    // Explicit HTTP(S) base endpoint. The default is `https://s3.<zone>.qsstor.com`.\n    // (\"endpoint\".to_string(), \"...\".to_string()),\n\n    // Use virtual-hosted-style bucket addressing.\n    // (\"enable_virtual_host_style\".to_string(), \"false\".to_string()),\n    // --- Credentials ---\n    // Access key ID. Set this field together with `secret_access_key`.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Secret access key. Set this field together with `access_key_id`.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"example-bucket\");\nconfig.put(\"zone\", \"pek3a\");\nOperator operator = Operator.of(\"qingstor\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// Bucket name.\nconfig.put(\"bucket\", \"example-bucket\");\n\n// Bucket zone, used as the signing region.\nconfig.put(\"zone\", \"pek3a\");\n\n// Explicit HTTP(S) base endpoint. The default is `https://s3.<zone>.qsstor.com`.\n// config.put(\"endpoint\", \"...\");\n\n// Use virtual-hosted-style bucket addressing.\n// config.put(\"enable_virtual_host_style\", \"false\");\n// --- Credentials ---\n// Access key ID. Set this field together with `secret_access_key`.\n// config.put(\"access_key_id\", \"...\");\n\n// Secret access key. Set this field together with `access_key_id`.\n// config.put(\"secret_access_key\", \"...\");\nOperator operator = Operator.of(\"qingstor\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"qingstor\",\n    bucket=\"example-bucket\",\n    zone=\"pek3a\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"qingstor\",\n    # --- General ---\n    # Root within the bucket. The default is `/`.\n    # root=\"/\",\n\n    # Bucket name.\n    bucket=\"example-bucket\",\n\n    # Bucket zone, used as the signing region.\n    zone=\"pek3a\",\n\n    # Explicit HTTP(S) base endpoint. The default is `https://s3.<zone>.qsstor.com`.\n    # endpoint=\"...\",\n\n    # Use virtual-hosted-style bucket addressing.\n    # enable_virtual_host_style=\"false\",\n    # --- Credentials ---\n    # Access key ID. Set this field together with `secret_access_key`.\n    # access_key_id=\"...\",\n\n    # Secret access key. Set this field together with `access_key_id`.\n    # secret_access_key=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"qingstor\", {\n  bucket: \"example-bucket\",\n  zone: \"pek3a\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"qingstor\", {\n  // --- General ---\n  // Root within the bucket. The default is `/`.\n  // root: \"/\",\n\n  // Bucket name.\n  bucket: \"example-bucket\",\n\n  // Bucket zone, used as the signing region.\n  zone: \"pek3a\",\n\n  // Explicit HTTP(S) base endpoint. The default is `https://s3.<zone>.qsstor.com`.\n  // endpoint: \"...\",\n\n  // Use virtual-hosted-style bucket addressing.\n  // enable_virtual_host_style: \"false\",\n  // --- Credentials ---\n  // Access key ID. Set this field together with `secret_access_key`.\n  // access_key_id: \"...\",\n\n  // Secret access key. Set this field together with `access_key_id`.\n  // secret_access_key: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"qingstor\", {\n  \"bucket\" => \"example-bucket\",\n  \"zone\" => \"pek3a\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"qingstor\", {\n  # --- General ---\n  # Root within the bucket. The default is `/`.\n  # \"root\" => \"/\",\n\n  # Bucket name.\n  \"bucket\" => \"example-bucket\",\n\n  # Bucket zone, used as the signing region.\n  \"zone\" => \"pek3a\",\n\n  # Explicit HTTP(S) base endpoint. The default is `https://s3.<zone>.qsstor.com`.\n  # \"endpoint\" => \"...\",\n\n  # Use virtual-hosted-style bucket addressing.\n  # \"enable_virtual_host_style\" => \"false\",\n  # --- Credentials ---\n  # Access key ID. Set this field together with `secret_access_key`.\n  # \"access_key_id\" => \"...\",\n\n  # Secret access key. Set this field together with `access_key_id`.\n  # \"secret_access_key\" => \"...\",\n})"
         }
       ]
     },
@@ -4833,6 +5315,101 @@
       ]
     },
     {
+      "name": "scaleway",
+      "scheme": "scaleway",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "example-bucket",
+          "comments": "Bucket name."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "nl-ams",
+          "comments": "Bucket region, used as the signing region."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "Explicit HTTP(S) base endpoint. The default is `https://s3.<region>.scw.cloud`."
+        },
+        {
+          "name": "enable_virtual_host_style",
+          "type": "bool",
+          "required": false,
+          "group": "General",
+          "default": "false",
+          "comments": "Use virtual-hosted-style bucket addressing."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Access key ID. Set this field together with `secret_access_key`."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Secret access key. Set this field together with `access_key_id`."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"scaleway\", [\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n    (\"region\".to_string(), \"nl-ams\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"scaleway\", [\n    // --- General ---\n    // Root within the bucket. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // Bucket name.\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n\n    // Bucket region, used as the signing region.\n    (\"region\".to_string(), \"nl-ams\".to_string()),\n\n    // Explicit HTTP(S) base endpoint. The default is `https://s3.<region>.scw.cloud`.\n    // (\"endpoint\".to_string(), \"...\".to_string()),\n\n    // Use virtual-hosted-style bucket addressing.\n    // (\"enable_virtual_host_style\".to_string(), \"false\".to_string()),\n    // --- Credentials ---\n    // Access key ID. Set this field together with `secret_access_key`.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Secret access key. Set this field together with `access_key_id`.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"example-bucket\");\nconfig.put(\"region\", \"nl-ams\");\nOperator operator = Operator.of(\"scaleway\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// Bucket name.\nconfig.put(\"bucket\", \"example-bucket\");\n\n// Bucket region, used as the signing region.\nconfig.put(\"region\", \"nl-ams\");\n\n// Explicit HTTP(S) base endpoint. The default is `https://s3.<region>.scw.cloud`.\n// config.put(\"endpoint\", \"...\");\n\n// Use virtual-hosted-style bucket addressing.\n// config.put(\"enable_virtual_host_style\", \"false\");\n// --- Credentials ---\n// Access key ID. Set this field together with `secret_access_key`.\n// config.put(\"access_key_id\", \"...\");\n\n// Secret access key. Set this field together with `access_key_id`.\n// config.put(\"secret_access_key\", \"...\");\nOperator operator = Operator.of(\"scaleway\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"scaleway\",\n    bucket=\"example-bucket\",\n    region=\"nl-ams\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"scaleway\",\n    # --- General ---\n    # Root within the bucket. The default is `/`.\n    # root=\"/\",\n\n    # Bucket name.\n    bucket=\"example-bucket\",\n\n    # Bucket region, used as the signing region.\n    region=\"nl-ams\",\n\n    # Explicit HTTP(S) base endpoint. The default is `https://s3.<region>.scw.cloud`.\n    # endpoint=\"...\",\n\n    # Use virtual-hosted-style bucket addressing.\n    # enable_virtual_host_style=\"false\",\n    # --- Credentials ---\n    # Access key ID. Set this field together with `secret_access_key`.\n    # access_key_id=\"...\",\n\n    # Secret access key. Set this field together with `access_key_id`.\n    # secret_access_key=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"scaleway\", {\n  bucket: \"example-bucket\",\n  region: \"nl-ams\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"scaleway\", {\n  // --- General ---\n  // Root within the bucket. The default is `/`.\n  // root: \"/\",\n\n  // Bucket name.\n  bucket: \"example-bucket\",\n\n  // Bucket region, used as the signing region.\n  region: \"nl-ams\",\n\n  // Explicit HTTP(S) base endpoint. The default is `https://s3.<region>.scw.cloud`.\n  // endpoint: \"...\",\n\n  // Use virtual-hosted-style bucket addressing.\n  // enable_virtual_host_style: \"false\",\n  // --- Credentials ---\n  // Access key ID. Set this field together with `secret_access_key`.\n  // access_key_id: \"...\",\n\n  // Secret access key. Set this field together with `access_key_id`.\n  // secret_access_key: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"scaleway\", {\n  \"bucket\" => \"example-bucket\",\n  \"region\" => \"nl-ams\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"scaleway\", {\n  # --- General ---\n  # Root within the bucket. The default is `/`.\n  # \"root\" => \"/\",\n\n  # Bucket name.\n  \"bucket\" => \"example-bucket\",\n\n  # Bucket region, used as the signing region.\n  \"region\" => \"nl-ams\",\n\n  # Explicit HTTP(S) base endpoint. The default is `https://s3.<region>.scw.cloud`.\n  # \"endpoint\" => \"...\",\n\n  # Use virtual-hosted-style bucket addressing.\n  # \"enable_virtual_host_style\" => \"false\",\n  # --- Credentials ---\n  # Access key ID. Set this field together with `secret_access_key`.\n  # \"access_key_id\" => \"...\",\n\n  # Secret access key. Set this field together with `access_key_id`.\n  # \"secret_access_key\" => \"...\",\n})"
+        }
+      ]
+    },
+    {
       "name": "seafile",
       "scheme": "seafile",
       "groups": [
@@ -5133,6 +5710,109 @@
       ]
     },
     {
+      "name": "spaces",
+      "scheme": "spaces",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "example-bucket",
+          "comments": "Bucket name."
+        },
+        {
+          "name": "datacenter",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "example": "nyc3",
+          "comments": "Spaces datacenter slug. Required unless `endpoint` is set."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "us-east-1",
+          "comments": "Signing region, independent of the Spaces datacenter."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "Explicit HTTP(S) base endpoint. The default is\n`https://<datacenter>.digitaloceanspaces.com`."
+        },
+        {
+          "name": "enable_virtual_host_style",
+          "type": "bool",
+          "required": false,
+          "group": "General",
+          "default": "true",
+          "comments": "Use virtual-hosted-style bucket addressing."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Access key ID. Set this field together with `secret_access_key`."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Secret access key. Set this field together with `access_key_id`."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"spaces\", [\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n    (\"datacenter\".to_string(), \"nyc3\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"spaces\", [\n    // --- General ---\n    // Root within the bucket. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // Bucket name.\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n\n    // Spaces datacenter slug. Required unless `endpoint` is set.\n    (\"datacenter\".to_string(), \"nyc3\".to_string()),\n\n    // Signing region, independent of the Spaces datacenter.\n    // (\"region\".to_string(), \"us-east-1\".to_string()),\n\n    // Explicit HTTP(S) base endpoint. The default is\n    // `https://<datacenter>.digitaloceanspaces.com`.\n    // (\"endpoint\".to_string(), \"...\".to_string()),\n\n    // Use virtual-hosted-style bucket addressing.\n    // (\"enable_virtual_host_style\".to_string(), \"true\".to_string()),\n    // --- Credentials ---\n    // Access key ID. Set this field together with `secret_access_key`.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Secret access key. Set this field together with `access_key_id`.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"example-bucket\");\nconfig.put(\"datacenter\", \"nyc3\");\nOperator operator = Operator.of(\"spaces\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// Bucket name.\nconfig.put(\"bucket\", \"example-bucket\");\n\n// Spaces datacenter slug. Required unless `endpoint` is set.\nconfig.put(\"datacenter\", \"nyc3\");\n\n// Signing region, independent of the Spaces datacenter.\n// config.put(\"region\", \"us-east-1\");\n\n// Explicit HTTP(S) base endpoint. The default is\n// `https://<datacenter>.digitaloceanspaces.com`.\n// config.put(\"endpoint\", \"...\");\n\n// Use virtual-hosted-style bucket addressing.\n// config.put(\"enable_virtual_host_style\", \"true\");\n// --- Credentials ---\n// Access key ID. Set this field together with `secret_access_key`.\n// config.put(\"access_key_id\", \"...\");\n\n// Secret access key. Set this field together with `access_key_id`.\n// config.put(\"secret_access_key\", \"...\");\nOperator operator = Operator.of(\"spaces\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"spaces\",\n    bucket=\"example-bucket\",\n    datacenter=\"nyc3\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"spaces\",\n    # --- General ---\n    # Root within the bucket. The default is `/`.\n    # root=\"/\",\n\n    # Bucket name.\n    bucket=\"example-bucket\",\n\n    # Spaces datacenter slug. Required unless `endpoint` is set.\n    datacenter=\"nyc3\",\n\n    # Signing region, independent of the Spaces datacenter.\n    # region=\"us-east-1\",\n\n    # Explicit HTTP(S) base endpoint. The default is\n    # `https://<datacenter>.digitaloceanspaces.com`.\n    # endpoint=\"...\",\n\n    # Use virtual-hosted-style bucket addressing.\n    # enable_virtual_host_style=\"true\",\n    # --- Credentials ---\n    # Access key ID. Set this field together with `secret_access_key`.\n    # access_key_id=\"...\",\n\n    # Secret access key. Set this field together with `access_key_id`.\n    # secret_access_key=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"spaces\", {\n  bucket: \"example-bucket\",\n  datacenter: \"nyc3\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"spaces\", {\n  // --- General ---\n  // Root within the bucket. The default is `/`.\n  // root: \"/\",\n\n  // Bucket name.\n  bucket: \"example-bucket\",\n\n  // Spaces datacenter slug. Required unless `endpoint` is set.\n  datacenter: \"nyc3\",\n\n  // Signing region, independent of the Spaces datacenter.\n  // region: \"us-east-1\",\n\n  // Explicit HTTP(S) base endpoint. The default is\n  // `https://<datacenter>.digitaloceanspaces.com`.\n  // endpoint: \"...\",\n\n  // Use virtual-hosted-style bucket addressing.\n  // enable_virtual_host_style: \"true\",\n  // --- Credentials ---\n  // Access key ID. Set this field together with `secret_access_key`.\n  // access_key_id: \"...\",\n\n  // Secret access key. Set this field together with `access_key_id`.\n  // secret_access_key: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"spaces\", {\n  \"bucket\" => \"example-bucket\",\n  \"datacenter\" => \"nyc3\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"spaces\", {\n  # --- General ---\n  # Root within the bucket. The default is `/`.\n  # \"root\" => \"/\",\n\n  # Bucket name.\n  \"bucket\" => \"example-bucket\",\n\n  # Spaces datacenter slug. Required unless `endpoint` is set.\n  \"datacenter\" => \"nyc3\",\n\n  # Signing region, independent of the Spaces datacenter.\n  # \"region\" => \"us-east-1\",\n\n  # Explicit HTTP(S) base endpoint. The default is\n  # `https://<datacenter>.digitaloceanspaces.com`.\n  # \"endpoint\" => \"...\",\n\n  # Use virtual-hosted-style bucket addressing.\n  # \"enable_virtual_host_style\" => \"true\",\n  # --- Credentials ---\n  # Access key ID. Set this field together with `secret_access_key`.\n  # \"access_key_id\" => \"...\",\n\n  # Secret access key. Set this field together with `access_key_id`.\n  # \"secret_access_key\" => \"...\",\n})"
+        }
+      ]
+    },
+    {
       "name": "sqlite",
       "scheme": "sqlite",
       "groups": [
@@ -5205,6 +5885,108 @@
           "language": "go",
           "minimal": "import (\n\t\"github.com/apache/opendal-go-services/sqlite\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(sqlite.Scheme, opendal.OperatorOptions{\n})",
           "full": "import (\n\t\"github.com/apache/opendal-go-services/sqlite\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(sqlite.Scheme, opendal.OperatorOptions{\n\t// Set the connection_string of the sqlite service.\n\t//\n\t// This connection string is used to connect to the sqlite service.\n\t//\n\t// The format of connect string resembles the url format of the sqlite client:\n\t//\n\t// - `sqlite::memory:`\n\t// - `sqlite:data.db`\n\t// - `sqlite://data.db`\n\t//\n\t// For more information, please visit <https://docs.rs/sqlx/latest/sqlx/sqlite/struct.SqliteConnectOptions.html>.\n\t// \"connection_string\": \"...\",\n\n\t// Set the table name of the sqlite service to read/write.\n\t// \"table\": \"...\",\n\n\t// Set the key field name of the sqlite service to read/write.\n\t//\n\t// Default to `key` if not specified.\n\t// \"key_field\": \"...\",\n\n\t// Set the value field name of the sqlite service to read/write.\n\t//\n\t// Default to `value` if not specified.\n\t// \"value_field\": \"...\",\n\n\t// set the working directory, all operations will be performed under it.\n\t//\n\t// default: \"/\"\n\t// \"root\": \"...\",\n})"
+        }
+      ]
+    },
+    {
+      "name": "supabase",
+      "scheme": "supabase",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "example-bucket",
+          "comments": "Bucket name."
+        },
+        {
+          "name": "project_ref",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "example": "example-project",
+          "comments": "Supabase project reference. Required unless `endpoint` is set."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "us-west-1",
+          "comments": "Region from the project’s S3 settings, used for signing."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "Explicit HTTP(S) base endpoint. The default is\n`https://<project_ref>.storage.supabase.co/storage/v1/s3`."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Access key ID. Set this field together with `secret_access_key`."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Secret access key. Set this field together with `access_key_id`."
+        },
+        {
+          "name": "session_token",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "User JWT for Supabase session authentication. Requires `access_key_id`\nand `secret_access_key`."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"supabase\", [\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n    (\"project_ref\".to_string(), \"example-project\".to_string()),\n    (\"region\".to_string(), \"us-west-1\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"supabase\", [\n    // --- General ---\n    // Root within the bucket. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // Bucket name.\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n\n    // Supabase project reference. Required unless `endpoint` is set.\n    (\"project_ref\".to_string(), \"example-project\".to_string()),\n\n    // Region from the project’s S3 settings, used for signing.\n    (\"region\".to_string(), \"us-west-1\".to_string()),\n\n    // Explicit HTTP(S) base endpoint. The default is\n    // `https://<project_ref>.storage.supabase.co/storage/v1/s3`.\n    // (\"endpoint\".to_string(), \"...\".to_string()),\n    // --- Credentials ---\n    // Access key ID. Set this field together with `secret_access_key`.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Secret access key. Set this field together with `access_key_id`.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n\n    // User JWT for Supabase session authentication. Requires `access_key_id`\n    // and `secret_access_key`.\n    // (\"session_token\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"example-bucket\");\nconfig.put(\"project_ref\", \"example-project\");\nconfig.put(\"region\", \"us-west-1\");\nOperator operator = Operator.of(\"supabase\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// Bucket name.\nconfig.put(\"bucket\", \"example-bucket\");\n\n// Supabase project reference. Required unless `endpoint` is set.\nconfig.put(\"project_ref\", \"example-project\");\n\n// Region from the project’s S3 settings, used for signing.\nconfig.put(\"region\", \"us-west-1\");\n\n// Explicit HTTP(S) base endpoint. The default is\n// `https://<project_ref>.storage.supabase.co/storage/v1/s3`.\n// config.put(\"endpoint\", \"...\");\n// --- Credentials ---\n// Access key ID. Set this field together with `secret_access_key`.\n// config.put(\"access_key_id\", \"...\");\n\n// Secret access key. Set this field together with `access_key_id`.\n// config.put(\"secret_access_key\", \"...\");\n\n// User JWT for Supabase session authentication. Requires `access_key_id`\n// and `secret_access_key`.\n// config.put(\"session_token\", \"...\");\nOperator operator = Operator.of(\"supabase\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"supabase\",\n    bucket=\"example-bucket\",\n    project_ref=\"example-project\",\n    region=\"us-west-1\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"supabase\",\n    # --- General ---\n    # Root within the bucket. The default is `/`.\n    # root=\"/\",\n\n    # Bucket name.\n    bucket=\"example-bucket\",\n\n    # Supabase project reference. Required unless `endpoint` is set.\n    project_ref=\"example-project\",\n\n    # Region from the project’s S3 settings, used for signing.\n    region=\"us-west-1\",\n\n    # Explicit HTTP(S) base endpoint. The default is\n    # `https://<project_ref>.storage.supabase.co/storage/v1/s3`.\n    # endpoint=\"...\",\n    # --- Credentials ---\n    # Access key ID. Set this field together with `secret_access_key`.\n    # access_key_id=\"...\",\n\n    # Secret access key. Set this field together with `access_key_id`.\n    # secret_access_key=\"...\",\n\n    # User JWT for Supabase session authentication. Requires `access_key_id`\n    # and `secret_access_key`.\n    # session_token=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"supabase\", {\n  bucket: \"example-bucket\",\n  project_ref: \"example-project\",\n  region: \"us-west-1\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"supabase\", {\n  // --- General ---\n  // Root within the bucket. The default is `/`.\n  // root: \"/\",\n\n  // Bucket name.\n  bucket: \"example-bucket\",\n\n  // Supabase project reference. Required unless `endpoint` is set.\n  project_ref: \"example-project\",\n\n  // Region from the project’s S3 settings, used for signing.\n  region: \"us-west-1\",\n\n  // Explicit HTTP(S) base endpoint. The default is\n  // `https://<project_ref>.storage.supabase.co/storage/v1/s3`.\n  // endpoint: \"...\",\n  // --- Credentials ---\n  // Access key ID. Set this field together with `secret_access_key`.\n  // access_key_id: \"...\",\n\n  // Secret access key. Set this field together with `access_key_id`.\n  // secret_access_key: \"...\",\n\n  // User JWT for Supabase session authentication. Requires `access_key_id`\n  // and `secret_access_key`.\n  // session_token: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"supabase\", {\n  \"bucket\" => \"example-bucket\",\n  \"project_ref\" => \"example-project\",\n  \"region\" => \"us-west-1\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"supabase\", {\n  # --- General ---\n  # Root within the bucket. The default is `/`.\n  # \"root\" => \"/\",\n\n  # Bucket name.\n  \"bucket\" => \"example-bucket\",\n\n  # Supabase project reference. Required unless `endpoint` is set.\n  \"project_ref\" => \"example-project\",\n\n  # Region from the project’s S3 settings, used for signing.\n  \"region\" => \"us-west-1\",\n\n  # Explicit HTTP(S) base endpoint. The default is\n  # `https://<project_ref>.storage.supabase.co/storage/v1/s3`.\n  # \"endpoint\" => \"...\",\n  # --- Credentials ---\n  # Access key ID. Set this field together with `secret_access_key`.\n  # \"access_key_id\" => \"...\",\n\n  # Secret access key. Set this field together with `access_key_id`.\n  # \"secret_access_key\" => \"...\",\n\n  # User JWT for Supabase session authentication. Requires `access_key_id`\n  # and `secret_access_key`.\n  # \"session_token\" => \"...\",\n})"
         }
       ]
     },
@@ -5380,6 +6162,109 @@
           "language": "go",
           "minimal": "import (\n\t\"github.com/apache/opendal-go-services/swift\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(swift.Scheme, opendal.OperatorOptions{\n})",
           "full": "import (\n\t\"github.com/apache/opendal-go-services/swift\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(swift.Scheme, opendal.OperatorOptions{\n\t// The endpoint for Swift.\n\t// \"endpoint\": \"...\",\n\n\t// The container for Swift.\n\t// \"container\": \"...\",\n\n\t// The root for Swift.\n\t// \"root\": \"...\",\n\n\t// The token for Swift.\n\t// \"token\": \"...\",\n\n\t// The TempURL key for generating presigned URLs.\n\t//\n\t// This corresponds to the `X-Account-Meta-Temp-URL-Key` or\n\t// `X-Container-Meta-Temp-URL-Key` header value configured on the\n\t// Swift account or container.\n\t// \"temp_url_key\": \"...\",\n\n\t// The hash algorithm for TempURL signing.\n\t//\n\t// Supported values: `sha1`, `sha256`, `sha512`. Defaults to `sha256`.\n\t// The cluster must have the chosen algorithm in its\n\t// `tempurl.allowed_digests` (check `GET /info`).\n\t// \"temp_url_hash_algorithm\": \"...\",\n})"
+        }
+      ]
+    },
+    {
+      "name": "tigris",
+      "scheme": "tigris",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "example-bucket",
+          "comments": "Bucket name."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "auto",
+          "comments": "Signing region."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "https://t3.storage.dev",
+          "comments": "Explicit HTTP(S) base endpoint. The default is `https://t3.storage.dev`."
+        },
+        {
+          "name": "enable_virtual_host_style",
+          "type": "bool",
+          "required": false,
+          "group": "General",
+          "default": "true",
+          "comments": "Use virtual-hosted-style bucket addressing."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Access key ID. Set this field together with `secret_access_key`."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Secret access key. Set this field together with `access_key_id`."
+        },
+        {
+          "name": "session_token",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Session token for temporary credentials. Requires both access keys."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"tigris\", [\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"tigris\", [\n    // --- General ---\n    // Root within the bucket. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // Bucket name.\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n\n    // Signing region.\n    // (\"region\".to_string(), \"auto\".to_string()),\n\n    // Explicit HTTP(S) base endpoint. The default is `https://t3.storage.dev`.\n    // (\"endpoint\".to_string(), \"https://t3.storage.dev\".to_string()),\n\n    // Use virtual-hosted-style bucket addressing.\n    // (\"enable_virtual_host_style\".to_string(), \"true\".to_string()),\n    // --- Credentials ---\n    // Access key ID. Set this field together with `secret_access_key`.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Secret access key. Set this field together with `access_key_id`.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n\n    // Session token for temporary credentials. Requires both access keys.\n    // (\"session_token\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"example-bucket\");\nOperator operator = Operator.of(\"tigris\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// Bucket name.\nconfig.put(\"bucket\", \"example-bucket\");\n\n// Signing region.\n// config.put(\"region\", \"auto\");\n\n// Explicit HTTP(S) base endpoint. The default is `https://t3.storage.dev`.\n// config.put(\"endpoint\", \"https://t3.storage.dev\");\n\n// Use virtual-hosted-style bucket addressing.\n// config.put(\"enable_virtual_host_style\", \"true\");\n// --- Credentials ---\n// Access key ID. Set this field together with `secret_access_key`.\n// config.put(\"access_key_id\", \"...\");\n\n// Secret access key. Set this field together with `access_key_id`.\n// config.put(\"secret_access_key\", \"...\");\n\n// Session token for temporary credentials. Requires both access keys.\n// config.put(\"session_token\", \"...\");\nOperator operator = Operator.of(\"tigris\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"tigris\",\n    bucket=\"example-bucket\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"tigris\",\n    # --- General ---\n    # Root within the bucket. The default is `/`.\n    # root=\"/\",\n\n    # Bucket name.\n    bucket=\"example-bucket\",\n\n    # Signing region.\n    # region=\"auto\",\n\n    # Explicit HTTP(S) base endpoint. The default is `https://t3.storage.dev`.\n    # endpoint=\"https://t3.storage.dev\",\n\n    # Use virtual-hosted-style bucket addressing.\n    # enable_virtual_host_style=\"true\",\n    # --- Credentials ---\n    # Access key ID. Set this field together with `secret_access_key`.\n    # access_key_id=\"...\",\n\n    # Secret access key. Set this field together with `access_key_id`.\n    # secret_access_key=\"...\",\n\n    # Session token for temporary credentials. Requires both access keys.\n    # session_token=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"tigris\", {\n  bucket: \"example-bucket\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"tigris\", {\n  // --- General ---\n  // Root within the bucket. The default is `/`.\n  // root: \"/\",\n\n  // Bucket name.\n  bucket: \"example-bucket\",\n\n  // Signing region.\n  // region: \"auto\",\n\n  // Explicit HTTP(S) base endpoint. The default is `https://t3.storage.dev`.\n  // endpoint: \"https://t3.storage.dev\",\n\n  // Use virtual-hosted-style bucket addressing.\n  // enable_virtual_host_style: \"true\",\n  // --- Credentials ---\n  // Access key ID. Set this field together with `secret_access_key`.\n  // access_key_id: \"...\",\n\n  // Secret access key. Set this field together with `access_key_id`.\n  // secret_access_key: \"...\",\n\n  // Session token for temporary credentials. Requires both access keys.\n  // session_token: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"tigris\", {\n  \"bucket\" => \"example-bucket\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"tigris\", {\n  # --- General ---\n  # Root within the bucket. The default is `/`.\n  # \"root\" => \"/\",\n\n  # Bucket name.\n  \"bucket\" => \"example-bucket\",\n\n  # Signing region.\n  # \"region\" => \"auto\",\n\n  # Explicit HTTP(S) base endpoint. The default is `https://t3.storage.dev`.\n  # \"endpoint\" => \"https://t3.storage.dev\",\n\n  # Use virtual-hosted-style bucket addressing.\n  # \"enable_virtual_host_style\" => \"true\",\n  # --- Credentials ---\n  # Access key ID. Set this field together with `secret_access_key`.\n  # \"access_key_id\" => \"...\",\n\n  # Secret access key. Set this field together with `access_key_id`.\n  # \"secret_access_key\" => \"...\",\n\n  # Session token for temporary credentials. Requires both access keys.\n  # \"session_token\" => \"...\",\n})"
         }
       ]
     },
@@ -5741,6 +6626,108 @@
           "language": "go",
           "minimal": "import (\n\t\"github.com/apache/opendal-go-services/vercel-blob\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(vercel-blob.Scheme, opendal.OperatorOptions{\n})",
           "full": "import (\n\t\"github.com/apache/opendal-go-services/vercel-blob\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(vercel-blob.Scheme, opendal.OperatorOptions{\n\t// root of this backend.\n\t//\n\t// All operations will happen under this root.\n\t// \"root\": \"...\",\n\n\t// vercel blob token.\n\t// \"token\": \"...\",\n})"
+        }
+      ]
+    },
+    {
+      "name": "wasabi",
+      "scheme": "wasabi",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "example-bucket",
+          "comments": "Bucket name."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "eu-west-2",
+          "comments": "Bucket region, used as the signing region."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "Explicit HTTP(S) base endpoint. The default is\nthe published service URL for the bucket region."
+        },
+        {
+          "name": "enable_virtual_host_style",
+          "type": "bool",
+          "required": false,
+          "group": "General",
+          "default": "false",
+          "comments": "Use virtual-hosted-style bucket addressing."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Access key ID. Set this field together with `secret_access_key`."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Secret access key. Set this field together with `access_key_id`."
+        },
+        {
+          "name": "session_token",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Session token for temporary credentials. Requires both access keys."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"wasabi\", [\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n    (\"region\".to_string(), \"eu-west-2\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"wasabi\", [\n    // --- General ---\n    // Root within the bucket. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // Bucket name.\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n\n    // Bucket region, used as the signing region.\n    (\"region\".to_string(), \"eu-west-2\".to_string()),\n\n    // Explicit HTTP(S) base endpoint. The default is\n    // the published service URL for the bucket region.\n    // (\"endpoint\".to_string(), \"...\".to_string()),\n\n    // Use virtual-hosted-style bucket addressing.\n    // (\"enable_virtual_host_style\".to_string(), \"false\".to_string()),\n    // --- Credentials ---\n    // Access key ID. Set this field together with `secret_access_key`.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Secret access key. Set this field together with `access_key_id`.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n\n    // Session token for temporary credentials. Requires both access keys.\n    // (\"session_token\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"example-bucket\");\nconfig.put(\"region\", \"eu-west-2\");\nOperator operator = Operator.of(\"wasabi\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// Bucket name.\nconfig.put(\"bucket\", \"example-bucket\");\n\n// Bucket region, used as the signing region.\nconfig.put(\"region\", \"eu-west-2\");\n\n// Explicit HTTP(S) base endpoint. The default is\n// the published service URL for the bucket region.\n// config.put(\"endpoint\", \"...\");\n\n// Use virtual-hosted-style bucket addressing.\n// config.put(\"enable_virtual_host_style\", \"false\");\n// --- Credentials ---\n// Access key ID. Set this field together with `secret_access_key`.\n// config.put(\"access_key_id\", \"...\");\n\n// Secret access key. Set this field together with `access_key_id`.\n// config.put(\"secret_access_key\", \"...\");\n\n// Session token for temporary credentials. Requires both access keys.\n// config.put(\"session_token\", \"...\");\nOperator operator = Operator.of(\"wasabi\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"wasabi\",\n    bucket=\"example-bucket\",\n    region=\"eu-west-2\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"wasabi\",\n    # --- General ---\n    # Root within the bucket. The default is `/`.\n    # root=\"/\",\n\n    # Bucket name.\n    bucket=\"example-bucket\",\n\n    # Bucket region, used as the signing region.\n    region=\"eu-west-2\",\n\n    # Explicit HTTP(S) base endpoint. The default is\n    # the published service URL for the bucket region.\n    # endpoint=\"...\",\n\n    # Use virtual-hosted-style bucket addressing.\n    # enable_virtual_host_style=\"false\",\n    # --- Credentials ---\n    # Access key ID. Set this field together with `secret_access_key`.\n    # access_key_id=\"...\",\n\n    # Secret access key. Set this field together with `access_key_id`.\n    # secret_access_key=\"...\",\n\n    # Session token for temporary credentials. Requires both access keys.\n    # session_token=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"wasabi\", {\n  bucket: \"example-bucket\",\n  region: \"eu-west-2\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"wasabi\", {\n  // --- General ---\n  // Root within the bucket. The default is `/`.\n  // root: \"/\",\n\n  // Bucket name.\n  bucket: \"example-bucket\",\n\n  // Bucket region, used as the signing region.\n  region: \"eu-west-2\",\n\n  // Explicit HTTP(S) base endpoint. The default is\n  // the published service URL for the bucket region.\n  // endpoint: \"...\",\n\n  // Use virtual-hosted-style bucket addressing.\n  // enable_virtual_host_style: \"false\",\n  // --- Credentials ---\n  // Access key ID. Set this field together with `secret_access_key`.\n  // access_key_id: \"...\",\n\n  // Secret access key. Set this field together with `access_key_id`.\n  // secret_access_key: \"...\",\n\n  // Session token for temporary credentials. Requires both access keys.\n  // session_token: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"wasabi\", {\n  \"bucket\" => \"example-bucket\",\n  \"region\" => \"eu-west-2\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"wasabi\", {\n  # --- General ---\n  # Root within the bucket. The default is `/`.\n  # \"root\" => \"/\",\n\n  # Bucket name.\n  \"bucket\" => \"example-bucket\",\n\n  # Bucket region, used as the signing region.\n  \"region\" => \"eu-west-2\",\n\n  # Explicit HTTP(S) base endpoint. The default is\n  # the published service URL for the bucket region.\n  # \"endpoint\" => \"...\",\n\n  # Use virtual-hosted-style bucket addressing.\n  # \"enable_virtual_host_style\" => \"false\",\n  # --- Credentials ---\n  # Access key ID. Set this field together with `secret_access_key`.\n  # \"access_key_id\" => \"...\",\n\n  # Secret access key. Set this field together with `access_key_id`.\n  # \"secret_access_key\" => \"...\",\n\n  # Session token for temporary credentials. Requires both access keys.\n  # \"session_token\" => \"...\",\n})"
         }
       ]
     },

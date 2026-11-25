@@ -5,6 +5,16 @@ configuration contract:
 
 - Use [`crate::R2`] or the `r2` scheme for Cloudflare R2.
 - Use [`crate::Minio`] or the `minio` scheme for MinIO deployments.
+- Use [`crate::Exoscale`] or the `exoscale` scheme for Exoscale Simple Object Storage.
+- Use [`crate::Hetzner`] or the `hetzner` scheme for Hetzner Object Storage.
+- Use [`crate::Oci`] or the `oci` scheme for Oracle Cloud Infrastructure Object Storage.
+- Use [`crate::Ovhcloud`] or the `ovhcloud` scheme for OVHcloud Object Storage.
+- Use [`crate::Qingstor`] or the `qingstor` scheme for QingStor Object Storage.
+- Use [`crate::Scaleway`] or the `scaleway` scheme for Scaleway Object Storage.
+- Use [`crate::Spaces`] or the `spaces` scheme for DigitalOcean Spaces.
+- Use [`crate::Supabase`] or the `supabase` scheme for Supabase Storage.
+- Use [`crate::Tigris`] or the `tigris` scheme for Tigris.
+- Use [`crate::Wasabi`] or the `wasabi` scheme for Wasabi Object Storage.
 
 The presets own provider defaults and validation. Use this generic [`crate::S3`]
 builder for AWS S3, for compatible services without a built-in preset, or when
@@ -80,59 +90,6 @@ Neon Object Storage has the following capability differences from S3:
 - `copy_with_if_not_exists`, `copy_with_if_match`, `delete_with_if_match`: Neon ignores conditional headers on `CopyObject` and `DeleteObject`. Please override them to `false`.
 - `write_with_if_not_exists`, `write_with_if_match`: Neon checks these conditions for a single `PutObject`, but ignores them on `CompleteMultipartUpload` and doesn't check them atomically across concurrent writers. Please override them to `false` when you rely on them for locking or compare-and-swap.
 
-### Oracle Cloud Infrastructure Object Storage
-
-[Oracle Cloud Infrastructure (OCI) Object Storage](https://www.oracle.com/cloud/storage/object-storage/) provides an Amazon S3 Compatibility API.
-
-To connect with path-style requests, set:
-
-- `endpoint`: The endpoint containing the Object Storage namespace and OCI region, for example: `https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com`.
-- `region`: The OCI region identifier, for example: `us-ashburn-1`.
-- `bucket`: The bucket name.
-- `access_key_id` and `secret_access_key`: The access key and secret key from an OCI Customer Secret Key.
-
-```rust,ignore
-// Accepted endpoint includes "oci.customer-oci.com" and "oraclecloud.com", while "oci.customer-oci.com" is preferred.
-builder.endpoint(
-    "https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com",
-);
-builder.region("<region>");
-builder.bucket("<bucket_name>");
-builder.access_key_id("<access_key>");
-builder.secret_access_key("<secret_key>");
-```
-
-OCI also supports virtual-hosted-style requests. Use the endpoint
-`https://vhcompat.objectstorage.<region>.oci.customer-oci.com` and call
-`enable_virtual_host_style()` when selecting that form.
-
-OCI Object Storage differs from Amazon S3 in the following ways:
-
-- OCI uses an Object Storage namespace instead of Amazon S3's global bucket namespace. Bucket names must be unique within the namespace according to the configured bucket scope.
-- OCI organizes resources in compartments. Buckets created through the S3 Compatibility API use the tenancy's designated compartment, which defaults to the root compartment.
-- OCI encrypts every object at rest and does not allow clients to enable or disable encryption through the API.
-- OCI does not support object-level ACLs. OCI IAM policies control access instead, so S3 object ACL settings such as `default_acl` do not apply.
-- OCI requires AWS Signature Version 4; Signature Version 2 is not supported.
-
-### QingStor Object Storage
-
-[QingStor Object Storage](https://www.qingcloud.com/products/qingstor) is a S3-compatible service provided by [QingCloud](https://www.qingcloud.com/).
-
-To connect to QingStor Object Storage, we need to set:
-
-- `endpoint`: The endpoint of QingStor s3 compatible endpoint, for example: `https://s3.pek3b.qingstor.com`
-- `bucket`: The bucket name.
-
-### Scaleway Object Storage
-
-[Scaleway Object Storage](https://www.scaleway.com/en/object-storage/) is a S3-compatible and multi-AZ redundant object storage service.
-
-To connect to Scaleway Object Storage, we need to set:
-
-- `endpoint`: The endpoint of scaleway, for example: `https://s3.nl-ams.scw.cloud`
-- `region`: The region of scaleway.
-- `bucket`: The bucket name of scaleway.
-
 ### Tencent Cloud Object Storage (COS)
 
 [COS](https://intl.cloud.tencent.com/products/cos) is a s3 compatible service provided by [Tencent Cloud](https://intl.cloud.tencent.com/).
@@ -141,43 +98,6 @@ To connect to COS, we need to set:
 
 - `endpoint`: The endpoint of cos, for example: `https://cos.ap-beijing.myqcloud.com`
 - `bucket`: The bucket name of cos.
-
-### Tigris
-
-[Tigris](https://www.tigrisdata.com/) is a globally distributed S3-compatible object storage service.
-
-> Tigris serves data from the region nearest to the requester through a single global endpoint, and charges no egress fees.
-
-To connect to Tigris, we need to set:
-
-- `endpoint`: The endpoint of Tigris: `https://t3.storage.dev`
-- `region`: The region of Tigris. Please set it to `auto`.
-- `bucket`: The bucket name of Tigris.
-
-Credentials are standard S3 access keys, provided via `access_key_id`/`secret_access_key` or the `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` environment variables. See [Tigris S3 SDK docs](https://www.tigrisdata.com/docs/sdks/s3/) for details.
-
-```rust,ignore
-builder.endpoint("https://t3.storage.dev");
-builder.region("auto");
-builder.bucket("<bucket_name>");
-```
-
-> `https://fly.storage.tigris.dev` is a legacy endpoint that still works, but `https://t3.storage.dev` is the current one.
-
-Tigris buckets support zero-copy [snapshots and forks](https://www.tigrisdata.com/docs/snapshots-and-forks/). A forked bucket is a regular bucket, so it can be read and written through OpenDAL like any other — useful for testing against production data without copying it.
-
-### Wasabi Object Storage
-
-[Wasabi](https://wasabi.com/) is a s3 compatible service.
-
-> Cloud storage pricing that is 80% less than Amazon S3.
-
-To connect to wasabi, we need to set:
-
-- `endpoint`: The endpoint of wasabi, for example: `https://s3.us-east-2.wasabisys.com`
-- `bucket`: The bucket name of wasabi.
-
-> Refer to [What are the service URLs for Wasabi's different storage regions?](https://wasabi-support.zendesk.com/hc/en-us/articles/360015106031) for more details.
 
 ### Google Cloud Storage XML API
 [Google Cloud Storage XML API](https://cloud.google.com/storage/docs/xml-api/overview) provides s3 compatible API.

@@ -1055,6 +1055,71 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service exoscale.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Exoscale implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style bucket addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is <code>https://sos-&lt;zone&gt;.exo.io</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>Bucket zone, used as the signing region.</p>
+         */
+        public final @NonNull String zone;
+
+        @Override
+        public String scheme() {
+            return "exoscale";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            map.put("zone", zone);
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service foyer.
      */
     @Builder
@@ -1762,6 +1827,80 @@ public interface ServiceConfig {
             }
             if (root != null) {
                 map.put("root", root);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service hetzner.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Hetzner implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style bucket addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is <code>https://&lt;location&gt;.your-objectstorage.com</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Bucket location. Required unless <code>endpoint</code> is set.</p>
+         */
+        public final String location;
+        /**
+         * <p>Signing region. Defaults to <code>location</code>.</p>
+         */
+        public final String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "hetzner";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (location != null) {
+                map.put("location", location);
+            }
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
             }
             return map;
         }
@@ -2647,6 +2786,72 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service oci.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Oci implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is
+         * <code>https://&lt;namespace&gt;.compat.objectstorage.&lt;region&gt;.oci.customer-oci.com</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Object Storage namespace. Required unless <code>endpoint</code> is set.</p>
+         */
+        public final String namespace;
+        /**
+         * <p>Bucket region, used as the signing region.</p>
+         */
+        public final @NonNull String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "oci";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (namespace != null) {
+                map.put("namespace", namespace);
+            }
+            map.put("region", region);
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service onedrive.
      */
     @Builder
@@ -2960,6 +3165,71 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service ovhcloud.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Ovhcloud implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style bucket addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is <code>https://s3.&lt;region&gt;.io.cloud.ovh.net</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Bucket region, used as the signing region.</p>
+         */
+        public final @NonNull String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "ovhcloud";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            map.put("region", region);
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service pcloud.
      */
     @Builder
@@ -3107,6 +3377,71 @@ public interface ServiceConfig {
             if (valueField != null) {
                 map.put("value_field", valueField);
             }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service qingstor.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Qingstor implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style bucket addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is <code>https://s3.&lt;zone&gt;.qsstor.com</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>Bucket zone, used as the signing region.</p>
+         */
+        public final @NonNull String zone;
+
+        @Override
+        public String scheme() {
+            return "qingstor";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            map.put("zone", zone);
             return map;
         }
     }
@@ -3765,6 +4100,71 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service scaleway.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Scaleway implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style bucket addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is <code>https://s3.&lt;region&gt;.scw.cloud</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Bucket region, used as the signing region.</p>
+         */
+        public final @NonNull String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "scaleway";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            map.put("region", region);
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service seafile.
      */
     @Builder
@@ -3948,6 +4348,81 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service spaces.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Spaces implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Spaces datacenter slug. Required unless <code>endpoint</code> is set.</p>
+         */
+        public final String datacenter;
+        /**
+         * <p>Use virtual-hosted-style bucket addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is
+         * <code>https://&lt;datacenter&gt;.digitaloceanspaces.com</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Signing region, independent of the Spaces datacenter.</p>
+         */
+        public final String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "spaces";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (datacenter != null) {
+                map.put("datacenter", datacenter);
+            }
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service sqlite.
      */
     @Builder
@@ -4008,6 +4483,80 @@ public interface ServiceConfig {
             }
             if (valueField != null) {
                 map.put("value_field", valueField);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service supabase.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Supabase implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is
+         * <code>https://&lt;project_ref&gt;.storage.supabase.co/storage/v1/s3</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Supabase project reference. Required unless <code>endpoint</code> is set.</p>
+         */
+        public final String projectRef;
+        /**
+         * <p>Region from the project’s S3 settings, used for signing.</p>
+         */
+        public final @NonNull String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>User JWT for Supabase session authentication. Requires <code>access_key_id</code>
+         * and <code>secret_access_key</code>.</p>
+         */
+        public final String sessionToken;
+
+        @Override
+        public String scheme() {
+            return "supabase";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (projectRef != null) {
+                map.put("project_ref", projectRef);
+            }
+            map.put("region", region);
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            if (sessionToken != null) {
+                map.put("session_token", sessionToken);
             }
             return map;
         }
@@ -4159,6 +4708,80 @@ public interface ServiceConfig {
             }
             if (token != null) {
                 map.put("token", token);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service tigris.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Tigris implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style bucket addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is <code>https://t3.storage.dev</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Signing region.</p>
+         */
+        public final String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>Session token for temporary credentials. Requires both access keys.</p>
+         */
+        public final String sessionToken;
+
+        @Override
+        public String scheme() {
+            return "tigris";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            if (sessionToken != null) {
+                map.put("session_token", sessionToken);
             }
             return map;
         }
@@ -4404,6 +5027,79 @@ public interface ServiceConfig {
             }
             if (token != null) {
                 map.put("token", token);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service wasabi.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Wasabi implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style bucket addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is
+         * the published service URL for the bucket region.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Bucket region, used as the signing region.</p>
+         */
+        public final @NonNull String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>Session token for temporary credentials. Requires both access keys.</p>
+         */
+        public final String sessionToken;
+
+        @Override
+        public String scheme() {
+            return "wasabi";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            map.put("region", region);
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            if (sessionToken != null) {
+                map.put("session_token", sessionToken);
             }
             return map;
         }

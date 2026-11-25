@@ -950,7 +950,23 @@ impl S3Builder {
         self.build_inner(scheme)
     }
 
+    pub(crate) fn build_with_resolved_endpoint(
+        self,
+        scheme: &'static str,
+        endpoint: String,
+    ) -> Result<S3Backend> {
+        self.build_backend(scheme, Some(endpoint))
+    }
+
     fn build_inner(self, scheme: &'static str) -> Result<S3Backend> {
+        self.build_backend(scheme, None)
+    }
+
+    fn build_backend(
+        self,
+        scheme: &'static str,
+        resolved_endpoint: Option<String>,
+    ) -> Result<S3Backend> {
         debug!("backend build started: {:?}", self);
 
         let S3Builder {
@@ -1055,25 +1071,28 @@ impl S3Builder {
         };
         debug!("backend use region: {region}");
 
-        if config.endpoint.is_none() && !config.disable_config_load {
-            let endpoint_from_env = std::env::var("AWS_ENDPOINT_URL")
-                .or_else(|_| std::env::var("AWS_ENDPOINT"))
-                .or_else(|_| std::env::var("AWS_S3_ENDPOINT"))
-                .ok();
-            if let Some(endpoint) = endpoint_from_env {
-                let normalized = endpoint.trim_end_matches('/').to_string();
-                config.endpoint = Some(normalized);
+        let (endpoint, s3_express_config) = if let Some(endpoint) = resolved_endpoint {
+            (endpoint, None)
+        } else {
+            if config.endpoint.is_none() && !config.disable_config_load {
+                let endpoint_from_env = std::env::var("AWS_ENDPOINT_URL")
+                    .or_else(|_| std::env::var("AWS_ENDPOINT"))
+                    .or_else(|_| std::env::var("AWS_S3_ENDPOINT"))
+                    .ok();
+                if let Some(endpoint) = endpoint_from_env {
+                    let normalized = endpoint.trim_end_matches('/').to_string();
+                    config.endpoint = Some(normalized);
+                }
             }
-        }
 
-        let s3_express_config = Self::resolve_s3_express_config(&config, &region)?;
-        let is_s3_express = s3_express_config.is_some();
-
-        // Building endpoint.
-        let endpoint = match &s3_express_config {
-            Some(config) => config.endpoint().to_string(),
-            None => Self::build_endpoint(&config, &region),
+            let s3_express_config = Self::resolve_s3_express_config(&config, &region)?;
+            let endpoint = match &s3_express_config {
+                Some(config) => config.endpoint().to_string(),
+                None => Self::build_endpoint(&config, &region),
+            };
+            (endpoint, s3_express_config)
         };
+        let is_s3_express = s3_express_config.is_some();
         debug!("backend use endpoint: {endpoint}");
 
         // The base signer context carries local config readers and command

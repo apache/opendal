@@ -205,7 +205,9 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
             let enabled = match support {
                 // Go needs a published opendal-go-services package for each scheme.
                 None if binding.id == "go" => {
-                    !matches!(scheme.as_str(), "hf3fs" | "minio" | "r2" | "smb")
+                    let s3_preset = scheme != "s3"
+                        && service.source_dir == workspace_dir.join("core/services/s3/src");
+                    !s3_preset && !matches!(scheme.as_str(), "hf3fs" | "smb")
                 }
                 None => true,
                 Some(set) => set.contains(&scheme),

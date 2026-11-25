@@ -694,7 +694,7 @@ impl Service for OssBackend {
     type Writer = OssWriters;
     type Lister = OssListers;
     type Deleter = oio::BatchDeleter<OssDeleter>;
-    type Copier = TwoWays<oio::OneShotCopier, oio::MultipartCopier<OssCopier>>;
+    type Copier = OssCopier;
     type Composer = ();
 
     fn info(&self) -> ServiceInfo {
@@ -808,25 +808,17 @@ impl Service for OssBackend {
         to: &str,
         args: OpCopy,
     ) -> Result<Self::Copier> {
-        let chunk = args.chunk();
-        let part_size = chunk
-            .unwrap_or(MAX_MULTIPART_PART_SIZE)
-            .clamp(MIN_MULTIPART_PART_SIZE, MAX_MULTIPART_PART_SIZE) as u64;
-        let source_size_hint = args.source_content_length_hint();
-        let concurrent = args.concurrent();
-        let copier = OssCopier::new(self.core.clone(), ctx.clone(), from, to, args, part_size);
-        if chunk.is_none() {
-            return Ok(TwoWays::One(copier.into_one_shot()));
-        }
-        Ok(TwoWays::Two(oio::MultipartCopier::new(
-            ctx.executor().clone(),
-            self.core.capability,
-            copier,
-            source_size_hint,
-            part_size - 1,
+        let part_size = args
+            .chunk()
+            .map(|chunk| chunk.clamp(MIN_MULTIPART_PART_SIZE, MAX_MULTIPART_PART_SIZE) as u64);
+        Ok(OssCopier::new(
+            self.core.clone(),
+            ctx.clone(),
+            from,
+            to,
+            args,
             part_size,
-            concurrent,
-        )))
+        ))
     }
 
     async fn rename(

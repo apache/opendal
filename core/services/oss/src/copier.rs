@@ -16,7 +16,6 @@
 // under the License.
 
 use std::sync::Arc;
-use std::sync::OnceLock;
 
 use bytes::Buf;
 use http::HeaderMap;
@@ -40,14 +39,31 @@ struct CopyResult {
     etag: String,
 }
 
-pub struct OssCopier {
+pub struct OssCopier(CopyState);
+
+enum CopyState {
+    Pending {
+        request: CopyRequest,
+        args: OpCopy,
+        part_size: u64,
+    },
+    OneShot(oio::OneShotCopier),
+    Multipart(Box<oio::MultipartCopier<OssMultipartCopy>>),
+    Aborted,
+}
+
+#[derive(Clone)]
+struct CopyRequest {
     core: Arc<OssCore>,
     ctx: OperationContext,
     from: String,
     to: String,
-    args: OpCopy,
-    part_size: u64,
-    source: OnceLock<CopySource>,
+}
+
+struct OssMultipartCopy {
+    request: CopyRequest,
+    source: CopySource,
+    tags: String,
 }
 
 impl OssCopier {
@@ -57,37 +73,152 @@ impl OssCopier {
         from: &str,
         to: &str,
         args: OpCopy,
-        part_size: u64,
+        part_size: Option<u64>,
     ) -> Self {
-        Self {
+        let request = CopyRequest {
             core,
             ctx,
             from: from.to_string(),
             to: to.to_string(),
-            args,
-            part_size,
-            source: OnceLock::new(),
+        };
+        let size_hint = args.source_content_length_hint();
+        if let Some(part_size) = part_size.filter(|&part| size_hint.is_none_or(|size| size >= part))
+        {
+            Self(CopyState::Pending {
+                request,
+                args,
+                part_size,
+            })
+        } else {
+            Self(CopyState::OneShot(request.one_shot(args, size_hint)))
         }
     }
 
-    pub fn into_one_shot(self) -> oio::OneShotCopier {
+    async fn start(&mut self) -> Result<()> {
+        let CopyState::Pending {
+            request,
+            args,
+            part_size,
+        } = &self.0
+        else {
+            return Ok(());
+        };
+        let source = request.source(args).await?;
+        let size = source.metadata.content_length();
+        if args
+            .source_content_length_hint()
+            .is_some_and(|hint| hint != size)
+        {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "OSS multipart copy source length does not match the supplied hint",
+            ));
+        }
+        if size < *part_size {
+            self.0 = CopyState::OneShot(request.clone().one_shot(args.clone(), Some(size)));
+            return Ok(());
+        }
+        if source.metadata.etag().is_none_or(str::is_empty) {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "OSS multipart copy requires a source ETag",
+            ));
+        }
+        if size.div_ceil(*part_size) > MAX_PARTS {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "OSS multipart copy exceeds 10,000 parts, please increase `OpCopy::chunk`",
+            ));
+        }
+
+        // OSS omits the tag count for untagged objects and callers without tag-read access.
+        let tags = if source
+            .headers
+            .get(constants::X_OSS_TAGGING_COUNT)
+            .is_some_and(|count| count == "0")
+        {
+            String::new()
+        } else {
+            match request
+                .core
+                .oss_get_copy_tags(&request.ctx, &request.from)
+                .await
+            {
+                Ok(tags) => tags,
+                Err(err) if err.kind() == ErrorKind::PermissionDenied => {
+                    // Let native CopyObject handle tags and authorization when we cannot read tags.
+                    self.0 = CopyState::OneShot(request.clone().one_shot(args.clone(), Some(size)));
+                    return Ok(());
+                }
+                Err(err) => return Err(err),
+            }
+        };
+        self.0 = CopyState::Multipart(Box::new(oio::MultipartCopier::new(
+            request.ctx.executor().clone(),
+            request.core.capability,
+            OssMultipartCopy {
+                request: request.clone(),
+                source,
+                tags,
+            },
+            Some(size),
+            part_size - 1,
+            *part_size,
+            args.concurrent(),
+        )));
+        Ok(())
+    }
+}
+
+impl oio::Copy for OssCopier {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        self.start().await?;
+        match &mut self.0 {
+            CopyState::Pending { .. } => unreachable!("copy starts before advancing"),
+            CopyState::OneShot(copier) => copier.next().await,
+            CopyState::Multipart(copier) => copier.next().await,
+            CopyState::Aborted => Ok(None),
+        }
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.start().await?;
+        match &mut self.0 {
+            CopyState::Pending { .. } => unreachable!("copy starts before closing"),
+            CopyState::OneShot(copier) => copier.close().await,
+            CopyState::Multipart(copier) => copier.close().await,
+            CopyState::Aborted => Err(Error::new(ErrorKind::Unexpected, "OSS copy was aborted")),
+        }
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        match &mut self.0 {
+            CopyState::Pending { .. } => {
+                self.0 = CopyState::Aborted;
+                Ok(())
+            }
+            CopyState::OneShot(copier) => copier.abort().await,
+            CopyState::Multipart(copier) => copier.abort().await,
+            CopyState::Aborted => Ok(()),
+        }
+    }
+}
+
+impl CopyRequest {
+    fn one_shot(self, args: OpCopy, size: Option<u64>) -> oio::OneShotCopier {
         oio::OneShotCopier::new(async move {
-            let size = match self.args.source_content_length_hint() {
+            let size = match size {
                 Some(size) => size,
-                None => self.source().await?.metadata.content_length(),
+                None => self.source(&args).await?.metadata.content_length(),
             };
-            oio::MultipartCopy::copy_once(&self).await?;
+            self.copy_once().await?;
             Ok(MetadataBuilder::file(size).build())
         })
     }
 
-    async fn source(&self) -> Result<&CopySource> {
-        if let Some(source) = self.source.get() {
-            return Ok(source);
-        }
-
+    async fn source(&self, args: &OpCopy) -> Result<CopySource> {
         let args = options::StatOptions {
-            version: self.args.source_version().map(str::to_owned),
+            version: args.source_version().map(str::to_owned),
             ..Default::default()
         }
         .into();
@@ -101,65 +232,44 @@ impl OssCopier {
                 resp,
             ));
         }
-
         let (parts, _) = resp.into_parts();
         let metadata = parse_into_metadata(&self.from, &parts.headers)?;
-        Ok(self.source.get_or_init(|| CopySource {
+        Ok(CopySource {
             metadata,
             headers: parts.headers,
-        }))
-    }
-}
-
-impl oio::MultipartCopy for OssCopier {
-    async fn source_metadata(&self) -> Result<Metadata> {
-        Ok(self.source().await?.metadata.clone())
+        })
     }
 
-    async fn copy_once(&self) -> Result<Metadata> {
+    async fn copy_once(&self) -> Result<()> {
         let resp = self
             .core
             .oss_copy_object(&self.ctx, &self.from, &self.to)
             .await?;
         match resp.status() {
-            StatusCode::OK => Ok(MetadataBuilder::unknown().build()),
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("CopyObject")),
                 resp,
             )),
         }
     }
+}
+
+impl oio::MultipartCopy for OssMultipartCopy {
+    async fn source_metadata(&self) -> Result<Metadata> {
+        Ok(self.source.metadata.clone())
+    }
+
+    async fn copy_once(&self) -> Result<Metadata> {
+        self.request.copy_once().await?;
+        Ok(MetadataBuilder::file(self.source.metadata.content_length()).build())
+    }
 
     async fn initiate_copy(&self) -> Result<String> {
-        // Read an ETag even with a length hint so all parts use the same source identity.
-        let source = self.source().await?;
-        let size = source.metadata.content_length();
-        if self
-            .args
-            .source_content_length_hint()
-            .is_some_and(|hint| hint != size)
-        {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "OSS multipart copy source length does not match the supplied hint",
-            ));
-        }
-        if source.metadata.etag().is_none_or(str::is_empty) {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "OSS multipart copy requires a source ETag",
-            ));
-        }
-        if size.div_ceil(self.part_size) > MAX_PARTS {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "OSS multipart copy exceeds 10,000 parts, please increase `OpCopy::chunk`",
-            ));
-        }
-
-        let resp = self
+        let request = &self.request;
+        let resp = request
             .core
-            .oss_initiate_copy(&self.ctx, &self.to, &source.headers)
+            .oss_initiate_copy(&request.ctx, &request.to, &self.source.headers, &self.tags)
             .await?;
         match resp.status() {
             StatusCode::OK => {
@@ -183,16 +293,17 @@ impl oio::MultipartCopy for OssCopier {
     ) -> Result<oio::MultipartPart> {
         let etag = self
             .source
-            .get()
-            .and_then(|source| source.metadata.etag())
-            .expect("initiate_copy requires a source ETag");
+            .metadata
+            .etag()
+            .expect("multipart copy requires a source ETag");
         let part_number = part_number + 1;
-        let resp = self
+        let request = &self.request;
+        let resp = request
             .core
             .oss_upload_part_copy(
-                &self.ctx,
-                &self.from,
-                &self.to,
+                &request.ctx,
+                &request.from,
+                &request.to,
                 upload_id,
                 part_number,
                 range,
@@ -238,11 +349,12 @@ impl oio::MultipartCopy for OssCopier {
                 etag: part.etag.clone(),
             })
             .collect();
-        let resp = self
+        let request = &self.request;
+        let resp = request
             .core
             .oss_complete_multipart_upload_request(
-                &self.ctx,
-                &self.to,
+                &request.ctx,
+                &request.to,
                 upload_id,
                 false,
                 parts,
@@ -272,9 +384,10 @@ impl oio::MultipartCopy for OssCopier {
     }
 
     async fn abort_copy(&self, upload_id: &str) -> Result<()> {
-        let resp = self
+        let request = &self.request;
+        let resp = request
             .core
-            .oss_abort_multipart_upload(&self.ctx, &self.to, upload_id)
+            .oss_abort_multipart_upload(&request.ctx, &request.to, upload_id)
             .await?;
         if resp.status() == StatusCode::NO_CONTENT {
             return Ok(());

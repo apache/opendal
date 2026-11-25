@@ -8711,6 +8711,7 @@ dependencies = [
  "http 1.5.0",
  "log",
  "opendal-core",
+ "percent-encoding",
  "pretty_assertions",
  "quick-xml",
  "reqsign-aliyun-oss",

@@ -28,6 +28,7 @@ use http::Response;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
+use http::header::CONTENT_LANGUAGE;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::EXPIRES;
@@ -36,6 +37,8 @@ use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use http::header::RANGE;
+use percent_encoding::NON_ALPHANUMERIC;
+use percent_encoding::utf8_percent_encode;
 use reqsign_aliyun_oss::{Credential, RequestSigner};
 use reqsign_core::{Context, ProvideCredentialDyn, Signer};
 use serde::Deserialize;
@@ -59,6 +62,10 @@ pub mod constants {
     pub const OSS_QUERY_VERSION_ID: &str = "versionId";
 
     pub const X_OSS_META_PREFIX: &str = "x-oss-meta-";
+
+    pub const X_OSS_TAGGING: &str = "x-oss-tagging";
+
+    pub const X_OSS_TAGGING_COUNT: &str = "x-oss-tagging-count";
 }
 
 pub struct OssCore {
@@ -713,22 +720,62 @@ impl OssCore {
         self.send(ctx, req).await
     }
 
+    pub async fn oss_get_copy_tags(&self, ctx: &OperationContext, path: &str) -> Result<String> {
+        let path = build_absolute_path(&self.root, path);
+        let url = format!("{}/{}?tagging", self.endpoint, percent_encode_path(&path));
+        let req = Request::get(url)
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("GetObjectTagging"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        let req = self.sign(ctx, req).await?;
+        let resp = self.send(ctx, req).await?;
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetObjectTagging")),
+                resp,
+            ));
+        }
+        let result: ObjectTagging = quick_xml::de::from_reader(resp.into_body().reader())
+            .map_err(new_xml_deserialize_error)?;
+        Ok(result
+            .tag_set
+            .tags
+            .iter()
+            .map(|tag| {
+                let key = utf8_percent_encode(&tag.key, NON_ALPHANUMERIC);
+                let value = utf8_percent_encode(&tag.value, NON_ALPHANUMERIC);
+                format!("{key}={value}")
+            })
+            .collect::<Vec<_>>()
+            .join("&"))
+    }
+
     pub async fn oss_initiate_copy(
         &self,
         ctx: &OperationContext,
         path: &str,
         source_headers: &HeaderMap,
+        tags: &str,
     ) -> Result<Response<Buffer>> {
         let mut req = self.initiate_upload_request(path, false);
         // UploadPartCopy copies bytes. Set the source's object metadata on initiation.
         for (name, value) in source_headers {
             if matches!(
                 *name,
-                CACHE_CONTROL | CONTENT_DISPOSITION | CONTENT_ENCODING | CONTENT_TYPE | EXPIRES
+                CACHE_CONTROL
+                    | CONTENT_DISPOSITION
+                    | CONTENT_ENCODING
+                    | CONTENT_LANGUAGE
+                    | CONTENT_TYPE
+                    | EXPIRES
             ) || name.as_str().starts_with(X_OSS_META_PREFIX)
             {
                 req = req.header(name, value);
             }
+        }
+        if !tags.is_empty() {
+            req = req.header(constants::X_OSS_TAGGING, tags);
         }
         let req = req
             .extension(Operation::Copy)
@@ -879,6 +926,25 @@ impl OssCore {
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct ObjectTagging {
+    tag_set: ObjectTagSet,
+}
+
+#[derive(Deserialize)]
+struct ObjectTagSet {
+    #[serde(default, rename = "Tag")]
+    tags: Vec<ObjectTag>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct ObjectTag {
+    key: String,
+    value: String,
 }
 
 /// Request of DeleteObjects.

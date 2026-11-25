@@ -42,9 +42,19 @@ impl Configurator for RocksdbConfig {
 
         if let Some(path) = uri.root()
             && !path.is_empty()
+            && !map.contains_key("datadir")
         {
-            map.entry("datadir".to_string())
-                .or_insert_with(|| format!("/{path}"));
+            if let Some(host) = uri.name()
+                && !host.eq_ignore_ascii_case("localhost")
+            {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "rocksdb uri must not contain a host, use rocksdb:///path",
+                )
+                .with_context("host", host));
+            }
+
+            map.insert("datadir".to_string(), format!("/{path}"));
         }
 
         Self::from_iter(map)
@@ -61,14 +71,39 @@ mod tests {
 
     #[test]
     fn from_uri_sets_datadir_and_root() -> Result<()> {
-        let uri = OperatorUri::new(
+        for base in [
             "rocksdb:///var/db?root=namespace",
-            Vec::<(String, String)>::new(),
-        )?;
+            "rocksdb://LOCALHOST/var/db?root=namespace",
+        ] {
+            let uri = OperatorUri::new(base, [])?;
+            let cfg = RocksdbConfig::from_uri(&uri)?;
+            assert_eq!(cfg.datadir.as_deref(), Some("/var/db"));
+            assert_eq!(cfg.root.as_deref(), Some("namespace"));
+        }
+        Ok(())
+    }
 
-        let cfg = RocksdbConfig::from_uri(&uri)?;
-        assert_eq!(cfg.datadir.as_deref(), Some("/var/db"));
-        assert_eq!(cfg.root.as_deref(), Some("namespace"));
+    #[test]
+    fn from_uri_rejects_host_when_using_uri_path() -> Result<()> {
+        let uri = OperatorUri::new("rocksdb://remote.example/var/db?root=namespace", [])?;
+        let err = RocksdbConfig::from_uri(&uri).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        Ok(())
+    }
+
+    #[test]
+    fn from_uri_preserves_explicit_datadir() -> Result<()> {
+        for (base, expected) in [
+            (
+                "rocksdb://remote.example/var/db?datadir=/explicit",
+                Some("/explicit"),
+            ),
+            ("rocksdb://remote.example/var/db?datadir=", None),
+        ] {
+            let uri = OperatorUri::new(base, [])?;
+            let cfg = RocksdbConfig::from_uri(&uri)?;
+            assert_eq!(cfg.datadir.as_deref(), expected);
+        }
         Ok(())
     }
 }

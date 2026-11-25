@@ -141,6 +141,8 @@ public class OperatorOutputStream extends OutputStream {
                         recordFailure(t);
                         OperatorOutputStream.<RuntimeException>sneakyThrow(t);
                     }
+                    // A flush override may close or abort this stream before returning.
+                    ensureOpen();
                 }
             }
             off += count;

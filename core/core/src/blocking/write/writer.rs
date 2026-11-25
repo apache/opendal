@@ -79,8 +79,7 @@ impl Writer {
     /// Cleanup depends on the backend. In particular, abort cannot guarantee
     /// that already visible data is removed or that a previous object is restored.
     /// Backend cleanup errors are returned and abort can be retried. Once abort
-    /// starts, writes and close return [`ErrorKind::Unexpected`]. Calling abort
-    /// after a successful close or abort also returns [`ErrorKind::Unexpected`].
+    /// starts, writes and close return [`ErrorKind::Unexpected`].
     ///
     /// This has the same semantics as [`crate::Writer::abort`].
     pub fn abort(&mut self) -> Result<()> {

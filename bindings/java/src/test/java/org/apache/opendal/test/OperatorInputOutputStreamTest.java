@@ -544,6 +544,25 @@ public class OperatorInputOutputStreamTest {
     }
 
     @Test
+    void testBulkWriteStopsWhenFlushAbortsStream() throws Exception {
+        final String path = "abort-during-flush";
+        try (final Operator op = Operator.of(ServiceConfig.Memory.builder().build())) {
+            try (final OperatorOutputStream out =
+                    new OperatorOutputStream(op, path, 8, WriteOptions.builder().build()) {
+                        @Override
+                        public synchronized void flush() {
+                            super.flush();
+                            abort();
+                        }
+                    }) {
+                out.write(1);
+                assertThatThrownBy(() -> out.write(new byte[8])).isInstanceOf(IllegalStateException.class);
+            }
+            assertNotExist(op, path);
+        }
+    }
+
+    @Test
     void testOutputStreamAbortFailureStillClosesStream() throws Exception {
         final ServiceConfig.Fs fs =
                 ServiceConfig.Fs.builder().root(tempDir.toString()).build();

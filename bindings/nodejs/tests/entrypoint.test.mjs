@@ -143,10 +143,8 @@ describe('entrypoint exports parity', () => {
         assert.deepEqual(op.readSync('cjs-sync.bin'), expected)
 
         // Destroying a stream leaves the writer uncommitted.
-        for (const ws of [
-          (await op.writer('cjs-abort-async.bin')).createWriteStream(),
-          op.writerSync('cjs-abort-sync.bin').createWriteStream(),
-        ]) {
+        const abortedWriter = await op.writer('cjs-abort-async.bin')
+        for (const ws of [abortedWriter.createWriteStream(), op.writerSync('cjs-abort-sync.bin').createWriteStream()]) {
           const wsClosed = once(ws, 'close')
           ws.destroy()
           await wsClosed
@@ -154,6 +152,7 @@ describe('entrypoint exports parity', () => {
         }
         assert.equal(await op.exists('cjs-abort-async.bin'), false)
         assert.equal(op.existsSync('cjs-abort-sync.bin'), false)
+        await assert.rejects(abortedWriter.close(), /writer has been closed or aborted/)
       })().catch((err) => {
         console.error(err)
         process.exit(1)

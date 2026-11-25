@@ -1357,6 +1357,16 @@ impl Writer {
         let mut inner = self.inner.lock().await;
         inner.close().await.map(|_| ()).map_err(format_napi_error)
     }
+
+    /// Abort an unfinished write and release resources held by the service.
+    ///
+    /// A successful abort ends the writer. Services that write directly to the
+    /// destination may leave partial data.
+    #[napi]
+    pub async fn abort(&self) -> Result<()> {
+        let mut inner = self.inner.lock().await;
+        inner.abort().await.map_err(format_napi_error)
+    }
 }
 
 /// Lister is designed to list entries at a given path in an asynchronous

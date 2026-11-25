@@ -35,7 +35,11 @@ declare module './generated' {
   }
 
   interface Writer {
-    /** Create a writable stream from the underlying writer. */
+    /**
+     * Create a writable stream that commits the write on successful completion.
+     * Destroying an unfinished stream waits for pending I/O and attempts to abort the writer.
+     * Cleanup depends on the service. If the stream already has an error, it reports that error.
+     */
     createWriteStream(options?: WritableOptions): Writable
   }
 }

@@ -73,6 +73,24 @@ impl Writer {
         self.handle.block_on(inner.write(bs))
     }
 
+    /// Abort the writer, discarding buffered data and asking the backend to
+    /// clean up the unfinished write.
+    ///
+    /// Cleanup depends on the backend. In particular, abort cannot guarantee
+    /// that already visible data is removed or that a previous object is restored.
+    /// Backend cleanup errors are returned and abort can be retried. Once abort
+    /// starts, writes and close return [`ErrorKind::Unexpected`]. Calling abort
+    /// after a successful close or abort also returns [`ErrorKind::Unexpected`].
+    ///
+    /// This has the same semantics as [`crate::Writer::abort`].
+    pub fn abort(&mut self) -> Result<()> {
+        let Some(inner) = self.inner.as_mut() else {
+            return Err(Error::new(ErrorKind::Unexpected, "writer has been dropped"));
+        };
+
+        self.handle.block_on(inner.abort())
+    }
+
     /// Close the writer and make sure all data have been committed.
     ///
     /// ## Notes
@@ -105,5 +123,41 @@ impl Drop for Writer {
         if let Some(v) = self.inner.take() {
             self.handle.block_on(async move { drop(v) });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_writer_abort_discards_uncommitted_data() -> Result<()> {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let op = {
+            let _guard = runtime.enter();
+            let op = Operator::new(services::Memory::default())?;
+            blocking::Operator::new(op)?
+        };
+        let path = "target";
+        op.write(path, "original")?;
+        let mut writer = op.writer_options(
+            path,
+            options::WriteOptions {
+                chunk: Some(8),
+                ..Default::default()
+            },
+        )?;
+        writer.write("unfinished write")?;
+
+        writer.abort()?;
+
+        assert_eq!(writer.write("x").unwrap_err().kind(), ErrorKind::Unexpected);
+        assert_eq!(writer.close().unwrap_err().kind(), ErrorKind::Unexpected);
+        assert_eq!(writer.abort().unwrap_err().kind(), ErrorKind::Unexpected);
+        assert_eq!(op.read(path)?.to_vec(), b"original");
+        Ok(())
     }
 }

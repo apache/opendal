@@ -159,8 +159,8 @@ pub struct WriteState {
     can_copy_from: bool,
     /// Whether a logical write stopped after the inner writer accepted part of its input.
     requires_abort: bool,
-    /// Whether abort discarded local data but the underlying cleanup is still pending.
-    abort_pending: bool,
+    /// Abort discards buffered data immediately and permanently disables writes and close.
+    abort_started: bool,
     /// A source copy that stopped after accepting part of its range.
     pending_copy: Option<Box<PendingCopy>>,
     buffer: oio::QueueBuf,
@@ -180,7 +180,7 @@ impl WriteState {
             exact,
             can_copy_from,
             requires_abort: false,
-            abort_pending: false,
+            abort_started: false,
             pending_copy: None,
             buffer: oio::QueueBuf::new(),
         })
@@ -196,7 +196,7 @@ impl WriteState {
             exact,
             can_copy_from: false,
             requires_abort: false,
-            abort_pending: false,
+            abort_started: false,
             pending_copy: None,
             buffer: oio::QueueBuf::new(),
         }
@@ -237,10 +237,10 @@ impl WriteState {
     }
 
     fn check_not_aborted(&self) -> Result<()> {
-        if self.abort_pending {
+        if self.abort_started {
             return Err(Error::new(
                 ErrorKind::Unexpected,
-                "writer cannot accept data or close while abort is pending",
+                "writer cannot accept data or close after abort has started",
             ));
         }
         if self.requires_abort {
@@ -593,13 +593,10 @@ impl WriteState {
 
     /// Abort the write process.
     pub async fn abort(&mut self) -> Result<()> {
-        // A failed or canceled abort cannot restore the buffered bytes or copy offset.
-        self.abort_pending = true;
+        self.abort_started = true;
         self.buffer.clear();
         self.pending_copy = None;
-        self.w.abort().await?;
-        self.abort_pending = false;
-        Ok(())
+        self.w.abort().await
     }
 }
 

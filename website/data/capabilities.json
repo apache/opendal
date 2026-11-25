@@ -981,6 +981,8 @@
         "presign_write": true,
         "read": true,
         "read_with_suffix": true,
+        "restore": true,
+        "restore_with_version": true,
         "shared": true,
         "stat": true,
         "write": true,

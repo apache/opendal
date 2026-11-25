@@ -9,11 +9,24 @@ Depending on its configuration and the backing system, this service can expose:
 - [x] delete
 - [x] list
 - [x] copy
+- [x] restore
 - [ ] rename
 - [x] presign
 
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
+
+## Restore
+
+`restore(path)` removes one current B2 hide marker when a data version still
+exists for the path. A live file keeps its current version, and a path with no
+remaining data versions returns `NotFound`. The application key needs `listFiles`
+and `deleteFiles` permissions to remove the marker.
+
+`restore_with(path).version(file_id)` copies a data version of the same file to
+make it current. `stat` and `list` expose current file IDs through
+`Metadata::version()`. Version promotion requires `readFiles` and `writeFiles`
+and is subject to the [B2 Copy File size limit](https://www.backblaze.com/apidocs/b2-copy-file).
 
 ## Configuration
 

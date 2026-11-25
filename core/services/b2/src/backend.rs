@@ -29,7 +29,7 @@ use super::core::B2Signer;
 use super::core::constants;
 use super::core::parse_error;
 use super::core::parse_file_info;
-use super::core::{B2Core, ErrorContext};
+use super::core::{B2Core, ErrorContext, FileVersionAction};
 use super::deleter::B2Deleter;
 use super::lister::B2Lister;
 use super::reader::*;
@@ -187,6 +187,8 @@ impl Builder for B2Builder {
 
                     delete: true,
                     copy: true,
+                    restore: true,
+                    restore_with_version: true,
 
                     list: true,
                     list_with_limit: true,
@@ -337,7 +339,10 @@ impl Service for B2Backend {
                 return Err(Error::new(ErrorKind::IsADirectory, "is a directory"));
             };
 
-            let resp = core.copy_file(&ctx, source_file_id, &to).await?;
+            let req = core
+                .copy_file_request(&ctx, &source_file_id, &to, Operation::Copy)
+                .await?;
+            let resp = core.send(&ctx, req).await?;
 
             let status = resp.status();
 
@@ -352,6 +357,126 @@ impl Service for B2Backend {
                 )),
             }
         }))
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        args.check(&self.capability())?;
+
+        let key = build_absolute_path(&self.core.root, path);
+        if let Some(version) = args.version() {
+            if version.is_empty() {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "empty restore version ID",
+                ));
+            }
+            // A B2 file ID can name a version of a different file or bucket.
+            let source = self.core.get_file_version(ctx, version).await?;
+            if source.file_name != key
+                || source.bucket_id != self.core.bucket_id
+                || !matches!(
+                    source.action,
+                    FileVersionAction::Upload | FileVersionAction::Copy
+                )
+            {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "no such data version for this path",
+                ));
+            }
+
+            let req = self
+                .core
+                .copy_file_request(ctx, version, path, Operation::Restore)
+                .await?;
+            // A lost copy response can otherwise cause a second promotion.
+            let resp = self
+                .core
+                .send(ctx, req)
+                .await
+                .map_err(Error::set_permanent)?;
+            return match resp.status() {
+                StatusCode::OK => Ok(RpRestore::new()),
+                status => Err(
+                    parse_error(ErrorContext::new(ServiceOperation("CopyFile")), resp)
+                        .with_permanent(status.is_server_error()),
+                ),
+            };
+        }
+
+        let mut start_file_id = None;
+        let mut current_marker = None;
+        let marker = 'history: loop {
+            let page = self
+                .core
+                .list_file_versions(ctx, &key, start_file_id.as_deref())
+                .await?;
+            for file in page.files {
+                if file.file_name != key {
+                    break 'history None;
+                }
+                match file.action {
+                    FileVersionAction::Upload | FileVersionAction::Copy => {
+                        if current_marker.is_none() {
+                            return Ok(RpRestore::new());
+                        }
+                        break 'history current_marker;
+                    }
+                    FileVersionAction::Hide if current_marker.is_none() => {
+                        current_marker = Some(file.file_id);
+                    }
+                    FileVersionAction::Hide | FileVersionAction::Start => {}
+                }
+            }
+
+            // A hide marker can remain after all data versions are gone.
+            if page.next_file_name.as_deref() != Some(&key) {
+                break None;
+            }
+            start_file_id = Some(
+                page.next_file_id
+                    .filter(|next| !next.is_empty() && Some(next) != start_file_id.as_ref())
+                    .ok_or_else(|| {
+                        Error::new(ErrorKind::Unexpected, "version listing did not advance")
+                    })?,
+            );
+        };
+        let Some(marker) = marker else {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "no live or recoverable version exists",
+            ));
+        };
+        if marker.is_empty() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "current hide marker has no version ID",
+            ));
+        }
+
+        let req = self
+            .core
+            .delete_file_version_request(ctx, &key, &marker)
+            .await?;
+        // Replaying discovery after a lost delete response can remove another marker.
+        let resp = self
+            .core
+            .send(ctx, req)
+            .await
+            .map_err(Error::set_permanent)?;
+        match resp.status() {
+            StatusCode::OK => Ok(RpRestore::new()),
+            status => Err(parse_error(
+                ErrorContext::new(ServiceOperation("DeleteFileVersion")),
+                resp,
+            )
+            .with_permanent(status.is_server_error())),
+        }
     }
 
     async fn rename(

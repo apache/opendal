@@ -607,7 +607,7 @@ impl OpendalStore {
         }
         let metadata = self
             .inner
-            .stat(&percent_decode_path(path.as_ref()))
+            .stat(&opendal_path(path)?)
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, path.as_ref()))?;
@@ -636,11 +636,7 @@ impl OpendalStore {
 
         // Perform the copy operation
         self.inner
-            .copy_options(
-                &percent_decode_path(from.as_ref()),
-                &percent_decode_path(to.as_ref()),
-                copy_options,
-            )
+            .copy_options(&opendal_path(from)?, &opendal_path(to)?, copy_options)
             .into_send()
             .await
             .map_err(|err| {
@@ -694,6 +690,35 @@ impl From<Operator> for OpendalStore {
     }
 }
 
+/// Map an object_store path to the OpenDAL path it refers to.
+///
+/// object_store percent-encodes a `/` inside a path part as `%2F`. OpenDAL
+/// uses `/` as its only separator, so decoding it would turn that part into
+/// nested directories and make `a/b%2Fc` refer to the same object as `a/b/c`.
+/// Reject such paths instead of reading, writing or deleting another object.
+fn opendal_path(path: &Path) -> object_store::Result<String> {
+    let raw = path.as_ref();
+    if raw.contains("%2F") || raw.contains("%2f") {
+        return Err(format_object_store_error(
+            opendal::Error::new(
+                ErrorKind::Unsupported,
+                "path parts containing `/` cannot be mapped to an OpenDAL path",
+            ),
+            raw,
+        ));
+    }
+    Ok(percent_decode_path(raw))
+}
+
+/// Map an optional list prefix to an OpenDAL directory path.
+fn opendal_prefix(prefix: Option<&Path>) -> object_store::Result<String> {
+    Ok(match prefix {
+        // object_store `Path` always removes the trailing slash, add it back.
+        Some(prefix) => format!("{}/", opendal_path(prefix)?),
+        None => String::new(),
+    })
+}
+
 #[async_trait]
 impl ObjectStore for OpendalStore {
     async fn put_opts(
@@ -702,7 +727,7 @@ impl ObjectStore for OpendalStore {
         bytes: PutPayload,
         opts: PutOptions,
     ) -> object_store::Result<PutResult> {
-        let decoded_location = percent_decode_path(location.as_ref());
+        let decoded_location = opendal_path(location)?;
         let mut future_write = self
             .inner
             .write_with(&decoded_location, Buffer::from_iter(bytes));
@@ -825,7 +850,7 @@ impl ObjectStore for OpendalStore {
             options.user_metadata = Some(user_metadata);
         }
 
-        let decoded_location = percent_decode_path(location.as_ref());
+        let decoded_location = opendal_path(location)?;
         let writer = self
             .inner
             .writer_options(&decoded_location, options)
@@ -842,7 +867,7 @@ impl ObjectStore for OpendalStore {
         location: &Path,
         mut options: GetOptions,
     ) -> object_store::Result<GetResult> {
-        let raw_location = percent_decode_path(location.as_ref());
+        let raw_location = opendal_path(location)?;
         // Match GetOptions::check_preconditions when forwarding combined conditions.
         if options.if_match.is_some() {
             options.if_unmodified_since = None;
@@ -890,7 +915,7 @@ impl ObjectStore for OpendalStore {
             })?;
         }
 
-        let raw_location = percent_decode_path(location.as_ref());
+        let raw_location = opendal_path(location)?;
         let reader = self
             .inner
             .reader_with(&raw_location)
@@ -954,7 +979,7 @@ impl ObjectStore for OpendalStore {
             .and_then(move |location| {
                 let this = this.clone();
                 async move {
-                    let decoded = percent_decode_path(location.as_ref());
+                    let decoded = opendal_path(&location)?;
                     this.inner
                         .delete(&decoded)
                         .into_send()
@@ -968,11 +993,10 @@ impl ObjectStore for OpendalStore {
     }
 
     fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
-        // object_store `Path` always removes trailing slash
-        // need to add it back
-        let path = prefix.map_or("".into(), |x| {
-            format!("{}/", percent_decode_path(x.as_ref()))
-        });
+        let path = match opendal_prefix(prefix) {
+            Ok(path) => path,
+            Err(err) => return futures::stream::once(async { Err(err) }).boxed(),
+        };
 
         let this = self.clone();
         let fut = async move {
@@ -997,9 +1021,10 @@ impl ObjectStore for OpendalStore {
         prefix: Option<&Path>,
         offset: &Path,
     ) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
-        let path = prefix.map_or("".into(), |x| {
-            format!("{}/", percent_decode_path(x.as_ref()))
-        });
+        let path = match opendal_prefix(prefix) {
+            Ok(path) => path,
+            Err(err) => return futures::stream::once(async { Err(err) }).boxed(),
+        };
         let offset = offset.clone();
 
         let this = self.clone();
@@ -1043,9 +1068,7 @@ impl ObjectStore for OpendalStore {
     }
 
     async fn list_with_delimiter(&self, prefix: Option<&Path>) -> object_store::Result<ListResult> {
-        let path = prefix.map_or("".into(), |x| {
-            format!("{}/", percent_decode_path(x.as_ref()))
-        });
+        let path = opendal_prefix(prefix)?;
         let mut stream = self
             .inner
             .lister_with(&path)
@@ -1136,10 +1159,7 @@ impl ObjectStore for OpendalStore {
 
         let if_not_exists = options.target_mode == RenameTargetMode::Create;
         self.inner
-            .rename_with(
-                &percent_decode_path(from.as_ref()),
-                &percent_decode_path(to.as_ref()),
-            )
+            .rename_with(&opendal_path(from)?, &opendal_path(to)?)
             .if_not_exists(if_not_exists)
             .into_send()
             .await
@@ -1365,6 +1385,52 @@ mod tests {
         object_store.put(&path, bytes.into()).await.unwrap();
 
         object_store
+    }
+
+    #[tokio::test]
+    async fn test_path_part_with_slash_is_rejected_not_aliased() {
+        let op = Operator::new(services::Memory::default()).unwrap();
+        let store = OpendalStore::new(op);
+        let nested = Path::from("a/b/c");
+        store
+            .put(&nested, Bytes::from_static(b"nested").into())
+            .await
+            .unwrap();
+
+        // `a/b%2Fc` is a different object_store path than `a/b/c`.
+        let slash_in_part = Path::from_iter(["a", "b/c"]);
+        assert_eq!(slash_in_part.as_ref(), "a/b%2Fc");
+
+        let not_supported = |res: object_store::Result<()>| {
+            matches!(res, Err(object_store::Error::NotSupported { .. }))
+        };
+        assert!(not_supported(
+            store
+                .put(&slash_in_part, Bytes::from_static(b"other").into())
+                .await
+                .map(|_| ())
+        ));
+        assert!(not_supported(store.get(&slash_in_part).await.map(|_| ())));
+        assert!(not_supported(store.head(&slash_in_part).await.map(|_| ())));
+        assert!(not_supported(store.delete(&slash_in_part).await));
+        assert!(not_supported(store.copy(&nested, &slash_in_part).await));
+        assert!(not_supported(
+            store
+                .list(Some(&slash_in_part))
+                .try_collect::<Vec<_>>()
+                .await
+                .map(|_| ())
+        ));
+        assert!(not_supported(
+            store
+                .list_with_delimiter(Some(&slash_in_part))
+                .await
+                .map(|_| ())
+        ));
+
+        // The other object is untouched.
+        let bytes = store.get(&nested).await.unwrap().bytes().await.unwrap();
+        assert_eq!(bytes.as_ref(), b"nested");
     }
 
     fn poll_once<F: std::future::Future + ?Sized>(
@@ -1653,6 +1719,29 @@ mod tests {
                 "empty object range {range:?} must be rejected"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_get_ranges_encoded_slash_is_rejected() -> anyhow::Result<()> {
+        let store = OpendalStore::new(Operator::new(services::Memory::default())?);
+        // `Path::parse` keeps the encoded segment. Decoding it would resolve
+        // to the directory path `dir/`, so `OpendalStore` rejects it instead.
+        let location = Path::parse("dir%2F")?;
+
+        assert!(matches!(
+            store.get(&location).await.unwrap_err(),
+            object_store::Error::NotSupported { .. }
+        ));
+        let range = 0..1;
+        let err = store
+            .get_ranges(&location, std::slice::from_ref(&range))
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, object_store::Error::NotSupported { .. }),
+            "unexpected error: {err:?}"
+        );
+        Ok(())
     }
 
     #[tokio::test]

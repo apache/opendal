@@ -356,6 +356,142 @@ async fn recursive_listing_keeps_the_entry_named_by_a_prefix() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn start_after_preserves_implied_directories_for_recursive_globs() -> Result<()> {
+    let op = Operator::new(Memory::default())?;
+    for path in [
+        "t/a/1.txt",
+        "t/a/x/1.txt",
+        "t/a/y/1.txt",
+        "t/b/2.txt",
+        "t/c/3.txt",
+    ] {
+        op.write(path, "data").await?;
+    }
+
+    let full_all: Vec<String> = op
+        .list_with("t/")
+        .glob("**")
+        .await?
+        .into_iter()
+        .map(|entry| entry.path().to_owned())
+        .collect();
+    assert_eq!(
+        full_all,
+        [
+            "t/a/",
+            "t/a/1.txt",
+            "t/a/x/",
+            "t/a/x/1.txt",
+            "t/a/y/",
+            "t/a/y/1.txt",
+            "t/b/",
+            "t/b/2.txt",
+            "t/c/",
+            "t/c/3.txt",
+        ]
+    );
+
+    for marker in ["t/a/", "t/a/1.txt", "t/a/x/", "t/a/x/1.txt", "t/b/"] {
+        let got: Vec<String> = op
+            .list_with("t/")
+            .glob("**")
+            .start_after(marker)
+            .await?
+            .into_iter()
+            .map(|entry| entry.path().to_owned())
+            .collect();
+        let expected: Vec<String> = full_all
+            .iter()
+            .filter(|path| path.as_str() > marker)
+            .cloned()
+            .collect();
+        assert_eq!(got, expected, "glob ** with start_after={marker:?}");
+    }
+
+    let got_dirs: Vec<String> = op
+        .list_with("t/")
+        .glob("**/")
+        .start_after("t/a/x/1.txt")
+        .await?
+        .into_iter()
+        .map(|entry| entry.path().to_owned())
+        .collect();
+    assert_eq!(got_dirs, ["t/a/y/", "t/b/", "t/c/"]);
+
+    let got_one_level_dirs: Vec<String> = op
+        .list_with("/")
+        .glob("t/*/")
+        .start_after("t/a/")
+        .await?
+        .into_iter()
+        .map(|entry| entry.path().to_owned())
+        .collect();
+    assert_eq!(got_one_level_dirs, ["t/b/", "t/c/"]);
+
+    // Non-trailing-slash prefix with start_after also emits implied directories after the cursor.
+    op.write("p/a", "data").await?;
+    op.write("p/ab/c", "data").await?;
+    let got_prefix: Vec<String> = op
+        .list_with("p/a")
+        .glob("**")
+        .start_after("p/a")
+        .await?
+        .into_iter()
+        .map(|entry| entry.path().to_owned())
+        .collect();
+    assert_eq!(got_prefix, ["p/ab/", "p/ab/c"]);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn start_after_with_explicit_directory_markers_returns_each_directory_once() -> Result<()> {
+    let inner = Arc::new(ListFixture {
+        recursive: true,
+        entries: vec![
+            oio::Entry::new("t/b/", MetadataBuilder::dir().build()),
+            oio::Entry::new("t/b/1.txt", MetadataBuilder::file(0).build()),
+            oio::Entry::new("t/c/2.txt", MetadataBuilder::file(0).build()),
+            oio::Entry::new("t/c/", MetadataBuilder::dir().build()),
+        ],
+        ..ListFixture::new(&[])
+    });
+    let op = Operator::from_parts(OperationContext::default(), inner).layer(GlobLayer);
+    let entries = op.list_with("/").glob("**/").start_after("t/a/").await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        ["t/b/", "t/c/"]
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn start_after_with_versions_does_not_synthesize_implied_directories() -> Result<()> {
+    let mut meta = MetadataBuilder::file(0);
+    meta.version("v1");
+    let inner = Arc::new(ListFixture {
+        recursive: true,
+        entries: vec![oio::Entry::new("t/b/1.txt", meta.build())],
+        ..ListFixture::new(&[])
+    });
+    let op = Operator::from_parts(OperationContext::default(), inner).layer(GlobLayer);
+    let entries = op
+        .list_with("/")
+        .glob("**")
+        .start_after("t/a/")
+        .versions(true)
+        .await?;
+    assert_eq!(
+        entries
+            .iter()
+            .map(|entry| (entry.path(), entry.metadata().version()))
+            .collect::<Vec<_>>(),
+        [("t/b/1.txt", Some("v1"))]
+    );
+    Ok(())
+}
+
 #[derive(Debug)]
 struct ListFixture {
     requests: Mutex<Vec<(String, OpList)>>,

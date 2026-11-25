@@ -30,6 +30,7 @@ use crc_fast::Digest as CrcDigest;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
+use http::StatusCode;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
@@ -1492,13 +1493,14 @@ impl S3Core {
         self.send(ctx, req).await
     }
 
-    /// Abort an on-going multipart upload.
+    /// Abort the multipart upload of a write or copy.
     pub async fn s3_abort_multipart_upload(
         &self,
         ctx: &OperationContext,
         path: &str,
         upload_id: &str,
-    ) -> Result<Response<Buffer>> {
+        operation: Operation,
+    ) -> Result<()> {
         let p = build_absolute_path(&self.root, path);
 
         let url = format!(
@@ -1513,44 +1515,20 @@ impl S3Core {
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
 
+        let service_operation = ServiceOperation("AbortMultipartUpload");
         let req = req
-            // Inject operation to the request.
-            .extension(Operation::Write)
-            .extension(ServiceOperation("AbortMultipartUpload"))
+            .extension(operation)
+            .extension(service_operation)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
-    }
-
-    /// Abort an on-going multipart copy.
-    pub async fn s3_abort_multipart_copy(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        upload_id: &str,
-    ) -> Result<Response<Buffer>> {
-        let p = build_absolute_path(&self.root, path);
-
-        let url = format!(
-            "{}/{}?uploadId={}",
-            self.endpoint,
-            percent_encode_path(&p),
-            percent_encode_path(upload_id)
-        );
-
-        let mut req = Request::delete(&url);
-
-        // Set request payer header if enabled.
-        req = self.insert_request_payer_header(req);
-
-        let req = req
-            .extension(Operation::Copy)
-            .extension(ServiceOperation("AbortMultipartUpload"))
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
-        self.send(ctx, req).await
+        let resp = self.send(ctx, req).await?;
+        match resp.status() {
+            StatusCode::NO_CONTENT => Ok(()),
+            // Supabase Storage returns an empty 200 after aborting the upload.
+            StatusCode::OK if resp.body().is_empty() => Ok(()),
+            _ => Err(parse_error(ErrorContext::new(service_operation), resp)),
+        }
     }
 
     pub async fn s3_delete_objects(
@@ -1892,6 +1870,75 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
+
+    struct AbortResponse(Option<(StatusCode, &'static str)>);
+
+    impl HttpTransport for AbortResponse {
+        async fn fetch(&self, _: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let Some((status, body)) = self.0 else {
+                return Err(Error::new(ErrorKind::Unexpected, "connection reset").set_temporary());
+            };
+            let body = HttpBody::new(futures::stream::iter([Ok(Buffer::from(body))]), None);
+            Ok(Response::builder().status(status).body(body).unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn abort_multipart_upload_checks_status_and_body() {
+        let backend = crate::S3::default()
+            .bucket("example")
+            .region("us-east-1")
+            .skip_signature()
+            .build_with_scheme(crate::S3_SCHEME)
+            .unwrap();
+        let cases = [
+            (Some((StatusCode::NO_CONTENT, "")), None),
+            (
+                Some((StatusCode::NO_CONTENT, "custom transport body")),
+                None,
+            ),
+            (Some((StatusCode::OK, "")), None),
+            (
+                Some((
+                    StatusCode::OK,
+                    "<Error><Code>SlowDown</Code><Message>Retry later</Message></Error>",
+                )),
+                Some((ErrorKind::RateLimited, true)),
+            ),
+            (
+                Some((StatusCode::OK, "<html>Proxy error</html>")),
+                Some((ErrorKind::Unexpected, false)),
+            ),
+            (
+                Some((StatusCode::OK, " ")),
+                Some((ErrorKind::Unexpected, false)),
+            ),
+            (
+                Some((StatusCode::ACCEPTED, "")),
+                Some((ErrorKind::Unexpected, false)),
+            ),
+            (
+                Some((StatusCode::FORBIDDEN, "")),
+                Some((ErrorKind::PermissionDenied, false)),
+            ),
+            (None, Some((ErrorKind::Unexpected, true))),
+        ];
+        for (response, expected) in cases {
+            let ctx = OperationContext::new()
+                .with_http_transport(HttpTransporter::new(AbortResponse(response)));
+            let result = backend
+                .core
+                .s3_abort_multipart_upload(&ctx, "target", "upload-id", Operation::Write)
+                .await;
+            if let Some((kind, temporary)) = expected {
+                let error = result.expect_err("abort must fail");
+                assert_eq!(error.kind(), kind, "{response:?}");
+                assert_eq!(error.is_temporary(), temporary, "{response:?}");
+            } else {
+                result.unwrap();
+            }
+        }
+    }
 
     /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html#API_CreateMultipartUpload_Examples
     #[test]

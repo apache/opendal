@@ -4834,6 +4834,101 @@
       ]
     },
     {
+      "name": "obs-s3",
+      "scheme": "obs-s3",
+      "groups": [
+        "General",
+        "Credentials"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "default": "/",
+          "comments": "Root within the bucket. The default is `/`."
+        },
+        {
+          "name": "bucket",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "example-bucket",
+          "comments": "OBS bucket name as a single lowercase DNS label."
+        },
+        {
+          "name": "region",
+          "type": "string",
+          "required": true,
+          "group": "General",
+          "example": "cn-north-1",
+          "comments": "OBS bucket region. Also used to sign requests."
+        },
+        {
+          "name": "endpoint",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "example": "https://obs.cn-north-1.myhuaweicloud.com",
+          "comments": "HTTP(S) base endpoint override. OpenDAL prepends the bucket to the host."
+        },
+        {
+          "name": "access_key_id",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Huawei Cloud access key ID (AK)."
+        },
+        {
+          "name": "secret_access_key",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Huawei Cloud secret access key (SK)."
+        },
+        {
+          "name": "session_token",
+          "type": "string",
+          "required": false,
+          "group": "Credentials",
+          "comments": "Session token for temporary Huawei Cloud credentials. Requires both keys."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"obs-s3\", [\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n    (\"region\".to_string(), \"cn-north-1\".to_string()),\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"obs-s3\", [\n    // --- General ---\n    // Root within the bucket. The default is `/`.\n    // (\"root\".to_string(), \"/\".to_string()),\n\n    // OBS bucket name as a single lowercase DNS label.\n    (\"bucket\".to_string(), \"example-bucket\".to_string()),\n\n    // OBS bucket region. Also used to sign requests.\n    (\"region\".to_string(), \"cn-north-1\".to_string()),\n\n    // HTTP(S) base endpoint override. OpenDAL prepends the bucket to the host.\n    // (\"endpoint\".to_string(), \"https://obs.cn-north-1.myhuaweicloud.com\".to_string()),\n    // --- Credentials ---\n    // Huawei Cloud access key ID (AK).\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Huawei Cloud secret access key (SK).\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n\n    // Session token for temporary Huawei Cloud credentials. Requires both keys.\n    // (\"session_token\".to_string(), \"...\".to_string()),\n])?;"
+        },
+        {
+          "binding": "java",
+          "language": "java",
+          "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nconfig.put(\"bucket\", \"example-bucket\");\nconfig.put(\"region\", \"cn-north-1\");\nOperator operator = Operator.of(\"obs-s3\", config);",
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// --- General ---\n// Root within the bucket. The default is `/`.\n// config.put(\"root\", \"/\");\n\n// OBS bucket name as a single lowercase DNS label.\nconfig.put(\"bucket\", \"example-bucket\");\n\n// OBS bucket region. Also used to sign requests.\nconfig.put(\"region\", \"cn-north-1\");\n\n// HTTP(S) base endpoint override. OpenDAL prepends the bucket to the host.\n// config.put(\"endpoint\", \"https://obs.cn-north-1.myhuaweicloud.com\");\n// --- Credentials ---\n// Huawei Cloud access key ID (AK).\n// config.put(\"access_key_id\", \"...\");\n\n// Huawei Cloud secret access key (SK).\n// config.put(\"secret_access_key\", \"...\");\n\n// Session token for temporary Huawei Cloud credentials. Requires both keys.\n// config.put(\"session_token\", \"...\");\nOperator operator = Operator.of(\"obs-s3\", config);"
+        },
+        {
+          "binding": "python",
+          "language": "python",
+          "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"obs-s3\",\n    bucket=\"example-bucket\",\n    region=\"cn-north-1\",\n)",
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"obs-s3\",\n    # --- General ---\n    # Root within the bucket. The default is `/`.\n    # root=\"/\",\n\n    # OBS bucket name as a single lowercase DNS label.\n    bucket=\"example-bucket\",\n\n    # OBS bucket region. Also used to sign requests.\n    region=\"cn-north-1\",\n\n    # HTTP(S) base endpoint override. OpenDAL prepends the bucket to the host.\n    # endpoint=\"https://obs.cn-north-1.myhuaweicloud.com\",\n    # --- Credentials ---\n    # Huawei Cloud access key ID (AK).\n    # access_key_id=\"...\",\n\n    # Huawei Cloud secret access key (SK).\n    # secret_access_key=\"...\",\n\n    # Session token for temporary Huawei Cloud credentials. Requires both keys.\n    # session_token=\"...\",\n)"
+        },
+        {
+          "binding": "nodejs",
+          "language": "javascript",
+          "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"obs-s3\", {\n  bucket: \"example-bucket\",\n  region: \"cn-north-1\",\n});",
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"obs-s3\", {\n  // --- General ---\n  // Root within the bucket. The default is `/`.\n  // root: \"/\",\n\n  // OBS bucket name as a single lowercase DNS label.\n  bucket: \"example-bucket\",\n\n  // OBS bucket region. Also used to sign requests.\n  region: \"cn-north-1\",\n\n  // HTTP(S) base endpoint override. OpenDAL prepends the bucket to the host.\n  // endpoint: \"https://obs.cn-north-1.myhuaweicloud.com\",\n  // --- Credentials ---\n  // Huawei Cloud access key ID (AK).\n  // access_key_id: \"...\",\n\n  // Huawei Cloud secret access key (SK).\n  // secret_access_key: \"...\",\n\n  // Session token for temporary Huawei Cloud credentials. Requires both keys.\n  // session_token: \"...\",\n});"
+        },
+        {
+          "binding": "ruby",
+          "language": "ruby",
+          "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"obs-s3\", {\n  \"bucket\" => \"example-bucket\",\n  \"region\" => \"cn-north-1\",\n})",
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"obs-s3\", {\n  # --- General ---\n  # Root within the bucket. The default is `/`.\n  # \"root\" => \"/\",\n\n  # OBS bucket name as a single lowercase DNS label.\n  \"bucket\" => \"example-bucket\",\n\n  # OBS bucket region. Also used to sign requests.\n  \"region\" => \"cn-north-1\",\n\n  # HTTP(S) base endpoint override. OpenDAL prepends the bucket to the host.\n  # \"endpoint\" => \"https://obs.cn-north-1.myhuaweicloud.com\",\n  # --- Credentials ---\n  # Huawei Cloud access key ID (AK).\n  # \"access_key_id\" => \"...\",\n\n  # Huawei Cloud secret access key (SK).\n  # \"secret_access_key\" => \"...\",\n\n  # Session token for temporary Huawei Cloud credentials. Requires both keys.\n  # \"session_token\" => \"...\",\n})"
+        }
+      ]
+    },
+    {
       "name": "oci",
       "scheme": "oci",
       "groups": [

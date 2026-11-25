@@ -121,6 +121,8 @@ pub enum Scheme {
     Neon,
     #[cfg(feature = "services-obs")]
     Obs,
+    #[cfg(feature = "services-obs-s3")]
+    ObsS3,
     #[cfg(feature = "services-oci")]
     Oci,
     #[cfg(feature = "services-onedrive")]
@@ -321,6 +323,8 @@ impl_enum_to_str!(
         Neon => "neon",
         #[cfg(feature = "services-obs")]
         Obs => "obs",
+        #[cfg(feature = "services-obs-s3")]
+        ObsS3 => "obs-s3",
         #[cfg(feature = "services-oci")]
         Oci => "oci",
         #[cfg(feature = "services-onedrive")]

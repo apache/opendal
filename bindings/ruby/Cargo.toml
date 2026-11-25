@@ -80,6 +80,7 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-cos-s3",
   "services-gcs-s3",
   "services-lakefs-s3",
+  "services-obs-s3",
   "services-oss-s3",
   "services-swift-s3api",
   "services-tos-s3",

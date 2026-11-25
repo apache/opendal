@@ -67,6 +67,7 @@ class Scheme:
     Mysql: Final[Scheme]
     Neon: Final[Scheme]
     Obs: Final[Scheme]
+    ObsS3: Final[Scheme]
     Oci: Final[Scheme]
     Onedrive: Final[Scheme]
     Oss: Final[Scheme]

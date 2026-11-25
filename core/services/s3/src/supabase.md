@@ -21,6 +21,34 @@ environment variables or shared credentials file with the provider’s keys.
 
 See the [Supabase Storage documentation](https://supabase.com/docs/guides/storage/s3/authentication).
 
+## Source ETag conditions in writer copies
+
+On self-hosted Supabase Storage 1.99.1 with the `file` backend, a same-bucket
+ranged `UploadPartCopy` can accept a stale source ETag passed as `if_match` to
+`Writer::copy_from_options`. `Writer::close` can then commit bytes from the
+replacement source. Supabase lists `x-amz-copy-source-if-match` as unsupported
+for `UploadPartCopy` and `If-Match` as supported for `GetObject`.
+See [Supabase S3 compatibility](https://supabase.com/docs/guides/storage/s3/compatibility#object-operations).
+
+Apply the layer below to stream all writer copies on the operator through the
+client, including unconditional copies. When you set `if_match`, OpenDAL sends
+`If-Match` on the source read. On the tested deployment, a matching ETag allowed
+the copy to complete and a stale ETag returned HTTP 412, which OpenDAL reports
+as `ErrorKind::ConditionNotMatch`.
+
+```rust
+# fn use_streaming_copies(op: opendal_core::Operator) -> opendal_core::Result<opendal_core::Operator> {
+use opendal_core::layers::CapabilityOverrideLayer;
+
+let op = op.layer(CapabilityOverrideLayer::from_overrides(
+    "write_can_copy_from=false",
+)?);
+# Ok(op)
+# }
+```
+
+## Example
+
 ```rust
 use opendal_core::{Operator, Result};
 use opendal_service_s3::Supabase;

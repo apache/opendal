@@ -17,9 +17,11 @@
 
 use std::time::Duration;
 
+use http::{Method, Request, Response, StatusCode};
 use opendal_core::Configurator;
 use opendal_core::ErrorKind;
 use opendal_core::OperatorRegistry;
+use opendal_core::{Buffer, HttpBody, HttpTransport, HttpTransporter, OperationContext, Result};
 use url::Url;
 
 use super::*;
@@ -34,6 +36,7 @@ fn registry() -> &'static OperatorRegistry {
         register_cos_s3_service,
         register_gcs_s3_service,
         register_lakefs_s3_service,
+        register_obs_s3_service,
         register_oss_s3_service,
         register_swift_s3api_service,
         register_tos_s3_service,
@@ -256,6 +259,20 @@ async fn provider_uris_use_documented_endpoints_and_signing_regions() {
             "auto",
         ),
         (
+            "obs-s3://bucket/root?region=cn-north-1",
+            &[],
+            "bucket.obs.cn-north-1.myhuaweicloud.com",
+            "/root/file",
+            "cn-north-1",
+        ),
+        (
+            "obs-s3://bucket/root",
+            &[("region", "cn-north-4")],
+            "bucket.obs.cn-north-4.myhuaweicloud.com",
+            "/root/file",
+            "cn-north-4",
+        ),
+        (
             "oss-s3://bucket/root",
             &[("region", "cn-hangzhou")],
             "bucket.s3.oss-cn-hangzhou.aliyuncs.com",
@@ -349,6 +366,16 @@ async fn explicit_endpoint_addressing_and_signing_options_take_precedence() {
     .await;
     assert_eq!(url.host_str(), Some("s3.example.test"));
     assert_eq!(region, "custom-region");
+
+    let (url, region) = presign(
+        "obs-s3://bucket/root?region=cn-north-4",
+        &[("endpoint", "https://obs.example.test:8443")],
+    )
+    .await;
+    assert_eq!(url.host_str(), Some("bucket.obs.example.test"));
+    assert_eq!(url.port(), Some(8443));
+    assert_eq!(url.path(), "/root/file");
+    assert_eq!(region, "cn-north-4");
 }
 
 #[tokio::test]
@@ -485,6 +512,11 @@ async fn presets_presign_with_the_supplied_session_token() {
             "ap-guangzhou",
         ),
         (
+            "obs-s3://bucket/root",
+            &[("region", "cn-north-1")][..],
+            "cn-north-1",
+        ),
+        (
             "oss-s3://bucket/root",
             &[("region", "cn-hangzhou")][..],
             "cn-hangzhou",
@@ -506,6 +538,68 @@ async fn presets_presign_with_the_supplied_session_token() {
             "{uri}"
         );
     }
+}
+
+#[tokio::test]
+async fn obs_s3_put_uses_sigv4_with_unsigned_payload() -> Result<()> {
+    struct CheckObsPut;
+
+    impl HttpTransport for CheckObsPut {
+        async fn fetch(&self, request: Request<Buffer>) -> Result<Response<HttpBody>> {
+            assert_eq!(request.method(), Method::PUT);
+            assert_eq!(
+                request.uri(),
+                "https://example-bucket.obs.cn-north-1.myhuaweicloud.com/prefix/file"
+            );
+            assert_eq!(request.body().to_vec(), b"test payload");
+            let headers = request.headers();
+            assert_eq!(headers["x-amz-content-sha256"], "UNSIGNED-PAYLOAD");
+            assert_eq!(headers["x-amz-security-token"], "test-token");
+            assert!(
+                headers
+                    .keys()
+                    .all(|name| !name.as_str().starts_with("x-amz-checksum-"))
+            );
+            assert!(!headers.contains_key("x-amz-sdk-checksum-algorithm"));
+
+            let auth = headers[http::header::AUTHORIZATION].to_str().unwrap();
+            let (credential, signature_fields) = auth
+                .strip_prefix("AWS4-HMAC-SHA256 Credential=")
+                .unwrap()
+                .split_once(", SignedHeaders=")
+                .unwrap();
+            let (access_key, scope) = credential.split_once('/').unwrap();
+            assert_eq!(access_key, "test-access");
+            let (_, region_service) = scope.split_once('/').unwrap();
+            assert_eq!(region_service, "cn-north-1/s3/aws4_request");
+            let (signed_headers, _) = signature_fields.split_once(", Signature=").unwrap();
+            assert!(
+                signed_headers
+                    .split(';')
+                    .any(|name| name == "x-amz-security-token")
+            );
+
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .body(HttpBody::new(futures::stream::empty(), Some(0)))
+                .unwrap())
+        }
+    }
+
+    let op = registry()
+        .load((
+            "obs-s3://example-bucket/prefix?region=cn-north-1",
+            [
+                ("access_key_id", "test-access"),
+                ("secret_access_key", "test-secret"),
+                ("session_token", "test-token"),
+            ],
+        ))?
+        .with_context(
+            OperationContext::new().with_http_transport(HttpTransporter::new(CheckObsPut)),
+        );
+    op.write("file", "test payload").await?;
+    Ok(())
 }
 
 #[test]
@@ -638,6 +732,21 @@ fn native_coexisting_presets_reject_incomplete_or_incompatible_options() {
                 ("enable_virtual_host_style", "false"),
             ],
             "unknown field `enable_virtual_host_style`",
+        ),
+        (
+            "obs-s3://bucket/root",
+            &[("endpoint", "https://obs.example.test")],
+            "region must not be empty",
+        ),
+        (
+            "obs-s3://bucket/root",
+            &[("region", "cn-north-1.example.test")],
+            "expected a lowercase DNS label",
+        ),
+        (
+            "obs-s3://bucket/root",
+            &[("region", "cn-north-1"), ("session_token", "test-token")],
+            "session_token requires both",
         ),
     ];
     for &(uri, options, message) in cases {

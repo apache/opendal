@@ -65,6 +65,7 @@ default = [
   "services-cos-s3",
   "services-gcs-s3",
   "services-lakefs-s3",
+  "services-obs-s3",
   "services-oss-s3",
   "services-swift-s3api",
   "services-tos-s3",
@@ -147,6 +148,7 @@ services-memory = ["opendal/services-memory"]
 services-minio = ["opendal/services-minio"]
 services-neon = ["opendal/services-neon"]
 services-obs = ["opendal/services-obs"]
+services-obs-s3 = ["opendal/services-obs-s3"]
 services-oci = ["opendal/services-oci"]
 services-oss = ["opendal/services-oss"]
 services-oss-s3 = ["opendal/services-oss-s3"]

@@ -256,6 +256,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-obs")]
     opendal_service_obs::register_obs_service(registry);
 
+    #[cfg(feature = "services-obs-s3")]
+    opendal_service_s3::register_obs_s3_service(registry);
+
     #[cfg(feature = "services-onedrive")]
     opendal_service_onedrive::register_onedrive_service(registry);
 
@@ -566,6 +569,8 @@ pub mod services {
     pub use opendal_service_s3::{MINIO_SCHEME, Minio, MinioConfig, register_minio_service};
     #[cfg(feature = "services-neon")]
     pub use opendal_service_s3::{NEON_SCHEME, Neon, NeonConfig, register_neon_service};
+    #[cfg(feature = "services-obs-s3")]
+    pub use opendal_service_s3::{OBS_S3_SCHEME, ObsS3, ObsS3Config, register_obs_s3_service};
     #[cfg(feature = "services-oci")]
     pub use opendal_service_s3::{OCI_SCHEME, Oci, OciConfig, register_oci_service};
     #[cfg(feature = "services-oss-s3")]
@@ -704,6 +709,7 @@ mod service_feature_tests {
             ("cos-s3", cfg!(feature = "services-cos-s3")),
             ("gcs-s3", cfg!(feature = "services-gcs-s3")),
             ("lakefs-s3", cfg!(feature = "services-lakefs-s3")),
+            ("obs-s3", cfg!(feature = "services-obs-s3")),
             ("oss-s3", cfg!(feature = "services-oss-s3")),
             ("swift-s3api", cfg!(feature = "services-swift-s3api")),
             ("tos-s3", cfg!(feature = "services-tos-s3")),
@@ -713,11 +719,44 @@ mod service_feature_tests {
             ("gcs", cfg!(feature = "services-gcs")),
             ("gcs-grpc", cfg!(feature = "services-gcs-grpc")),
             ("lakefs", cfg!(feature = "services-lakefs")),
+            ("obs", cfg!(feature = "services-obs")),
             ("oss", cfg!(feature = "services-oss")),
             ("swift", cfg!(feature = "services-swift")),
             ("tos", cfg!(feature = "services-tos")),
         ] {
             assert_eq!(schemes.contains(scheme), enabled, "{scheme}");
+        }
+
+        #[cfg(feature = "services-obs")]
+        {
+            let op = Operator::from_uri((
+                "obs://example-bucket/root",
+                [("endpoint", "https://obs.cn-north-1.myhuaweicloud.com")],
+            ))
+            .unwrap();
+            assert_eq!(op.info().scheme(), "obs");
+            assert_eq!(op.info().name(), "example-bucket");
+            assert_eq!(op.info().root(), "/root/");
+        }
+
+        #[cfg(feature = "services-obs-s3")]
+        {
+            let op = Operator::from_uri("obs-s3://example-bucket/root?region=cn-north-1").unwrap();
+            assert_eq!(op.info().scheme(), "obs-s3");
+            assert_eq!(op.info().name(), "example-bucket");
+            assert_eq!(op.info().root(), "/root/");
+
+            let op = Operator::via_iter(
+                "obs-s3",
+                [
+                    ("bucket".to_owned(), "example-bucket".to_owned()),
+                    ("region".to_owned(), "cn-north-1".to_owned()),
+                ],
+            )
+            .unwrap();
+            assert_eq!(op.info().scheme(), "obs-s3");
+            assert_eq!(op.info().name(), "example-bucket");
+            assert_eq!(op.info().root(), "/");
         }
 
         #[cfg(feature = "services-tigris")]

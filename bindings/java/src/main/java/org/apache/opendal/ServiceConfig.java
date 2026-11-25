@@ -4423,11 +4423,10 @@ public interface ServiceConfig {
          */
         public final Boolean disableCopy;
         /**
-         * <p>Disable automatic parent directory creation before write, copy, and rename operations.</p>
-         * <p>By default, OpenDAL creates missing parent directories using <code>PROPFIND</code> and <code>MKCOL</code>
-         * before writing, copying, or renaming files. Enable this option to skip those automatic
-         * parent directory checks and <code>MKCOL</code> calls for servers that do not support <code>PROPFIND</code>
-         * or do not require explicit parent collections (for example, <code>bazel-remote</code>).</p>
+         * <p>Disable automatic parent directory creation before writing files.</p>
+         * <p>By default, OpenDAL checks for parent directories using <code>PROPFIND</code> and creates
+         * missing directories using <code>MKCOL</code> before writing files. Enable this option to
+         * skip those checks and <code>MKCOL</code> calls for servers such as <code>bazel-remote</code>.</p>
          * <p>Explicit <code>create_dir</code> calls are unaffected.</p>
          * <p>Default: <code>false</code></p>
          */

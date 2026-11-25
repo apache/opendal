@@ -102,20 +102,17 @@ impl oio::PageList for B2Lister {
         }
 
         for file in output.files {
-            if let Some(start_after) = self.start_after.as_deref()
-                && build_absolute_path(&self.core.root, start_after) == file.file_name
+            if let Some(start_after) = self.start_after.clone()
+                && build_absolute_path(&self.core.root, &start_after) == file.file_name
             {
                 continue;
             }
             let metadata = parse_file_info(&file);
-            let mut path = if file.file_name == self.core.root {
+            let path = if file.file_name == self.core.root {
                 "/".to_string()
             } else {
                 build_relative_path(&self.core.root, &file.file_name)
             };
-            if path.is_empty() {
-                path = "/".to_string();
-            }
 
             ctx.entries.push_back(oio::Entry::new(&path, metadata));
         }

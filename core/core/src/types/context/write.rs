@@ -94,7 +94,7 @@ impl WriteContext {
         let cap = self.srv.capability();
         let min_size = cap.write_multi_min_size.filter(|&v| v > 0);
         let max_size = cap.write_multi_max_size.filter(|&v| v > 0);
-        let option_chunk = self.options().chunk().filter(|&v| v > 0);
+        let option_chunk = self.options().chunk();
 
         let exact = option_chunk.is_some();
         let chunk_size = option_chunk.or(min_size).map(|mut size| {
@@ -464,11 +464,7 @@ impl WriteState {
             }));
         }
 
-        let result = self.drive_copy().await;
-        if result.is_err() {
-            self.pending_copy.take_if(|copy| !copy.has_accepted_bytes());
-        }
-        result
+        self.drive_copy().await
     }
 
     async fn drive_copy(&mut self) -> Result<()> {

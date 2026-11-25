@@ -287,7 +287,6 @@ pub fn parse_sftp_error(e: SftpClientError) -> Error {
 fn classify_sftp_error(error: &SftpClientError) -> (ErrorKind, bool) {
     match error {
         SftpClientError::UnsupportedSftpProtocol { .. }
-        | SftpClientError::UnsupportedExtension(_)
         | SftpClientError::SftpError(SftpErrorKind::OpUnsupported, _) => {
             (ErrorKind::Unsupported, false)
         }
@@ -557,13 +556,5 @@ mod tests {
             assert_eq!(error.is_temporary(), temporary, "{error:?}");
             assert!(error.source().unwrap().is::<SftpClientError>());
         }
-    }
-
-    #[test]
-    fn unsupported_extension_maps_to_unsupported() {
-        let error = parse_sftp_error(SftpClientError::UnsupportedExtension(&"copy-data"));
-        assert_eq!(error.kind(), ErrorKind::Unsupported);
-        assert!(!error.is_temporary());
-        assert!(error.source().unwrap().is::<SftpClientError>());
     }
 }

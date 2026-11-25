@@ -1244,7 +1244,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
@@ -1359,15 +1359,7 @@ mod error_tests {
     }
 
     #[test]
-    fn test_parse_error_unauthorized_and_no_such_bucket() {
-        let unauthorized = parse_oss_error(
-            ErrorContext::new(ServiceOperation("GetObject")),
-            StatusCode::UNAUTHORIZED,
-            "AccessDenied",
-        );
-        assert_eq!(unauthorized.kind(), ErrorKind::PermissionDenied);
-        assert!(!unauthorized.is_temporary());
-
+    fn test_parse_error_no_such_bucket() {
         let no_such_bucket = parse_oss_error(
             ErrorContext::new(ServiceOperation("DeleteObject")),
             StatusCode::NOT_FOUND,

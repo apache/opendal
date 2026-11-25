@@ -253,7 +253,7 @@ impl RedisCore {
     }
 }
 
-pub(crate) fn encode_expiration(expires: Duration) -> Result<u64> {
+fn encode_expiration(expires: Duration) -> Result<u64> {
     u64::try_from(expires.as_nanos().div_ceil(1_000_000))
         .ok()
         .filter(|ttl| (1..=i64::MAX as u64).contains(ttl))
@@ -269,14 +269,7 @@ fn resolve_expiration(
     expires: Option<Duration>,
     default_ttl: Option<Duration>,
 ) -> Result<Option<u64>> {
-    if let Some(expires) = expires {
-        return encode_expiration(expires).map(Some);
-    }
-
-    match default_ttl {
-        Some(ttl) if !ttl.is_zero() => encode_expiration(ttl).map(Some),
-        _ => Ok(None),
-    }
+    expires.or(default_ttl).map(encode_expiration).transpose()
 }
 
 pub fn format_redis_error(e: RedisError) -> Error {
@@ -292,10 +285,8 @@ mod tests {
     #[test]
     fn resolve_redis_expiration() {
         assert_eq!(resolve_expiration(None, None).unwrap(), None);
-        assert_eq!(
-            resolve_expiration(None, Some(Duration::ZERO)).unwrap(),
-            None
-        );
+        let err = resolve_expiration(None, Some(Duration::ZERO)).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
 
         for ttl in [
             Duration::from_nanos(1),

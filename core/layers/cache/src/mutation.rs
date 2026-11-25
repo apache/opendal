@@ -42,9 +42,10 @@ impl Write for Mutation<oio::Writer> {
     }
 
     async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
-        self.state.begin_mutation(&[self.destination]);
         let result = self.inner.copy_from(path, args, range).await;
-        self.state.invalidate(&[self.destination]).await;
+        if result.is_err() {
+            self.state.invalidate(&[self.destination]).await;
+        }
         result
     }
 
@@ -56,7 +57,6 @@ impl Write for Mutation<oio::Writer> {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.state.begin_mutation(&[self.destination]);
         let result = self.inner.abort().await;
         self.state.invalidate(&[self.destination]).await;
         result
@@ -81,7 +81,6 @@ impl Copy for Mutation<oio::Copier> {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.state.begin_mutation(&[self.destination]);
         let result = self.inner.abort().await;
         self.state.invalidate(&[self.destination]).await;
         result
@@ -165,7 +164,7 @@ impl Delete for CacheDeleter {
         let result = self.inner.close().await;
         if self.recursive {
             self.state.bump_generation().await;
-        } else if !subjects.is_empty() {
+        } else {
             self.state.invalidate(&subjects).await;
         }
         if result.is_ok() {

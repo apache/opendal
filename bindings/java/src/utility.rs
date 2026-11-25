@@ -23,7 +23,6 @@ use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JObjectArray;
 use jni::sys::jsize;
-use opendal::{Error, ErrorKind};
 
 use crate::Result;
 use crate::error::ThrowException;
@@ -43,8 +42,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OpenDAL_loadEnabledService
 fn intern_load_enabled_services<'local>(env: &mut Env<'local>) -> Result<JObjectArray<'local>> {
     opendal::init_default_registry();
     let services = opendal::OperatorRegistry::get().schemes();
-    let len = jsize::try_from(services.len())
-        .map_err(|err| Error::new(ErrorKind::Unexpected, err.to_string()))?;
+    let len = services.len() as jsize;
 
     let res = env.new_object_array(len, jni_str!("java/lang/String"), JObject::null())?;
 

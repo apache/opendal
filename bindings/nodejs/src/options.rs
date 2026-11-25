@@ -48,18 +48,6 @@ fn bigint_to_u64(value: &BigInt, field: &str) -> napi::Result<u64> {
     Ok(word)
 }
 
-/// Convert a JavaScript `BigInt` into a `usize` count such as a gap or chunk size.
-fn bigint_to_usize(value: &BigInt, field: &str) -> napi::Result<usize> {
-    let value = bigint_to_u64(value, field)?;
-
-    usize::try_from(value).map_err(|_| {
-        napi::Error::new(
-            Status::InvalidArg,
-            format!("{field} must not be greater than {}", usize::MAX),
-        )
-    })
-}
-
 /// Parse a conditional request timestamp received from JavaScript.
 ///
 /// Dropping an unparsable value would silently turn a conditional read or stat
@@ -184,10 +172,8 @@ pub struct ReadOptions {
      * Sets the chunk size for this operation.
      *
      * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
-     *
-     * The value must be an integer between 0 and 4294967295.
      */
-    pub chunk: Option<f64>,
+    pub chunk: Option<u32>,
 
     /**
      * Controls the optimization strategy for range reads in [`Reader::fetch`].
@@ -297,26 +283,16 @@ impl TryFrom<ReadOptions> for opendal::options::ReadOptions {
             .map(|v| parse_timestamp(&v, "ifUnmodifiedSince"))
             .transpose()?;
 
-        let gap = value
-            .gap
-            .as_ref()
-            .map(|gap| bigint_to_usize(gap, "gap"))
-            .transpose()?;
         let concurrent = value
             .concurrent
             .map(|v| parse_count(v, "concurrent", 0))
             .transpose()?
             .unwrap_or_default();
-        let chunk = value
-            .chunk
-            .map(|v| parse_count(v, "chunk", 0))
-            .transpose()?;
-
         Ok(Self {
             version: value.version,
             concurrent,
-            chunk,
-            gap,
+            chunk: value.chunk.map(|chunk| chunk as usize),
+            gap: value.gap.map(|gap| gap.get_u64().1 as usize),
             range,
             if_match: value.if_match,
             if_none_match: value.if_none_match,
@@ -359,10 +335,8 @@ pub struct ReaderOptions {
      * Sets the chunk size for this operation.
      *
      * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
-     *
-     * The value must be an integer between 0 and 4294967295.
      */
-    pub chunk: Option<f64>,
+    pub chunk: Option<u32>,
 
     /** Controls the number of prefetched bytes ranges that can be buffered in memory
      * during concurrent reading.
@@ -377,10 +351,8 @@ pub struct ReaderOptions {
      *
      * This option helps prevent memory exhaustion when reading large files with high
      * concurrency settings.
-     *
-     * The value must be an integer between 0 and 4294967295.
      */
-    pub prefetch: Option<f64>,
+    pub prefetch: Option<u32>,
 
     /**
      * Controls the optimization strategy for range reads in [`Reader::fetch`].
@@ -437,32 +409,17 @@ impl TryFrom<ReaderOptions> for opendal::options::ReaderOptions {
             .if_unmodified_since
             .map(|v| parse_timestamp(&v, "ifUnmodifiedSince"))
             .transpose()?;
-        let gap = value
-            .gap
-            .as_ref()
-            .map(|gap| bigint_to_usize(gap, "gap"))
-            .transpose()?;
         let concurrent = value
             .concurrent
             .map(|v| parse_count(v, "concurrent", 0))
             .transpose()?
             .unwrap_or_default();
-        let chunk = value
-            .chunk
-            .map(|v| parse_count(v, "chunk", 0))
-            .transpose()?;
-        let prefetch = value
-            .prefetch
-            .map(|v| parse_count(v, "prefetch", 0))
-            .transpose()?
-            .unwrap_or_default();
-
         Ok(Self {
             version: value.version,
             concurrent,
-            chunk,
-            gap,
-            prefetch,
+            chunk: value.chunk.map(|chunk| chunk as usize),
+            gap: value.gap.map(|gap| gap.get_u64().1 as usize),
+            prefetch: value.prefetch.unwrap_or_default() as usize,
             if_match: value.if_match,
             if_none_match: value.if_none_match,
             if_modified_since,
@@ -481,10 +438,8 @@ pub struct ListOptions {
      * that could return per-request.
      *
      * Users could use this to control the memory usage of list operation.
-     *
-     * The value must be an integer between 0 and 4294967295.
      */
-    pub limit: Option<f64>,
+    pub limit: Option<u32>,
 
     /**
      * The start_after passed to underlying service to specify the specified key
@@ -525,23 +480,16 @@ pub struct ListOptions {
     pub deleted: Option<bool>,
 }
 
-impl TryFrom<ListOptions> for opendal::options::ListOptions {
-    type Error = napi::Error;
-
-    fn try_from(value: ListOptions) -> napi::Result<Self> {
-        let limit = value
-            .limit
-            .map(|v| parse_count(v, "limit", 0))
-            .transpose()?;
-
-        Ok(Self {
-            limit,
+impl From<ListOptions> for opendal::options::ListOptions {
+    fn from(value: ListOptions) -> Self {
+        Self {
+            limit: value.limit.map(|limit| limit as usize),
             start_after: value.start_after,
             recursive: value.recursive.unwrap_or_default(),
             versions: value.versions.unwrap_or_default(),
             deleted: value.deleted.unwrap_or_default(),
             ..Default::default()
-        })
+        }
     }
 }
 
@@ -627,11 +575,6 @@ impl TryFrom<WriteOptions> for opendal::options::WriteOptions {
     type Error = napi::Error;
 
     fn try_from(value: WriteOptions) -> napi::Result<Self> {
-        let chunk = value
-            .chunk
-            .as_ref()
-            .map(|chunk| bigint_to_usize(chunk, "chunk"))
-            .transpose()?;
         let concurrent = value
             .concurrent
             .map(|v| parse_count(v, "concurrent", 0))
@@ -640,7 +583,7 @@ impl TryFrom<WriteOptions> for opendal::options::WriteOptions {
 
         Ok(Self {
             append: value.append.unwrap_or_default(),
-            chunk,
+            chunk: value.chunk.map(|chunk| chunk.get_u64().1 as usize),
             content_type: value.content_type,
             content_disposition: value.content_disposition,
             cache_control: value.cache_control,

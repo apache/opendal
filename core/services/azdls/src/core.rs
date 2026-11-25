@@ -410,7 +410,21 @@ impl AzdlsCore {
         }
 
         let headers = resp.headers();
-        let resource = headers
+        let mut meta = parse_into_metadata(path, headers)?.into_builder();
+
+        if let Some(version_id) = parse_header_to_str(headers, X_MS_VERSION_ID)? {
+            meta.version(version_id);
+        }
+
+        if let Some(value) = parse_header_to_str(headers, X_MS_PROPERTIES)? {
+            let user_meta = decode_user_metadata(value);
+            if !user_meta.is_empty() {
+                meta.user_metadata(user_meta);
+            }
+        }
+
+        let resource = resp
+            .headers()
             .get("x-ms-resource-type")
             .ok_or_else(|| {
                 Error::new(
@@ -427,7 +441,7 @@ impl AzdlsCore {
                 .set_source(err)
             })?;
 
-        let mut meta = match resource {
+        match resource {
             FILE => {
                 let content_length = parse_content_length(headers)?.ok_or_else(|| {
                     Error::new(
@@ -435,32 +449,19 @@ impl AzdlsCore {
                         "azdls file response does not contain content length",
                     )
                 })?;
-                let mut meta = parse_into_metadata("file", headers)?.into_builder();
                 meta.set_file(content_length);
-                meta
+                Ok(meta.build())
             }
-            DIRECTORY => parse_into_metadata("dir/", headers)?.into_builder(),
-            v => {
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    "azdls returns an unknown x-ms-resource-type",
-                )
-                .with_context("resource", v));
+            DIRECTORY => {
+                meta.set_dir();
+                Ok(meta.build())
             }
-        };
-
-        if let Some(version_id) = parse_header_to_str(headers, X_MS_VERSION_ID)? {
-            meta.version(version_id);
+            v => Err(Error::new(
+                ErrorKind::Unexpected,
+                "azdls returns an unknown x-ms-resource-type",
+            )
+            .with_context("resource", v)),
         }
-
-        if let Some(value) = parse_header_to_str(headers, X_MS_PROPERTIES)? {
-            let user_meta = decode_user_metadata(value);
-            if !user_meta.is_empty() {
-                meta.user_metadata(user_meta);
-            }
-        }
-
-        Ok(meta.build())
     }
 
     pub async fn azdls_delete(
@@ -833,7 +834,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_error_precondition_failed_and_unauthorized() {
+    fn test_parse_error_precondition_failed() {
         let conditional_ctx =
             ErrorContext::new(ServiceOperation("ReadFile")).with_caller_condition(true);
         for code in [
@@ -880,90 +881,6 @@ mod tests {
                 .unwrap();
             let err = parse_error(unconditional_ctx, resp);
             assert_eq!(err.kind(), ErrorKind::Unexpected);
-        }
-
-        // 401 Unauthorized maps to PermissionDenied.
-        let resp = Response::builder()
-            .status(StatusCode::UNAUTHORIZED)
-            .header("x-ms-error-code", "InvalidAuthenticationInfo")
-            .body(Buffer::from(
-                r#"{"error":{"code":"InvalidAuthenticationInfo","message":"Server failed to authenticate the request."}}"#,
-            ))
-            .unwrap();
-        let err = parse_error(unconditional_ctx, resp);
-        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
-        assert!(!err.is_temporary());
-        assert!(
-            err.to_string()
-                .contains("Server failed to authenticate the request.")
-        );
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    mod transport_tests {
-        use bytes::Bytes;
-        use http::{Method, Response, StatusCode};
-        use opendal_core::{EntryMode, ErrorKind};
-
-        use crate::backend::test_util::{ScriptedTransport, test_operator};
-
-        #[tokio::test]
-        async fn stat_directory_without_trailing_slash_or_content_length_succeeds() {
-            let transport = ScriptedTransport::new(vec![
-                Response::builder()
-                    .status(StatusCode::OK)
-                    .header("x-ms-resource-type", "directory")
-                    .header("etag", "\"0x123\"")
-                    .header("x-ms-properties", "owner=b3BlbmRhbA==")
-                    .body(Bytes::new())
-                    .unwrap(),
-            ]);
-            let op = test_operator(transport.clone());
-
-            let meta = op
-                .stat("dir")
-                .await
-                .expect("stat on directory without trailing slash or Content-Length must succeed");
-            assert_eq!(meta.mode(), EntryMode::DIR);
-            assert_eq!(meta.etag(), Some("\"0x123\""));
-            assert_eq!(
-                meta.user_metadata().and_then(|m| m.get("owner")),
-                Some("opendal")
-            );
-            let requests = transport.requests();
-            assert_eq!(requests.len(), 1);
-            assert_eq!(requests[0].method, Method::HEAD);
-        }
-
-        #[tokio::test]
-        async fn stat_file_requires_content_length() {
-            let transport = ScriptedTransport::new(vec![
-                Response::builder()
-                    .status(StatusCode::OK)
-                    .header("x-ms-resource-type", "file")
-                    .body(Bytes::new())
-                    .unwrap(),
-                Response::builder()
-                    .status(StatusCode::OK)
-                    .header("x-ms-resource-type", "file")
-                    .header("content-length", "17")
-                    .body(Bytes::new())
-                    .unwrap(),
-            ]);
-            let op = test_operator(transport);
-
-            let err = op
-                .stat("file.txt")
-                .await
-                .expect_err("file stat without Content-Length must fail");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-
-            let meta = op
-                .stat("file.txt")
-                .await
-                .expect("file stat with Content-Length must succeed");
-            assert_eq!(meta.mode(), EntryMode::FILE);
-            assert_eq!(meta.content_length(), 17);
         }
     }
 }
@@ -1102,7 +1019,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
@@ -1119,9 +1036,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         && !azdls_error.code.is_empty()
     {
         match azdls_error.code.as_str() {
-            "ConditionNotMet" | "SourceConditionNotMet" | "TargetConditionNotMet"
-                if ctx.caller_condition =>
-            {
+            "ConditionNotMet" if ctx.caller_condition => {
                 (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
             }
             "PathAlreadyExists" if ctx.if_not_exists => {

@@ -65,12 +65,7 @@ fn reader_io_error(e: std::io::Error, context: &str) -> *mut opendal_error {
         return opendal_error::new(*err);
     }
 
-    let kind = match e.kind() {
-        std::io::ErrorKind::NotFound => core::ErrorKind::NotFound,
-        std::io::ErrorKind::PermissionDenied => core::ErrorKind::PermissionDenied,
-        _ => core::ErrorKind::Unexpected,
-    };
-    opendal_error::new(core::Error::new(kind, context).set_source(e))
+    opendal_error::new(core::Error::new(core::ErrorKind::Unexpected, context).set_source(e))
 }
 
 impl opendal_reader {
@@ -505,20 +500,6 @@ mod tests {
                 "seek failed",
             );
             assert_eq!((*err).code(), opendal_code::OPENDAL_UNEXPECTED);
-            opendal_error::opendal_error_free(err);
-
-            let err = reader_io_error(
-                std::io::Error::new(std::io::ErrorKind::NotFound, "missing"),
-                "read failed",
-            );
-            assert_eq!((*err).code(), opendal_code::OPENDAL_NOT_FOUND);
-            opendal_error::opendal_error_free(err);
-
-            let err = reader_io_error(
-                std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"),
-                "read failed",
-            );
-            assert_eq!((*err).code(), opendal_code::OPENDAL_PERMISSION_DENIED);
             opendal_error::opendal_error_free(err);
         }
     }

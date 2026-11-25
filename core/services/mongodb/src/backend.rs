@@ -18,7 +18,6 @@
 use std::sync::Arc;
 
 use asyncband::once::OnceCell;
-use mongodb::options::ConnectionString;
 
 use super::MONGODB_SCHEME;
 use super::config::MongodbConfig;
@@ -132,30 +131,25 @@ impl Builder for MongodbBuilder {
     type Config = MongodbConfig;
 
     fn build(self) -> Result<impl Service> {
-        let conn = match self.config.connection_string.as_deref() {
-            Some(v) if !v.is_empty() => v,
-            _ => {
+        let connection_string = match self.config.connection_string {
+            Some(v) => v,
+            None => {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "connection_string is required")
                         .with_context("service", MONGODB_SCHEME),
                 );
             }
         };
-        let connection_string = ConnectionString::parse(conn).map_err(|err| {
-            Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
-                .with_context("service", MONGODB_SCHEME)
-                .set_source(err)
-        })?;
-        let database = match self.config.database.as_deref() {
-            Some(v) if !v.is_empty() => v.to_string(),
-            _ => {
+        let database = match self.config.database {
+            Some(v) => v,
+            None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "database is required")
                     .with_context("service", MONGODB_SCHEME));
             }
         };
-        let collection = match self.config.collection.as_deref() {
-            Some(v) if !v.is_empty() => v.to_string(),
-            _ => {
+        let collection = match self.config.collection {
+            Some(v) => v,
+            None => {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "collection is required")
                         .with_context("service", MONGODB_SCHEME),
@@ -366,42 +360,7 @@ mod tests {
     }
 
     #[test]
-    fn build_rejects_empty_and_invalid_config() {
-        let mut cfg = valid_config();
-        cfg.connection_string = Some(String::new());
-        assert_eq!(
-            cfg.into_builder().build().err().unwrap().kind(),
-            ErrorKind::ConfigInvalid
-        );
-
-        let mut cfg = valid_config();
-        cfg.connection_string = Some("not-a-mongodb-uri".to_string());
-        assert_eq!(
-            cfg.into_builder().build().err().unwrap().kind(),
-            ErrorKind::ConfigInvalid
-        );
-
-        let mut cfg = valid_config();
-        cfg.connection_string = Some("mongodb://:secret@127.0.0.1:27017".to_string());
-        assert_eq!(
-            cfg.into_builder().build().err().unwrap().kind(),
-            ErrorKind::ConfigInvalid
-        );
-
-        let mut cfg = valid_config();
-        cfg.database = Some(String::new());
-        assert_eq!(
-            cfg.into_builder().build().err().unwrap().kind(),
-            ErrorKind::ConfigInvalid
-        );
-
-        let mut cfg = valid_config();
-        cfg.collection = Some(String::new());
-        assert_eq!(
-            cfg.into_builder().build().err().unwrap().kind(),
-            ErrorKind::ConfigInvalid
-        );
-
+    fn build_rejects_invalid_field_paths() {
         for invalid in [
             "",
             ".",

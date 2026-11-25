@@ -19,7 +19,6 @@ use std::sync::Arc;
 
 use suppaftp::FtpError;
 use suppaftp::Status;
-use suppaftp::list::File;
 use suppaftp::tokio::AsyncRustlsFtpStream;
 use suppaftp::types::Response;
 
@@ -79,12 +78,12 @@ async fn verify_deleted_after_file_unavailable(
 
     match ftp_stream.list(parent_arg).await {
         Ok(lines) => {
-            if let Some(entry) = lines
+            if lines
                 .into_iter()
                 .filter_map(|line| parse_list_line(line.as_str()).ok().flatten())
-                .find(|f| f.name() == basename)
+                .any(|file| file.name() == basename)
             {
-                return Err(delete_existing_entry_error(path, &entry, delete_err));
+                return Err(delete_existing_entry_error(path, delete_err));
             }
         }
         Err(FtpError::UnexpectedResponse(Response {
@@ -115,11 +114,7 @@ async fn verify_deleted_after_file_unavailable(
                 );
             }
             if ftp_stream.size(path.trim_end_matches('/')).await.is_ok() {
-                return Err(Error::new(
-                    ErrorKind::NotADirectory,
-                    "delete path is a directory path, but the target is a file",
-                )
-                .set_source(delete_err));
+                return Err(delete_existing_entry_error(path, delete_err));
             }
         } else if ftp_stream.size(path).await.is_ok() {
             return Err(
@@ -131,62 +126,11 @@ async fn verify_deleted_after_file_unavailable(
     Ok(())
 }
 
-fn delete_existing_entry_error(path: &str, entry: &File, delete_err: FtpError) -> Error {
-    if path.ends_with('/') && entry.is_file() {
-        Error::new(
-            ErrorKind::NotADirectory,
-            "delete path is a directory path, but the target is a file",
-        )
-        .set_source(delete_err)
-    } else if !path.ends_with('/') && entry.is_directory() {
-        Error::new(
-            ErrorKind::IsADirectory,
-            "delete path is a file path, but the target is a directory",
-        )
-        .set_source(delete_err)
+fn delete_existing_entry_error(path: &str, delete_err: FtpError) -> Error {
+    let message = if path.ends_with('/') {
+        "failed to remove directory"
     } else {
-        let msg = if path.ends_with('/') {
-            "failed to remove directory"
-        } else {
-            "failed to remove file"
-        };
-        Error::new(ErrorKind::Unexpected, msg).set_source(delete_err)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::str::FromStr;
-
-    use super::*;
-
-    fn file_unavailable_err() -> FtpError {
-        FtpError::UnexpectedResponse(Response::new(
-            Status::FileUnavailable,
-            b"550 operation failed\r\n".to_vec(),
-        ))
-    }
-
-    #[test]
-    fn test_delete_existing_entry_error_kinds() {
-        let dir = File::from_str("drwxr-xr-x 2 user group 4096 Nov  5  2018 target").unwrap();
-        let file = File::from_str("-rw-r--r-- 1 user group 10 Nov  5  2018 target").unwrap();
-
-        assert_eq!(
-            delete_existing_entry_error("target/", &dir, file_unavailable_err()).kind(),
-            ErrorKind::Unexpected
-        );
-        assert_eq!(
-            delete_existing_entry_error("target/", &file, file_unavailable_err()).kind(),
-            ErrorKind::NotADirectory
-        );
-        assert_eq!(
-            delete_existing_entry_error("target", &dir, file_unavailable_err()).kind(),
-            ErrorKind::IsADirectory
-        );
-        assert_eq!(
-            delete_existing_entry_error("target", &file, file_unavailable_err()).kind(),
-            ErrorKind::Unexpected
-        );
-    }
+        "failed to remove file"
+    };
+    Error::new(ErrorKind::Unexpected, message).set_source(delete_err)
 }

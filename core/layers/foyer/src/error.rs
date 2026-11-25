@@ -25,10 +25,8 @@ use opendal_core::ErrorKind;
 
 #[derive(Debug)]
 pub(crate) enum FetchError {
-    /// The object is not eligible for caching (for example `stat` is
-    /// unsupported, the entry is not a file, or its size exceeds
-    /// `size_limit`), so the reader should fall back to reading directly from
-    /// the underlying service.
+    /// The object falls outside the size limit, so read the requested range
+    /// directly from the underlying service.
     BypassCache,
     /// The fetched value was committed to Foyer under `DeletedKeys`'s cache
     /// lock so Foyer's `RawFetch::handle_target` does not perform a second

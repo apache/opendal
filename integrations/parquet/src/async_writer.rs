@@ -29,7 +29,7 @@ enum WriterState {
     /// Buffered data may already be discarded so `write`/`complete` must fail,
     /// while `abort()` can still be retried.
     Failed,
-    /// `inner.abort()` succeeded; repeated `abort()` is a no-op.
+    /// `inner.abort()` succeeded and the writer is terminal.
     Aborted,
 }
 
@@ -103,8 +103,7 @@ impl AsyncWriter {
     /// Aborts the write and cleans up data written by the underlying [`Writer`].
     ///
     /// Failed [`AsyncFileWriter::write`] and [`AsyncFileWriter::complete`] calls
-    /// attempt to abort the underlying writer automatically; if that succeeded,
-    /// calling this method afterwards returns `Ok(())`.
+    /// attempt to abort the underlying writer automatically.
     ///
     /// If the automatic abort did not succeed (for example, because the service
     /// does not support abort or a transient error occurred), calling this
@@ -339,14 +338,6 @@ mod tests {
             "staged file left behind: {:?}",
             staged_files(root.path())
         );
-
-        // The failed write already released the staging area, so an explicit
-        // abort must not fail on the cleaned up file.
-        writer
-            .into_inner()
-            .abort()
-            .await
-            .expect("abort after automatic cleanup must succeed");
     }
 
     /// Non-staged `services::Fs` does not support `abort`, returning
@@ -459,12 +450,6 @@ mod tests {
             "staged file left behind: {:?}",
             staged_files(root.path())
         );
-
-        writer
-            .abort()
-            .await
-            .expect("third abort attempt must be a no-op");
-        assert_eq!(fault.abort_calls(), 2);
 
         let aborted_complete_err = writer
             .complete()

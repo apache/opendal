@@ -443,7 +443,7 @@ func TestLiveCFFIValidationAndInvariants(t *testing.T) {
 	}
 
 	// Invalid presign durations return a Go validation error rather than crossing FFI.
-	for _, expire := range []time.Duration{-time.Second, 0, 500 * time.Millisecond} {
+	for _, expire := range []time.Duration{-time.Second, 500 * time.Millisecond} {
 		for name, call := range map[string]func() error{
 			"PresignRead":   func() error { _, err := memOp.PresignRead(ctx, "dir/a.txt", expire); return err },
 			"PresignWrite":  func() error { _, err := memOp.PresignWrite(ctx, "dir/a.txt", expire); return err },

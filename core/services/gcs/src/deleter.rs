@@ -25,50 +25,6 @@ use opendal_core::raw::oio::BatchDeleteResult;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-fn parse_batch_content_id(part: &MixedPart, batch_len: usize) -> Result<usize> {
-    let mut values = part.part_headers().get_all("content-id").iter();
-    let Some(value) = values.next() else {
-        return Err(Error::new(
-            ErrorKind::Unexpected,
-            "invalid batch response: part is missing Content-ID header",
-        ));
-    };
-    if values.next().is_some() {
-        return Err(Error::new(
-            ErrorKind::Unexpected,
-            "invalid batch response: part contains duplicate Content-ID header",
-        ));
-    }
-
-    let raw = value.to_str().map_err(|err| {
-        Error::new(
-            ErrorKind::Unexpected,
-            "invalid batch response: Content-ID header is not valid UTF-8",
-        )
-        .set_source(err)
-    })?;
-    let trimmed = raw.trim();
-    let unwrapped = trimmed
-        .strip_prefix('<')
-        .and_then(|value| value.strip_suffix('>'))
-        .unwrap_or(trimmed);
-    let id = unwrapped.strip_prefix("response-").unwrap_or(unwrapped);
-    let idx = id.parse::<usize>().map_err(|err| {
-        Error::new(
-            ErrorKind::Unexpected,
-            "invalid batch response: Content-ID header is not a valid index",
-        )
-        .set_source(err)
-    })?;
-    if idx >= batch_len {
-        return Err(Error::new(
-            ErrorKind::Unexpected,
-            "invalid batch response: Content-ID index out of bounds",
-        ));
-    }
-    Ok(idx)
-}
-
 pub struct GcsDeleter {
     core: Arc<GcsCore>,
     ctx: OperationContext,
@@ -132,26 +88,10 @@ impl oio::BatchDelete for GcsDeleter {
             ));
         }
 
-        let has_content_id = parts
-            .iter()
-            .any(|part| part.part_headers().contains_key("content-id"));
-        let batch_len = batch.len();
-        let mut pending: Vec<Option<(String, OpDelete)>> = batch.into_iter().map(Some).collect();
-
         let mut batched_result = BatchDeleteResult::default();
 
-        for (pos, part) in parts.into_iter().enumerate() {
-            let idx = if has_content_id {
-                parse_batch_content_id(&part, batch_len)?
-            } else {
-                pos
-            };
-            let Some((path, op)) = pending[idx].take() else {
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    "invalid batch response: duplicate Content-ID",
-                ));
-            };
+        // Cloud Storage returns the parts in request order.
+        for (part, (path, op)) in parts.into_iter().zip(batch) {
             let resp = part.into_response();
             let error_ctx = ErrorContext::new(ServiceOperation("BatchDeleteObjects"))
                 .with_caller_condition(op.is_conditional())
@@ -246,60 +186,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn delete_batch_correlates_out_of_order_content_id_responses() {
-        let boundary = "batch_out_of_order";
-        for (id1, id0) in [
-            ("response-1", "response-0"),
-            ("<response-1>", "<response-0>"),
-            ("1", "0"),
-            ("<1>", "<0>"),
-        ] {
-            let body = format!(
-                "--{boundary}\r\n\
-Content-Type: application/http\r\n\
-Content-ID: {id1}\r\n\
-\r\n\
-HTTP/1.1 204 No Content\r\n\
-\r\n\
---{boundary}\r\n\
-Content-Type: application/http\r\n\
-Content-ID: {id0}\r\n\
-\r\n\
-HTTP/1.1 503 Service Unavailable\r\n\
-Content-Type: application/json\r\n\
-\r\n\
-{{\"error\":{{\"code\":503,\"message\":\"backend unavailable\"}}}}\r\n\
---{boundary}--\r\n"
-            );
-            let deleter = deleter_with_body("multipart/mixed; boundary=batch_out_of_order", body);
-
-            let result = deleter
-                .delete_batch(vec![
-                    ("first.txt".to_string(), OpDelete::default()),
-                    ("second.txt".to_string(), OpDelete::default()),
-                ])
-                .await
-                .expect("mixed batch should return partial result");
-
-            assert_eq!(result.succeeded.len(), 1);
-            assert_eq!(result.succeeded[0].0, "second.txt");
-            assert_eq!(result.failed.len(), 1);
-            assert_eq!(result.failed[0].0, "first.txt");
-            assert!(result.failed[0].2.is_temporary());
-        }
-    }
-
-    #[tokio::test]
-    async fn delete_batch_falls_back_to_positional_order_when_no_content_id() {
+    async fn delete_batch_correlates_responses_in_request_order() {
         let boundary = "batch_positional";
         let body = format!(
             "--{boundary}\r\n\
 Content-Type: application/http\r\n\
+Content-ID: <response-0>\r\n\
 \r\n\
 HTTP/1.1 204 No Content\r\n\
 \r\n\
 --{boundary}\r\n\
 Content-Type: application/http\r\n\
+Content-ID: <response-1>\r\n\
 \r\n\
 HTTP/1.1 403 Forbidden\r\n\
 Content-Type: application/json\r\n\
@@ -315,7 +213,7 @@ Content-Type: application/json\r\n\
                 ("denied.txt".to_string(), OpDelete::default()),
             ])
             .await
-            .expect("positional fallback should succeed");
+            .expect("ordered subresponses should be classified");
 
         assert_eq!(result.succeeded.len(), 1);
         assert_eq!(result.succeeded[0].0, "ok.txt");
@@ -369,55 +267,5 @@ HTTP/1.1 204 No Content\r\n\
             .err()
             .expect("fewer response parts than requests must fail");
         assert_eq!(err.kind(), ErrorKind::Unexpected);
-    }
-
-    #[tokio::test]
-    async fn delete_batch_rejects_invalid_or_duplicate_content_ids() {
-        let boundary = "batch_invalid";
-        let cases = [
-            // Duplicate Content-ID
-            format!(
-                "--{boundary}\r\nContent-Type: application/http\r\nContent-ID: response-0\r\n\r\nHTTP/1.1 204 No Content\r\n\r\n\
---{boundary}\r\nContent-Type: application/http\r\nContent-ID: response-0\r\n\r\nHTTP/1.1 204 No Content\r\n\r\n--{boundary}--\r\n"
-            ),
-            // Out-of-bounds Content-ID
-            format!(
-                "--{boundary}\r\nContent-Type: application/http\r\nContent-ID: response-0\r\n\r\nHTTP/1.1 204 No Content\r\n\r\n\
---{boundary}\r\nContent-Type: application/http\r\nContent-ID: response-2\r\n\r\nHTTP/1.1 204 No Content\r\n\r\n--{boundary}--\r\n"
-            ),
-            // Non-numeric Content-ID
-            format!(
-                "--{boundary}\r\nContent-Type: application/http\r\nContent-ID: response-abc\r\n\r\nHTTP/1.1 204 No Content\r\n\r\n\
---{boundary}\r\nContent-Type: application/http\r\nContent-ID: response-1\r\n\r\nHTTP/1.1 204 No Content\r\n\r\n--{boundary}--\r\n"
-            ),
-            // Unbalanced angle bracket
-            format!(
-                "--{boundary}\r\nContent-Type: application/http\r\nContent-ID: <response-0\r\n\r\nHTTP/1.1 204 No Content\r\n\r\n\
---{boundary}\r\nContent-Type: application/http\r\nContent-ID: response-1\r\n\r\nHTTP/1.1 204 No Content\r\n\r\n--{boundary}--\r\n"
-            ),
-            // Partial Content-ID presence
-            format!(
-                "--{boundary}\r\nContent-Type: application/http\r\nContent-ID: response-0\r\n\r\nHTTP/1.1 204 No Content\r\n\r\n\
---{boundary}\r\nContent-Type: application/http\r\n\r\nHTTP/1.1 204 No Content\r\n\r\n--{boundary}--\r\n"
-            ),
-            // Duplicate Content-ID header on a single part
-            format!(
-                "--{boundary}\r\nContent-Type: application/http\r\nContent-ID: response-0\r\nContent-ID: response-1\r\n\r\nHTTP/1.1 204 No Content\r\n\r\n\
---{boundary}\r\nContent-Type: application/http\r\nContent-ID: response-1\r\n\r\nHTTP/1.1 204 No Content\r\n\r\n--{boundary}--\r\n"
-            ),
-        ];
-
-        for body in cases {
-            let deleter = deleter_with_body("multipart/mixed; boundary=batch_invalid", body);
-            let err = deleter
-                .delete_batch(vec![
-                    ("a.txt".to_string(), OpDelete::default()),
-                    ("b.txt".to_string(), OpDelete::default()),
-                ])
-                .await
-                .err()
-                .expect("malformed Content-ID batch must fail");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-        }
     }
 }

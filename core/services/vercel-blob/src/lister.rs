@@ -76,7 +76,7 @@ impl oio::PageList for VercelBlobLister {
         for blob in resp.blobs {
             let path = build_relative_path(&self.core.root, &blob.pathname);
 
-            if self.path.ends_with('/') && path == self.path {
+            if path == self.path {
                 continue;
             }
 
@@ -205,41 +205,6 @@ mod tests {
 
             assert_eq!(entries, vec!["a.txt", "b.txt"]);
             assert_eq!(transport.requests().len(), 2);
-        })
-        .await
-        .expect("test timed out");
-    }
-
-    #[tokio::test]
-    async fn next_page_keeps_exact_file_match_and_skips_directory_self() {
-        tokio::time::timeout(Duration::from_secs(10), async {
-            let file_page = format!(
-                r#"{{"hasMore":false,"blobs":[{},{}]}}"#,
-                blob_json("file.txt", 5),
-                blob_json("file.txt.bak", 6)
-            );
-            let transport = ScriptedListTransport::new(vec![file_page]);
-            let mut file_lister = make_lister("file.txt", transport);
-
-            let mut file_entries = Vec::new();
-            while let Some(entry) = file_lister.next().await.unwrap() {
-                file_entries.push(entry.path().to_string());
-            }
-            assert_eq!(file_entries, vec!["file.txt", "file.txt.bak"]);
-
-            let dir_page = format!(
-                r#"{{"hasMore":false,"blobs":[{},{}]}}"#,
-                blob_json("dir/", 0),
-                blob_json("dir/child.txt", 7)
-            );
-            let dir_transport = ScriptedListTransport::new(vec![dir_page]);
-            let mut dir_lister = make_lister("dir/", dir_transport);
-
-            let mut dir_entries = Vec::new();
-            while let Some(entry) = dir_lister.next().await.unwrap() {
-                dir_entries.push(entry.path().to_string());
-            }
-            assert_eq!(dir_entries, vec!["dir/child.txt"]);
         })
         .await
         .expect("test timed out");

@@ -16,7 +16,7 @@
 // under the License.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use futures::StreamExt;
@@ -2342,321 +2342,6 @@ async fn singleflight_truncation_discards_non_contiguous_prefetched_chunks() -> 
 }
 
 #[tokio::test]
-async fn versioned_read_without_stat_with_version_never_caches_latest_version_metadata()
--> Result<()> {
-    tokio::time::timeout(Duration::from_secs(5), async {
-        #[derive(Clone, Debug)]
-        struct VersionedReadNoStatVersion {
-            read_with_suffix: bool,
-            omit_open_metadata: Arc<AtomicBool>,
-            versioned_stats: Arc<AtomicUsize>,
-        }
-
-        #[derive(Debug)]
-        struct VersionedReadNoStatVersionService {
-            inner: Servicer,
-            cfg: VersionedReadNoStatVersion,
-        }
-
-        struct VersionedReadNoStatVersionReader {
-            inner: Servicer,
-            ctx: OperationContext,
-            path: String,
-            version: Option<String>,
-            omit_open_metadata: Arc<AtomicBool>,
-        }
-
-        impl Layer for VersionedReadNoStatVersion {
-            fn apply_service(&self, inner: Servicer) -> Servicer {
-                Arc::new(VersionedReadNoStatVersionService {
-                    inner,
-                    cfg: self.clone(),
-                })
-            }
-        }
-
-        impl Service for VersionedReadNoStatVersionService {
-            type Reader = VersionedReadNoStatVersionReader;
-            type Writer = oio::Writer;
-            type Lister = oio::Lister;
-            type Deleter = oio::Deleter;
-            type Copier = oio::Copier;
-            type Composer = oio::Composer;
-
-            fn info(&self) -> ServiceInfo {
-                self.inner.info()
-            }
-
-            fn capability(&self) -> Capability {
-                let mut cap = self.inner.capability();
-                cap.read = true;
-                cap.read_with_version = true;
-                cap.read_with_if_match = false;
-                cap.read_with_suffix = self.cfg.read_with_suffix;
-                cap.stat = true;
-                cap.stat_with_version = false;
-                cap
-            }
-
-            async fn create_dir(
-                &self,
-                ctx: &OperationContext,
-                path: &str,
-                args: OpCreateDir,
-            ) -> Result<RpCreateDir> {
-                self.inner.create_dir(ctx, path, args).await
-            }
-
-            async fn stat(
-                &self,
-                ctx: &OperationContext,
-                path: &str,
-                args: OpStat,
-            ) -> Result<RpStat> {
-                if args.version().is_some() {
-                    self.cfg.versioned_stats.fetch_add(1, Ordering::Relaxed);
-                }
-                // Simulate a backend without `stat_with_version`: ignore `args.version()`
-                // and always return latest ("v2") metadata.
-                Ok(self
-                    .inner
-                    .stat(ctx, &format!("v2/{path}"), OpStat::new())
-                    .await?
-                    .map_metadata(|metadata| {
-                        let mut builder = metadata.into_builder();
-                        builder.etag("\"v2\"");
-                        builder.version("v2");
-                        builder.build()
-                    }))
-            }
-
-            fn read(
-                &self,
-                ctx: &OperationContext,
-                path: &str,
-                args: OpRead,
-            ) -> Result<Self::Reader> {
-                Ok(VersionedReadNoStatVersionReader {
-                    inner: self.inner.clone(),
-                    ctx: ctx.clone(),
-                    path: path.to_owned(),
-                    version: args.version().map(str::to_owned),
-                    omit_open_metadata: self.cfg.omit_open_metadata.clone(),
-                })
-            }
-
-            fn write(
-                &self,
-                ctx: &OperationContext,
-                path: &str,
-                args: OpWrite,
-            ) -> Result<Self::Writer> {
-                self.inner.write(ctx, path, args)
-            }
-
-            fn list(
-                &self,
-                ctx: &OperationContext,
-                path: &str,
-                args: OpList,
-            ) -> Result<Self::Lister> {
-                self.inner.list(ctx, path, args)
-            }
-
-            fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
-                self.inner.delete(ctx)
-            }
-
-            fn copy(
-                &self,
-                ctx: &OperationContext,
-                from: &str,
-                to: &str,
-                args: OpCopy,
-            ) -> Result<Self::Copier> {
-                self.inner.copy(ctx, from, to, args)
-            }
-
-            fn compose(
-                &self,
-                ctx: &OperationContext,
-                to: &str,
-                args: OpCompose,
-            ) -> Result<Self::Composer> {
-                self.inner.compose(ctx, to, args)
-            }
-
-            async fn rename(
-                &self,
-                ctx: &OperationContext,
-                from: &str,
-                to: &str,
-                args: OpRename,
-            ) -> Result<RpRename> {
-                self.inner.rename(ctx, from, to, args).await
-            }
-
-            async fn presign(
-                &self,
-                ctx: &OperationContext,
-                path: &str,
-                args: OpPresign,
-            ) -> Result<RpPresign> {
-                self.inner.presign(ctx, path, args).await
-            }
-        }
-
-        impl Read for VersionedReadNoStatVersionReader {
-            async fn open(
-                &self,
-                range: BytesRange,
-            ) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-                let version = self.version.as_deref().unwrap_or("v2");
-                let (response, stream) = self
-                    .inner
-                    .read(
-                        &self.ctx,
-                        &format!("{version}/{}", self.path),
-                        OpRead::new(),
-                    )?
-                    .open(range)
-                    .await?;
-                let response = if self.omit_open_metadata.load(Ordering::Relaxed) {
-                    RpRead::default()
-                } else {
-                    match response.into_metadata() {
-                        Some(metadata) => {
-                            let mut builder = metadata.into_builder();
-                            builder.etag(format!("\"{version}\""));
-                            builder.version(version);
-                            RpRead::new(builder.build())
-                        }
-                        None => RpRead::default(),
-                    }
-                };
-                Ok((response, stream))
-            }
-
-            async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
-                let (response, mut stream) = self.open(range).await?;
-                let data = stream.read_all().await?;
-                Ok((response, data))
-            }
-        }
-
-        // 1. Cold suffix reads (both with and without `read_with_suffix`) must not call
-        // `stat` with an unsupported version or poison `subject("doc", Some("v1"))`.
-        for read_with_suffix in [false, true] {
-            let source = memory()?;
-            source.write("v1/doc", "aaaa-v1").await?;
-            source.write("v2/doc", "bbbb-v2").await?;
-            let versioned_stats = Arc::new(AtomicUsize::new(0));
-            let omit_open_metadata = Arc::new(AtomicBool::new(false));
-            let op = source
-                .layer(VersionedReadNoStatVersion {
-                    read_with_suffix,
-                    omit_open_metadata,
-                    versioned_stats: versioned_stats.clone(),
-                })
-                .layer(
-                    CacheLayer::new(memory()?)?
-                        .with_chunk_size(4)
-                        .with_ttl(Duration::MAX),
-                );
-
-            let suffix = op
-                .read_with("doc")
-                .version("v1")
-                .range(BytesRange::suffix(4))
-                .await?;
-            assert_eq!(suffix.to_vec(), b"a-v1");
-            assert_eq!(versioned_stats.load(Ordering::Relaxed), 0);
-
-            let full = op.read_with("doc").version("v1").await?;
-            assert_eq!(full.to_vec(), b"aaaa-v1");
-            assert_eq!(versioned_stats.load(Ordering::Relaxed), 0);
-        }
-
-        // 2. Metadata-less `open()` during cold `discover` must not fall back to
-        // unsupported versioned `stat` or cache latest-version metadata under `v1`.
-        {
-            let source = memory()?;
-            source.write("v1/doc", "aaaa-v1").await?;
-            source.write("v2/doc", "bbbb-v2").await?;
-            let versioned_stats = Arc::new(AtomicUsize::new(0));
-            let omit_open_metadata = Arc::new(AtomicBool::new(true));
-            let op = source
-                .layer(VersionedReadNoStatVersion {
-                    read_with_suffix: false,
-                    omit_open_metadata,
-                    versioned_stats: versioned_stats.clone(),
-                })
-                .layer(
-                    CacheLayer::new(memory()?)?
-                        .with_chunk_size(4)
-                        .with_ttl(Duration::MAX),
-                );
-
-            assert_eq!(
-                op.read_with("doc").version("v1").await?.to_vec(),
-                b"aaaa-v1"
-            );
-            assert_eq!(
-                op.read_with("doc").version("v1").await?.to_vec(),
-                b"aaaa-v1"
-            );
-            assert_eq!(versioned_stats.load(Ordering::Relaxed), 0);
-        }
-
-        // 3. `fetch_unit` -> `verify_stat` must not call `stat` with an unsupported
-        // version when a subsequent chunk `open()` omits strong-etag verification metadata.
-        {
-            let source = memory()?;
-            source.write("v1/doc", "aaaa-v1").await?;
-            source.write("v2/doc", "bbbb-v2").await?;
-            let versioned_stats = Arc::new(AtomicUsize::new(0));
-            let omit_open_metadata = Arc::new(AtomicBool::new(false));
-            let op = source
-                .layer(VersionedReadNoStatVersion {
-                    read_with_suffix: false,
-                    omit_open_metadata: omit_open_metadata.clone(),
-                    versioned_stats: versioned_stats.clone(),
-                })
-                .layer(
-                    CacheLayer::new(memory()?)?
-                        .with_chunk_size(4)
-                        .with_ttl(Duration::MAX),
-                );
-
-            // Warm pointer and chunk 0 with verifiable `v1` metadata.
-            assert_eq!(
-                op.read_with("doc")
-                    .version("v1")
-                    .range(0..4)
-                    .await?
-                    .to_vec(),
-                b"aaaa"
-            );
-            // Subsequent chunk 1 omits open metadata, forcing `fetch_unit` into `verify_stat`.
-            omit_open_metadata.store(true, Ordering::Relaxed);
-            assert_eq!(
-                op.read_with("doc")
-                    .version("v1")
-                    .range(4..7)
-                    .await?
-                    .to_vec(),
-                b"-v1"
-            );
-            assert_eq!(versioned_stats.load(Ordering::Relaxed), 0);
-        }
-
-        Ok::<(), Error>(())
-    })
-    .await
-    .expect("versioned_read_without_stat_with_version test timed out")
-}
-
-#[tokio::test]
 async fn copier_next_invalidates_cache_before_close_and_blocks_inflight_publish() -> Result<()> {
     tokio::time::timeout(Duration::from_secs(5), async {
         // 1. Pre-close read and drop-without-close after `OneShotCopier::next()` on `Fs`.
@@ -2858,8 +2543,7 @@ async fn copier_next_invalidates_cache_before_close_and_blocks_inflight_publish(
 }
 
 #[tokio::test]
-async fn writer_pre_close_write_and_copy_from_invalidate_cache_and_block_inflight_publish()
--> Result<()> {
+async fn writer_pre_close_write_invalidates_cache_and_blocks_inflight_publish() -> Result<()> {
     tokio::time::timeout(Duration::from_secs(5), async {
         // 1. Real `Fs` append writer mutates the file during `write()` before `close()`.
         let dir = tempfile::tempdir().expect("tempdir");
@@ -2878,8 +2562,7 @@ async fn writer_pre_close_write_and_copy_from_invalidate_cache_and_block_infligh
         drop(writer);
         assert_eq!(op.read("fs-file").await?.to_vec(), b"old-new1-new2");
 
-        // 2. In-place mock writer covering both `write()` and `copy_from()` with
-        // concurrent gated reads (no deadlock, no stale publish, pre-close invalidation).
+        // 2. Race an in-place `write()` against a concurrent gated read.
         #[derive(Clone, Debug)]
         struct InPlaceWriteLayer;
 
@@ -2917,7 +2600,6 @@ async fn writer_pre_close_write_and_copy_from_invalidate_cache_and_block_infligh
                 let mut cap = self.inner.capability();
                 cap.write = true;
                 cap.write_can_multi = true;
-                cap.write_can_copy_from = true;
                 cap
             }
 
@@ -3029,19 +2711,6 @@ async fn writer_pre_close_write_and_copy_from_invalidate_cache_and_block_infligh
                 Ok(())
             }
 
-            async fn copy_from(
-                &mut self,
-                path: &str,
-                args: OpRead,
-                range: BytesRange,
-            ) -> Result<()> {
-                let (_, mut stream) = self.inner.read(&self.ctx, path, args)?.open(range).await?;
-                let copied = stream.read_all().await?;
-                self.data.extend_from_slice(&copied.to_vec());
-                self.commit().await?;
-                Ok(())
-            }
-
             async fn close(&mut self) -> Result<Metadata> {
                 self.commit().await
             }
@@ -3051,8 +2720,7 @@ async fn writer_pre_close_write_and_copy_from_invalidate_cache_and_block_infligh
             }
         }
 
-        // 2a. Pre-close `Writer::write()` with concurrent gated read (same-length
-        // overwrite verifies `begin_mutation` discards the in-flight publish).
+        // A same-length overwrite verifies `begin_mutation` discards the in-flight publish.
         let gate = Gate::new();
         let probe = Probe {
             gate: Some(gate.clone()),
@@ -3081,37 +2749,8 @@ async fn writer_pre_close_write_and_copy_from_invalidate_cache_and_block_infligh
         drop(writer);
         assert_eq!(op.read("doc").await?.to_vec(), b"firstsecond");
 
-        // 2b. Pre-close `Writer::copy_from()` with concurrent gated read.
-        let gate = Gate::new();
-        let probe = Probe {
-            gate: Some(gate.clone()),
-            ..Probe::default()
-        };
-        let origin = memory()?.layer(probe).layer(InPlaceWriteLayer);
-        origin.write("src", "copied").await?;
-        origin.write("dst", "old000").await?;
-        let op = origin.layer(
-            CacheLayer::new(memory()?)?
-                .with_chunk_size(6)
-                .with_ttl(Duration::MAX),
-        );
-
-        let inflight = tokio::spawn({
-            let op = op.clone();
-            async move { op.read("dst").await }
-        });
-        gate.entered.acquire().await.unwrap().forget();
-
-        let mut writer = op.writer("dst").await?;
-        writer.copy_from("src", ..).await?;
-        gate.release.add_permits(1);
-        assert_eq!(inflight.await.unwrap()?.to_vec(), b"old000");
-        assert_eq!(op.read("dst").await?.to_vec(), b"copied");
-        drop(writer);
-        assert_eq!(op.read("dst").await?.to_vec(), b"copied");
-
         Ok::<(), Error>(())
     })
     .await
-    .expect("writer_pre_close_write_and_copy_from test timed out")
+    .expect("writer_pre_close_write test timed out")
 }

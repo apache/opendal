@@ -192,17 +192,8 @@ impl PersyCore {
             return Ok(());
         };
 
-        if let Err(err) = tx.delete(&self.segment, &id) {
-            let err = err.persy_error();
-            if !matches!(err, persy::PersyError::RecordNotFound(_)) {
-                return Err(parse_persy_error(
-                    ErrorContext::new(ServiceOperation("DeleteRecord")),
-                    err,
-                ));
-            }
-            // The record is already gone, so only the index entry below needs removal.
-        }
-
+        tx.delete(&self.segment, &id)
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("DeleteRecord")), err))?;
         tx.remove::<String, persy::PersyId>(&self.index, path, Some(id))
             .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("RemoveIndex")), err))?;
 
@@ -224,10 +215,7 @@ impl PersyCore {
 }
 
 fn parse_error<T: Into<persy::PersyError>>(ctx: ErrorContext, err: persy::PE<T>) -> Error {
-    parse_persy_error(ctx, err.persy_error())
-}
-
-fn parse_persy_error(ctx: ErrorContext, err: persy::PersyError) -> Error {
+    let err = err.persy_error();
     let kind = match err {
         persy::PersyError::RecordNotFound(_) => ErrorKind::NotFound,
         _ => ErrorKind::Unexpected,

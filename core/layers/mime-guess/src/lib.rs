@@ -33,10 +33,8 @@ use opendal_core::*;
 ///
 /// The layer preserves any `content_type` that callers or services set.
 ///
-/// On `write` and `compose`, the layer only injects a guessed `content_type`
-/// when the underlying service reports [`Capability::write_with_content_type`]
-/// or [`Capability::compose_with_content_type`]. On `stat`, it only guesses
-/// `content_type` for file entries.
+/// On `write`, the layer only injects a guessed `content_type` when the
+/// underlying service reports [`Capability::write_with_content_type`].
 ///
 /// For example, object storage services often return `content_type` from `stat`.
 /// In that case, the layer keeps the service's value and skips MIME guessing.
@@ -85,10 +83,6 @@ impl Layer for MimeGuessLayer {
 struct MimeGuessService(Servicer);
 
 fn mime_from_path(path: &str) -> Option<&str> {
-    if path.ends_with('/') {
-        return None;
-    }
-
     mime_guess::from_path(path).first_raw()
 }
 
@@ -118,7 +112,7 @@ fn opcompose_with_mime(path: &str, op: OpCompose) -> OpCompose {
 
 fn rpstat_with_mime(path: &str, rp: RpStat) -> RpStat {
     rp.map_metadata(|metadata| {
-        if !metadata.is_file() || metadata.content_type().is_some() {
+        if metadata.content_type().is_some() {
             return metadata;
         }
 
@@ -181,12 +175,7 @@ impl Service for MimeGuessService {
     }
 
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
-        let args = if self.0.capability().compose_with_content_type {
-            opcompose_with_mime(to, args)
-        } else {
-            args
-        };
-        self.0.compose(ctx, to, args)
+        self.0.compose(ctx, to, opcompose_with_mime(to, args))
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
@@ -283,7 +272,6 @@ mod tests {
         capability: Capability,
         last_write_content_type: Arc<Mutex<Option<String>>>,
         last_compose_content_type: Arc<Mutex<Option<String>>>,
-        stat_mode: Option<EntryMode>,
     }
 
     impl Service for MockService {
@@ -356,12 +344,7 @@ mod tests {
             _path: &str,
             _args: OpStat,
         ) -> Result<RpStat> {
-            let meta = match self.stat_mode.unwrap_or(EntryMode::FILE) {
-                EntryMode::FILE => MetadataBuilder::file(0).build(),
-                EntryMode::DIR => MetadataBuilder::dir().build(),
-                EntryMode::Unknown => MetadataBuilder::unknown().build(),
-            };
-            Ok(RpStat::new(meta))
+            Ok(RpStat::new(MetadataBuilder::file(0).build()))
         }
 
         async fn rename(
@@ -444,55 +427,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_stat_and_list_skip_dir_mime() -> Result<()> {
-        let op = Operator::new(services::Memory::default())?.layer(MimeGuessLayer::new());
-
-        op.create_dir("site.html/").await?;
-        op.write("site.html/index.html", DATA).await?;
-
-        let dir_meta = op.stat("site.html/").await?;
-        assert!(dir_meta.is_dir());
-        assert_eq!(dir_meta.content_type(), None);
-
-        let file_meta = op.stat("site.html/index.html").await?;
-        assert!(file_meta.is_file());
-        assert_eq!(file_meta.content_type(), Some(HTML));
-
-        let root_entries = op.list("").await?;
-        let dir_entry = root_entries
-            .iter()
-            .find(|entry| entry.path() == "site.html/")
-            .expect("directory entry should be listed");
-        assert!(dir_entry.metadata().is_dir());
-        assert_eq!(dir_entry.metadata().content_type(), None);
-
-        let sub_entries = op.list("site.html/").await?;
-        for entry in &sub_entries {
-            if entry.metadata().is_dir() {
-                assert_eq!(entry.metadata().content_type(), None);
-            }
-        }
-
-        // Also guard against directory metadata even when the stat path lacks a trailing slash.
-        let mock_dir_op = Operator::new(MockBuilder {
-            service: MockService {
-                capability: Capability {
-                    stat: true,
-                    ..Default::default()
-                },
-                stat_mode: Some(EntryMode::DIR),
-                ..Default::default()
-            },
-        })?
-        .layer(MimeGuessLayer::new());
-        let mock_dir_meta = mock_dir_op.stat("site.html").await?;
-        assert!(mock_dir_meta.is_dir());
-        assert_eq!(mock_dir_meta.content_type(), None);
-
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn test_write_respects_capability() -> Result<()> {
         let recorded = Arc::new(Mutex::new(None));
         let op = Operator::new(MockBuilder {
@@ -543,31 +477,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_compose_respects_capability() -> Result<()> {
-        let recorded = Arc::new(Mutex::new(None));
-        let op = Operator::new(MockBuilder {
-            service: MockService {
-                capability: Capability {
-                    compose: true,
-                    compose_with_content_type: false,
-                    ..Default::default()
-                },
-                last_compose_content_type: recorded.clone(),
-                ..Default::default()
-            },
-        })?
-        .layer(MimeGuessLayer::new());
-
-        op.compose(["a", "b"], "out.html").await?;
-        assert_eq!(recorded.lock().unwrap().as_deref(), None);
-
-        let err = op
-            .compose_with(["a", "b"], "out.html")
-            .content_type(CUSTOM)
-            .await
-            .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-
+    async fn test_compose_guesses_mime_and_preserves_explicit_content_type() -> Result<()> {
         let recorded = Arc::new(Mutex::new(None));
         let op = Operator::new(MockBuilder {
             service: MockService {

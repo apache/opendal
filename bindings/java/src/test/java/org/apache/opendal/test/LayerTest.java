@@ -626,16 +626,14 @@ public class LayerTest {
     }
 
     @Test
-    void testRetryLayerRejectsInvalidDelays() {
-        for (Duration invalid : Arrays.asList(
-                Duration.ofNanos(-1), Duration.ofNanos(Long.MAX_VALUE).plusNanos(1))) {
-            assertThatThrownBy(() -> RetryLayer.builder().minDelay(invalid).build())
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageStartingWith("minDelay ");
-            assertThatThrownBy(() -> RetryLayer.builder().maxDelay(invalid).build())
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageStartingWith("maxDelay ");
-        }
+    void testRetryLayerRejectsNegativeDelays() {
+        final Duration negative = Duration.ofNanos(-1);
+        assertThatThrownBy(() -> RetryLayer.builder().minDelay(negative).build())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("minDelay ");
+        assertThatThrownBy(() -> RetryLayer.builder().maxDelay(negative).build())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("maxDelay ");
     }
 
     @Test

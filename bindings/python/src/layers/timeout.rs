@@ -24,26 +24,17 @@ use opendal::Operator;
 
 /// Parse a timeout given in seconds into a [`Duration`].
 ///
-/// Rejects non-positive, non-finite, sub-nanosecond values that round to zero,
-/// or out-of-range values. A zero timeout is rejected because it would make
-/// every operation time out immediately.
+/// Rejects non-positive, non-finite, or out-of-range values.
 fn parse_timeout_secs(name: &str, secs: f64) -> PyResult<Duration> {
-    if !secs.is_finite() || secs <= 0.0 {
-        return Err(ConfigInvalid::new_err(format!(
-            "{name} must be a positive, finite number of seconds"
-        )));
-    }
-    let timeout = Duration::try_from_secs_f64(secs).map_err(|_| {
+    let invalid = || {
         ConfigInvalid::new_err(format!(
             "{name} must be a positive, finite number of seconds"
         ))
-    })?;
-    if timeout.is_zero() {
-        return Err(ConfigInvalid::new_err(format!(
-            "{name} must be at least one nanosecond"
-        )));
+    };
+    if secs <= 0.0 {
+        return Err(invalid());
     }
-    Ok(timeout)
+    Duration::try_from_secs_f64(secs).map_err(|_| invalid())
 }
 
 /// A layer that adds timeouts to operations.
@@ -74,16 +65,10 @@ impl TimeoutLayer {
     /// ----------
     /// timeout : Optional[float]
     ///     Timeout (in seconds) for control operations like ``stat`` and
-    ///     ``delete``. Must be a positive, finite number. A value of ``0`` or
-    ///     a sub-nanosecond duration that rounds to zero is rejected because
-    ///     it would make every operation time out immediately. Defaults to
-    ///     ``60.0``.
+    ///     ``delete``. Must be a positive, finite number. Defaults to ``60.0``.
     /// io_timeout : Optional[float]
     ///     Timeout (in seconds) for IO operations like ``read`` and
-    ///     ``write``. Must be a positive, finite number. A value of ``0`` or
-    ///     a sub-nanosecond duration that rounds to zero is rejected because
-    ///     it would make every operation time out immediately. Defaults to
-    ///     ``10.0``.
+    ///     ``write``. Must be a positive, finite number. Defaults to ``10.0``.
     ///
     /// Returns
     /// -------
@@ -92,7 +77,7 @@ impl TimeoutLayer {
     /// Raises
     /// ------
     /// ConfigInvalid
-    ///     If ``timeout`` or ``io_timeout`` is out of range or rounds to zero.
+    ///     If ``timeout`` or ``io_timeout`` is out of range.
     #[new]
     #[pyo3(signature = (timeout = None, io_timeout = None))]
     fn new(timeout: Option<f64>, io_timeout: Option<f64>) -> PyResult<PyClassInitializer<Self>> {

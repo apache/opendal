@@ -60,19 +60,10 @@ impl oio::PositionRead for CompfsReader {
         let file = self
             .core
             .exec(move || async move {
-                let file = match compio::fs::OpenOptions::new().read(true).open(&path).await {
-                    Ok(file) => file,
-                    #[cfg(windows)]
-                    Err(err)
-                        if err.kind() == std::io::ErrorKind::PermissionDenied
-                            && compio::fs::metadata(&path)
-                                .await
-                                .is_ok_and(|meta| meta.is_dir()) =>
-                    {
-                        return Ok(None);
-                    }
-                    Err(err) => return Err(err),
-                };
+                let file = compio::fs::OpenOptions::new()
+                    .read(true)
+                    .open(&path)
+                    .await?;
                 if file.metadata().await?.is_dir() {
                     return Ok(None);
                 }

@@ -54,6 +54,11 @@ impl oio::PageList for UpyunLister {
             .list_objects(&self.ctx, &self.path, &ctx.token, self.limit)
             .await?;
 
+        if resp.status() == http::StatusCode::NOT_FOUND {
+            ctx.done = true;
+            return Ok(());
+        }
+
         match resp.status() {
             http::StatusCode::OK => {}
             http::StatusCode::NOT_FOUND => {

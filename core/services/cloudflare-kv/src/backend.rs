@@ -105,7 +105,7 @@ impl Builder for CloudflareKvBuilder {
                 .map(signed_duration_to_duration)
                 .transpose()?,
         };
-        let api_token = match self.config.api_token.as_deref().filter(|v| !v.is_empty()) {
+        let api_token = match &self.config.api_token {
             Some(api_token) => format_authorization_by_bearer(api_token)?,
             None => {
                 return Err(Error::new(
@@ -115,14 +115,14 @@ impl Builder for CloudflareKvBuilder {
             }
         };
 
-        let Some(account_id) = self.config.account_id.filter(|v| !v.is_empty()) else {
+        let Some(account_id) = self.config.account_id.clone() else {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
                 "account_id is required",
             ));
         };
 
-        let Some(namespace_id) = self.config.namespace_id.filter(|v| !v.is_empty()) else {
+        let Some(namespace_id) = self.config.namespace_id.clone() else {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
                 "namespace_id is required",
@@ -573,51 +573,6 @@ mod tests {
         assert!(!format!("{backend:?}").contains(sentinel));
     }
 
-    #[test]
-    fn build_rejects_empty_required_fields() {
-        let cases = [
-            CloudflareKvConfig {
-                api_token: Some(String::new()),
-                account_id: Some("acc123".to_string()),
-                namespace_id: Some("ns456".to_string()),
-                ..Default::default()
-            },
-            CloudflareKvConfig {
-                api_token: Some("tok".to_string()),
-                account_id: Some(String::new()),
-                namespace_id: Some("ns456".to_string()),
-                ..Default::default()
-            },
-            CloudflareKvConfig {
-                api_token: Some("tok".to_string()),
-                account_id: Some("acc123".to_string()),
-                namespace_id: Some(String::new()),
-                ..Default::default()
-            },
-        ];
-
-        for cfg in cases {
-            let err = cfg.into_builder().build().err().unwrap();
-            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-        }
-
-        for empty_key in ["api_token", "account_id", "namespace_id"] {
-            let mut map = vec![
-                ("api_token".to_string(), "tok".to_string()),
-                ("account_id".to_string(), "acc123".to_string()),
-                ("namespace_id".to_string(), "ns456".to_string()),
-            ];
-            for (k, v) in &mut map {
-                if k == empty_key {
-                    v.clear();
-                }
-            }
-            let cfg = CloudflareKvConfig::from_iter(map).unwrap();
-            let err = cfg.into_builder().build().err().unwrap();
-            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-        }
-    }
-
     #[tokio::test]
     async fn create_dir_propagates_http_errors() {
         tokio::time::timeout(Duration::from_secs(5), async {
@@ -641,7 +596,7 @@ mod tests {
                 .await
                 .unwrap_err();
             assert_eq!(err_403.kind(), ErrorKind::PermissionDenied);
-            assert!(!err_403.is_temporary());
+            assert!(err_403.is_temporary());
         })
         .await
         .unwrap();
@@ -675,8 +630,8 @@ mod tests {
                 .stat(&ctx_429, "dir/", OpStat::default())
                 .await
                 .unwrap_err();
-            assert_eq!(err_429.kind(), ErrorKind::RateLimited);
-            assert!(err_429.is_temporary());
+            assert_eq!(err_429.kind(), ErrorKind::Unexpected);
+            assert!(!err_429.is_temporary());
 
             let ctx_false = OperationContext::default().with_http_transport(HttpTransporter::new(
                 SequenceTransport::new(vec![

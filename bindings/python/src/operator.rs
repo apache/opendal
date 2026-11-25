@@ -145,17 +145,6 @@ fn extract_delete_paths(paths: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {
         .collect()
 }
 
-fn is_python_mapping(value: &Bound<PyAny>) -> PyResult<bool> {
-    if value.cast::<PyDict>().is_ok() {
-        return Ok(true);
-    }
-    let py = value.py();
-    let mapping = py
-        .import(pyo3::intern!(py, "collections.abc"))?
-        .getattr(pyo3::intern!(py, "Mapping"))?;
-    value.is_instance(&mapping)
-}
-
 fn config_scalar_to_string(value: &Bound<PyAny>) -> PyResult<String> {
     let py = value.py();
     // `bool` must be checked before `i128` because a Python `bool` also
@@ -180,7 +169,7 @@ fn config_scalar_to_string(value: &Bound<PyAny>) -> PyResult<String> {
             + component("seconds")? * 1_000_000
             + component("microseconds")?;
         Ok(format!("{micros}us"))
-    } else if is_python_mapping(value)? {
+    } else if value.cast::<PyDict>().is_ok() {
         Err(Unsupported::new_err(
             "a map-valued config field cannot be built via from_config; leave it unset",
         ))
@@ -487,8 +476,9 @@ impl Operator {
     /// Raises
     /// ------
     /// TypeError
-    ///     If `**kwargs` contains an unknown keyword argument, an option that
-    ///     does not apply to `mode`, or a value with an incompatible type.
+    ///     If `**kwargs` contains an unknown keyword argument, an option with a
+    ///     non-`None` value that does not apply to `mode`, or a value with an
+    ///     incompatible type.
     /// ValueError
     ///     If the mode is invalid or unsupported, including text (`"t"`) and
     ///     update (`"+"`) modes, or if the mode conflicts with `append` or
@@ -1361,8 +1351,9 @@ impl AsyncOperator {
     /// Raises
     /// ------
     /// TypeError
-    ///     If `**kwargs` contains an unknown keyword argument, an option that
-    ///     does not apply to `mode`, or a value with an incompatible type.
+    ///     If `**kwargs` contains an unknown keyword argument, an option with a
+    ///     non-`None` value that does not apply to `mode`, or a value with an
+    ///     incompatible type.
     /// ValueError
     ///     If the mode is invalid or unsupported, including text (`"t"`) and
     ///     update (`"+"`) modes, or if the mode conflicts with `append` or

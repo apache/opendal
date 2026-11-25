@@ -72,7 +72,7 @@ struct TestBackend {
     store: OpendalStore,
     /// Whether the backend persists HTTP content and user-metadata attributes.
     persists_attributes: bool,
-    /// Whether the backend rejects non-empty attributes with `NotSupported`.
+    /// Whether the backend rejects non-empty write attributes.
     rejects_attributes: bool,
     /// Whether the backend populates `ObjectMeta::e_tag`.
     provides_etag: bool,
@@ -503,9 +503,24 @@ async fn test_put_multipart_opts_across_backends() {
             .await;
             if backend.rejects_attributes {
                 let err = write_and_complete.unwrap_err();
+                let object_store::Error::Generic {
+                    store: "Unexpected",
+                    source,
+                } = &err
+                else {
+                    panic!("[{name}] expected Generic for multipart attributes, got {err:?}");
+                };
+                let backend_error = source
+                    .source()
+                    .and_then(|source| source.downcast_ref::<object_store::Error>());
                 assert!(
-                    matches!(err, object_store::Error::NotSupported { .. }),
-                    "[{name}] expected NotSupported for multipart attributes, got {err:?}"
+                    matches!(backend_error, Some(object_store::Error::NotImplemented { .. })),
+                    "[{name}] expected a NotImplemented source for multipart attributes, got {err:?}"
+                );
+                let head_err = store.head(&attr_path).await.unwrap_err();
+                assert!(
+                    matches!(head_err, object_store::Error::NotFound { .. }),
+                    "[{name}] expected no object after rejected multipart upload, got {head_err:?}"
                 );
             } else {
                 write_and_complete
@@ -790,9 +805,24 @@ async fn test_get_opts_ranges_conditionals_versions_and_attributes_across_backen
                 .await;
             if backend.rejects_attributes {
                 let err = put_attr_res.unwrap_err();
+                let object_store::Error::Generic {
+                    store: "Unexpected",
+                    source,
+                } = &err
+                else {
+                    panic!("[{name}] expected Generic for put with attributes, got {err:?}");
+                };
+                let backend_error = source
+                    .source()
+                    .and_then(|source| source.downcast_ref::<object_store::Error>());
                 assert!(
-                    matches!(err, object_store::Error::NotSupported { .. }),
-                    "[{name}] expected NotSupported for unsupported attributes, got {err:?}"
+                    matches!(backend_error, Some(object_store::Error::NotImplemented { .. })),
+                    "[{name}] expected a NotImplemented source for put with attributes, got {err:?}"
+                );
+                let head_err = store.head(&attr_path).await.unwrap_err();
+                assert!(
+                    matches!(head_err, object_store::Error::NotFound { .. }),
+                    "[{name}] expected no object after rejected put, got {head_err:?}"
                 );
             } else {
                 put_attr_res.unwrap_or_else(|e| panic!("[{name}] put with attributes failed: {e}"));

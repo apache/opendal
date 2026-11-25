@@ -27,7 +27,6 @@ use super::core::MysqlCore;
 
 pub struct MysqlLister {
     root_prefix: String,
-    prefix: String,
     entries: IntoIter<String>,
 }
 
@@ -35,13 +34,12 @@ impl MysqlLister {
     pub async fn new(core: Arc<MysqlCore>, root: String, path: String) -> Result<Self> {
         let prefix = build_absolute_path(&root, &path);
         let entries = core.list(&prefix).await?;
-        Ok(Self::from_entries(&root, prefix, entries))
+        Ok(Self::from_entries(&root, entries))
     }
 
-    fn from_entries(root: &str, prefix: String, entries: Vec<String>) -> Self {
+    fn from_entries(root: &str, entries: Vec<String>) -> Self {
         Self {
             root_prefix: build_absolute_path(root, "/"),
-            prefix,
             entries: entries.into_iter(),
         }
     }
@@ -50,9 +48,6 @@ impl MysqlLister {
 impl List for MysqlLister {
     async fn next(&mut self) -> Result<Option<Entry>> {
         for key in self.entries.by_ref() {
-            if !key.starts_with(&self.prefix) {
-                continue;
-            }
             let Some(rel) = key.strip_prefix(&self.root_prefix) else {
                 continue;
             };
@@ -123,7 +118,6 @@ mod tests {
     async fn lister_skips_cross_root_and_shorter_non_matching_keys() {
         let lister = MysqlLister::from_entries(
             "/App/",
-            "App/".to_string(),
             vec![
                 "app/secret.txt".to_string(),
                 "App/".to_string(),
@@ -149,7 +143,6 @@ mod tests {
         // match a 3-byte prefix `"é/"`.
         let decomposed = MysqlLister::from_entries(
             "/e\u{0301}/",
-            "e\u{0301}/".to_string(),
             vec!["é/".to_string(), "e\u{0301}/ok.txt".to_string()],
         );
         assert_eq!(
@@ -157,11 +150,8 @@ mod tests {
             vec![("ok.txt".to_string(), EntryMode::Unknown)]
         );
 
-        let accented = MysqlLister::from_entries(
-            "/é/",
-            "é/".to_string(),
-            vec!["e/".to_string(), "é/ok.txt".to_string()],
-        );
+        let accented =
+            MysqlLister::from_entries("/é/", vec!["e/".to_string(), "é/ok.txt".to_string()]);
         assert_eq!(
             collect(accented).await,
             vec![("ok.txt".to_string(), EntryMode::Unknown)]
@@ -169,16 +159,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn lister_enforces_exact_prefix_and_skips_non_normalized_keys() {
-        let lister = MysqlLister::from_entries(
-            "/",
-            "Dir/".to_string(),
-            vec![
-                "dir/b".to_string(),
-                "Dir/a".to_string(),
-                "Dir//bad".to_string(),
-            ],
-        );
+    async fn lister_skips_non_normalized_keys() {
+        let lister =
+            MysqlLister::from_entries("/", vec!["Dir/a".to_string(), "Dir//bad".to_string()]);
         assert_eq!(
             collect(lister).await,
             vec![("Dir/a".to_string(), EntryMode::Unknown)]
@@ -186,7 +169,6 @@ mod tests {
 
         let root_lister = MysqlLister::from_entries(
             "/",
-            String::new(),
             vec![
                 String::new(),
                 "/external".to_string(),

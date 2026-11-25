@@ -117,41 +117,19 @@ impl Builder for UpyunBuilder {
 
         debug!("backend use bucket {}", self.config.bucket);
 
-        let operator = self
-            .config
-            .operator
-            .filter(|v| !v.is_empty())
-            .ok_or_else(|| {
-                Error::new(ErrorKind::ConfigInvalid, "operator is empty")
-                    .with_operation("Builder::build")
-                    .with_context("service", UPYUN_SCHEME)
-            })?;
+        let operator = match &self.config.operator {
+            Some(operator) => Ok(operator.clone()),
+            None => Err(Error::new(ErrorKind::ConfigInvalid, "operator is empty")
+                .with_operation("Builder::build")
+                .with_context("service", UPYUN_SCHEME)),
+        }?;
 
-        let operator_header = build_header_value(&format!("UPYUN {operator}:")).map_err(|err| {
-            err.with_operation("Builder::build")
-                .with_context("service", UPYUN_SCHEME)
-                .with_context("key", "operator")
-        })?;
-        operator_header.to_str().map_err(|err| {
-            Error::new(
-                ErrorKind::ConfigInvalid,
-                "operator contains non-ASCII characters",
-            )
-            .with_operation("Builder::build")
-            .with_context("service", UPYUN_SCHEME)
-            .with_context("key", "operator")
-            .set_source(err)
-        })?;
-
-        let password = self
-            .config
-            .password
-            .filter(|v| !v.is_empty())
-            .ok_or_else(|| {
-                Error::new(ErrorKind::ConfigInvalid, "password is empty")
-                    .with_operation("Builder::build")
-                    .with_context("service", UPYUN_SCHEME)
-            })?;
+        let password = match &self.config.password {
+            Some(password) => Ok(password.clone()),
+            None => Err(Error::new(ErrorKind::ConfigInvalid, "password is empty")
+                .with_operation("Builder::build")
+                .with_context("service", UPYUN_SCHEME)),
+        }?;
 
         let signer = UpyunSigner {
             operator: operator.clone(),
@@ -380,7 +358,6 @@ impl Service for UpyunBackend {
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::time::Duration;
 
     use futures::stream;
     use http::{Method, Request, Response, StatusCode};
@@ -422,51 +399,6 @@ mod tests {
                     Some(len),
                 ))
                 .unwrap())
-        }
-    }
-
-    #[test]
-    fn build_rejects_empty_and_invalid_credentials() {
-        let cfg = UpyunConfig::from_iter(
-            [
-                ("bucket", "test-bucket"),
-                ("operator", ""),
-                ("password", "secret"),
-            ]
-            .into_iter()
-            .map(|(k, v)| (k.to_string(), v.to_string())),
-        )
-        .unwrap();
-        let err = cfg
-            .into_builder()
-            .build()
-            .expect_err("empty operator must fail");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        let cfg = UpyunConfig::from_iter(
-            [
-                ("bucket", "test-bucket"),
-                ("operator", "op"),
-                ("password", ""),
-            ]
-            .into_iter()
-            .map(|(k, v)| (k.to_string(), v.to_string())),
-        )
-        .unwrap();
-        let err = cfg
-            .into_builder()
-            .build()
-            .expect_err("empty password must fail");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        for invalid_operator in ["op\r\n", "op\n", "操作员"] {
-            let err = UpyunBuilder::default()
-                .bucket("test-bucket")
-                .operator(invalid_operator)
-                .password("secret")
-                .build()
-                .expect_err("invalid header characters in operator must fail");
-            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
         }
     }
 

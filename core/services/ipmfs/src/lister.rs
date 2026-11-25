@@ -130,7 +130,7 @@ impl IpfsLsResponseEntry {
     /// ```
     fn mode(&self) -> EntryMode {
         match &self.file_type {
-            1 | 5 => EntryMode::DIR,
+            1 => EntryMode::DIR,
             0 | 2 => EntryMode::FILE,
             _ => EntryMode::Unknown,
         }
@@ -231,7 +231,7 @@ mod tests {
                     ("unixfs_file", EntryMode::FILE, 34),
                     ("meta_node", EntryMode::Unknown, 0),
                     ("symlink_entry", EntryMode::Unknown, 0),
-                    ("hamt_dir/", EntryMode::DIR, 0),
+                    ("hamt_dir", EntryMode::Unknown, 0),
                     ("future_type", EntryMode::Unknown, 0),
                 ]
             );

@@ -335,7 +335,14 @@ impl FsWriter {
 
         match result {
             Ok(()) => Ok(()),
-            Err(err) => Err(self.cleanup_staged_on_permanent_error(err).await),
+            Err(err) => {
+                let err = if self.if_not_exists {
+                    err.set_permanent()
+                } else {
+                    err
+                };
+                Err(self.cleanup_staged_on_permanent_error(err).await)
+            }
         }
     }
 }

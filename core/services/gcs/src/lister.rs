@@ -100,12 +100,8 @@ impl oio::PageList for GcsLister {
             };
 
             // set metadata fields
-            if !object.md5_hash.is_empty() {
-                meta.content_md5(&object.md5_hash);
-            }
-            if !object.etag.is_empty() {
-                meta.etag(&object.etag);
-            }
+            meta.content_md5(object.md5_hash.as_str());
+            meta.etag(object.etag.as_str());
             if !object.generation.is_empty() {
                 meta.version(&object.generation);
             }
@@ -179,7 +175,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn next_page_omits_empty_md5_and_etag_and_stops_on_empty_page_token() {
+    async fn next_page_stops_on_empty_page_token() {
         let lister = lister_with_body(
             r#"{
                 "kind": "storage#objects",
@@ -219,8 +215,8 @@ mod tests {
 
         let composite = page_ctx.entries.pop_front().unwrap();
         assert_eq!(composite.path(), "composite.bin");
-        assert_eq!(composite.metadata().content_md5(), None);
-        assert_eq!(composite.metadata().etag(), None);
+        assert_eq!(composite.metadata().content_md5(), Some(""));
+        assert_eq!(composite.metadata().etag(), Some(""));
 
         let regular = page_ctx.entries.pop_front().unwrap();
         assert_eq!(regular.path(), "regular.bin");

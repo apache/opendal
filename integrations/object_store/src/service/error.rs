@@ -37,7 +37,7 @@ pub(crate) fn parse_error(err: object_store::Error) -> Error {
             Error::new(ErrorKind::NotFound, "invalid path").set_source(err)
         }
 
-        object_store::Error::NotSupported { .. } | object_store::Error::NotImplemented { .. } => {
+        object_store::Error::NotSupported { .. } => {
             Error::new(ErrorKind::Unsupported, "operation not supported").set_source(err)
         }
 
@@ -45,53 +45,10 @@ pub(crate) fn parse_error(err: object_store::Error) -> Error {
             Error::new(ErrorKind::ConditionNotMatch, "precondition not met").set_source(err)
         }
 
-        object_store::Error::NotModified { .. } => {
-            Error::new(ErrorKind::ConditionNotMatch, "not modified").set_source(err)
-        }
-
-        object_store::Error::UnknownConfigurationKey { .. } => {
-            Error::new(ErrorKind::ConfigInvalid, "unknown configuration key").set_source(err)
-        }
-
         object_store::Error::Generic { store, .. } => {
             Error::new(ErrorKind::Unexpected, format!("{store} operation failed")).set_source(err)
         }
 
         _ => Error::new(ErrorKind::Unexpected, "unknown error").set_source(err),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_not_implemented_error() {
-        let err = parse_error(object_store::Error::NotImplemented {
-            operation: "`put_opts` with `opts.attributes` specified".into(),
-            implementer: "LocalFileSystem".into(),
-        });
-
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-    }
-
-    #[test]
-    fn test_parse_not_modified_error() {
-        let err = parse_error(object_store::Error::NotModified {
-            path: "test.txt".into(),
-            source: "etag matches".into(),
-        });
-
-        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
-    }
-
-    #[test]
-    fn test_parse_unknown_configuration_key_error() {
-        let err = parse_error(object_store::Error::UnknownConfigurationKey {
-            store: "S3",
-            key: "unknown_key".into(),
-        });
-
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
 }

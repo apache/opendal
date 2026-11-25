@@ -68,15 +68,11 @@ pub extern "system" fn Java_org_apache_opendal_layer_RetryLayer_doLayer<'local>(
     max_times: jlong,
 ) -> jlong {
     env.with_env(|_| -> Result<jlong> {
-        let min_delay = u64::try_from(min_delay)
-            .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "minDelay must be non-negative"))?;
-        let max_delay = u64::try_from(max_delay)
-            .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "maxDelay must be non-negative"))?;
         let op = unsafe { &*op };
         let mut retry = RetryLayer::new();
         retry = retry.with_factor(factor);
-        retry = retry.with_min_delay(Duration::from_nanos(min_delay));
-        retry = retry.with_max_delay(Duration::from_nanos(max_delay));
+        retry = retry.with_min_delay(Duration::from_nanos(min_delay as u64));
+        retry = retry.with_max_delay(Duration::from_nanos(max_delay as u64));
         if jitter {
             retry = retry.with_jitter()
         }

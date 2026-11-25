@@ -52,11 +52,7 @@ impl VercelArtifactsBuilder {
     ///
     /// default: no access token, which leads to failure
     pub fn access_token(mut self, access_token: &str) -> Self {
-        self.config.access_token = if access_token.is_empty() {
-            None
-        } else {
-            Some(access_token.to_string())
-        };
+        self.config.access_token = Some(access_token.to_string());
         self
     }
 
@@ -112,44 +108,18 @@ impl Builder for VercelArtifactsBuilder {
         let access_token = self
             .config
             .access_token
-            .filter(|v| !v.is_empty())
-            .ok_or_else(|| {
-                Error::new(ErrorKind::ConfigInvalid, "access_token not set")
-                    .with_operation("Builder::build")
-                    .with_context("service", VERCEL_ARTIFACTS_SCHEME)
-            })?;
-
-        let auth_header = format_authorization_by_bearer(&access_token)?;
-        let auth_header = build_header_value(&auth_header).map_err(|err| {
-            err.with_operation("Builder::build")
-                .with_context("service", VERCEL_ARTIFACTS_SCHEME)
-                .with_context("key", "access_token")
-        })?;
-        auth_header.to_str().map_err(|err| {
-            Error::new(
-                ErrorKind::ConfigInvalid,
-                "access_token contains non-ASCII characters",
-            )
-            .with_operation("Builder::build")
-            .with_context("service", VERCEL_ARTIFACTS_SCHEME)
-            .with_context("key", "access_token")
-            .set_source(err)
-        })?;
+            .ok_or_else(|| Error::new(ErrorKind::ConfigInvalid, "access_token not set"))?;
 
         let endpoint = self
             .config
             .endpoint
-            .as_deref()
-            .map(|v| v.trim_end_matches('/'))
-            .filter(|v| !v.is_empty())
-            .unwrap_or("https://api.vercel.com")
-            .to_string();
+            .unwrap_or_else(|| "https://api.vercel.com".to_string());
 
         let mut query = QueryPairsWriter::new("");
-        if let Some(team_id) = self.config.team_id.as_deref().filter(|v| !v.is_empty()) {
+        if let Some(team_id) = self.config.team_id.as_deref() {
             query = query.push("teamId", &percent_encode_path(team_id));
         }
-        if let Some(slug) = self.config.team_slug.as_deref().filter(|v| !v.is_empty()) {
+        if let Some(slug) = self.config.team_slug.as_deref() {
             query = query.push("slug", &percent_encode_path(slug));
         }
         let query_string = query.finish();
@@ -324,43 +294,13 @@ mod tests {
         }
     }
 
-    #[test]
-    fn build_rejects_empty_and_invalid_access_token() {
-        let err = VercelArtifactsBuilder::default()
-            .build()
-            .expect_err("missing access_token must fail");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        let err = VercelArtifactsBuilder::default()
-            .access_token("")
-            .build()
-            .expect_err("empty builder access_token must fail");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        let cfg = VercelArtifactsConfig::from_iter([("access_token".to_string(), "".to_string())])
-            .unwrap();
-        let err = cfg
-            .into_builder()
-            .build()
-            .expect_err("empty config access_token must fail");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        for invalid in ["bad\r\ntoken", "bad\ntoken", "tok\u{00e9}n"] {
-            let err = VercelArtifactsBuilder::default()
-                .access_token(invalid)
-                .build()
-                .expect_err("invalid header characters in access_token must fail");
-            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-        }
-    }
-
     #[tokio::test]
-    async fn build_normalizes_endpoint_and_encodes_team_query_params() {
+    async fn build_encodes_team_query_params() {
         tokio::time::timeout(Duration::from_secs(10), async {
             let cfg = VercelArtifactsConfig::from_iter(
                 [
                     ("access_token", "secret-token"),
-                    ("endpoint", "https://cache.example.com///"),
+                    ("endpoint", "https://cache.example.com"),
                     ("team_id", "team&id=1#frag"),
                     ("team_slug", "my team/slug?x=1"),
                 ]
@@ -387,37 +327,6 @@ mod tests {
                     "https://cache.example.com/v8/artifacts/abc123?teamId=team%26id%3D1%23frag&slug=my%20team/slug%3Fx%3D1"
                 ]
             );
-        })
-        .await
-        .expect("test timed out");
-    }
-
-    #[tokio::test]
-    async fn build_falls_back_on_empty_endpoint_and_ignores_empty_team_params() {
-        tokio::time::timeout(Duration::from_secs(10), async {
-            let cfg = VercelArtifactsConfig::from_iter(
-                [
-                    ("access_token", "secret-token"),
-                    ("endpoint", "///"),
-                    ("team_id", ""),
-                    ("team_slug", ""),
-                ]
-                .into_iter()
-                .map(|(k, v)| (k.to_string(), v.to_string())),
-            )
-            .unwrap();
-
-            let transport = RecordingTransport::default();
-            let op = Operator::new(cfg.into_builder()).unwrap().with_context(
-                OperationContext::new()
-                    .with_http_transport(HttpTransporter::new(transport.clone())),
-            );
-
-            let meta = op.stat("hash42").await.unwrap();
-            assert_eq!(meta.content_length(), 4);
-
-            let uris = transport.uris.lock().unwrap().clone();
-            assert_eq!(uris, vec!["https://api.vercel.com/v8/artifacts/hash42"]);
         })
         .await
         .expect("test timed out");

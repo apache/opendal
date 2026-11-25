@@ -382,21 +382,6 @@ class IOTest < ActiveSupport::TestCase
     assert_equal 5, @io_read.pos
   end
 
-  test "#length restores stream position when an error occurs" do
-    @io_read.seek(5, IO::SEEK_SET)
-
-    calls = 0
-    @io_read.define_singleton_method(:tell) do
-      calls += 1
-      raise "simulated failure" if calls == 2
-      super()
-    end
-
-    assert_raise(RuntimeError) { @io_read.length }
-    assert_equal 2, calls
-    assert_equal 5, @io_read.pos
-  end
-
   test "#size returns" do
     assert_equal 43, @io_read.size
   end

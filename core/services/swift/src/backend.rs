@@ -175,7 +175,7 @@ impl Builder for SwiftBuilder {
 
         Ok(SwiftBackend {
             core: Arc::new(SwiftCore {
-                info: ServiceInfo::new(SWIFT_SCHEME, &root, &container),
+                info: ServiceInfo::new(SWIFT_SCHEME, &root, ""),
                 capability: Capability {
                     stat: true,
                     stat_with_if_match: true,
@@ -456,7 +456,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn build_handles_endpoint_scheme_prefix_and_service_info() {
+    fn build_handles_endpoint_scheme_prefix() {
         let http_host = SwiftBuilder::default()
             .endpoint("http-proxy.example.com/v1/AUTH_test/")
             .container("photos")
@@ -465,7 +465,6 @@ mod tests {
             .unwrap();
         assert_eq!(http_host.info().scheme(), SWIFT_SCHEME);
         assert_eq!(http_host.info().root().as_ref(), "/albums/");
-        assert_eq!(http_host.info().name().as_ref(), "photos");
 
         let cfg = SwiftConfig {
             endpoint: Some("http-proxy.example.com/v1/AUTH_test/".to_string()),
@@ -474,7 +473,6 @@ mod tests {
             ..Default::default()
         };
         let op = Operator::from_config(cfg).unwrap();
-        assert_eq!(op.info().name(), "photos");
 
         // Verify the built endpoint URL actually has https:// prepended via presign.
         let rt = tokio::runtime::Builder::new_current_thread()

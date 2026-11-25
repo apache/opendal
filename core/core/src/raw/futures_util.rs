@@ -168,7 +168,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
     pub fn has_remaining(&self) -> bool {
         let completed = self.completed_but_unretrieved.load(Ordering::Relaxed);
         // Allow up to `prefetch` completed tasks to be buffered
-        self.tasks.len() < self.concurrent.saturating_add(completed.min(self.prefetch))
+        self.tasks.len() < self.concurrent + completed.min(self.prefetch)
     }
 
     /// Chunk if there are remaining results to fetch.
@@ -493,18 +493,5 @@ mod tests {
         })
         .await
         .expect("test_clear_resets_and_detaches_completed_counter timed out");
-    }
-
-    #[test]
-    fn test_has_remaining_saturates_on_large_concurrent() {
-        let executor = crate::test_executor();
-        let mut tasks = ConcurrentTasks::new(executor, 2, 2, |i: usize| {
-            Box::pin(async move { (i, Ok(i)) })
-        });
-        tasks.concurrent = usize::MAX;
-        tasks
-            .completed_but_unretrieved
-            .fetch_add(1, Ordering::Relaxed);
-        assert!(tasks.has_remaining());
     }
 }

@@ -314,9 +314,8 @@ impl Debug for FoyerCore {
 const FOYER_DEFAULT_MEMORY_BYTES: usize = 1024 * 1024 * 1024;
 const FOYER_DEFAULT_DISK_FILE_SIZE: usize = 1024 * 1024;
 const FOYER_DEFAULT_SHARDS: usize = 1;
-/// Foyer block engine page alignment (4 KiB) and default blob index size (4 KiB).
+/// Foyer block engine page alignment.
 const FOYER_PAGE_SIZE: usize = 4096;
-const FOYER_BLOB_INDEX_SIZE: usize = 4096;
 
 fn parse_recover_mode(mode_str: &str) -> Result<RecoverMode> {
     match mode_str.to_lowercase().as_str() {
@@ -342,19 +341,8 @@ fn validate_config(config: &FoyerConfig) -> Result<()> {
         );
     }
 
-    if let Some(ref mode_str) = config.recover_mode
-        && !mode_str.is_empty()
-    {
-        parse_recover_mode(mode_str)?;
-    }
-
-    if let Some(ref disk_path) = config.disk_path
-        && disk_path.is_empty()
-    {
-        return Err(
-            Error::new(ErrorKind::ConfigInvalid, "disk_path must not be empty")
-                .with_context("service", FOYER_SCHEME),
-        );
+    if config.disk_path.as_deref().is_none_or(str::is_empty) {
+        return Ok(());
     }
 
     let effective_file_size = match config.disk_file_size {
@@ -365,28 +353,16 @@ fn validate_config(config: &FoyerConfig) -> Result<()> {
             )
             .with_context("service", FOYER_SCHEME));
         }
-        Some(size) => {
-            let aligned = size
-                .checked_add(FOYER_PAGE_SIZE - 1)
-                .map(|v| v & !(FOYER_PAGE_SIZE - 1))
-                .ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::ConfigInvalid,
-                        "disk_file_size overflows page alignment",
-                    )
-                    .with_context("service", FOYER_SCHEME)
-                })?;
-            if aligned <= FOYER_BLOB_INDEX_SIZE {
-                return Err(Error::new(
+        Some(size) => size
+            .checked_add(FOYER_PAGE_SIZE - 1)
+            .map(|v| v & !(FOYER_PAGE_SIZE - 1))
+            .ok_or_else(|| {
+                Error::new(
                     ErrorKind::ConfigInvalid,
-                    format!(
-                        "disk_file_size must be larger than {FOYER_BLOB_INDEX_SIZE} bytes after {FOYER_PAGE_SIZE}-byte page alignment"
-                    ),
+                    "disk_file_size overflows page alignment",
                 )
-                .with_context("service", FOYER_SCHEME));
-            }
-            aligned
-        }
+                .with_context("service", FOYER_SCHEME)
+            })?,
         None => FOYER_DEFAULT_DISK_FILE_SIZE,
     };
 
@@ -417,7 +393,11 @@ impl FoyerCore {
     /// Validate configuration and create a new [`FoyerCore`].
     pub fn try_new(config: FoyerConfig) -> Result<Self> {
         validate_config(&config)?;
-        Ok(Self {
+        Ok(Self::new(config))
+    }
+
+    fn new(config: FoyerConfig) -> Self {
+        Self {
             cache: Arc::new(OnceCell::new()),
             deleted_keys: Arc::new(RwLock::new(DeletedKeys::default())),
             deleted_len: Arc::new(AtomicUsize::new(0)),
@@ -426,13 +406,17 @@ impl FoyerCore {
             load_gate: None,
             #[cfg(test)]
             init_count: Arc::new(AtomicUsize::new(0)),
-        })
+        }
     }
 
     /// Initialize the cache with the given pre-built instance.
-    pub(crate) fn with_cache(mut self, cache: Arc<HybridCache<FoyerKey, FoyerValue>>) -> Self {
-        self.cache = Arc::new(OnceCell::from_value(cache));
-        self
+    pub(crate) fn with_cache(
+        config: FoyerConfig,
+        cache: Arc<HybridCache<FoyerKey, FoyerValue>>,
+    ) -> Self {
+        let mut core = Self::new(config);
+        core.cache = Arc::new(OnceCell::from_value(cache));
+        core
     }
 
     /// Get the cache, initializing lazily at most once across concurrent callers.
@@ -445,8 +429,8 @@ impl FoyerCore {
                 let memory = self.config.memory.unwrap_or(FOYER_DEFAULT_MEMORY_BYTES);
                 let shards = self.config.shards.unwrap_or(FOYER_DEFAULT_SHARDS);
                 let recover_mode = match self.config.recover_mode.as_deref() {
-                    Some(mode_str) if !mode_str.is_empty() => parse_recover_mode(mode_str)?,
-                    _ => RecoverMode::None,
+                    Some(mode_str) => parse_recover_mode(mode_str)?,
+                    None => RecoverMode::None,
                 };
 
                 let mut builder = HybridCacheBuilder::new()
@@ -456,7 +440,12 @@ impl FoyerCore {
                     .with_recover_mode(recover_mode);
 
                 // Configure disk storage if disk_path is provided
-                if let Some(ref disk_path) = self.config.disk_path {
+                if let Some(disk_path) = self
+                    .config
+                    .disk_path
+                    .as_deref()
+                    .filter(|path| !path.is_empty())
+                {
                     let path = PathBuf::from(disk_path);
 
                     // Pre-create the directory because foyer's FsDeviceBuilder::build

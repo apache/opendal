@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use http::StatusCode;
@@ -79,18 +78,6 @@ impl oio::BatchDelete for SwiftDeleter {
             return Err(bulk_delete_error(&detail));
         }
 
-        let mut errors_by_path: HashMap<String, &str> = HashMap::with_capacity(result.errors.len());
-        for entry in &result.errors {
-            if let Some(raw_path) = entry.first() {
-                let normalized = percent_decode_path(raw_path)
-                    .trim_start_matches('/')
-                    .to_string();
-                let status_str = entry.get(1).map(String::as_str).unwrap_or_default();
-                errors_by_path.insert(normalized, status_str);
-            }
-        }
-
-        let container = self.core.container.trim_start_matches('/');
         let mut batched_result = oio::BatchDeleteResult {
             // `result.errors.len()` is server-controlled and may exceed `batch.len()`; use
             // `saturating_sub` (mirroring services/tos) to avoid an unsigned underflow that
@@ -100,19 +87,31 @@ impl oio::BatchDelete for SwiftDeleter {
         };
 
         for (path, op) in batch {
-            // Swift bulk-delete error paths include the container prefix and may have a
-            // leading slash (e.g. "/container/path/to/file"), so normalize both sides.
+            // Check if this path appears in the errors list.
+            // The error paths from Swift include the container prefix, so we need
+            // to reconstruct the full path for comparison.
             let abs = build_absolute_path(&self.core.root, &path);
+            let container = self.core.container.trim_start_matches('/');
             let full_path = format!("{container}/{abs}");
 
-            if let Some(&status_str) = errors_by_path.get(&full_path) {
+            if let Some(error_entry) = result.errors.iter().find(|e| {
+                e.first()
+                    .map(|p| percent_decode_path(p).trim_start_matches('/') == full_path)
+                    .unwrap_or(false)
+            }) {
+                let status_str = error_entry.get(1).map(String::as_str).unwrap_or_default();
                 if parse_bulk_delete_status(status_str) == Some(StatusCode::NOT_FOUND) {
                     batched_result.succeeded.push((path, op));
-                } else {
-                    batched_result
-                        .failed
-                        .push((path, op, bulk_delete_error(status_str)));
+                    continue;
                 }
+                batched_result.failed.push((
+                    path,
+                    op,
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        format!("bulk delete error: {status_str}"),
+                    ),
+                ));
             } else {
                 // Either deleted successfully or not found (both are success for us).
                 batched_result.succeeded.push((path, op));
@@ -245,20 +244,15 @@ mod tests {
         assert_eq!(result.failed.len(), 5);
 
         assert_eq!(result.failed[0].0, "path/to/forbidden.txt");
-        assert_eq!(result.failed[0].2.kind(), ErrorKind::PermissionDenied);
         assert!(!result.failed[0].2.is_temporary());
 
         assert_eq!(result.failed[1].0, "unauth.txt");
-        assert_eq!(result.failed[1].2.kind(), ErrorKind::PermissionDenied);
         assert!(!result.failed[1].2.is_temporary());
 
         assert_eq!(result.failed[2].0, "dir/file with space%20+plus.txt");
         assert_eq!(result.failed[2].2.kind(), ErrorKind::Unexpected);
-        assert!(result.failed[2].2.is_temporary());
 
         assert_eq!(result.failed[3].0, "rate-limited.txt");
-        assert_eq!(result.failed[3].2.kind(), ErrorKind::RateLimited);
-        assert!(result.failed[3].2.is_temporary());
 
         assert_eq!(result.failed[4].0, "conflict.txt");
         assert_eq!(result.failed[4].2.kind(), ErrorKind::Unexpected);

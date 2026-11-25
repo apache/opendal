@@ -181,15 +181,7 @@ impl SqliteCore {
         };
         let value: Option<(Vec<u8>, i64)> = value.map_err(parse_sqlite_error)?;
 
-        value
-            .map(|(bs, size)| {
-                let size = u64::try_from(size).map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "sqlite value length is invalid")
-                        .set_source(err)
-                })?;
-                Ok((Buffer::from(bs), size))
-            })
-            .transpose()
+        Ok(value.map(|(bs, size)| (Buffer::from(bs), size as u64)))
     }
 
     pub async fn get_suffix(&self, path: &str, size: u64) -> Result<Option<(Buffer, u64)>> {
@@ -225,15 +217,7 @@ impl SqliteCore {
         .await
         .map_err(parse_sqlite_error)?;
 
-        value
-            .map(|(bs, total_size)| {
-                let total_size = u64::try_from(total_size).map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "sqlite value length is invalid")
-                        .set_source(err)
-                })?;
-                Ok((Buffer::from(bs), total_size))
-            })
-            .transpose()
+        Ok(value.map(|(bs, total_size)| (Buffer::from(bs), total_size as u64)))
     }
 
     pub async fn set(&self, path: &str, value: Buffer) -> Result<()> {

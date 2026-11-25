@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use bytes::Buf;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
@@ -644,6 +645,9 @@ impl Builder for OssBuilder {
             copy_multi_min_size: Some(MIN_MULTIPART_PART_SIZE),
             copy_multi_max_size: Some(MAX_MULTIPART_PART_SIZE),
 
+            restore: true,
+            restore_with_version: true,
+
             list: true,
             list_with_limit: true,
             list_with_start_after: true,
@@ -831,6 +835,93 @@ impl Service for OssBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        args.check(&self.capability())?;
+
+        if let Some(version) = args.version() {
+            let req = self
+                .core
+                .oss_copy_object_request(path, path, Some(version))?;
+            let req = self.core.sign(ctx, req).await?;
+            // Replaying after a lost confirmation can create a second version.
+            let resp = self
+                .core
+                .send(ctx, req)
+                .await
+                .map_err(Error::set_permanent)?;
+            return match resp.status() {
+                StatusCode::OK => Ok(RpRestore::new()),
+                status => Err(
+                    parse_error(ErrorContext::new(ServiceOperation("CopyObject")), resp)
+                        .with_permanent(status.is_server_error()),
+                ),
+            };
+        }
+
+        let resp = self
+            .core
+            .oss_list_object_versions(ctx, path, "", Some(1), "", "")
+            .await?;
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListObjectVersions")),
+                resp,
+            ));
+        }
+
+        let output: ListObjectVersionsOutput =
+            quick_xml::de::from_reader(resp.into_body().reader())
+                .map_err(new_xml_deserialize_error)
+                .map_err(Error::set_temporary)?;
+        let key = build_absolute_path(&self.core.root, path);
+        if output
+            .version
+            .iter()
+            .any(|version| version.key == key && version.is_latest)
+        {
+            return Ok(RpRestore::new());
+        }
+        let Some(marker) = output
+            .delete_marker
+            .into_iter()
+            .find(|marker| marker.key == key && marker.is_latest)
+        else {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "no live object or current delete marker exists",
+            ));
+        };
+        if marker.version_id.is_empty() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "current delete marker has no version ID",
+            ));
+        }
+
+        let args = OpDelete::new().into_version(&marker.version_id);
+        let req = self.core.oss_delete_object_request(path, &args)?;
+        let req = self.core.sign(ctx, req).await?;
+        // An uncertain DELETE may already have removed this marker. Replaying
+        // restore would look up the next marker and could remove it as well.
+        let resp = self
+            .core
+            .send(ctx, req)
+            .await
+            .map_err(Error::set_permanent)?;
+        match resp.status() {
+            StatusCode::NO_CONTENT => Ok(RpRestore::new()),
+            status => Err(
+                parse_error(ErrorContext::new(ServiceOperation("DeleteObject")), resp)
+                    .with_permanent(status.is_server_error()),
+            ),
+        }
     }
 
     async fn presign(

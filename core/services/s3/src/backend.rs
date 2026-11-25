@@ -1585,6 +1585,10 @@ impl Service for S3Backend {
         let req = match op {
             PresignOperation::Stat(v) => self.core.s3_head_object_request(path, v),
             PresignOperation::Read(range, v) => self.core.s3_get_object_request(path, range, &v),
+            PresignOperation::Write(v) if v.append() => Err(Error::new(
+                ErrorKind::Unsupported,
+                "S3 presigned writes do not support append",
+            )),
             PresignOperation::Write(v) => {
                 self.core
                     .s3_put_object_request(path, None, &v, Buffer::new())
@@ -3748,6 +3752,37 @@ mod tests {
     fn test_profile() {
         let builder = S3Builder::default().profile("selected");
         assert_eq!(builder.config.profile.as_deref(), Some("selected"));
+    }
+
+    #[tokio::test]
+    async fn test_presign_write_rejects_append() {
+        let op = Operator::new(
+            S3Builder::default()
+                .bucket("test")
+                .region("us-east-1")
+                .endpoint("http://127.0.0.1:9000")
+                .access_key_id("test-access-key")
+                .secret_access_key("test-secret-key")
+                .disable_config_load()
+                .disable_ec2_metadata(),
+        )
+        .unwrap();
+        assert!(op.info().capability().write_can_append);
+
+        let result = op
+            .presign_write_options(
+                "test.txt",
+                std::time::Duration::from_secs(60),
+                options::WriteOptions {
+                    append: true,
+                    ..Default::default()
+                },
+            )
+            .await;
+        let Err(err) = result else {
+            panic!("S3 presign must reject append");
+        };
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
     }
 
     #[tokio::test]

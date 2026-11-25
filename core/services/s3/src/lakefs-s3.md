@@ -27,6 +27,28 @@ See [S3 object and prefix examples](https://docs.lakefs.io/reference/python/boto
 [temporary credentials](https://docs.lakefs.io/security/s3-temporary-credentials/),
 and [supported operations](https://docs.lakefs.io/reference/s3/).
 
+## Source ETag conditions
+
+The preset reports the capabilities of the shared S3 implementation. With
+local storage, lakeFS 1.88.0 can accept a stale source ETag on a ranged
+`GetObject` or `UploadPartCopy` request and return or copy the current bytes.
+This affects both reads and `Writer::copy_from_options`.
+
+To reject these calls before sending a request, set `read_with_if_match`
+to `false` on the operator. Reads and writer copies that specify `if_match`
+then return `ErrorKind::Unsupported`.
+
+```rust
+# fn guard(op: opendal_core::Operator) -> opendal_core::Result<opendal_core::Operator> {
+use opendal_core::layers::CapabilityOverrideLayer;
+
+let op = op.layer(CapabilityOverrideLayer::from_overrides(
+    "read_with_if_match=false",
+)?);
+# Ok(op)
+# }
+```
+
 ## Example
 
 ```rust

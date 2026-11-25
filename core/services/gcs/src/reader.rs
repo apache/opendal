@@ -21,8 +21,12 @@ use super::core::constants::X_GOOG_GENERATION;
 use super::core::parse_error;
 use http::Response;
 use http::StatusCode;
+use http::header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_RANGE};
 use opendal_core::raw::*;
 use opendal_core::*;
+
+const STORED_CONTENT_ENCODING: &str = "x-goog-stored-content-encoding";
+const STORED_CONTENT_LENGTH: &str = "x-goog-stored-content-length";
 
 /// Reader returned by this backend.
 pub struct GcsReader {
@@ -57,39 +61,98 @@ impl oio::StreamRead for GcsReader {
         let args = self.args.clone();
         let error_ctx = ErrorContext::new(ServiceOperation("GetObject"))
             .with_caller_condition(args.is_conditional());
-        let resp = backend
+        let mut resp = backend
             .core
             .gcs_get_object(&self.ctx, path, range, &args)
             .await?;
 
         let status = resp.status();
-
-        let (rp, stream) = match status {
+        match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let mut metadata = parse_into_metadata(path, resp.headers())?.into_builder();
+                let headers = resp.headers_mut();
+                // A chunked full response can omit Content-Length. Use the
+                // stored length only when GCS sends the stored gzip representation.
+                let check_stored_length = if status == StatusCode::OK
+                    && range.is_full()
+                    && !headers.contains_key(CONTENT_LENGTH)
+                    && !headers.contains_key(CONTENT_RANGE)
+                    && headers
+                        .get(CONTENT_ENCODING)
+                        .is_some_and(|value| value.as_bytes().eq_ignore_ascii_case(b"gzip"))
+                    && headers
+                        .get(STORED_CONTENT_ENCODING)
+                        .is_some_and(|value| value.as_bytes().eq_ignore_ascii_case(b"gzip"))
+                    && let Some(length) = headers.get(STORED_CONTENT_LENGTH).cloned()
+                {
+                    headers.insert(CONTENT_LENGTH, length);
+                    true
+                } else {
+                    false
+                };
+                let mut metadata = parse_into_metadata(path, headers)?.into_builder();
                 // GCS sends the JSON API etag unquoted, as stat and list report
                 // it, and matches only that form in preconditions. Some
                 // emulators quote it.
-                if let Some(etag) = parse_etag(resp.headers())? {
+                if let Some(etag) = parse_etag(headers)? {
                     let etag = etag
                         .strip_prefix('"')
                         .and_then(|etag| etag.strip_suffix('"'))
                         .unwrap_or(etag);
                     metadata.etag(etag);
                 }
-                if let Some(generation) = parse_header_to_str(resp.headers(), X_GOOG_GENERATION)? {
+                if let Some(generation) = parse_header_to_str(headers, X_GOOG_GENERATION)? {
                     metadata.version(generation);
                 }
-                (RpRead::new(metadata.build()), resp.into_body())
+                let metadata = metadata.build();
+                let body = resp.into_body();
+                let stream: Box<dyn oio::ReadStreamDyn> = if check_stored_length {
+                    Box::new(StoredGzipStream {
+                        body,
+                        remaining: metadata.content_length(),
+                    })
+                } else {
+                    Box::new(body)
+                };
+                Ok((RpRead::new(metadata), stream))
             }
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                return Err(parse_error(error_ctx, Response::from_parts(part, buf)));
+                Err(parse_error(error_ctx, Response::from_parts(part, buf)))
             }
-        };
+        }
+    }
+}
 
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+struct StoredGzipStream {
+    body: HttpBody,
+    remaining: u64,
+}
+
+impl oio::ReadStream for StoredGzipStream {
+    async fn read(&mut self) -> Result<Buffer> {
+        let chunk = oio::ReadStream::read(&mut self.body).await?;
+        if chunk.is_empty() && self.remaining != 0 {
+            return Err(
+                Error::new(ErrorKind::Unexpected, "stored gzip response ended early")
+                    .with_context("remaining", self.remaining)
+                    .set_temporary(),
+            );
+        }
+        self.remaining = self
+            .remaining
+            .checked_sub(chunk.len() as u64)
+            .ok_or_else(|| {
+                // Resuming at EOF cannot repair excess data.
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "stored gzip response exceeded its length",
+                )
+                .with_context("remaining", self.remaining)
+                .with_context("chunk_size", chunk.len())
+                .set_persistent()
+            })?;
+        Ok(chunk)
     }
 }
 
@@ -124,7 +187,7 @@ mod tests {
         }
     }
 
-    async fn read_etag(header: &'static str) -> Option<String> {
+    fn reader_with(transport: impl HttpTransport) -> GcsReader {
         let backend = GcsBackend {
             core: Arc::new(GcsCore {
                 info: ServiceInfo::new("gcs", "/", "test-bucket"),
@@ -143,12 +206,81 @@ mod tests {
                 skip_signature: true,
             }),
         };
-        let ctx = OperationContext::default()
-            .with_http_transport(HttpTransporter::new(EtagTransport(header)));
-        let reader = GcsReader::new(backend, ctx, "object", OpRead::new());
+        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
+        GcsReader::new(backend, ctx, "object", OpRead::new())
+    }
+
+    async fn read_etag(header: &'static str) -> Option<String> {
+        let reader = reader_with(EtagTransport(header));
         let (rp, _) = reader.open(BytesRange::new(0, Some(4))).await.unwrap();
         rp.into_metadata()
             .and_then(|meta| meta.etag().map(str::to_string))
+    }
+
+    struct ChunkedGzipObject {
+        content_encoding: Option<&'static str>,
+        body: &'static str,
+    }
+
+    impl HttpTransport for ChunkedGzipObject {
+        async fn fetch(&self, _: http::Request<Buffer>) -> Result<Response<HttpBody>> {
+            let mut response = Response::builder()
+                .status(StatusCode::OK)
+                .header(STORED_CONTENT_ENCODING, "gzip")
+                .header(STORED_CONTENT_LENGTH, "4");
+            if let Some(encoding) = self.content_encoding {
+                response = response.header(CONTENT_ENCODING, encoding);
+            }
+            response
+                .body(HttpBody::new(
+                    stream::iter([Ok(Buffer::from(self.body))]),
+                    None,
+                ))
+                .map_err(new_request_build_error)
+        }
+    }
+
+    #[tokio::test]
+    async fn test_chunked_full_stored_gzip_uses_and_checks_stored_length() -> Result<()> {
+        let reader = reader_with(ChunkedGzipObject {
+            content_encoding: Some("gzip"),
+            body: "data",
+        });
+        let (rp, mut body) = reader.open(BytesRange::default()).await?;
+        assert_eq!(rp.metadata().unwrap().content_length(), 4);
+        assert_eq!(body.read_all_dyn().await?.to_bytes(), "data");
+
+        for (body, expected_error, retryable) in [
+            ("abc", "stored gzip response ended early", true),
+            ("abcde", "stored gzip response exceeded its length", false),
+        ] {
+            let reader = reader_with(ChunkedGzipObject {
+                content_encoding: Some("gzip"),
+                body,
+            });
+            let (_, mut stream) = reader.open(BytesRange::default()).await?;
+            let error = stream.read_all_dyn().await.unwrap_err();
+            assert_eq!(error.kind(), ErrorKind::Unexpected);
+            assert_eq!(error.message(), expected_error);
+            assert_eq!(error.is_temporary(), retryable);
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_transcoded_full_read_does_not_use_stored_length() {
+        let reader = reader_with(ChunkedGzipObject {
+            content_encoding: None,
+            body: "decoded",
+        });
+        let Err(error) = reader.open(BytesRange::default()).await else {
+            panic!("the stored length does not describe the transcoded body");
+        };
+        assert_eq!(error.kind(), ErrorKind::Unexpected);
+        assert_eq!(
+            error.message(),
+            "HTTP response does not contain file content length"
+        );
     }
 
     #[tokio::test]

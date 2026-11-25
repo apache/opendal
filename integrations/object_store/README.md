@@ -121,8 +121,8 @@ operator advertises the requested mode. Otherwise, the integration copies the
 object and deletes the source after a successful copy. For distinct paths
 (`from != to`), `rename_if_not_exists` requires conditional rename or
 conditional copy, and `copy_if_not_exists` requires conditional copy, returning
-`NotSupported` when the operator lacks those capabilities. Same-path operations
-resolve via `stat`.
+`NotSupported` when the operator lacks those capabilities. A same-path overwrite
+of an existing file succeeds and preserves its contents.
 
 ### Listing with an offset
 
@@ -212,9 +212,8 @@ implementations (such as `InMemory`, `LocalFileSystem`, `AmazonS3`,
     through OpenDAL's `Writer` (which handles chunking and concurrent flushes
     internally). A failed, dropped, or cancelled `put_part` future poisons the
     upload so subsequent `put_part` and `complete` calls fail with
-    `Error::Generic`; call `abort()` to clean up where supported. Calling
-    `complete()` while parts are still in flight also fails and poisons the
-    upload.
+    `Error::Generic`; call `abort()` to clean up where supported. Await all
+    `put_part` futures before calling `complete()`.
 - **Metadata, attributes, tags, and extensions**:
   - `ObjectMeta::e_tag`, `ObjectMeta::version`, `PutResult::e_tag`, and
     `PutResult::version` are populated only when the backend returns them
@@ -254,9 +253,9 @@ implementations (such as `InMemory`, `LocalFileSystem`, `AmazonS3`,
   - `list_with_offset` does not push `offset` down to backend cursors; it lists
     the requested prefix recursively and filters locally by encoded
     `object_store::path::Path` order, scanning entries before `offset`.
-  - When a backend omits `last_modified` in list responses, `list`,
-    `list_with_offset`, and `list_with_delimiter` issue an additional `stat`
-    call per object to complete `ObjectMeta`.
+  - When a backend omits `last_modified` in list responses, `list` uses the
+    Unix epoch. `list_with_offset` and `list_with_delimiter` issue an additional
+    `stat` call for each returned object whose timestamp is missing.
   - Listing order follows the underlying backend and is not guaranteed to be
     sorted.
 - **Optional `object_store` traits, error mapping, and `new_amazon_s3`**:

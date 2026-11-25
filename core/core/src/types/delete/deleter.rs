@@ -329,7 +329,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_sink_rejects_operations_after_close() {
+    async fn test_closed_sink_rejects_sends_and_allows_flush_and_close() {
         let op = Operator::new(services::Memory::default()).unwrap();
         op.write("file_a", "a").await.unwrap();
         op.write("file_b", "b").await.unwrap();
@@ -346,16 +346,8 @@ mod tests {
         assert_eq!(err.kind(), ErrorKind::Unexpected);
         assert!(op.exists("file_b").await.unwrap());
 
-        let err = sink
-            .flush()
-            .await
-            .expect_err("closed sink must reject flushes");
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
-        let err = sink
-            .close()
-            .await
-            .expect_err("closed sink must reject repeated close");
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        sink.flush().await.expect("closed sink is already flushed");
+        sink.close().await.expect("closed sink is already closed");
 
         let waker = noop_waker();
         let mut cx = Context::from_waker(&waker);
@@ -407,7 +399,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_sink_ready_and_flush_reject_completed_close() {
+    async fn test_sink_ready_and_flush_can_finish_a_pending_close() {
         let op = Operator::new(services::Memory::default()).unwrap();
         let waker = noop_waker();
         let mut cx = Context::from_waker(&waker);
@@ -422,11 +414,10 @@ mod tests {
 
         let mut sink = pending_close_sink(&op).await;
         assert!(Pin::new(&mut sink).poll_close(&mut cx).is_pending());
-        let err = match Pin::new(&mut sink).poll_flush(&mut cx) {
-            Poll::Ready(Err(err)) => err,
-            result => panic!("flush must reject a completed close, got {result:?}"),
-        };
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        let result = Pin::new(&mut sink).poll_flush(&mut cx);
+        assert!(matches!(result, Poll::Ready(Ok(()))));
+        let result = Pin::new(&mut sink).poll_ready(&mut cx);
+        assert!(matches!(result, Poll::Ready(Err(_))));
     }
 
     #[tokio::test]

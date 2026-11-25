@@ -173,7 +173,7 @@ pub unsafe extern "C" fn free_operator(operator: *mut od::blocking::Operator) {
 ///   `error_message` must be released with `free_string`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn blocking_read(
-    op: *mut od::blocking::Operator,
+    op: *const od::blocking::Operator,
     path: *const c_char,
     result: *mut FFIResult<ByteSlice>,
 ) {
@@ -182,7 +182,7 @@ pub unsafe extern "C" fn blocking_read(
             *result = FFIResult::err("Operator is null");
             return;
         } else {
-            &mut *op
+            &*op
         };
 
         let path_str = match c_str_arg(path) {
@@ -227,7 +227,7 @@ unsafe fn copy_bytes<'a>(bytes: *const c_char, len: usize) -> Option<&'a [u8]> {
 /// * `result` is a valid pointer with space for one `FFIResult`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn blocking_write(
-    op: *mut od::blocking::Operator,
+    op: *const od::blocking::Operator,
     path: *const c_char,
     bytes: *const c_char,
     len: usize,
@@ -238,7 +238,7 @@ pub unsafe extern "C" fn blocking_write(
             *result = FFIResult::err("Operator is null");
             return;
         } else {
-            &mut *op
+            &*op
         };
 
         let path_str = match c_str_arg(path) {
@@ -275,7 +275,7 @@ pub unsafe extern "C" fn blocking_write(
 ///   `error_message` must be released with `free_string`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn blocking_is_exist(
-    op: *mut od::blocking::Operator,
+    op: *const od::blocking::Operator,
     path: *const c_char,
     result: *mut FFIResult<bool>,
 ) {
@@ -284,7 +284,7 @@ pub unsafe extern "C" fn blocking_is_exist(
             *result = FFIResult::err("Operator is null");
             return;
         } else {
-            &mut *op
+            &*op
         };
 
         let path_str = match c_str_arg(path) {
@@ -311,7 +311,7 @@ pub unsafe extern "C" fn blocking_is_exist(
 /// * `result` is a valid pointer with space for one `FFIResult`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn blocking_create_dir(
-    op: *mut od::blocking::Operator,
+    op: *const od::blocking::Operator,
     path: *const c_char,
     result: *mut FFIResult<()>,
 ) {
@@ -320,7 +320,7 @@ pub unsafe extern "C" fn blocking_create_dir(
             *result = FFIResult::err("Operator is null");
             return;
         } else {
-            &mut *op
+            &*op
         };
 
         let path_str = match c_str_arg(path) {
@@ -347,7 +347,7 @@ pub unsafe extern "C" fn blocking_create_dir(
 /// * `result` is a valid pointer with space for one `FFIResult`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn blocking_copy(
-    op: *mut od::blocking::Operator,
+    op: *const od::blocking::Operator,
     path_from: *const c_char,
     path_to: *const c_char,
     result: *mut FFIResult<()>,
@@ -357,7 +357,7 @@ pub unsafe extern "C" fn blocking_copy(
             *result = FFIResult::err("Operator is null");
             return;
         } else {
-            &mut *op
+            &*op
         };
 
         let path_from_str = match c_str_arg(path_from) {
@@ -392,7 +392,7 @@ pub unsafe extern "C" fn blocking_copy(
 /// * `result` is a valid pointer with space for one `FFIResult`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn blocking_rename(
-    op: *mut od::blocking::Operator,
+    op: *const od::blocking::Operator,
     path_from: *const c_char,
     path_to: *const c_char,
     result: *mut FFIResult<()>,
@@ -402,7 +402,7 @@ pub unsafe extern "C" fn blocking_rename(
             *result = FFIResult::err("Operator is null");
             return;
         } else {
-            &mut *op
+            &*op
         };
 
         let path_from_str = match c_str_arg(path_from) {
@@ -437,7 +437,7 @@ pub unsafe extern "C" fn blocking_rename(
 /// * `result` is a valid pointer with space for one `FFIResult`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn blocking_delete(
-    op: *mut od::blocking::Operator,
+    op: *const od::blocking::Operator,
     path: *const c_char,
     result: *mut FFIResult<()>,
 ) {
@@ -446,7 +446,7 @@ pub unsafe extern "C" fn blocking_delete(
             *result = FFIResult::err("Operator is null");
             return;
         } else {
-            &mut *op
+            &*op
         };
 
         let path_str = match c_str_arg(path) {
@@ -475,7 +475,7 @@ pub unsafe extern "C" fn blocking_delete(
 ///   `error_message` must be released with `free_string`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn blocking_stat(
-    op: *mut od::blocking::Operator,
+    op: *const od::blocking::Operator,
     path: *const c_char,
     result: *mut FFIResult<Metadata>,
 ) {
@@ -484,7 +484,7 @@ pub unsafe extern "C" fn blocking_stat(
             *result = FFIResult::err("Operator is null");
             return;
         } else {
-            &mut *op
+            &*op
         };
 
         let path_str = match c_str_arg(path) {
@@ -513,7 +513,7 @@ pub unsafe extern "C" fn blocking_stat(
 ///   failure `error_message` must be released with `free_string`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn blocking_list(
-    op: *mut od::blocking::Operator,
+    op: *const od::blocking::Operator,
     path: *const c_char,
     result: *mut FFIResult<blocking::Lister>,
 ) {
@@ -522,7 +522,7 @@ pub unsafe extern "C" fn blocking_list(
             *result = FFIResult::err("Operator is null");
             return;
         } else {
-            &mut *op
+            &*op
         };
 
         let path_str = match c_str_arg(path) {
@@ -551,7 +551,7 @@ pub unsafe extern "C" fn blocking_list(
 ///   failure `error_message` must be released with `free_string`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn blocking_scan(
-    op: *mut od::blocking::Operator,
+    op: *const od::blocking::Operator,
     path: *const c_char,
     result: *mut FFIResult<blocking::Lister>,
 ) {
@@ -560,7 +560,7 @@ pub unsafe extern "C" fn blocking_scan(
             *result = FFIResult::err("Operator is null");
             return;
         } else {
-            &mut *op
+            &*op
         };
 
         let path_str = match c_str_arg(path) {
@@ -639,7 +639,7 @@ pub unsafe extern "C" fn free_lister(lister: *mut blocking::Lister) {
 ///   `error_message` must be released with `free_string`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn operator_info(
-    op: *mut od::blocking::Operator,
+    op: *const od::blocking::Operator,
     result: *mut FFIResult<c_char>,
 ) {
     unsafe {
@@ -647,7 +647,7 @@ pub unsafe extern "C" fn operator_info(
             *result = FFIResult::err("Operator is null");
             return;
         } else {
-            &mut *op
+            &*op
         };
 
         let info = op.info();
@@ -666,7 +666,7 @@ pub unsafe extern "C" fn operator_info(
 /// * `result` is a valid pointer with space for one `FFIResult`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn blocking_remove_all(
-    op: *mut od::blocking::Operator,
+    op: *const od::blocking::Operator,
     path: *const c_char,
     result: *mut FFIResult<()>,
 ) {
@@ -675,7 +675,7 @@ pub unsafe extern "C" fn blocking_remove_all(
             *result = FFIResult::err("Operator is null");
             return;
         } else {
-            &mut *op
+            &*op
         };
 
         let path_str = match c_str_arg(path) {
@@ -715,7 +715,7 @@ pub unsafe extern "C" fn blocking_remove_all(
 ///   failure `error_message` must be released with `free_string`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn blocking_writer(
-    op: *mut od::blocking::Operator,
+    op: *const od::blocking::Operator,
     path: *const c_char,
     result: *mut FFIResult<blocking::Writer>,
 ) {
@@ -724,7 +724,7 @@ pub unsafe extern "C" fn blocking_writer(
             *result = FFIResult::err("Operator is null");
             return;
         } else {
-            &mut *op
+            &*op
         };
 
         let path_str = match c_str_arg(path) {
@@ -755,7 +755,7 @@ pub unsafe extern "C" fn blocking_writer(
 ///   failure `error_message` must be released with `free_string`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn blocking_writer_append(
-    op: *mut od::blocking::Operator,
+    op: *const od::blocking::Operator,
     path: *const c_char,
     result: *mut FFIResult<blocking::Writer>,
 ) {
@@ -764,7 +764,7 @@ pub unsafe extern "C" fn blocking_writer_append(
             *result = FFIResult::err("Operator is null");
             return;
         } else {
-            &mut *op
+            &*op
         };
 
         let path_str = match c_str_arg(path) {
@@ -1031,7 +1031,7 @@ mod tests {
         unsafe {
             let path = c"file";
             let mut read_result = FFIResult::<ByteSlice>::default();
-            blocking_read(ptr::null_mut(), path.as_ptr(), &mut read_result);
+            blocking_read(ptr::null(), path.as_ptr(), &mut read_result);
             assert_eq!(read_result.code, result::FFIErrorCode::FFIError);
             free_string(read_result.error_message);
         }
@@ -1158,6 +1158,72 @@ mod tests {
             free_metadata(close_result.data_ptr);
 
             free_writer(writer);
+            free_operator(op);
+        }
+    }
+
+    #[test]
+    fn concurrent_operator_ffi_calls_share_const_pointer() {
+        struct SharedOp(*const od::blocking::Operator);
+        // SAFETY: `od::blocking::Operator` is `Send + Sync`, and all FFI
+        // entrypoints take `*const od::blocking::Operator` and only borrow `&*op`.
+        unsafe impl Sync for SharedOp {}
+
+        unsafe {
+            let op = memory_operator();
+            let shared = SharedOp(op.cast_const());
+
+            std::thread::scope(|scope| {
+                for worker in 0..8usize {
+                    let shared = &shared;
+                    scope.spawn(move || {
+                        let path =
+                            std::ffi::CString::new(format!("concurrent/worker-{worker}")).unwrap();
+                        let payload = format!("payload-{worker}");
+
+                        let mut write_result = FFIResult::<()>::default();
+                        blocking_write(
+                            shared.0,
+                            path.as_ptr(),
+                            payload.as_ptr() as *const c_char,
+                            payload.len(),
+                            &mut write_result,
+                        );
+                        assert_eq!(write_result.code, result::FFIErrorCode::Ok);
+
+                        let mut exists_result = FFIResult::<bool>::default();
+                        blocking_is_exist(shared.0, path.as_ptr(), &mut exists_result);
+                        assert_eq!(exists_result.code, result::FFIErrorCode::Ok);
+                        assert!(*exists_result.data_ptr);
+                        free_bool(exists_result.data_ptr);
+
+                        let mut stat_result = FFIResult::<Metadata>::default();
+                        blocking_stat(shared.0, path.as_ptr(), &mut stat_result);
+                        assert_eq!(stat_result.code, result::FFIErrorCode::Ok);
+                        assert_eq!((*stat_result.data_ptr).content_length, payload.len() as u64);
+                        free_metadata(stat_result.data_ptr);
+
+                        let mut read_result = FFIResult::<ByteSlice>::default();
+                        blocking_read(shared.0, path.as_ptr(), &mut read_result);
+                        assert_eq!(read_result.code, result::FFIErrorCode::Ok);
+                        let slice = &*read_result.data_ptr;
+                        let view = std::slice::from_raw_parts(slice.data as *const u8, slice.len);
+                        assert_eq!(view, payload.as_bytes());
+                        free_byteslice(read_result.data_ptr);
+
+                        let mut info_result = FFIResult::<c_char>::default();
+                        operator_info(shared.0, &mut info_result);
+                        assert_eq!(info_result.code, result::FFIErrorCode::Ok);
+                        assert_eq!(CStr::from_ptr(info_result.data_ptr).to_bytes(), b"memory");
+                        free_string(info_result.data_ptr);
+
+                        let mut delete_result = FFIResult::<()>::default();
+                        blocking_delete(shared.0, path.as_ptr(), &mut delete_result);
+                        assert_eq!(delete_result.code, result::FFIErrorCode::Ok);
+                    });
+                }
+            });
+
             free_operator(op);
         }
     }

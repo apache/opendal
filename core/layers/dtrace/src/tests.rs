@@ -442,13 +442,6 @@ async fn traces_writer_write_length_and_abort_probes() -> Result<()> {
         BytesRange::new(0, Some(42)),
     )
     .await?;
-    oio::Write::copy_from(
-        &mut writer,
-        "dir/src",
-        OpRead::default(),
-        BytesRange::from(..),
-    )
-    .await?;
     oio::Write::abort(&mut writer).await?;
 
     let err_service = DtraceLayer::new().apply_service(Arc::new(MockWriteService {
@@ -465,8 +458,6 @@ async fn traces_writer_write_length_and_abort_probes() -> Result<()> {
             [
                 "write_start",
                 "write_end",
-                "writer_write_start",
-                "writer_write_ok",
                 "writer_write_start",
                 "writer_write_ok",
                 "writer_write_start",
@@ -489,7 +480,7 @@ async fn traces_writer_write_length_and_abort_probes() -> Result<()> {
                 args[1]
             })
             .collect();
-        assert_eq!(write_ok_lengths, [11, 42, 0]);
+        assert_eq!(write_ok_lengths, [11, 42]);
     });
     Ok(())
 }

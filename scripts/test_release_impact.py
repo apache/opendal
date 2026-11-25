@@ -95,24 +95,35 @@ class ImpactTests(unittest.TestCase):
                 )
 
     def test_check_command_handles_real_event_file(self):
+        declaration = "# Breaking changes\nAffected packages: {}\nMigration:\nUse the new API."
         with tempfile.TemporaryDirectory() as directory:
             event = Path(directory) / "event.json"
-            event.write_text(json.dumps({"pull_request": self.pull()}))
             env = os.environ | {"GITHUB_EVENT_PATH": str(event)}
-            subprocess.run(
-                ["python3", "scripts/release_impact.py", "check"],
-                env=env,
-                check=True,
-                capture_output=True,
-            )
-            event.write_text(json.dumps({"pull_request": self.pull(labeled=True)}))
-            result = subprocess.run(
-                ["python3", "scripts/release_impact.py", "check"],
-                env=env,
-                check=False,
-                capture_output=True,
-            )
-            self.assertNotEqual(result.returncode, 0)
+            for pull, error in (
+                (self.pull(), None),
+                (self.pull(declaration.format("bindings/zig"), True), None),
+                (
+                    self.pull(declaration.format("bindings/go"), True),
+                    "invalid affected packages: bindings/go",
+                ),
+                (
+                    self.pull(labeled=True),
+                    "breaking-changes requires affected packages and migration instructions",
+                ),
+            ):
+                with self.subTest(pull=pull):
+                    event.write_text(json.dumps({"pull_request": pull}))
+                    result = subprocess.run(
+                        ["python3", "scripts/release_impact.py", "check"],
+                        env=env,
+                        capture_output=True,
+                        text=True,
+                    )
+                    if error is None:
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                    else:
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertIn(error, result.stderr)
 
     def test_collection_uses_exact_merged_main_commit(self):
         sha = "a" * 40
@@ -184,6 +195,57 @@ class ImpactTests(unittest.TestCase):
                         impact.source_commits(baseline, sync), (sync, [fix, sync])
                     )
 
+    def test_prepare_collects_zig_and_scopes_breaking_versions(self):
+        sha = "a" * 40
+        migration = "- Update imports.\n\n```zig\nconst od = @import(\"opendal\");\n```"
+        for affected, breaking_args in (
+            ("bindings/zig", []),
+            ("bindings/zig, bindings/python", ["--breaking", "bindings/python"]),
+            ("bindings/go", None),
+        ):
+            pull = self.pull(
+                f"# Breaking changes\nAffected packages: {affected}\nMigration:\n{migration}",
+                True,
+            ) | {
+                "number": 7,
+                "html_url": "https://github.com/apache/opendal/pull/7",
+                "merged_at": "now",
+                "merge_commit_sha": sha,
+                "base": {"ref": "main", "repo": {"full_name": release.REPO}},
+            }
+
+            def write_report(args, **kwargs):
+                report_index = args.index("--report") + 1
+                self.assertEqual(args[report_index + 1 :], breaking_args)
+                Path(args[report_index]).write_text("[]")
+
+            with (
+                self.subTest(affected=affected),
+                tempfile.TemporaryDirectory() as directory,
+                patch.object(impact, "PLAN_PATH", str(Path(directory) / impact.PLAN_PATH)),
+                patch.object(release, "command", return_value=sha),
+                patch.object(impact, "source_commits", return_value=(sha, [sha])),
+                patch.object(release, "pages", return_value=[pull]),
+                patch.object(impact.subprocess, "run", side_effect=write_report) as update,
+            ):
+                path = Path(impact.PLAN_PATH)
+                if breaking_args is None:
+                    with self.assertRaisesRegex(
+                        ValueError, "PR #7: invalid affected packages: bindings/go"
+                    ):
+                        impact.prepare("v0.59.1", sha)
+                    update.assert_not_called()
+                    self.assertFalse(path.exists())
+                    continue
+
+                impact.prepare("v0.59.1", sha)
+                update.assert_called_once()
+                plan = json.loads(path.read_text())
+                self.assertEqual(
+                    plan["pulls"][0]["breaking"],
+                    {"packages": sorted(affected.split(", ")), "migration": migration},
+                )
+
     def test_prepare_passes_scoped_breaking_and_reuses_frozen_declarations(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "plan.json"
@@ -245,20 +307,15 @@ class ImpactTests(unittest.TestCase):
                     "number": 12,
                     "url": "https://github.com/apache/opendal/pull/12",
                     "breaking": {
-                        "packages": ["core"],
+                        "packages": ["bindings/zig", "core"],
                         "migration": "Use `new()` instead.",
                     },
                 }
             ],
         }
         content = {"content": base64.b64encode(json.dumps(plan).encode()).decode()}
-        with patch.object(release, "api", return_value=content) as api:
-            notes = release.version_notes(candidate)
-            self.assertIn("0.60.0", notes)
-            self.assertIn("Use `new()` instead.", notes)
-            self.assertIn(candidate.sha, api.call_args.args[0])
         with (
-            patch.object(release, "version_notes", return_value=notes),
+            patch.object(release, "api", return_value=content) as api,
             patch.object(
                 release, "discussion", return_value={"id": "discussion"}
             ) as discussion,
@@ -268,7 +325,13 @@ class ImpactTests(unittest.TestCase):
                 candidate,
                 {"phase": "release_candidate_draft", "latest_revision_number": "00001"},
             )
-            self.assertIn(notes, discussion.call_args.args[1])
+            body = discussion.call_args.args[1]
+            self.assertIn("0.60.0", body)
+            self.assertIn("Use `new()` instead.", body)
+            self.assertIn(
+                "`bindings/zig` (no standalone artifact in this release), `core`", body
+            )
+            self.assertIn(candidate.sha, api.call_args.args[0])
 
 
 if __name__ == "__main__":

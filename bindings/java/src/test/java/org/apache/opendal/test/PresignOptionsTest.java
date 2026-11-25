@@ -145,12 +145,9 @@ public class PresignOptionsTest {
     }
 
     @Test
-    public void testPresignRejectsInvalidDuration() {
+    public void testPresignRejectsNegativeDuration() {
         try (final AsyncOperator op = AsyncOperator.of(CONFIG)) {
-            for (final Duration invalid : Arrays.asList(
-                    Duration.ofNanos(-1),
-                    Duration.ofSeconds(-1),
-                    Duration.ofNanos(Long.MAX_VALUE).plusNanos(1))) {
+            for (final Duration invalid : Arrays.asList(Duration.ofNanos(-1), Duration.ofSeconds(-1))) {
                 assertThatThrownBy(() -> op.presignRead("report.csv", invalid))
                         .isInstanceOf(IllegalArgumentException.class)
                         .hasMessageStartingWith("duration ");

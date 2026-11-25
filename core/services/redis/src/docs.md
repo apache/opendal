@@ -50,8 +50,8 @@ a replica miss without retrying on the primary.
 
 A write with `expires` overrides `default_ttl` for that key. Redis applies
 the expiration in the same command that stores the value, rounding positive
-durations up to a whole millisecond. An omitted or zero `default_ttl` disables
-expiration, while a zero per-write `expires` is invalid.
+durations up to a whole millisecond. Omit `default_ttl` to disable expiration
+for writes without an explicit `expires`. Both durations must be positive.
 
 ## Example
 

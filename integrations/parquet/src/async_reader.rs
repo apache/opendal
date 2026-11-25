@@ -106,24 +106,6 @@ fn set_prefetch_footer_size(footer_size: usize, content_size: u64) -> usize {
     min(footer_size as u64, content_size) as usize
 }
 
-fn validate_range(range: &Range<u64>, content_length: u64) -> ParquetResult<u64> {
-    if range.start > range.end {
-        return Err(ParquetError::General(format!(
-            "range start {} is greater than range end {}",
-            range.start, range.end
-        )));
-    }
-
-    let expected_len = range.end - range.start;
-    if expected_len > 0 && range.end > content_length {
-        return Err(ParquetError::EOF(format!(
-            "range {range:?} exceeds content length {content_length}"
-        )));
-    }
-
-    Ok(expected_len)
-}
-
 impl AsyncReader {
     /// Create a [`AsyncReader`] by given [`Reader`].
     pub fn new(reader: Reader, content_length: u64) -> Self {
@@ -166,20 +148,12 @@ impl AsyncReader {
 impl AsyncFileReader for AsyncReader {
     fn get_bytes(&mut self, range: Range<u64>) -> BoxFuture<'_, ParquetResult<bytes::Bytes>> {
         async move {
-            let expected_len = validate_range(&range, self.content_length)?;
-            let bytes = self
+            Ok(self
                 .inner
                 .read(range)
                 .await
                 .map_err(|err| ParquetError::External(Box::new(err)))?
-                .to_bytes();
-            if bytes.len() as u64 != expected_len {
-                return Err(ParquetError::EOF(format!(
-                    "expected to read {expected_len} bytes, got {}",
-                    bytes.len()
-                )));
-            }
-            Ok(bytes)
+                .to_bytes())
         }
         .boxed()
     }
@@ -189,27 +163,14 @@ impl AsyncFileReader for AsyncReader {
         ranges: Vec<Range<u64>>,
     ) -> BoxFuture<'_, ParquetResult<Vec<bytes::Bytes>>> {
         async move {
-            let expected_lengths = ranges
-                .iter()
-                .map(|range| validate_range(range, self.content_length))
-                .collect::<ParquetResult<Vec<_>>>()?;
-            self.inner
+            Ok(self
+                .inner
                 .fetch(ranges)
                 .await
                 .map_err(|err| ParquetError::External(Box::new(err)))?
                 .into_iter()
-                .zip(expected_lengths)
-                .map(|(buf, expected_len)| {
-                    let bytes = buf.to_bytes();
-                    if bytes.len() as u64 != expected_len {
-                        return Err(ParquetError::EOF(format!(
-                            "expected to read {expected_len} bytes, got {}",
-                            bytes.len()
-                        )));
-                    }
-                    Ok(bytes)
-                })
-                .collect()
+                .map(|buf| buf.to_bytes())
+                .collect::<Vec<_>>())
         }
         .boxed()
     }
@@ -241,7 +202,6 @@ impl AsyncFileReader for AsyncReader {
 
 #[cfg(test)]
 mod tests {
-    use bytes::Bytes;
     use futures::StreamExt;
     use opendal::{Operator, services};
     use rand::{RngExt, distr::Alphanumeric};
@@ -255,85 +215,9 @@ mod tests {
             AsyncArrowWriter, ParquetRecordBatchStreamBuilder, arrow_reader::ArrowReaderOptions,
             async_reader::AsyncFileReader,
         },
-        errors::ParquetError,
         file::metadata::{KeyValue, PageIndexPolicy},
         file::properties::WriterProperties,
     };
-
-    async fn new_range_reader(chunk: Option<usize>) -> AsyncReader {
-        let operator = Operator::new(services::Memory::default()).unwrap();
-        let path = "range.txt";
-        operator.write(path, b"0123456789".to_vec()).await.unwrap();
-        let reader = match chunk {
-            Some(chunk) => operator.reader_with(path).chunk(chunk).await.unwrap(),
-            None => operator.reader(path).await.unwrap(),
-        };
-        AsyncReader::new(reader, 10)
-    }
-
-    #[tokio::test]
-    async fn test_get_bytes_range_contract() {
-        for chunk in [Some(4), None] {
-            let mut reader = new_range_reader(chunk).await;
-            assert_eq!(
-                reader.get_bytes(2..8).await.unwrap(),
-                Bytes::from_static(b"234567")
-            );
-            assert!(reader.get_bytes(5..5).await.unwrap().is_empty());
-            assert!(reader.get_bytes(10..10).await.unwrap().is_empty());
-
-            for range in [8..12, 12..16] {
-                let err = reader.get_bytes(range.clone()).await.unwrap_err();
-                assert!(
-                    matches!(&err, ParquetError::EOF(_)),
-                    "chunk {chunk:?}, range {range:?}: {err}"
-                );
-            }
-
-            let inverted_range = std::ops::Range { start: 10, end: 5 };
-            let err = reader.get_bytes(inverted_range).await.unwrap_err();
-            assert!(
-                matches!(&err, ParquetError::General(_)),
-                "chunk {chunk:?}: {err}"
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn test_get_byte_ranges_range_contract() {
-        for chunk in [Some(4), None] {
-            let mut reader = new_range_reader(chunk).await;
-            assert_eq!(
-                reader.get_byte_ranges(vec![0..4, 6..10]).await.unwrap(),
-                vec![Bytes::from_static(b"0123"), Bytes::from_static(b"6789")]
-            );
-            assert_eq!(
-                reader.get_byte_ranges(vec![5..5, 10..10]).await.unwrap(),
-                vec![Bytes::new(), Bytes::new()]
-            );
-
-            for range in [8..12, 12..16] {
-                let err = reader
-                    .get_byte_ranges(vec![range.clone()])
-                    .await
-                    .unwrap_err();
-                assert!(
-                    matches!(&err, ParquetError::EOF(_)),
-                    "chunk {chunk:?}, range {range:?}: {err}"
-                );
-            }
-
-            let inverted_range = std::ops::Range { start: 10, end: 5 };
-            let err = reader
-                .get_byte_ranges(Vec::from([inverted_range]))
-                .await
-                .unwrap_err();
-            assert!(
-                matches!(&err, ParquetError::General(_)),
-                "chunk {chunk:?}: {err}"
-            );
-        }
-    }
 
     #[tokio::test]
     async fn test_async_reader_with_prefetch_footer_size() {

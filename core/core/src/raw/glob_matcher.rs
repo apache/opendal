@@ -86,6 +86,16 @@ impl GlobPattern {
         self.segments.len() > 1 || matches!(self.segments[0], Segment::Recursive)
     }
 
+    /// Whether a guided walk from a directory at `position` lists every directory below it.
+    pub(crate) fn walks_whole_subtree(&self, position: usize) -> bool {
+        self.segments[position..]
+            .iter()
+            .find(
+                |segment| !matches!(segment, Segment::Glob(matcher) if matcher.matches_any_name()),
+            )
+            .is_some_and(|segment| matches!(segment, Segment::Recursive))
+    }
+
     /// Advance every viable pattern position against a single path component.
     ///
     /// The returned positions are sorted and deduplicated. Start from `&[0]` at
@@ -237,6 +247,10 @@ impl SegmentMatcher {
             return Err(invalid("unterminated alternation in glob pattern"));
         }
         Ok(Self { tokens })
+    }
+
+    fn matches_any_name(&self) -> bool {
+        matches!(self.tokens.as_slice(), [Token::Star])
     }
 
     fn literal(&self) -> Option<String> {

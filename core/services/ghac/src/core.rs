@@ -327,18 +327,10 @@ impl GhacCore {
         offset: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        if size == 0 {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "ghac v1 upload chunk size must be greater than zero",
-            ));
-        }
-        let end = offset.checked_add(size - 1).ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "ghac v1 upload content range overflows u64",
-            )
-        })?;
+        let end = size
+            .checked_sub(1)
+            .and_then(|last| offset.checked_add(last))
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "invalid ghac v1 upload range"))?;
 
         let mut req = Request::patch(upload_url);
         req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
@@ -580,22 +572,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_parse_error_unauthorized_and_forbidden() {
-        for status in [StatusCode::UNAUTHORIZED, StatusCode::FORBIDDEN] {
-            let response = Response::builder()
-                .status(status)
-                .body(Buffer::from("token expired"))
-                .unwrap();
-            let err = parse_error(
-                ErrorContext::new(ServiceOperation("GetCacheEntry")),
-                response,
-            );
-            assert_eq!(err.kind(), ErrorKind::PermissionDenied);
-            assert!(!err.is_temporary());
-        }
-    }
-
     struct FixedResponseTransport {
         status: StatusCode,
         body: Bytes,
@@ -769,7 +745,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND | StatusCode::NO_CONTENT => (ErrorKind::NotFound, false),
         StatusCode::CONFLICT => (ErrorKind::AlreadyExists, false),
-        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR

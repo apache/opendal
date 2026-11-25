@@ -153,9 +153,6 @@ impl DavFileSystem for OpendalFs {
             let path = self.fs_path(path)?;
             let metadata = match self.op.stat(path.as_str()).await {
                 Ok(metadata) => metadata,
-                Err(e) if path == "/" && e.kind() == ErrorKind::NotFound => {
-                    MetadataBuilder::dir().build()
-                }
                 Err(e) if Self::is_dir_path(&path) && e.kind() == ErrorKind::NotFound => {
                     if implicit_dir_exists(&self.op, path.as_str()).await? {
                         MetadataBuilder::dir().build()
@@ -196,12 +193,6 @@ impl DavFileSystem for OpendalFs {
         async move {
             let dir_path = self.fs_dir_path(path)?;
 
-            // The root collection always exists, so MKCOL on it must report
-            // Exists instead of creating another root.
-            if dir_path == "/" {
-                return Err(FsError::Exists);
-            }
-
             let file_path = dir_path.trim_end_matches('/');
 
             // Check that the parent collection exists. During MKCOL, the
@@ -221,7 +212,9 @@ impl DavFileSystem for OpendalFs {
             // Some backends keep files and directory markers as separate keys,
             // so "foo" and "foo/" can both exist. MKCOL must fail with Exists
             // when either form already names a resource (RFC 4918 9.3.1).
-            if self.path_exists(file_path).await? || dir_exists(&self.op, &dir_path).await? {
+            if dir_exists(&self.op, &dir_path).await?
+                || (!file_path.is_empty() && self.path_exists(file_path).await?)
+            {
                 return Err(FsError::Exists);
             }
 
@@ -234,13 +227,6 @@ impl DavFileSystem for OpendalFs {
         async move {
             let dir_path = self.fs_dir_path(path)?;
 
-            // Removing the root collection is never allowed.
-            if dir_path == "/" {
-                return Err(FsError::Forbidden);
-            }
-
-            let file_path = dir_path.trim_end_matches('/');
-
             if self.op.info().capability().list {
                 let mut lister = self
                     .op
@@ -248,27 +234,10 @@ impl DavFileSystem for OpendalFs {
                     .limit(2)
                     .await
                     .map_err(convert_error)?;
-                let mut found = false;
                 while let Some(entry) = lister.next().await {
                     let entry = entry.map_err(convert_error)?;
-                    if entry.path() == dir_path {
-                        found = true;
-                    } else {
+                    if entry.path() != dir_path {
                         return Err(FsError::Exists);
-                    }
-                }
-                if !found {
-                    // Some services do not yield the directory itself when
-                    // listing an empty directory, while an implicit
-                    // object-store directory disappears as soon as its last
-                    // child is removed during recursive DELETE. Refuse only
-                    // when the path actually names a file, then fall through
-                    // to the idempotent delete of `dir_path`.
-                    if self.op.info().capability().stat
-                        && !self.path_exists(&dir_path).await?
-                        && self.path_exists(file_path).await?
-                    {
-                        return Err(FsError::Forbidden);
                     }
                 }
             }

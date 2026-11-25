@@ -492,7 +492,9 @@ impl<R: oio::Write> oio::Write for DtraceWrapper<R> {
 
     async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
         let c_path = probe_cstring(&self.path);
-        let len = range.size().unwrap_or_default();
+        let len = range
+            .size()
+            .expect("writer copy range must be absolute and bounded");
         operation_probe!(writer_write_start, c_path.as_ptr());
         self.inner
             .copy_from(path, args, range)

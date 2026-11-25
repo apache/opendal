@@ -32,8 +32,9 @@ pub fn main() !void {
     try op.write("/hello.txt", "Hello, World!");
 
     // Read them back.
-    const data = try op.read("/hello.txt");
-    std.debug.print("read: {s}\n", .{data});
+    var data = try op.read("/hello.txt");
+    defer data.deinit();
+    std.debug.print("read: {s}\n", .{data.slice()});
 
     // Inspect metadata.
     var meta = try op.stat("/hello.txt");

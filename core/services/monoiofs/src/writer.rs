@@ -84,7 +84,8 @@ impl MonoiofsWriter {
                 return;
             }
         };
-        let initial_pos = if append {
+        // Linux applies O_APPEND to positional writes. Elsewhere use EOF as the offset.
+        let initial_pos = if append && !cfg!(target_os = "linux") {
             match file.metadata().await {
                 Ok(meta) => meta.len(),
                 Err(e) => {
@@ -102,48 +103,24 @@ impl MonoiofsWriter {
             return;
         }
 
-        let mut file = Some(file);
-        // wait for write or close request and send back result to main thread
-        loop {
-            let Ok(req) = rx.recv().await else {
-                // MonoiofsWriter is closed or dropped, exit worker task
-                break;
-            };
+        while let Ok(req) = rx.recv().await {
             match req {
                 WriterRequest::Write { pos, buf, tx } => {
-                    let result = match &file {
-                        Some(file) => {
-                            let (result, _) = file.write_all_at(buf, pos).await;
-                            result.map_err(new_std_io_error)
-                        }
-                        None => Err(Error::new(ErrorKind::Unexpected, "writer has been closed")),
-                    };
-                    // discard the result if send failed due to
-                    // MonoiofsWriter::write cancelled
-                    let _ = tx.send(result);
+                    let (result, _) = file.write_all_at(buf, pos).await;
+                    let _ = tx.send(result.map_err(new_std_io_error));
                 }
                 WriterRequest::Close { tx } => {
-                    let result = match &file {
-                        Some(f) => match f.sync_all().await {
-                            Ok(()) => match f.metadata().await {
-                                Ok(meta) => {
-                                    let file = file.take().expect("file must be open");
-                                    // file is closed in background and result is useless
-                                    let _ = file.close().await;
-                                    Ok(meta)
-                                }
-                                Err(e) => Err(new_std_io_error(e)),
-                            },
-                            Err(e) => Err(new_std_io_error(e)),
-                        },
-                        None => Err(Error::new(ErrorKind::Unexpected, "writer has been closed")),
+                    let result = match file.sync_all().await {
+                        Ok(()) => file.metadata().await,
+                        Err(err) => Err(err),
                     };
-                    // discard the result if send failed due to
-                    // MonoiofsWriter::close cancelled
-                    let _ = tx.send(result);
+                    let _ = file.close().await;
+                    let _ = tx.send(result.map_err(new_std_io_error));
+                    return;
                 }
             }
         }
+        let _ = file.close().await;
     }
 }
 
@@ -175,14 +152,13 @@ impl oio::Write for MonoiofsWriter {
     /// close happens in [`MonoiofsWriter::worker_entrypoint`] running
     /// on worker thread.
     async fn close(&mut self) -> Result<Metadata> {
-        let Some(tx) = self.tx.as_ref() else {
+        let Some(tx) = self.tx.take() else {
             return Err(Error::new(ErrorKind::Unexpected, "writer has been closed"));
         };
         let (resp_tx, resp_rx) = oneshot::channel();
         self.core
             .unwrap(tx.send(WriterRequest::Close { tx: resp_tx }));
         let file_meta = self.core.unwrap(resp_rx.await)?;
-        self.tx = None;
 
         let mode = if file_meta.is_dir() {
             EntryMode::DIR
@@ -256,7 +232,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_writer_append_initializes_and_advances_pos() {
+    async fn test_writer_appends_without_overwriting() {
         let temp_dir = tempfile::tempdir().unwrap();
         let root = temp_dir.path();
         let op = Operator::new(Monoiofs::default().root(root.to_str().unwrap())).unwrap();
@@ -267,19 +243,15 @@ mod tests {
         let mut new_writer = MonoiofsWriter::new(core.clone(), root.join("new"), true)
             .await
             .unwrap();
-        assert_eq!(new_writer.pos, 0);
         new_writer.write(Buffer::from("init")).await.unwrap();
-        assert_eq!(new_writer.pos, 4);
         new_writer.close().await.unwrap();
         assert_eq!(op.read("new").await.unwrap().to_bytes(), b"init".as_slice());
 
-        // Appending to an existing file initializes pos to its current length.
         op.write("f", "hello").await.unwrap();
 
         let mut writer = MonoiofsWriter::new(core, root.join("f"), true)
             .await
             .unwrap();
-        assert_eq!(writer.pos, 5);
 
         writer
             .write(Buffer::from(vec![
@@ -288,7 +260,6 @@ mod tests {
             ]))
             .await
             .unwrap();
-        assert_eq!(writer.pos, 10);
         let meta = writer.close().await.unwrap();
         assert_eq!(meta.content_length(), 10);
 

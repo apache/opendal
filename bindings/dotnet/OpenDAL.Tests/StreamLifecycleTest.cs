@@ -224,9 +224,12 @@ public sealed class StreamLifecycleTest
 
             await output.WriteAsync(new byte[4], CT);
             using var cancelCts = CancellationTokenSource.CreateLinkedTokenSource(CT);
-            cancelCts.CancelAfter(TimeSpan.FromMilliseconds(50));
+            // CompleteAsync submits the buffered flush before returning its pending task.
+            var completion = output.CompleteAsync(cancelCts.Token);
+            Assert.False(completion.IsCompleted);
+            cancelCts.Cancel();
 
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => output.CompleteAsync(cancelCts.Token));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => completion);
 
             Assert.False(output.CanWrite);
             await Assert.ThrowsAsync<InvalidOperationException>(async () => await output.WriteAsync(new byte[1], CT));

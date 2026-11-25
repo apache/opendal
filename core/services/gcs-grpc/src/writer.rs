@@ -208,15 +208,10 @@ impl GcsGrpcWriter {
             {
                 match self.query_write_status().await? {
                     QueryOutcome::NotFound => {
-                        let pending = self.pending.as_mut().expect("pending upload must exist");
-                        if pending.write_offset != 0 {
-                            return Err(Error::new(
-                                ErrorKind::Unexpected,
-                                "GCS resumable upload disappeared after data was persisted",
-                            ));
-                        }
-                        pending.in_flight = false;
-                        self.upload_id = None;
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            "GCS resumable upload no longer exists",
+                        ));
                     }
                     QueryOutcome::Persisted(size) => {
                         if let Some(outcome) = self.reconcile_persisted_size(size)? {
@@ -238,10 +233,6 @@ impl GcsGrpcWriter {
                         ));
                     }
                 }
-            }
-
-            if self.upload_id.is_none() {
-                self.start_resumable_write().await?;
             }
 
             let pending = self.pending.as_ref().expect("pending upload must exist");

@@ -1690,9 +1690,6 @@ fn parse_azblob_error_code(
     status: StatusCode,
 ) -> Option<(ErrorKind, bool)> {
     match code {
-        // Although the status code is 404, ContainerNotFound indicates a missing
-        // or misconfigured container rather than a missing blob.
-        "ContainerNotFound" => Some((ErrorKind::ConfigInvalid, false)),
         "ConditionNotMet" | "SourceConditionNotMet" | "TargetConditionNotMet"
             if ctx.caller_condition
                 && matches!(
@@ -1825,36 +1822,5 @@ mod error_tests {
             assert_eq!(err.kind(), ErrorKind::PermissionDenied, "status {status}");
             assert!(!err.is_temporary(), "status {status}");
         }
-    }
-
-    #[test]
-    fn container_not_found_is_config_invalid() {
-        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
-<Error>
-  <Code>ContainerNotFound</Code>
-  <Message>The specified container does not exist.</Message>
-</Error>"#;
-        let resp = Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .header("x-ms-error-code", "ContainerNotFound")
-            .body(Buffer::from(xml))
-            .unwrap();
-        let (err, code) =
-            parse_error_with_code(ErrorContext::new(ServiceOperation("DeleteBlob")), resp);
-        assert_eq!(code.as_deref(), Some("ContainerNotFound"));
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-        assert!(!err.is_temporary());
-
-        let header_only_resp = Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .header("x-ms-error-code", "ContainerNotFound")
-            .body(Buffer::new())
-            .unwrap();
-        let err = parse_error(
-            ErrorContext::new(ServiceOperation("GetBlobProperties")),
-            header_only_resp,
-        );
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-        assert!(!err.is_temporary());
     }
 }

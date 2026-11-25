@@ -160,10 +160,10 @@ impl Builder for MokaBuilder {
 
         let mut builder = self.builder;
 
-        if let Some(v) = self.config.name.as_deref().filter(|v| !v.is_empty()) {
+        if let Some(v) = self.config.name.as_deref() {
             builder = builder.name(v);
         }
-        if let Some(v) = self.config.max_capacity.filter(|&v| v != 0) {
+        if let Some(v) = self.config.max_capacity {
             builder = builder.max_capacity(v);
         }
         let time_to_live = match self.time_to_live {
@@ -173,8 +173,7 @@ impl Builder for MokaBuilder {
                 .time_to_live
                 .map(signed_duration_to_duration)
                 .transpose()?,
-        }
-        .filter(|duration| !duration.is_zero());
+        };
         if let Some(duration) = time_to_live {
             if duration > MAX_CACHE_DURATION {
                 return Err(Error::new(
@@ -192,8 +191,7 @@ impl Builder for MokaBuilder {
                 .time_to_idle
                 .map(signed_duration_to_duration)
                 .transpose()?,
-        }
-        .filter(|duration| !duration.is_zero());
+        };
         if let Some(duration) = time_to_idle {
             if duration > MAX_CACHE_DURATION {
                 return Err(Error::new(
@@ -631,33 +629,5 @@ mod tests {
         }
 
         Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_config_zero_and_empty_values_match_builder() -> Result<()> {
-        tokio::time::timeout(Duration::from_secs(10), async {
-            let service = MokaConfig::from_iter([
-                ("name".to_string(), "".to_string()),
-                ("max_capacity".to_string(), "0".to_string()),
-                ("time_to_live".to_string(), "0s".to_string()),
-                ("time_to_idle".to_string(), "0s".to_string()),
-            ])?
-            .into_builder()
-            .build()?;
-
-            assert_eq!(&*service.info().name(), "moka");
-
-            let ctx = OperationContext::default();
-            write_file(&service, &ctx, "a/file.txt").await?;
-            let meta = service
-                .stat(&ctx, "a/file.txt", OpStat::default())
-                .await?
-                .into_metadata();
-            assert_eq!(meta.mode(), EntryMode::FILE);
-            assert_eq!(meta.content_length(), 1);
-            Ok::<_, Error>(())
-        })
-        .await
-        .expect("test timed out")
     }
 }

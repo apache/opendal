@@ -22,6 +22,9 @@ use asyncband::once::OnceCell;
 use surrealdb::Surreal;
 use surrealdb::engine::any::Any;
 use surrealdb::opt::auth::Database;
+use surrealdb::types::NotFoundError;
+use surrealdb::types::Number;
+use surrealdb::types::Value;
 
 use opendal_core::*;
 
@@ -88,54 +91,67 @@ impl SurrealdbCore {
     }
 
     pub async fn get(&self, path: &str) -> Result<Option<Buffer>> {
-        let query: String = if self.key_field == "id" {
-            "SELECT type::field($value_field) FROM type::thing($table, $path)".to_string()
+        let value_field = quote_identifier(&self.value_field);
+        let query = if self.key_field == "id" {
+            format!("SELECT {value_field} AS value FROM type::record($table, $path)")
         } else {
-            format!(
-                "SELECT type::field($value_field) FROM type::table($table) WHERE {} = $path LIMIT 1",
-                self.key_field
-            )
+            let table = quote_identifier(&self.table);
+            let key_field = quote_identifier(&self.key_field);
+            format!("SELECT {value_field} AS value FROM {table} WHERE {key_field} = $path LIMIT 1")
         };
 
-        let mut result = self
+        let mut req = self
             .get_connection()
             .await?
             .query(query)
-            .bind(("namespace", "opendal"))
-            .bind(("path", path.to_string()))
-            .bind(("table", self.table.to_string()))
-            .bind(("value_field", self.value_field.to_string()))
-            .await
-            .map_err(parse_surrealdb_error)?;
+            .bind(("path", path.to_string()));
+        if self.key_field == "id" {
+            req = req.bind(("table", self.table.clone()));
+        }
 
-        let value: Option<Vec<u8>> = result
-            .take((0, self.value_field.as_str()))
-            .map_err(parse_surrealdb_error)?;
+        let mut result = match req.await.map_err(parse_surrealdb_error)?.check() {
+            Ok(result) => result,
+            Err(err) if is_table_not_found(&err) => return Ok(None),
+            Err(err) => return Err(parse_surrealdb_error(err)),
+        };
 
-        Ok(value.map(Buffer::from))
+        let value: Option<Value> = result.take((0, "value")).map_err(parse_surrealdb_error)?;
+
+        value.map(decode_value_bytes).transpose()
     }
 
     pub async fn get_length(&self, path: &str) -> Result<Option<usize>> {
-        let query: String = if self.key_field == "id" {
-            "SELECT bytes::len(type::field($value_field)) AS content_length FROM type::thing($table, $path)"
-                .to_string()
-        } else {
+        let value_field = quote_identifier(&self.value_field);
+        let content_length_expr = format!(
+            "(IF type::is_array({value_field}) {{ array::len({value_field}) }} \
+            ELSE {{ bytes::len({value_field}) }})"
+        );
+        let query = if self.key_field == "id" {
             format!(
-                "SELECT bytes::len(type::field($value_field)) AS content_length FROM type::table($table) WHERE {} = $path LIMIT 1",
-                self.key_field
+                "SELECT {content_length_expr} AS content_length FROM type::record($table, $path)"
+            )
+        } else {
+            let table = quote_identifier(&self.table);
+            let key_field = quote_identifier(&self.key_field);
+            format!(
+                "SELECT {content_length_expr} AS content_length FROM {table} WHERE {key_field} = $path LIMIT 1"
             )
         };
 
-        let mut result = self
+        let mut req = self
             .get_connection()
             .await?
             .query(query)
-            .bind(("namespace", "opendal"))
-            .bind(("path", path.to_string()))
-            .bind(("table", self.table.to_string()))
-            .bind(("value_field", self.value_field.to_string()))
-            .await
-            .map_err(parse_surrealdb_error)?;
+            .bind(("path", path.to_string()));
+        if self.key_field == "id" {
+            req = req.bind(("table", self.table.clone()));
+        }
+
+        let mut result = match req.await.map_err(parse_surrealdb_error)?.check() {
+            Ok(result) => result,
+            Err(err) if is_table_not_found(&err) => return Ok(None),
+            Err(err) => return Err(parse_surrealdb_error(err)),
+        };
 
         let value: Option<i64> = result
             .take((0, "content_length"))
@@ -152,43 +168,265 @@ impl SurrealdbCore {
     }
 
     pub async fn set(&self, path: &str, value: Buffer) -> Result<()> {
+        // SurrealDB rejects empty record IDs, and the implicit root needs no marker.
+        if self.key_field == "id" && path.is_empty() && value.is_empty() {
+            return Ok(());
+        }
+
+        let table = quote_identifier(&self.table);
+        let key_field = quote_identifier(&self.key_field);
+        let value_field = quote_identifier(&self.value_field);
         let query = format!(
-            "INSERT INTO {} ({}, {}) \
+            "INSERT INTO {table} ({key_field}, {value_field}) \
             VALUES ($path, $value) \
-            ON DUPLICATE KEY UPDATE {} = $value",
-            self.table, self.key_field, self.value_field, self.value_field
+            ON DUPLICATE KEY UPDATE {value_field} = $value"
         );
         self.get_connection()
             .await?
             .query(query)
             .bind(("path", path.to_string()))
+            // Vec<u8> binds as a numeric array, which older OpenDAL readers expect.
             .bind(("value", value.to_vec()))
             .await
+            .map_err(parse_surrealdb_error)?
+            .check()
             .map_err(parse_surrealdb_error)?;
         Ok(())
     }
 
     pub async fn delete(&self, path: &str) -> Result<()> {
-        let query: String = if self.key_field == "id" {
-            "DELETE FROM type::thing($table, $path)".to_string()
+        if self.key_field == "id" && path.is_empty() {
+            return Ok(());
+        }
+
+        let query = if self.key_field == "id" {
+            "DELETE FROM type::record($table, $path)".to_string()
         } else {
-            format!(
-                "DELETE FROM type::table($table) WHERE {} = $path",
-                self.key_field
-            )
+            let table = quote_identifier(&self.table);
+            let key_field = quote_identifier(&self.key_field);
+            format!("DELETE FROM {table} WHERE {key_field} = $path")
         };
 
-        self.get_connection()
+        let mut req = self
+            .get_connection()
             .await?
-            .query(query.as_str())
-            .bind(("path", path.to_string()))
-            .bind(("table", self.table.to_string()))
-            .await
-            .map_err(parse_surrealdb_error)?;
-        Ok(())
+            .query(query)
+            .bind(("path", path.to_string()));
+        if self.key_field == "id" {
+            req = req.bind(("table", self.table.clone()));
+        }
+
+        match req.await.map_err(parse_surrealdb_error)?.check() {
+            Ok(_) => Ok(()),
+            Err(err) if is_table_not_found(&err) => Ok(()),
+            Err(err) => Err(parse_surrealdb_error(err)),
+        }
     }
+}
+
+fn decode_value_bytes(value: Value) -> Result<Buffer> {
+    match value {
+        Value::Bytes(bs) => Ok(Buffer::from(bs.into_inner())),
+        Value::Array(arr) => {
+            let mut bytes = Vec::with_capacity(arr.len());
+            for elem in arr {
+                match elem {
+                    Value::Number(Number::Int(n)) => match u8::try_from(n) {
+                        Ok(b) => bytes.push(b),
+                        Err(_) => {
+                            return Err(Error::new(
+                                ErrorKind::Unexpected,
+                                "surrealdb byte array element out of range",
+                            )
+                            .with_context("value", n.to_string()));
+                        }
+                    },
+                    other => {
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            "surrealdb byte array contains non-integer element",
+                        )
+                        .with_context("kind", other.kind().to_string()));
+                    }
+                }
+            }
+            Ok(Buffer::from(bytes))
+        }
+        other => Err(
+            Error::new(ErrorKind::Unexpected, "surrealdb value has unexpected type")
+                .with_context("kind", other.kind().to_string()),
+        ),
+    }
+}
+
+pub(crate) fn quote_identifier(ident: &str) -> String {
+    let mut quoted = String::with_capacity(ident.len() + 2);
+    quoted.push('`');
+    for c in ident.chars() {
+        match c {
+            '\0' => quoted.push_str("\\0"),
+            '\r' => quoted.push_str("\\r"),
+            '\t' => quoted.push_str("\\t"),
+            '\n' => quoted.push_str("\\n"),
+            '\x08' => quoted.push_str("\\u{8}"),
+            '\x0C' => quoted.push_str("\\f"),
+            '\\' => quoted.push_str("\\\\"),
+            '`' => quoted.push_str("\\`"),
+            _ => quoted.push(c),
+        }
+    }
+    quoted.push('`');
+    quoted
+}
+
+fn is_table_not_found(err: &surrealdb::Error) -> bool {
+    matches!(err.not_found_details(), Some(NotFoundError::Table { .. }))
 }
 
 fn parse_surrealdb_error(err: surrealdb::Error) -> Error {
     Error::new(ErrorKind::Unexpected, "unhandled error from surrealdb").set_source(err)
+}
+
+#[cfg(test)]
+mod tests {
+    use surrealdb::types::Array;
+    use surrealdb::types::Bytes;
+    use surrealdb::types::SurrealValue;
+
+    use super::*;
+
+    #[tokio::test]
+    #[ignore = "requires an isolated SurrealDB database and OPENDAL_SURREALDB_* configuration"]
+    async fn set_stores_numeric_arrays() {
+        let setting = |name| std::env::var(format!("OPENDAL_SURREALDB_{name}")).unwrap();
+        for (key_field, key_expression) in [("key", "key"), ("id", "record::id(id)")] {
+            let core = SurrealdbCore {
+                db: OnceCell::new(),
+                connection_string: setting("CONNECTION_STRING"),
+                username: setting("USERNAME"),
+                password: setting("PASSWORD"),
+                namespace: setting("NAMESPACE"),
+                database: setting("DATABASE"),
+                table: format!("opendal_stored_format_{key_field}"),
+                key_field: key_field.to_string(),
+                value_field: "value".to_string(),
+            };
+            for (path, payload) in [("empty", &[][..]), ("nonempty", &[0, 42, 255][..])] {
+                core.delete(path).await.unwrap();
+                core.set(path, Buffer::from(payload.to_vec()))
+                    .await
+                    .unwrap();
+
+                let query = format!(
+                    "SELECT VALUE value FROM type::table($table) WHERE {key_expression} = $path LIMIT 1"
+                );
+                let stored: Option<Value> = core
+                    .get_connection()
+                    .await
+                    .unwrap()
+                    .query(query)
+                    .bind(("table", core.table.clone()))
+                    .bind(("path", path.to_string()))
+                    .await
+                    .unwrap()
+                    .check()
+                    .unwrap()
+                    .take(0)
+                    .unwrap();
+                let numbers = payload
+                    .iter()
+                    .map(|&byte| Value::Number(Number::Int(i64::from(byte))))
+                    .collect::<Vec<_>>();
+                core.delete(path).await.unwrap();
+                assert_eq!(
+                    stored,
+                    Some(Value::Array(Array::from(numbers))),
+                    "{key_field} {path}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn decode_value_bytes_accepts_bytes_and_numeric_arrays() {
+        let bytes_val = Bytes::from(b"hello".to_vec()).into_value();
+        assert_eq!(
+            decode_value_bytes(bytes_val).unwrap().to_bytes().as_ref(),
+            b"hello"
+        );
+
+        let numeric_arr = Value::Array(Array::from(vec![
+            Value::Number(Number::Int(104)),
+            Value::Number(Number::Int(105)),
+            Value::Number(Number::Int(106)),
+        ]));
+        assert_eq!(
+            decode_value_bytes(numeric_arr).unwrap().to_bytes().as_ref(),
+            b"hij"
+        );
+
+        let empty_arr = Value::Array(Array::new());
+        assert!(decode_value_bytes(empty_arr).unwrap().is_empty());
+
+        for out_of_range in [-1_i64, 256_i64] {
+            let err = decode_value_bytes(Value::Array(Array::from(vec![Value::Number(
+                Number::Int(out_of_range),
+            )])))
+            .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(!err.is_temporary());
+        }
+
+        let non_int_elem = Value::Array(Array::from(vec![Value::String("not-a-byte".to_string())]));
+        let err = decode_value_bytes(non_int_elem).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let float_elem = Value::Array(Array::from(vec![Value::Number(Number::Float(1.5))]));
+        let err = decode_value_bytes(float_elem).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        for invalid in [
+            Value::String("hij".to_string()),
+            Value::None,
+            Value::Null,
+            Value::Number(Number::Int(42)),
+        ] {
+            let err = decode_value_bytes(invalid).unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(!err.is_temporary());
+        }
+    }
+
+    #[test]
+    fn quote_identifier_escapes_special_characters() {
+        assert_eq!(quote_identifier("kv"), "`kv`");
+        assert_eq!(quote_identifier("select"), "`select`");
+        assert_eq!(quote_identifier("my-table"), "`my-table`");
+        assert_eq!(quote_identifier("we`ird\\name"), r"`we\`ird\\name`");
+        assert_eq!(
+            quote_identifier("a\0b\rc\nd\te\x08f\x0Cg"),
+            r"`a\0b\rc\nd\te\u{8}f\fg`"
+        );
+    }
+
+    #[test]
+    fn only_table_not_found_is_treated_as_missing() {
+        let table_err = surrealdb::Error::not_found(
+            "The table 'kv' does not exist".to_string(),
+            NotFoundError::Table {
+                name: "kv".to_string(),
+            },
+        );
+        assert!(is_table_not_found(&table_err));
+
+        let db_err = surrealdb::Error::not_found(
+            "The database 'db' does not exist".to_string(),
+            NotFoundError::Database {
+                name: "db".to_string(),
+            },
+        );
+        assert!(!is_table_not_found(&db_err));
+    }
 }

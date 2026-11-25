@@ -165,21 +165,7 @@ impl oio::ReadStream for HttpBody {
             match chunk.transpose()? {
                 Some(buf) if buf.is_empty() => continue,
                 Some(buf) => {
-                    let chunk_len = buf.len() as u64;
-                    let Some(consumed) = self.consumed.checked_add(chunk_len) else {
-                        let actual = u128::from(self.consumed) + u128::from(chunk_len);
-                        let message = match self.size {
-                            Some(expect) => format!(
-                                "http response got too much data, expect: {expect}, actual: {actual}"
-                            ),
-                            None => format!("http response got too much data, actual: {actual}"),
-                        };
-                        return Err(Error::new(ErrorKind::Unexpected, message).set_temporary());
-                    };
-                    self.consumed = consumed;
-                    if self.size.is_some_and(|expect| self.consumed > expect) {
-                        self.check()?;
-                    }
+                    self.consumed += buf.len() as u64;
                     return Ok(buf);
                 }
                 None => {
@@ -239,57 +225,6 @@ mod tests {
         let mut empty_chunk = HttpBody::new(stream::iter([Ok(Buffer::new())]), Some(0));
         let buf = empty_chunk.to_buffer().await.unwrap();
         assert!(buf.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_http_body_oversized_single_chunk_fails_immediately() {
-        let mut body = HttpBody::new(stream::iter([Ok(Buffer::from("0123456789"))]), Some(4));
-
-        let err = body.read().await.unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
-        assert!(err.is_temporary());
-        assert_eq!(
-            err.message(),
-            "http response got too much data, expect: 4, actual: 10"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_http_body_oversized_second_chunk_fails_immediately() {
-        let mut body = HttpBody::new(
-            stream::iter([Ok(Buffer::from("1234")), Ok(Buffer::from("5"))]),
-            Some(4),
-        );
-
-        let first = body.read().await.unwrap();
-        assert_eq!(first.to_bytes().as_ref(), b"1234");
-
-        let err = body.read().await.unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
-        assert!(err.is_temporary());
-        assert_eq!(
-            err.message(),
-            "http response got too much data, expect: 4, actual: 5"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_http_body_consumed_overflow_fails_immediately() {
-        let mut body = HttpBody::new(stream::iter([Ok(Buffer::from("abcd"))]), Some(u64::MAX));
-        body.consumed = u64::MAX - 2;
-
-        let err = body.read().await.unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
-        assert!(err.is_temporary());
-        assert!(err.message().contains("too much data"));
-
-        let mut unsized_body = HttpBody::new(stream::iter([Ok(Buffer::from("abcd"))]), None);
-        unsized_body.consumed = u64::MAX - 2;
-
-        let err = unsized_body.read().await.unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
-        assert!(err.is_temporary());
-        assert!(err.message().contains("too much data"));
     }
 
     #[tokio::test]

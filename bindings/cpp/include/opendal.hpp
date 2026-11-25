@@ -380,11 +380,6 @@ class ReaderStream : public std::istream {
 
         try {
           std::streampos new_pos = reader_.Seek(target, std::ios_base::beg);
-          if (new_pos == pos_type(off_type(-1)) ||
-              static_cast<std::streamoff>(new_pos) < 0) {
-            reader_.Seek(buffer_start + buffer_len, std::ios_base::beg);
-            return pos_type(off_type(-1));
-          }
           buffer_start_pos_ = new_pos;
           setg(buffer_, buffer_, buffer_);
           return new_pos;
@@ -396,12 +391,6 @@ class ReaderStream : public std::istream {
       if (dir == std::ios_base::end) {
         try {
           std::streampos new_pos = reader_.Seek(off, std::ios_base::end);
-          if (new_pos == pos_type(off_type(-1)) ||
-              static_cast<std::streamoff>(new_pos) < 0) {
-            // Keep underlying reader aligned with the buffered end offset.
-            reader_.Seek(buffer_start + buffer_len, std::ios_base::beg);
-            return pos_type(off_type(-1));
-          }
           buffer_start_pos_ = new_pos;
           setg(buffer_, buffer_, buffer_);
           return new_pos;

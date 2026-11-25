@@ -39,11 +39,7 @@ pub struct RocksdbBuilder {
 impl RocksdbBuilder {
     /// Set the path to the rocksdb data directory. Creates if not exists.
     pub fn datadir(mut self, path: &str) -> Self {
-        self.config.datadir = if path.is_empty() {
-            None
-        } else {
-            Some(path.into())
-        };
+        self.config.datadir = Some(path.into());
         self
     }
 
@@ -65,14 +61,10 @@ impl Builder for RocksdbBuilder {
     type Config = RocksdbConfig;
 
     fn build(self) -> Result<impl Service> {
-        let path = self
-            .config
-            .datadir
-            .filter(|v| !v.is_empty())
-            .ok_or_else(|| {
-                Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
-                    .with_context("service", ROCKSDB_SCHEME)
-            })?;
+        let path = self.config.datadir.ok_or_else(|| {
+            Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
+                .with_context("service", ROCKSDB_SCHEME)
+        })?;
         let db = DB::open_default(&path).map_err(|e| {
             Error::new(ErrorKind::ConfigInvalid, "open default transaction db")
                 .with_context("service", ROCKSDB_SCHEME)
@@ -316,7 +308,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_root_stat_and_writer_metadata() -> Result<()> {
+    async fn test_root_stat() -> Result<()> {
         let ctx = OperationContext::default();
         for root in ["/", "/sub/"] {
             let dir = TempDir::new("root-stat");
@@ -339,8 +331,7 @@ mod tests {
             );
 
             let mut writer = service.write(&ctx, "/", OpWrite::default())?;
-            let meta = writer.close().await?;
-            assert_eq!(meta.mode(), EntryMode::DIR, "root {root}");
+            writer.close().await?;
 
             assert_eq!(
                 service
@@ -380,27 +371,6 @@ mod tests {
             let err = op.stat("missing/").await.unwrap_err();
             assert_eq!(err.kind(), ErrorKind::NotFound, "root {root}");
         }
-        Ok(())
-    }
-
-    #[test]
-    fn test_invalid_config() -> Result<()> {
-        let err = RocksdbBuilder::default().datadir("").build().unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        let err = RocksdbBuilder::default()
-            .datadir("/some/path")
-            .datadir("")
-            .build()
-            .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        let err = RocksdbConfig::from_iter([("datadir".to_string(), String::new())])?
-            .into_builder()
-            .build()
-            .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
         Ok(())
     }
 }

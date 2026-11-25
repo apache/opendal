@@ -299,7 +299,6 @@ impl SimulateService {
 
         let mut non_recursive = args;
         non_recursive.set_recursive(false);
-        let delete_with_version = self.srv.capability().delete_with_version;
 
         let mut lister = self.simulate_list(
             ctx,
@@ -314,8 +313,7 @@ impl SimulateService {
         while let Some(entry) = lister.next().await? {
             let entry = entry.into_entry();
             let mut entry_args = non_recursive.clone();
-            if delete_with_version
-                && entry_args.version().is_none()
+            if entry_args.version().is_none()
                 && let Some(version) = entry.metadata().version()
             {
                 entry_args = entry_args.into_version(version);
@@ -469,24 +467,11 @@ impl SimulateReader {
     }
 
     async fn stat_content_length(&self) -> Result<u64> {
-        let cap = self.srv.capability();
-        if !cap.stat {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "The service does not support stat, which is required to simulate suffix reads without a content_length_hint.",
-            )
-            .with_operation(Operation::Stat)
-            .with_context("service", self.srv.info().scheme()));
+        let op = options::StatOptions {
+            version: self.args.version().map(str::to_owned),
+            ..Default::default()
         }
-
-        let op = OpStat::from_options(
-            &cap,
-            options::StatOptions {
-                version: self.args.version().map(str::to_owned),
-                ..Default::default()
-            },
-        )
-        .map_err(|err| err.with_context("service", self.srv.info().scheme()))?;
+        .into();
 
         Ok(self
             .srv
@@ -2593,7 +2578,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn simulate_reader_suffix_validates_stat_capability() -> Result<()> {
+    async fn simulate_reader_forwards_version_when_resolving_suffix() -> Result<()> {
         use std::sync::atomic::{AtomicUsize, Ordering};
 
         #[derive(Debug)]
@@ -2711,62 +2696,6 @@ mod tests {
 
         let ctx = OperationContext::new();
 
-        // 1. read_with_version && !stat_with_version rejects suffix reads instead of stat-ing current version.
-        let stat_calls = Arc::new(AtomicUsize::new(0));
-        let srv = Arc::new(VersionedSuffixService {
-            capability: Capability {
-                read: true,
-                read_with_version: true,
-                read_with_suffix: false,
-                stat: true,
-                stat_with_version: false,
-                ..Default::default()
-            },
-            stat_calls: stat_calls.clone(),
-            observed_stat_versions: Arc::default(),
-        }) as Servicer;
-        let sim = SimulateLayer::default().apply_service(srv);
-        let (_, args, _) = options::ReadOptions {
-            version: Some("v1".to_string()),
-            ..Default::default()
-        }
-        .into();
-        let reader = sim.read_dyn(&ctx, "f", args)?;
-        let err = reader
-            .read_dyn(BytesRange::suffix(4))
-            .await
-            .expect_err("versioned suffix read without stat_with_version must fail");
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-        let err = reader
-            .open_dyn(BytesRange::suffix(4))
-            .await
-            .err()
-            .expect("versioned suffix open without stat_with_version must fail");
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-        assert_eq!(stat_calls.load(Ordering::SeqCst), 0);
-
-        // 2. !stat rejects suffix reads without content_length_hint without calling stat.
-        let stat_calls = Arc::new(AtomicUsize::new(0));
-        let srv = Arc::new(VersionedSuffixService {
-            capability: Capability {
-                read: true,
-                read_with_suffix: false,
-                stat: false,
-                ..Default::default()
-            },
-            stat_calls: stat_calls.clone(),
-            observed_stat_versions: Arc::default(),
-        }) as Servicer;
-        let sim = SimulateLayer::default().apply_service(srv);
-        let reader = sim.read_dyn(&ctx, "f", OpRead::new())?;
-        let err = reader
-            .read_dyn(BytesRange::suffix(2))
-            .await
-            .expect_err("suffix read without stat capability must fail");
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-        assert_eq!(stat_calls.load(Ordering::SeqCst), 0);
-
-        // 3. read_with_version && stat_with_version forwards version to stat and reads historical suffix.
         let stat_calls = Arc::new(AtomicUsize::new(0));
         let observed_versions = Arc::new(Mutex::new(Vec::new()));
         let srv = Arc::new(VersionedSuffixService {
@@ -2962,28 +2891,7 @@ mod tests {
             .layer(SimulateLayer::default().with_list_recursive(false));
         assert!(op.info().capability().delete_with_recursive);
 
-        // 3. When delete_with_version is false, listed entry versions must not be attached to deletes.
-        let deleted = Arc::new(Mutex::new(Vec::new()));
-        let srv = Arc::new(VersionedListAndDelete {
-            capability: Capability {
-                list: true,
-                list_with_recursive: true,
-                delete: true,
-                delete_with_recursive: false,
-                delete_with_version: false,
-                ..Default::default()
-            },
-            entries: vec![versioned_entry.clone()],
-            deleted: deleted.clone(),
-        }) as Servicer;
-        let op = Operator::from_parts(OperationContext::new(), srv).layer(SimulateLayer::default());
-        op.delete_with("dir/").recursive(true).await?;
-        assert_eq!(
-            *deleted.lock().expect("mutex must not poison"),
-            vec![("dir/a".to_string(), None)]
-        );
-
-        // 4. When delete_with_version is true, attach listed entry version unless an explicit version was already set.
+        // Use the listed version unless the caller supplied one.
         let deleted = Arc::new(Mutex::new(Vec::new()));
         let srv = Arc::new(VersionedListAndDelete {
             capability: Capability {

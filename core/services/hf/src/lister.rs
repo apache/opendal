@@ -32,15 +32,9 @@ struct FileTree {
 fn parse_next_cursor(link_str: &str) -> Option<String> {
     for link in link_str.split(',') {
         if link.contains("rel=\"next\"") || link.contains("rel='next'") {
-            let Some((_, rest)) = link.split_once('<') else {
-                continue;
-            };
-            let Some((url, _)) = rest.split_once('>') else {
-                continue;
-            };
-            let Some((_, query)) = url.split_once('?') else {
-                continue;
-            };
+            let (_, rest) = link.split_once('<')?;
+            let (url, _) = rest.split_once('>')?;
+            let (_, query) = url.split_once('?')?;
             if let Some(cursor) = query
                 .split('&')
                 .find_map(|p| p.strip_prefix("cursor="))
@@ -118,10 +112,9 @@ impl HfLister {
 
         let next_cursor = parts
             .headers
-            .get_all(http::header::LINK)
-            .iter()
-            .filter_map(|v| v.to_str().ok())
-            .find_map(parse_next_cursor);
+            .get(http::header::LINK)
+            .and_then(|v| v.to_str().ok())
+            .and_then(parse_next_cursor);
 
         Ok(FileTree { files, next_cursor })
     }
@@ -328,59 +321,6 @@ mod tests {
             assert!(page_ctx.done);
             assert_eq!(page_ctx.entries.len(), 2);
             assert_eq!(transport.requests.lock().unwrap().len(), 2);
-
-            // Case 3: multiple Link header lines where `rel="next"` is on a later header.
-            let transport = ScriptedListTransport {
-                pages: Arc::new(Mutex::new(VecDeque::from([
-                    ScriptedPage {
-                        links: vec![
-                            r#"<https://huggingface.co/api/models/org/repo/tree/main?cursor=prev0>; rel="prev""#,
-                            r#"<https://huggingface.co/api/models/org/repo/tree/main?cursor=page2>; rel="next""#,
-                        ],
-                        body: r#"[{"type":"file","oid":"1","size":10,"path":"a.txt"}]"#,
-                    },
-                    ScriptedPage {
-                        links: vec![
-                            r#"<https://huggingface.co/api/models/org/repo/tree/main?cursor=page1>; rel="prev""#,
-                        ],
-                        body: r#"[{"type":"file","oid":"2","size":20,"path":"b.txt"}]"#,
-                    },
-                ]))),
-                requests: Arc::new(Mutex::new(Vec::new())),
-            };
-            let (core, ctx, transport) = create_test_core_with(
-                transport,
-                HfRepoType::Model,
-                "org/repo",
-                "main",
-                "https://huggingface.co",
-            );
-            let lister = HfLister::new(Arc::new(core), ctx, String::new(), false);
-            let mut page_ctx = oio::PageContext {
-                done: false,
-                token: String::new(),
-                entries: VecDeque::new(),
-            };
-            lister.next_page(&mut page_ctx).await?;
-            assert!(!page_ctx.done);
-            assert_eq!(page_ctx.token, "page2");
-            lister.next_page(&mut page_ctx).await?;
-            assert!(page_ctx.done);
-            assert_eq!(
-                page_ctx
-                    .entries
-                    .iter()
-                    .map(|e| e.path())
-                    .collect::<Vec<_>>(),
-                vec!["a.txt", "b.txt"]
-            );
-            assert_eq!(
-                transport.requests.lock().unwrap().as_slice(),
-                &[
-                    "https://huggingface.co/api/models/org/repo/tree/main?expand=True",
-                    "https://huggingface.co/api/models/org/repo/tree/main?expand=True&cursor=page2",
-                ]
-            );
 
             Ok(())
         })

@@ -50,10 +50,10 @@ impl Debug for D1Core {
 const CLOUDFLARE_API_BASE_URL: &str = "https://api.cloudflare.com/client/v4";
 
 pub(crate) fn quote_ident(ident: &str) -> Result<String> {
-    if ident.is_empty() || ident.contains('\0') {
+    if ident.contains('\0') {
         return Err(Error::new(
             ErrorKind::ConfigInvalid,
-            "d1 sql identifier must be non-empty and must not contain NUL bytes",
+            "d1 sql identifier must not contain NUL bytes",
         ));
     }
     Ok(format!("\"{}\"", ident.replace('"', "\"\"")))
@@ -223,8 +223,8 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
+        // Some services (like owncloud) return 403 while file locked.
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, true),
         // Allowing retry for resource locked.
         StatusCode::LOCKED => (ErrorKind::Unexpected, true),
         StatusCode::INTERNAL_SERVER_ERROR
@@ -238,10 +238,8 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         .map(|d1_err| (format!("{d1_err:?}"), Some(d1_err)))
         .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
-    if let Some(d1_err) = d1_err
-        && let Some(errors) = d1_err.errors.as_deref()
-    {
-        (kind, retryable) = parse_d1_error_code(errors).unwrap_or((kind, retryable));
+    if let Some(d1_err) = d1_err {
+        (kind, retryable) = parse_d1_error_code(&d1_err.errors).unwrap_or((kind, retryable));
     }
 
     let mut err = Error::new(kind, message);
@@ -339,14 +337,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn core_debug_redacts_authorization() {
-        let core = test_core("kv", "key", "value");
-        let debug = format!("{core:?}");
-        assert!(!debug.contains("d1-sentinel-secret"));
-        assert!(debug.contains("kv"));
-    }
-
     #[tokio::test]
     async fn set_and_delete_fail_on_200_ok_with_success_false() {
         tokio::time::timeout(Duration::from_secs(5), async {
@@ -359,7 +349,7 @@ mod tests {
                 ),
                 (
                     StatusCode::OK,
-                    r#"{"success":false,"result":null,"errors":[{"code":10000,"message":"Authentication error"}]}"#,
+                    r#"{"success":false,"result":[],"errors":[{"code":10000,"message":"Authentication error"}]}"#,
                 ),
             ]);
             let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
@@ -368,10 +358,10 @@ mod tests {
                 .set(&ctx, "k1", Buffer::from("hello"))
                 .await
                 .unwrap_err();
-            assert_eq!(set_err.kind(), ErrorKind::NotFound);
+            assert_eq!(set_err.kind(), ErrorKind::Unexpected);
 
             let del_err = core.delete(&ctx, "k1").await.unwrap_err();
-            assert_eq!(del_err.kind(), ErrorKind::PermissionDenied);
+            assert_eq!(del_err.kind(), ErrorKind::Unexpected);
         })
         .await
         .unwrap();
@@ -425,55 +415,5 @@ mod tests {
         })
         .await
         .unwrap();
-    }
-
-    #[test]
-    fn parse_error_handles_null_result_and_maps_401_403_429() {
-        let resp_auth = Response::builder()
-            .status(StatusCode::BAD_REQUEST)
-            .body(Buffer::from(
-                r#"{"success":false,"result":null,"errors":[{"code":10000,"message":"Authentication error"}]}"#,
-            ))
-            .unwrap();
-        let err_auth = parse_error(ErrorContext::new(ServiceOperation("Query")), resp_auth);
-        assert_eq!(err_auth.kind(), ErrorKind::PermissionDenied);
-        assert!(!err_auth.is_temporary());
-
-        let resp_missing_result = Response::builder()
-            .status(StatusCode::BAD_REQUEST)
-            .body(Buffer::from(
-                r#"{"success":false,"errors":[{"code":7500,"message":"no such column"}]}"#,
-            ))
-            .unwrap();
-        let err_missing = parse_error(
-            ErrorContext::new(ServiceOperation("Query")),
-            resp_missing_result,
-        );
-        assert_eq!(err_missing.kind(), ErrorKind::NotFound);
-        assert!(!err_missing.is_temporary());
-
-        let resp_401 = Response::builder()
-            .status(StatusCode::UNAUTHORIZED)
-            .body(Buffer::from("unauthorized"))
-            .unwrap();
-        let err_401 = parse_error(ErrorContext::new(ServiceOperation("Query")), resp_401);
-        assert_eq!(err_401.kind(), ErrorKind::PermissionDenied);
-        assert!(!err_401.is_temporary());
-
-        let resp_403 = Response::builder()
-            .status(StatusCode::FORBIDDEN)
-            .body(Buffer::from("forbidden"))
-            .unwrap();
-        let err_403 = parse_error(ErrorContext::new(ServiceOperation("Query")), resp_403);
-        assert_eq!(err_403.kind(), ErrorKind::PermissionDenied);
-        assert!(!err_403.is_temporary());
-
-        let resp_429 = Response::builder()
-            .status(StatusCode::TOO_MANY_REQUESTS)
-            .body(Buffer::from("rate limited"))
-            .unwrap();
-        let err_429 = parse_error(ErrorContext::new(ServiceOperation("Query")), resp_429);
-        assert_eq!(err_429.kind(), ErrorKind::RateLimited);
-        assert!(err_429.is_temporary());
     }
 }

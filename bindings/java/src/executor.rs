@@ -18,6 +18,7 @@
 use std::ffi::c_void;
 use std::future::Future;
 use std::num::NonZeroUsize;
+use std::panic::catch_unwind;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use std::thread::available_parallelism;
@@ -43,11 +44,15 @@ static DEFAULT_RUNTIME: Mutex<Weak<Runtime>> = Mutex::new(Weak::new());
 
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _: *mut c_void) -> jint {
-    // Register the JavaVM singleton so worker threads can attach to the JVM
-    // later via `JavaVM::singleton()`.
-    let _ = unsafe { JavaVM::from_raw(vm) };
-    opendal::install_default();
-    jni::sys::JNI_VERSION_1_8
+    // This hook receives a JavaVM instead of a JNIEnv. Return JNI_ERR to reject
+    // the library load if initialization panics.
+    catch_unwind(|| {
+        // Register the JavaVM singleton so worker threads can attach later.
+        let _ = unsafe { JavaVM::from_raw(vm) };
+        opendal::install_default();
+        jni::sys::JNI_VERSION_1_8
+    })
+    .unwrap_or(jni::sys::JNI_ERR)
 }
 
 #[derive(Clone)]
@@ -133,13 +138,15 @@ pub extern "system" fn Java_org_apache_opendal_AsyncExecutor_makeTokioExecutor<'
 /// This function should not be called before the AsyncExecutor is ready.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncExecutor_disposeInternal<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JObject<'local>,
     executor: *mut Executor,
 ) {
-    unsafe {
-        drop(Box::from_raw(executor));
-    }
+    env.with_env(|_| -> Result<()> {
+        unsafe { drop(Box::from_raw(executor)) };
+        Ok(())
+    })
+    .resolve::<ThrowException>()
 }
 
 fn make_tokio_executor(env: &mut Env, cores: usize) -> Result<Executor> {

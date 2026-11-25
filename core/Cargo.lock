@@ -8257,6 +8257,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "tokio",
+ "tonic 0.14.5",
 ]
 
 [[package]]
@@ -8946,6 +8947,7 @@ dependencies = [
  "log",
  "md-5 0.11.0",
  "opendal-core",
+ "quick-xml",
  "serde",
  "serde_json",
  "sha1 0.11.0",
@@ -8976,6 +8978,7 @@ dependencies = [
  "http 1.5.0",
  "log",
  "opendal-core",
+ "quick-xml",
  "serde",
  "serde_json",
  "tokio",

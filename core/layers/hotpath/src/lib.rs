@@ -312,6 +312,3 @@ where
         hotpath::measure_block!(_label, self.inner.poll_next_unpin(cx))
     }
 }
-
-#[cfg(test)]
-mod tests;

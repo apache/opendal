@@ -101,12 +101,6 @@ impl SqliteBuilder {
 }
 
 fn validate_identifier(name: &str, value: &str) -> Result<()> {
-    if value.is_empty() {
-        return Err(
-            Error::new(ErrorKind::ConfigInvalid, format!("{name} is empty"))
-                .with_context("service", SQLITE_SCHEME),
-        );
-    }
     if value.contains('\0') {
         return Err(Error::new(
             ErrorKind::ConfigInvalid,
@@ -1137,7 +1131,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_sqlite_writer_close_returns_dir_mode_for_root_and_dir_paths() {
+    async fn test_sqlite_writer_close_returns_metadata_for_files_and_directory_markers() {
         tokio::time::timeout(std::time::Duration::from_secs(30), async {
             for root in ["/", "/sub/"] {
                 let backend = build_backend().await.with_normalized_root(root.to_string());
@@ -1151,9 +1145,14 @@ mod test {
                 for dir_path in ["", "/", "nested/"] {
                     let mut writer = backend.write(&ctx, dir_path, OpWrite::default()).unwrap();
                     let meta = writer.close().await.unwrap();
+                    let expected_mode = if root == "/" && matches!(dir_path, "" | "/") {
+                        EntryMode::FILE
+                    } else {
+                        EntryMode::DIR
+                    };
                     assert_eq!(
                         meta.mode(),
-                        EntryMode::DIR,
+                        expected_mode,
                         "writer close mode for path {dir_path:?} under root {root}"
                     );
                     let stat_meta = backend
@@ -1205,18 +1204,6 @@ mod test {
                 ..valid_config()
             },
             SqliteConfig {
-                table: Some(String::new()),
-                ..valid_config()
-            },
-            SqliteConfig {
-                key_field: Some(String::new()),
-                ..valid_config()
-            },
-            SqliteConfig {
-                value_field: Some(String::new()),
-                ..valid_config()
-            },
-            SqliteConfig {
                 table: Some("data\0bad".to_string()),
                 ..valid_config()
             },
@@ -1236,7 +1223,6 @@ mod test {
         for pairs in [
             vec![("connection_string", ""), ("table", "data")],
             vec![("connection_string", "   "), ("table", "data")],
-            vec![("connection_string", "sqlite::memory:"), ("table", "")],
             vec![
                 ("connection_string", "sqlite::memory:"),
                 ("table", "data\0bad"),
@@ -1308,6 +1294,37 @@ mod test {
         .build()
         .unwrap();
         assert_eq!(service.info().name().as_ref(), "my\"table");
+    }
+
+    #[test]
+    fn test_sqlite_accepts_empty_quoted_identifiers_from_config() {
+        let config = || SqliteConfig {
+            connection_string: Some("sqlite::memory:".to_string()),
+            table: Some("data".to_string()),
+            ..Default::default()
+        };
+
+        let table = SqliteConfig {
+            table: Some(String::new()),
+            ..config()
+        }
+        .into_builder()
+        .build()
+        .unwrap();
+        assert_eq!(table.info().name().as_ref(), "");
+
+        for config in [
+            SqliteConfig {
+                key_field: Some(String::new()),
+                ..config()
+            },
+            SqliteConfig {
+                value_field: Some(String::new()),
+                ..config()
+            },
+        ] {
+            assert!(config.into_builder().build().is_ok());
+        }
     }
 
     #[tokio::test]

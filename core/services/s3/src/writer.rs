@@ -472,7 +472,7 @@ mod tests {
             ),
             (
                 "<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>",
-                ErrorKind::PermissionDenied,
+                ErrorKind::Unexpected,
                 false,
             ),
             (

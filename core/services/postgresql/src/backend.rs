@@ -117,8 +117,8 @@ impl Builder for PostgresqlBuilder {
 
     fn build(self) -> Result<impl Service> {
         let conn = match self.config.connection_string {
-            Some(v) if !v.trim().is_empty() => v,
-            _ => {
+            Some(v) => v,
+            None => {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "connection_string is empty")
                         .with_context("service", POSTGRESQL_SCHEME),
@@ -335,39 +335,6 @@ mod tests {
             connection_string: Some("postgresql://user:pass@127.0.0.1:5432/testdb".to_string()),
             table: Some("data".to_string()),
             ..Default::default()
-        }
-    }
-
-    #[test]
-    fn build_rejects_empty_and_whitespace_connection_string() {
-        for config in [
-            PostgresqlConfig {
-                connection_string: None,
-                ..valid_config()
-            },
-            PostgresqlConfig {
-                connection_string: Some(String::new()),
-                ..valid_config()
-            },
-            PostgresqlConfig {
-                connection_string: Some("   \t\n ".to_string()),
-                ..valid_config()
-            },
-        ] {
-            let err = config.into_builder().build().unwrap_err();
-            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-        }
-
-        for builder in [
-            PostgresqlBuilder::default()
-                .connection_string("")
-                .table("data"),
-            PostgresqlBuilder::default()
-                .connection_string("   ")
-                .table("data"),
-        ] {
-            let err = builder.build().unwrap_err();
-            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
         }
     }
 

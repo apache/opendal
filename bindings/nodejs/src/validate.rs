@@ -49,42 +49,8 @@ pub(crate) fn parse_expires_secs(value: f64) -> Result<Duration> {
     Ok(Duration::from_secs(seconds as u64))
 }
 
-/// Parse a JavaScript duration given in milliseconds.
-///
-/// Casting milliseconds to `u64` turns negative values and `NaN` into zero,
-/// which arms an immediate deadline for every operation, and saturates
-/// `Infinity` and huge values to a duration of about 584 million years.
-/// Converting the value instead rejects everything a `Duration` cannot
-/// represent, and keeps sub-millisecond precision.
-pub(crate) fn parse_millis(value: f64, field: &str) -> Result<Duration> {
-    Duration::try_from_secs_f64(value / 1000.0).map_err(|_| {
-        Error::new(
-            Status::InvalidArg,
-            format!("{field} must be a finite, non-negative number of milliseconds"),
-        )
-    })
-}
-
-/// Parse a JavaScript timeout given in milliseconds that must be greater than
-/// zero.
-///
-/// A non-positive, non-finite, or unrepresentable timeout fails the same way,
-/// and a zero timeout would fire before the operation gets a chance to run, so
-/// every call on the layer would fail. Reporting this when the layer is
-/// configured keeps the mistake at the call site.
-pub(crate) fn parse_timeout_millis(value: f64, field: &str) -> Result<Duration> {
-    let invalid = || {
-        Error::new(
-            Status::InvalidArg,
-            format!("{field} must be a positive, finite number of milliseconds"),
-        )
-    };
-
-    let timeout = Duration::try_from_secs_f64(value / 1000.0).map_err(|_| invalid())?;
-    // Values below one nanosecond are positive but still round down to zero.
-    if timeout.is_zero() {
-        return Err(invalid());
-    }
-
-    Ok(timeout)
+/// Convert milliseconds while preserving fractional precision and legacy saturation.
+pub(crate) fn duration_from_millis(value: f64) -> Duration {
+    Duration::try_from_secs_f64(value / 1000.0)
+        .unwrap_or_else(|_| Duration::from_millis(value as u64))
 }

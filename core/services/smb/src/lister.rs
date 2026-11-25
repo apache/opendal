@@ -98,19 +98,7 @@ impl SmbLister {
                 if name == ".." {
                     continue;
                 }
-                let prefix = if path == "/" { "" } else { path.as_str() };
-                let mut entry_path = if name == "." {
-                    if prefix.is_empty() {
-                        "/".to_string()
-                    } else {
-                        prefix.to_string()
-                    }
-                } else {
-                    format!("{prefix}{name}")
-                };
-                if entry.file_attributes.directory() && !entry_path.ends_with('/') {
-                    entry_path.push('/');
-                }
+                let entry_path = format_entry_path(&path, &name, entry.file_attributes.directory());
                 let metadata = to_metadata(
                     entry.file_attributes,
                     entry.end_of_file,
@@ -140,6 +128,32 @@ impl SmbLister {
     }
 }
 
+fn format_entry_path(dir_path: &str, name: &str, is_dir: bool) -> String {
+    let prefix = if dir_path.is_empty() || dir_path == "/" {
+        ""
+    } else {
+        dir_path.trim_end_matches('/')
+    };
+
+    let mut entry_path = if name == "." {
+        if prefix.is_empty() {
+            "/".to_string()
+        } else {
+            format!("{prefix}/")
+        }
+    } else if prefix.is_empty() {
+        name.to_string()
+    } else {
+        format!("{prefix}/{name}")
+    };
+
+    if is_dir && !entry_path.ends_with('/') {
+        entry_path.push('/');
+    }
+
+    entry_path
+}
+
 impl oio::List for SmbLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         if self.receiver.is_none() {
@@ -159,5 +173,29 @@ impl oio::List for SmbLister {
             .recv()
             .await
             .transpose()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_entry_path_normalizes_root_and_dir_separators() {
+        assert_eq!(format_entry_path("/", ".", true), "/");
+        assert_eq!(format_entry_path("/", "file.txt", false), "file.txt");
+        assert_eq!(format_entry_path("/", "child", true), "child/");
+
+        assert_eq!(format_entry_path("sub/", ".", true), "sub/");
+        assert_eq!(format_entry_path("sub/", "file.txt", false), "sub/file.txt");
+        assert_eq!(format_entry_path("sub/", "child", true), "sub/child/");
+
+        assert_eq!(format_entry_path("sub", ".", true), "sub/");
+        assert_eq!(format_entry_path("sub", "file.txt", false), "sub/file.txt");
+        assert_eq!(format_entry_path("sub", "child", true), "sub/child/");
+
+        assert_eq!(format_entry_path("a/b", ".", true), "a/b/");
+        assert_eq!(format_entry_path("a/b", "file.txt", false), "a/b/file.txt");
+        assert_eq!(format_entry_path("a/b", "child", true), "a/b/child/");
     }
 }

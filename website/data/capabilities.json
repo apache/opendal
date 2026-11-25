@@ -739,6 +739,93 @@
   ],
   "services": [
     {
+      "name": "akamai",
+      "scheme": "akamai",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
+      }
+    },
+    {
       "name": "aliyun-drive",
       "scheme": "aliyun-drive",
       "native": {
@@ -913,6 +1000,93 @@
       }
     },
     {
+      "name": "b2-s3",
+      "scheme": "b2-s3",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
+      }
+    },
+    {
       "name": "cacache",
       "scheme": "cacache",
       "native": {
@@ -920,6 +1094,93 @@
         "read": true,
         "stat": true,
         "write": true
+      }
+    },
+    {
+      "name": "ceph-rgw",
+      "scheme": "ceph-rgw",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
       }
     },
     {
@@ -1023,6 +1284,93 @@
       }
     },
     {
+      "name": "cos-s3",
+      "scheme": "cos-s3",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
+      }
+    },
+    {
       "name": "d1",
       "scheme": "d1",
       "native": {
@@ -1089,6 +1437,7 @@
       "name": "etcd",
       "scheme": "etcd",
       "native": {
+        "create_dir": true,
         "delete": true,
         "list": true,
         "read": true,
@@ -1096,6 +1445,93 @@
         "stat": true,
         "write": true,
         "write_can_empty": true
+      }
+    },
+    {
+      "name": "exoscale",
+      "scheme": "exoscale",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
       }
     },
     {
@@ -1163,6 +1599,93 @@
         "write_can_append": true,
         "write_can_empty": true,
         "write_can_multi": true
+      }
+    },
+    {
+      "name": "garage",
+      "scheme": "garage",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
       }
     },
     {
@@ -1269,6 +1792,93 @@
         "write_with_content_type": true,
         "write_with_if_not_exists": true,
         "write_with_user_metadata": true
+      }
+    },
+    {
+      "name": "gcs-s3",
+      "scheme": "gcs-s3",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
       }
     },
     {
@@ -1389,7 +1999,97 @@
         "shared": true,
         "stat": true,
         "write": true,
-        "write_can_append": true
+        "write_can_append": true,
+        "write_can_empty": true,
+        "write_can_multi": true,
+        "write_with_if_not_exists": true
+      }
+    },
+    {
+      "name": "hetzner",
+      "scheme": "hetzner",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
       }
     },
     {
@@ -1451,6 +2151,267 @@
       }
     },
     {
+      "name": "ibm-cos",
+      "scheme": "ibm-cos",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
+      }
+    },
+    {
+      "name": "idrive-e2",
+      "scheme": "idrive-e2",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
+      }
+    },
+    {
+      "name": "ionos",
+      "scheme": "ionos",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
+      }
+    },
+    {
       "name": "ipfs",
       "scheme": "ipfs",
       "native": {
@@ -1498,10 +2459,99 @@
         "delete": true,
         "list": true,
         "read": true,
+        "read_with_if_match": true,
+        "read_with_if_none_match": true,
         "read_with_suffix": true,
         "shared": true,
         "stat": true,
         "write": true
+      }
+    },
+    {
+      "name": "lakefs-s3",
+      "scheme": "lakefs-s3",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
       }
     },
     {
@@ -1698,6 +2748,93 @@
       }
     },
     {
+      "name": "neon",
+      "scheme": "neon",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
+      }
+    },
+    {
       "name": "obs",
       "scheme": "obs",
       "native": {
@@ -1734,6 +2871,93 @@
         },
         "write_multi_min_size": {
           "display": "5 MiB"
+        }
+      }
+    },
+    {
+      "name": "oci",
+      "scheme": "oci",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
         }
       }
     },
@@ -1835,6 +3059,180 @@
       }
     },
     {
+      "name": "oss-s3",
+      "scheme": "oss-s3",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
+      }
+    },
+    {
+      "name": "ovhcloud",
+      "scheme": "ovhcloud",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
+      }
+    },
+    {
       "name": "pcloud",
       "scheme": "pcloud",
       "native": {
@@ -1874,6 +3272,93 @@
         "stat": true,
         "write": true,
         "write_can_empty": true
+      }
+    },
+    {
+      "name": "qingstor",
+      "scheme": "qingstor",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
       }
     },
     {
@@ -2006,8 +3491,182 @@
       }
     },
     {
+      "name": "rustfs",
+      "scheme": "rustfs",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
+      }
+    },
+    {
       "name": "s3",
       "scheme": "s3",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
+      }
+    },
+    {
+      "name": "scaleway",
+      "scheme": "scaleway",
       "native": {
         "copy": true,
         "copy_can_multi": true,
@@ -2107,6 +3766,93 @@
       }
     },
     {
+      "name": "seaweedfs",
+      "scheme": "seaweedfs",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
+      }
+    },
+    {
       "name": "sftp",
       "scheme": "sftp",
       "native": {
@@ -2157,6 +3903,93 @@
       }
     },
     {
+      "name": "spaces",
+      "scheme": "spaces",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
+      }
+    },
+    {
       "name": "sqlite",
       "scheme": "sqlite",
       "native": {
@@ -2168,6 +4001,180 @@
         "stat": true,
         "write": true,
         "write_can_empty": true
+      }
+    },
+    {
+      "name": "storj",
+      "scheme": "storj",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
+      }
+    },
+    {
+      "name": "supabase",
+      "scheme": "supabase",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
       }
     },
     {
@@ -2226,6 +4233,180 @@
         },
         "write_multi_min_size": {
           "display": "5 MiB"
+        }
+      }
+    },
+    {
+      "name": "swift-s3api",
+      "scheme": "swift-s3api",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
+      }
+    },
+    {
+      "name": "tigris",
+      "scheme": "tigris",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
         }
       }
     },
@@ -2305,6 +4486,93 @@
       }
     },
     {
+      "name": "tos-s3",
+      "scheme": "tos-s3",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
+      }
+    },
+    {
       "name": "upyun",
       "scheme": "upyun",
       "native": {
@@ -2363,6 +4631,93 @@
       "limits": {
         "write_multi_min_size": {
           "display": "5 MiB"
+        }
+      }
+    },
+    {
+      "name": "wasabi",
+      "scheme": "wasabi",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": "When `checksum_algorithm` is not `md5`",
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
         }
       }
     },

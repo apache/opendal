@@ -113,6 +113,7 @@ pub struct BlockWriter<W: BlockWrite> {
     /// be retried with the complete list.
     scheduled_block_ids: Vec<Uuid>,
     cache: Option<Buffer>,
+    abort_pending: bool,
     tasks: ConcurrentTasks<WriteInput<W>, Uuid>,
 }
 
@@ -126,6 +127,7 @@ impl<W: BlockWrite> BlockWriter<W> {
             executor: executor.clone(),
             scheduled_block_ids: Vec::new(),
             cache: None,
+            abort_pending: false,
 
             tasks: ConcurrentTasks::new(executor, concurrent, 0, |input| {
                 Box::pin(async move {
@@ -175,12 +177,17 @@ where
     W: BlockWrite,
 {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        if self.scheduled_block_ids.is_empty() && self.cache.is_none() {
-            self.fill_cache(bs);
-            return Ok(());
-        }
-
-        let bytes = self.cache.clone().expect("pending write must exist");
+        let Some(bytes) = self.cache.clone() else {
+            if self.scheduled_block_ids.is_empty() {
+                self.fill_cache(bs);
+                return Ok(());
+            }
+            // The final block was scheduled or abort discarded the tail.
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "block writer cannot accept more data while closing or aborting",
+            ));
+        };
         let block_id = Uuid::new_v4();
         self.tasks
             .execute(WriteInput {
@@ -199,6 +206,12 @@ where
     }
 
     async fn close(&mut self) -> Result<Metadata> {
+        if self.abort_pending {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "block writer cannot close while cleanup is pending",
+            ));
+        }
         if self.scheduled_block_ids.is_empty() {
             let (size, body) = match self.cache.clone() {
                 Some(cache) => (cache.len(), cache),
@@ -231,16 +244,18 @@ where
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.tasks.clear();
-        self.cache = None;
-
         if self.scheduled_block_ids.is_empty() {
             return Ok(());
         }
 
+        self.tasks.clear();
+        self.cache = None;
+
         // Keep the IDs until the abort succeeds so a temporary failure can be retried.
+        self.abort_pending = true;
         self.w.abort_block(self.scheduled_block_ids.clone()).await?;
         self.scheduled_block_ids.clear();
+        self.abort_pending = false;
         Ok(())
     }
 }
@@ -410,6 +425,8 @@ mod tests {
         aborted: Vec<Uuid>,
         abort_calls: Vec<Vec<Uuid>>,
         abort_failures: usize,
+        complete_calls: Vec<Vec<Uuid>>,
+        fail_first_complete: bool,
         fail_write_on: Option<&'static [u8]>,
     }
 
@@ -450,7 +467,14 @@ mod tests {
             Ok(())
         }
 
-        async fn complete_block(&self, _: Vec<Uuid>) -> Result<Metadata> {
+        async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<Metadata> {
+            let mut state = self.state.lock().expect("test state mutex poisoned");
+            state.complete_calls.push(block_ids);
+            if std::mem::take(&mut state.fail_first_complete) {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "injected complete failure").set_temporary(),
+                );
+            }
             Ok(MetadataBuilder::unknown().build())
         }
 
@@ -577,6 +601,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_block_writer_close_can_retry_after_temporary_commit_failure() -> Result<()> {
+        let (inner, state) = RecordingWrite::new();
+        state.lock().unwrap().fail_first_complete = true;
+        let mut w = BlockWriter::new(crate::test_executor(), inner, 1);
+
+        w.write(Buffer::from("a")).await?;
+        w.write(Buffer::from("b")).await?;
+        let err = w.close().await.expect_err("first commit fails");
+        assert_eq!(err.message(), "injected complete failure");
+        assert!(err.is_temporary());
+        let err = w
+            .write(Buffer::from("extra"))
+            .await
+            .expect_err("final block was already scheduled");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_permanent());
+        w.close().await?;
+
+        let state = state.lock().unwrap();
+        assert_eq!(state.written.len(), 2);
+        assert_eq!(
+            state.complete_calls,
+            vec![state.written.clone(), state.written.clone()]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_block_writer_abort_can_retry_after_temporary_abort_failure() -> Result<()> {
         let (inner, state) = RecordingWrite::new();
         let mut w = BlockWriter::new(crate::test_executor(), inner, 1);
@@ -598,30 +650,24 @@ mod tests {
             .abort_failures = 1;
 
         let err = w.abort().await.expect_err("first abort should fail");
+        assert_eq!(err.message(), "injected abort block failure");
         assert!(err.is_temporary());
+        let err = w
+            .write(Buffer::from("extra"))
+            .await
+            .expect_err("cleanup is still pending");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_permanent());
+        let err = w.close().await.expect_err("cleanup is still pending");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_permanent());
 
         w.abort().await?;
 
         let state = state.lock().expect("test state mutex poisoned");
+        assert!(state.complete_calls.is_empty());
         assert_eq!(state.abort_calls, vec![written.clone(), written.clone()]);
         assert_eq!(state.aborted, [written.clone(), written].concat());
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_block_writer_abort_clears_cached_write_without_abort_block() -> Result<()> {
-        let (inner, state) = RecordingWrite::new();
-        let mut w = BlockWriter::new(crate::test_executor(), inner, 4);
-
-        w.write(Buffer::from("a")).await?;
-
-        w.abort().await?;
-
-        assert!(w.cache.is_none());
-
-        let state = state.lock().expect("test state mutex poisoned");
-        assert!(state.written.is_empty());
-        assert!(state.abort_calls.is_empty());
         Ok(())
     }
 }

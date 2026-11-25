@@ -75,10 +75,7 @@ impl oio::OneShotDelete for MonoiofsDeleter {
                 } else {
                     monoio::fs::remove_file(&path).await
                 };
-                match result {
-                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-                    result => result.map_err(new_std_io_error),
-                }
+                result.map_err(new_std_io_error)
             })
             .await
     }

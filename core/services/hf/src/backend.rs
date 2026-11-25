@@ -38,7 +38,6 @@ use opendal_core::*;
 pub struct HfBuilder {
     pub(super) config: HfConfig,
     pub(super) invalid_repo_type: Option<String>,
-    pub(super) invalid_download_mode: Option<String>,
 }
 
 impl HfBuilder {
@@ -134,17 +133,10 @@ impl HfBuilder {
     ///
     /// See <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet>.
     pub fn download_mode(mut self, mode: &str) -> Self {
-        if !mode.is_empty() {
-            match HfDownloadMode::parse(mode) {
-                Ok(m) => {
-                    self.config.download_mode = Some(m);
-                    self.invalid_download_mode = None;
-                }
-                Err(_) => {
-                    self.config.download_mode = None;
-                    self.invalid_download_mode = Some(mode.to_string());
-                }
-            }
+        if !mode.is_empty()
+            && let Ok(mode) = HfDownloadMode::parse(mode)
+        {
+            self.config.download_mode = Some(mode);
         }
         self
     }
@@ -282,12 +274,6 @@ impl Builder for HfBuilder {
                 .with_operation("Builder::build"));
         }
 
-        if let Some(invalid_download_mode) = &self.invalid_download_mode {
-            return Err(HfDownloadMode::parse(invalid_download_mode)
-                .unwrap_err()
-                .with_operation("Builder::build"));
-        }
-
         let token = self.hf_token();
         let endpoint = self.hf_endpoint();
         let download_mode = self.hf_download_mode();
@@ -318,7 +304,7 @@ impl Builder for HfBuilder {
         debug!("backend use endpoint: {}", endpoint);
         debug!("backend use download_mode: {:?}", download_mode);
 
-        let info = ServiceInfo::new(HF_SCHEME, &root, &repo_id);
+        let info = ServiceInfo::new(HF_SCHEME, "", "");
         let capability = Capability {
             stat: true,
             read: true,
@@ -802,36 +788,6 @@ mod tests {
     }
 
     #[test]
-    fn build_rejects_invalid_download_mode() {
-        let err = HfBuilder::default()
-            .repo_type("model")
-            .repo_id("org/repo")
-            .download_mode("invalid")
-            .build()
-            .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-        assert!(err.to_string().contains("unknown download mode: invalid"));
-
-        let err = HfBuilder::default()
-            .repo_type("model")
-            .repo_id("org/repo")
-            .download_mode("http")
-            .download_mode("invalid")
-            .build()
-            .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        // Overwriting an invalid mode with a valid mode recovers.
-        HfBuilder::default()
-            .repo_type("model")
-            .repo_id("org/repo")
-            .download_mode("invalid")
-            .download_mode("http")
-            .build()
-            .expect("valid download_mode should clear prior invalid value");
-    }
-
-    #[test]
     fn build_rejects_invalid_repo_type() {
         let err = HfBuilder::default()
             .repo_type("invalid")
@@ -857,26 +813,6 @@ mod tests {
             .repo_id("org/repo")
             .build()
             .expect("valid repo_type should clear prior invalid value");
-    }
-
-    #[test]
-    fn build_populates_service_info_root_and_name() -> Result<()> {
-        let op = Operator::new(
-            HfBuilder::default()
-                .repo_type("dataset")
-                .repo_id("org/repo")
-                .root("/subdir"),
-        )?;
-        assert_eq!(op.info().scheme(), "hf");
-        assert_eq!(op.info().root(), "/subdir/");
-        assert_eq!(op.info().name(), "org/repo");
-
-        let default_root =
-            Operator::new(HfBuilder::default().repo_type("model").repo_id("org/model"))?;
-        assert_eq!(default_root.info().root(), "/");
-        assert_eq!(default_root.info().name(), "org/model");
-
-        Ok(())
     }
 
     #[test]

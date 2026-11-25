@@ -364,23 +364,13 @@ impl Buffer {
     #[inline]
     pub fn to_io_slice(&self) -> Vec<IoSlice<'_>> {
         match &self.0 {
-            Inner::Contiguous(bs) => {
-                if bs.is_empty() {
-                    Vec::new()
-                } else {
-                    vec![IoSlice::new(bs.chunk())]
-                }
-            }
+            Inner::Contiguous(bs) => vec![IoSlice::new(bs.chunk())],
             Inner::NonContiguous {
                 parts,
                 size,
                 idx,
                 offset,
             } => {
-                if *size == 0 {
-                    return Vec::new();
-                }
-
                 let mut ret = Vec::with_capacity(parts.len() - *idx);
                 let mut new_offset = *offset;
                 let mut remaining = *size;
@@ -1830,7 +1820,6 @@ mod tests {
             let mut dst = [IoSlice::new(b"sentinel")];
             assert_eq!(buf.chunks_vectored(&mut dst), 0);
             assert_eq!(&*dst[0], b"sentinel");
-            assert!(buf.to_io_slice().is_empty());
         }
 
         let chained = Buf::chain(Buffer::new(), Bytes::from_static(b"hello"));

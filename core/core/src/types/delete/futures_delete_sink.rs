@@ -125,13 +125,7 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink<T> {
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         loop {
             match &mut self.state {
-                State::Idle(_) => return Poll::Ready(Ok(())),
-                State::Closed => {
-                    return Poll::Ready(Err(Error::new(
-                        ErrorKind::Unexpected,
-                        "FuturesDeleteSink has been closed or errored",
-                    )));
-                }
+                State::Idle(_) | State::Closed => return Poll::Ready(Ok(())),
                 State::Delete(fut) => {
                     let (deleter, res) = ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(deleter);
@@ -140,19 +134,12 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink<T> {
                 }
                 State::Close(fut) => {
                     let (deleter, res) = ready!(fut.as_mut().poll(cx));
-                    match res {
-                        Ok(()) => {
-                            self.state = State::Closed;
-                            return Poll::Ready(Err(Error::new(
-                                ErrorKind::Unexpected,
-                                "FuturesDeleteSink has been closed or errored",
-                            )));
-                        }
-                        Err(err) => {
-                            self.state = State::Idle(deleter);
-                            return Poll::Ready(Err(err));
-                        }
-                    }
+                    self.state = if res.is_ok() {
+                        State::Closed
+                    } else {
+                        State::Idle(deleter)
+                    };
+                    return Poll::Ready(res);
                 }
             };
         }
@@ -178,10 +165,7 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink<T> {
 
         // The sink is closed unless a close request is in flight.
         let State::Close(fut) = &mut self.state else {
-            return Poll::Ready(Err(Error::new(
-                ErrorKind::Unexpected,
-                "FuturesDeleteSink has been closed or errored",
-            )));
+            return Poll::Ready(Ok(()));
         };
         let (deleter, res) = ready!(fut.as_mut().poll(cx));
         self.state = if res.is_ok() {

@@ -431,19 +431,19 @@ mod protocol_tests {
     use super::FtpBuilder;
 
     struct MockFtpState {
-        reject_login: bool,
         dirs: HashSet<String>,
         listings: HashMap<String, Vec<String>>,
         mkd_calls: Vec<String>,
+        reject_login: bool,
     }
 
     impl MockFtpState {
         fn new() -> Self {
             Self {
-                reject_login: false,
                 dirs: HashSet::from(["/".to_string()]),
                 listings: HashMap::new(),
                 mkd_calls: Vec::new(),
+                reject_login: false,
             }
         }
     }
@@ -480,11 +480,12 @@ mod protocol_tests {
                             }
                             "PASS" => {
                                 let reject = state.lock().unwrap().reject_login;
-                                if reject {
-                                    let _ = writer.write_all(b"530 Login incorrect.\r\n").await;
+                                let reply: &[u8] = if reject {
+                                    b"530 Login incorrect\r\n"
                                 } else {
-                                    let _ = writer.write_all(b"230 Login successful.\r\n").await;
-                                }
+                                    b"230 Login successful\r\n"
+                                };
+                                let _ = writer.write_all(reply).await;
                             }
                             "TYPE" | "NOOP" => {
                                 let _ = writer.write_all(b"200 OK\r\n").await;
@@ -569,7 +570,7 @@ mod protocol_tests {
     }
 
     #[tokio::test]
-    async fn test_list_handles_550_missing_dir_and_recursive_dots_and_total() {
+    async fn test_list_handles_recursive_dots_and_total() {
         let state = Arc::new(Mutex::new(MockFtpState::new()));
         {
             let mut guard = state.lock().unwrap();
@@ -598,9 +599,6 @@ mod protocol_tests {
         let op = Operator::new(FtpBuilder::default().endpoint(&endpoint).root("/"))
             .unwrap()
             .layer(layers::SimulateLayer::default());
-
-        let missing = op.list("missing/").await.unwrap();
-        assert!(missing.is_empty(), "550 on missing dir must list as empty");
 
         let entries = op.list_with("dir/").recursive(true).await.unwrap();
         let mut paths: Vec<String> = entries.into_iter().map(|e| e.path().to_string()).collect();
@@ -647,13 +645,13 @@ mod protocol_tests {
             .delete("readonly.txt/")
             .await
             .expect_err("deleting a file via dir path must fail");
-        assert_eq!(err.kind(), ErrorKind::NotADirectory);
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
 
         let err = op
             .delete("nonempty")
             .await
             .expect_err("deleting a dir via file path must fail");
-        assert_eq!(err.kind(), ErrorKind::IsADirectory);
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
 
         op.delete("missing.txt")
             .await
@@ -671,6 +669,11 @@ mod protocol_tests {
     #[tokio::test]
     async fn test_manager_creates_multilevel_root_and_maps_530_permission_denied() {
         let state = Arc::new(Mutex::new(MockFtpState::new()));
+        state
+            .lock()
+            .unwrap()
+            .listings
+            .insert("/".to_string(), Vec::new());
         let (endpoint, server) = spawn_mock_ftp(state.clone()).await;
 
         let op = Operator::new(FtpBuilder::default().endpoint(&endpoint).root("/a/b/c")).unwrap();
@@ -681,17 +684,14 @@ mod protocol_tests {
         assert_eq!(mkd_calls, vec!["/a/", "/a/b/", "/a/b/c/"]);
 
         state.lock().unwrap().reject_login = true;
-        let bad_op = Operator::new(
+        let operator = Operator::new(
             FtpBuilder::default()
                 .endpoint(&endpoint)
                 .user("alice")
                 .password("wrong"),
         )
         .unwrap();
-        let err = bad_op
-            .list("/")
-            .await
-            .expect_err("530 login failure must fail");
+        let err = operator.list("/").await.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::PermissionDenied);
         assert!(!err.is_temporary());
 

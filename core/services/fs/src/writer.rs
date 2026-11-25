@@ -27,7 +27,9 @@ use bytes::Buf;
 use bytes::Bytes;
 use tokio::io::AsyncWriteExt;
 
-use super::core::{ErrorContext, FsCore, parse_error, parse_rename_error, publish_staged_file};
+use super::core::{
+    ErrorContext, FsCore, parse_error, parse_rename_error, publish_staged_file, refine_path_error,
+};
 #[cfg(target_os = "linux")]
 use super::direct_io::DirectIoAlignment;
 use opendal_core::raw::*;
@@ -251,10 +253,17 @@ impl FsWriter {
         };
 
         options.truncate(!op.append() || temp_path.is_some());
-        let f = tokio::fs::OpenOptions::from(options)
-            .open(open_path)
-            .await
-            .map_err(|err| parse_error(ErrorContext::new(operation), err))?;
+        let f = match tokio::fs::OpenOptions::from(options).open(open_path).await {
+            Ok(f) => f,
+            Err(err) => {
+                let mut err = refine_path_error(err, open_path).await;
+                // Unix fails `O_CREAT | O_EXCL` on a directory with `EEXIST`.
+                if op.if_not_exists() && err.kind() == std::io::ErrorKind::IsADirectory {
+                    err = std::io::Error::new(std::io::ErrorKind::AlreadyExists, err);
+                }
+                return Err(parse_error(ErrorContext::new(operation), err));
+            }
+        };
         Ok(Self {
             target_path,
             temp_path,
@@ -316,14 +325,24 @@ impl FsWriter {
                 .await
                 .map_err(new_task_join_error)?
         } else {
-            tokio::fs::rename(temp_path, &self.target_path)
-                .await
-                .map_err(parse_rename_error)
+            match tokio::fs::rename(temp_path, &self.target_path).await {
+                Ok(()) => Ok(()),
+                Err(err) => Err(parse_rename_error(
+                    refine_path_error(err, &self.target_path).await,
+                )),
+            }
         };
 
         match result {
             Ok(()) => Ok(()),
-            Err(err) => Err(self.cleanup_staged_on_permanent_error(err).await),
+            Err(err) => {
+                let err = if self.if_not_exists {
+                    err.set_permanent()
+                } else {
+                    err
+                };
+                Err(self.cleanup_staged_on_permanent_error(err).await)
+            }
         }
     }
 }
@@ -621,7 +640,6 @@ mod tests {
         let op = operator(&root, Some(&staging));
         let err = op.write("target", "data").await.unwrap_err();
         assert!(!err.is_temporary(), "{err:?}");
-        #[cfg(unix)]
         assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
         assert!(staging_is_empty(&staging));
     }
@@ -646,8 +664,35 @@ mod tests {
 
         let err = writer.close().await.unwrap_err();
         assert!(!err.is_temporary(), "{err:?}");
-        #[cfg(unix)]
         assert_eq!(err.kind(), ErrorKind::NotADirectory, "{err:?}");
+        assert!(staging_is_empty(&staging));
+    }
+
+    #[tokio::test]
+    async fn test_staged_conditional_write_cleans_up_on_not_a_directory() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path().join("root");
+        let staging = temp_dir.path().join("staging");
+        std::fs::create_dir(&root).unwrap();
+        std::fs::create_dir(&staging).unwrap();
+
+        let op = operator(&root, Some(&staging));
+        let mut writer = op
+            .writer_with("sub/file")
+            .if_not_exists(true)
+            .await
+            .unwrap();
+        writer.write("data").await.unwrap();
+        assert!(!staging_is_empty(&staging));
+
+        // Replace the parent directory with a regular file before commit so
+        // the conditional publish fails permanently.
+        std::fs::remove_dir(root.join("sub")).unwrap();
+        std::fs::write(root.join("sub"), b"blocker").unwrap();
+
+        let err = writer.close().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotADirectory, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
         assert!(staging_is_empty(&staging));
     }
 

@@ -137,9 +137,7 @@ impl oio::PageList for WebhdfsLister {
                     metadata.last_modified(Timestamp::from_millisecond(status.modification_time)?);
                     metadata.build()
                 }
-                FileStatusType::Symlink | FileStatusType::Unknown => {
-                    MetadataBuilder::unknown().build()
-                }
+                FileStatusType::Symlink => MetadataBuilder::unknown().build(),
             };
 
             if meta.mode().is_file() {

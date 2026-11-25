@@ -23,7 +23,6 @@ use mongodb::bson::Bson;
 use mongodb::bson::Document;
 use mongodb::bson::doc;
 use mongodb::options::ClientOptions;
-use mongodb::options::ConnectionString;
 
 use opendal_core::*;
 
@@ -31,7 +30,7 @@ const DUPLICATE_KEY_ERROR_CODE: i32 = 11000;
 
 #[derive(Clone)]
 pub struct MongodbCore {
-    pub connection_string: ConnectionString,
+    pub connection_string: String,
     pub database: String,
     pub collection: String,
     pub collection_instance: OnceCell<mongodb::Collection<Document>>,
@@ -54,11 +53,11 @@ impl MongodbCore {
     async fn get_collection(&self) -> Result<&mongodb::Collection<Document>> {
         self.collection_instance
             .get_or_try_init(|| async {
-                let client_options = ClientOptions::parse(self.connection_string.clone())
+                let client_options = ClientOptions::parse(&self.connection_string)
                     .await
-                    .map_err(parse_mongodb_config_error)?;
-                let client = mongodb::Client::with_options(client_options)
-                    .map_err(parse_mongodb_config_error)?;
+                    .map_err(parse_mongodb_error)?;
+                let client =
+                    mongodb::Client::with_options(client_options).map_err(parse_mongodb_error)?;
                 let database = client.database(&self.database);
                 let collection = database.collection(&self.collection);
                 Ok(collection)
@@ -218,52 +217,8 @@ fn is_key_field_duplicate_key_error(
     is_key_field_duplicate_key_message(message, key_field, path)
 }
 
-fn is_transient_io_error(err: &std::io::Error) -> bool {
-    matches!(
-        err.kind(),
-        std::io::ErrorKind::ConnectionReset
-            | std::io::ErrorKind::ConnectionAborted
-            | std::io::ErrorKind::BrokenPipe
-            | std::io::ErrorKind::TimedOut
-            | std::io::ErrorKind::Interrupted
-            | std::io::ErrorKind::WouldBlock
-            | std::io::ErrorKind::UnexpectedEof
-            | std::io::ErrorKind::ConnectionRefused
-            | std::io::ErrorKind::NotConnected
-            | std::io::ErrorKind::NetworkUnreachable
-            | std::io::ErrorKind::HostUnreachable
-    )
-}
-
-fn parse_mongodb_config_error(err: mongodb::error::Error) -> Error {
-    match err.kind.as_ref() {
-        mongodb::error::ErrorKind::InvalidArgument { .. }
-        | mongodb::error::ErrorKind::InvalidTlsConfig { .. } => Error::new(
-            ErrorKind::ConfigInvalid,
-            "mongodb client configuration is invalid",
-        )
-        .set_source(err),
-        _ => parse_mongodb_error(err),
-    }
-}
-
 fn parse_mongodb_error(err: mongodb::error::Error) -> Error {
-    let is_temporary = err.contains_label(mongodb::error::TRANSIENT_TRANSACTION_ERROR)
-        || err.contains_label(mongodb::error::RETRYABLE_WRITE_ERROR)
-        || match err.kind.as_ref() {
-            mongodb::error::ErrorKind::Io(io_err) => is_transient_io_error(io_err),
-            mongodb::error::ErrorKind::ConnectionPoolCleared { .. }
-            | mongodb::error::ErrorKind::ServerSelection { .. }
-            | mongodb::error::ErrorKind::DnsResolve { .. } => true,
-            _ => false,
-        };
-
-    let opendal_err = Error::new(ErrorKind::Unexpected, "mongodb error").set_source(err);
-    if is_temporary {
-        opendal_err.set_temporary()
-    } else {
-        opendal_err
-    }
+    Error::new(ErrorKind::Unexpected, "mongodb error").set_source(err)
 }
 
 fn parse_bson_error(err: mongodb::bson::document::ValueAccessError) -> Error {
@@ -350,13 +305,6 @@ mod tests {
                 .kind(),
             ErrorKind::Unexpected
         );
-    }
-
-    #[test]
-    fn test_parse_mongodb_config_error_maps_invalid_argument() {
-        let invalid = ConnectionString::parse("not-a-mongodb-uri").unwrap_err();
-        let err = parse_mongodb_config_error(invalid);
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
 
     fn make_write_error(code: i32, errmsg: &str) -> mongodb::error::Error {
@@ -489,49 +437,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_mongodb_error_io_temporary_classification() {
-        for transient_kind in [
-            std::io::ErrorKind::ConnectionReset,
-            std::io::ErrorKind::ConnectionAborted,
-            std::io::ErrorKind::BrokenPipe,
-            std::io::ErrorKind::TimedOut,
-            std::io::ErrorKind::Interrupted,
-            std::io::ErrorKind::WouldBlock,
-            std::io::ErrorKind::UnexpectedEof,
-            std::io::ErrorKind::ConnectionRefused,
-            std::io::ErrorKind::NotConnected,
-            std::io::ErrorKind::NetworkUnreachable,
-            std::io::ErrorKind::HostUnreachable,
-        ] {
-            let err = parse_mongodb_error(mongodb::error::Error::from(std::io::Error::new(
-                transient_kind,
-                "transient io",
-            )));
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(
-                err.is_temporary(),
-                "expected {transient_kind:?} to be temporary"
-            );
-        }
-
-        for permanent_kind in [
-            std::io::ErrorKind::InvalidData,
-            std::io::ErrorKind::InvalidInput,
-            std::io::ErrorKind::PermissionDenied,
-            std::io::ErrorKind::NotFound,
-            std::io::ErrorKind::Other,
-        ] {
-            let err = parse_mongodb_error(mongodb::error::Error::from(std::io::Error::new(
-                permanent_kind,
-                "permanent io",
-            )));
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(
-                !err.is_temporary(),
-                "expected {permanent_kind:?} to be permanent"
-            );
-        }
-
+    fn test_parse_mongodb_error_non_key_duplicate_is_permanent() {
         let value_dup_err = parse_mongodb_error(make_write_error(
             11000,
             r#"Plan executor error during update :: caused by :: E11000 duplicate key error collection: demo.demo index: value_1 dup key: { value: BinData(0, 616263) }"#,

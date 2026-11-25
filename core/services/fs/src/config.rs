@@ -43,7 +43,23 @@ impl opendal_core::Configurator for FsConfig {
 
         if let Some(root) = uri.root().filter(|v| !v.is_empty()) {
             map.entry("root".to_string())
-                .or_insert_with(|| format!("/{}", root));
+                .or_insert_with(|| uri_path_to_root(root));
+        }
+
+        // A local path has no host. Ignoring one would silently move the root:
+        // `fs://tmp/data` would become `/data`, and `fs://C:/data` would become
+        // `/data` on the current drive. When the caller already gave an
+        // explicit root, the host is ignored instead: `fs://name/data` with
+        // `root=/srv/cache` uses `/srv/cache`.
+        if !uri.options().contains_key("root")
+            && let Some(host) = uri.name()
+            && !host.eq_ignore_ascii_case("localhost")
+        {
+            return Err(opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
+                "fs uri must not contain a host, use fs:///path or file:///path",
+            )
+            .with_context("host", host));
         }
 
         Self::from_iter(map)
@@ -51,6 +67,28 @@ impl opendal_core::Configurator for FsConfig {
 
     fn into_builder(self) -> Self::Builder {
         FsBuilder { config: self }
+    }
+}
+
+/// Turn the path of a `file:///` uri, without its leading `/`, into a root.
+///
+/// On Windows, `file:///C:/data` carries the drive in its path, and `/C:/data`
+/// is not a valid path, so keep `C:/data` as is.
+fn uri_path_to_root(path: &str) -> String {
+    let bytes = path.as_bytes();
+    let has_drive = bytes.len() >= 2
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && (bytes.len() == 2 || bytes[2] == b'/');
+    if cfg!(windows) && has_drive {
+        // A bare `C:` means the current directory of drive C, not its root.
+        if bytes.len() == 2 {
+            format!("{path}/")
+        } else {
+            path.to_string()
+        }
+    } else {
+        format!("/{path}")
     }
 }
 
@@ -73,5 +111,66 @@ mod tests {
         let uri = OperatorUri::new("file:///tmp/data", Vec::<(String, String)>::new()).unwrap();
         let cfg = FsConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.root.as_deref(), Some("/tmp/data"));
+    }
+
+    #[test]
+    fn from_uri_accepts_localhost() {
+        // `file://localhost/...` is normalized by the URL parser before it
+        // reaches the service, so `fs://localhost/...` is the case that
+        // exercises the service's own host check.
+        for (base, expected) in [
+            ("file://localhost/tmp/data", "/tmp/data"),
+            ("fs://localhost/data", "/data"),
+        ] {
+            let uri = OperatorUri::new(base, Vec::<(String, String)>::new()).unwrap();
+            let cfg = FsConfig::from_uri(&uri).unwrap();
+            assert_eq!(cfg.root.as_deref(), Some(expected), "{base}");
+        }
+    }
+
+    #[test]
+    fn from_uri_rejects_host() {
+        for base in ["fs://tmp/data", "file://server/share/data", "fs://C:/data"] {
+            let uri = OperatorUri::new(base, Vec::<(String, String)>::new()).unwrap();
+            let err = FsConfig::from_uri(&uri).unwrap_err();
+            assert_eq!(err.kind(), opendal_core::ErrorKind::ConfigInvalid, "{base}");
+        }
+    }
+
+    #[test]
+    fn from_uri_ignores_host_with_explicit_root() {
+        // An explicit root wins over the host: `fs://name/data` with
+        // `root=/srv/cache` uses `/srv/cache`.
+        let uri = OperatorUri::new(
+            "fs://name/data",
+            vec![("root".to_string(), "/srv/cache".to_string())],
+        )
+        .unwrap();
+        let cfg = FsConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("/srv/cache"));
+
+        // The same root given in the query string works too.
+        let uri = OperatorUri::new(
+            "fs://name/data?root=/srv/cache",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = FsConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("/srv/cache"));
+    }
+
+    #[test]
+    fn from_uri_with_windows_drive() {
+        let uri = OperatorUri::new("file:///C:/data", Vec::<(String, String)>::new()).unwrap();
+        let cfg = FsConfig::from_uri(&uri).unwrap();
+        let expected = if cfg!(windows) { "C:/data" } else { "/C:/data" };
+        assert_eq!(cfg.root.as_deref(), Some(expected));
+
+        for base in ["file:///C:/", "file:///C:"] {
+            let uri = OperatorUri::new(base, Vec::<(String, String)>::new()).unwrap();
+            let cfg = FsConfig::from_uri(&uri).unwrap();
+            let expected = if cfg!(windows) { "C:/" } else { "/C:" };
+            assert_eq!(cfg.root.as_deref(), Some(expected), "{base}");
+        }
     }
 }

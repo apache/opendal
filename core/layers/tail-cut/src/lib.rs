@@ -903,9 +903,8 @@ impl StatKey {
 
 /// Statistics engine for tail cut layer.
 struct TailCutStats {
-    // One dedicated histogram per `Operation` variant. `Info` carries no
-    // traffic and also holds future `#[non_exhaustive]` variants.
-    operations: [Arc<OperationStats>; 12],
+    // One dedicated histogram per timed operation.
+    operations: [Arc<OperationStats>; 11],
     // Dedicated histograms so stream open (TTFB) and per-chunk stream reads
     // stay isolated from full-range `Read::read` baselines.
     read_open: Arc<OperationStats>,
@@ -927,7 +926,7 @@ impl TailCutStats {
             StatKey::ReadStream => &self.read_stream,
             StatKey::Operation(op) => {
                 let idx = match op {
-                    Operation::Info => 0,
+                    Operation::Stat => 0,
                     Operation::CreateDir => 1,
                     Operation::Read => 2,
                     Operation::Write => 3,
@@ -935,13 +934,10 @@ impl TailCutStats {
                     Operation::Compose => 5,
                     Operation::Rename => 6,
                     Operation::Restore => 7,
-                    Operation::Stat => 8,
-                    Operation::Delete => 9,
-                    Operation::List => 10,
-                    Operation::Presign => 11,
-                    // New variants must not reuse a live operation's baseline before
-                    // they get a dedicated histogram.
-                    _ => 0,
+                    Operation::Delete => 8,
+                    Operation::List => 9,
+                    Operation::Presign => 10,
+                    _ => unreachable!("no TailCut histogram for {op}"),
                 };
                 &self.operations[idx]
             }
@@ -1529,7 +1525,6 @@ mod tests {
     fn test_each_operation_has_its_own_stats() {
         let layer = TailCutLayer::new();
         let operations = [
-            Operation::Info,
             Operation::CreateDir,
             Operation::Read,
             Operation::Write,

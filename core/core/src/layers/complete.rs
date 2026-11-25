@@ -223,20 +223,12 @@ impl CompleteLister {
     }
 
     async fn complete_unknown_entry_mode(&self, entry: oio::Entry) -> Result<oio::Entry> {
-        let cap = self.srv.capability();
-        let version = entry.metadata().version().map(str::to_owned);
-        if !cap.stat || (version.is_some() && !cap.stat_with_version) {
-            return Ok(entry);
-        }
-
         let path = entry.path().to_string();
-        let op = OpStat::from_options(
-            &cap,
-            options::StatOptions {
-                version,
-                ..Default::default()
-            },
-        )?;
+        let op = options::StatOptions {
+            version: entry.metadata().version().map(str::to_owned),
+            ..Default::default()
+        }
+        .into();
 
         let stat_metadata = match self.srv.stat(&self.ctx, &path, op).await {
             Ok(rp) => rp.into_metadata(),
@@ -244,9 +236,7 @@ impl CompleteLister {
             // cannot see its target — a dangling symlink in fs, whose stat
             // follows the link — cannot refine the mode, but it does not mean
             // the entry is gone. Keep the entry as listed.
-            Err(err) if matches!(err.kind(), ErrorKind::NotFound | ErrorKind::Unsupported) => {
-                return Ok(entry);
-            }
+            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(entry),
             Err(err) => return Err(err),
         };
         if stat_metadata.mode() == EntryMode::Unknown {
@@ -977,7 +967,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_complete_lister_unknown_mode_respects_stat_capabilities() -> Result<()> {
+    async fn test_complete_lister_stats_the_listed_version() -> Result<()> {
         use std::sync::Mutex;
         use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -1084,57 +1074,10 @@ mod tests {
 
         let ctx = OperationContext::new();
 
-        // 1. Without stat capability, CompleteLister skips stat and preserves EntryMode::Unknown.
-        let stat_calls = Arc::new(AtomicUsize::new(0));
-        let srv = Arc::new(UnknownEntryService {
-            capability: Capability {
-                list: true,
-                stat: false,
-                ..Default::default()
-            },
-            entries: vec![oio::Entry::new("a", MetadataBuilder::unknown().build())],
-            stat_result: Some(Err(Error::new(ErrorKind::Unsupported, "no stat"))),
-            stat_calls: stat_calls.clone(),
-            observed_stat_versions: Arc::default(),
-        }) as Servicer;
-        let completed = CompleteLayer.apply_service(srv);
-        let mut lister = completed.list_dyn(&ctx, "/", OpList::new())?;
-        let entry = oio::List::next(&mut lister)
-            .await?
-            .expect("entry must be yielded");
-        assert_eq!(entry.path(), "a");
-        assert_eq!(entry.mode(), EntryMode::Unknown);
-        assert_eq!(stat_calls.load(Ordering::SeqCst), 0);
-
-        // 2. With stat=true but stat_with_version=false, versioned unknown entry must not stat current version.
         let mut versioned_unknown = MetadataBuilder::unknown();
         versioned_unknown.version("v1");
         let versioned_entry = oio::Entry::new("a", versioned_unknown.build());
 
-        let stat_calls = Arc::new(AtomicUsize::new(0));
-        let srv = Arc::new(UnknownEntryService {
-            capability: Capability {
-                list: true,
-                list_with_versions: true,
-                stat: true,
-                stat_with_version: false,
-                ..Default::default()
-            },
-            entries: vec![versioned_entry.clone()],
-            stat_result: Some(Ok(MetadataBuilder::file(999).build())),
-            stat_calls: stat_calls.clone(),
-            observed_stat_versions: Arc::default(),
-        }) as Servicer;
-        let completed = CompleteLayer.apply_service(srv);
-        let mut lister = completed.list_dyn(&ctx, "/", OpList::new())?;
-        let entry = oio::List::next(&mut lister)
-            .await?
-            .expect("entry must be yielded");
-        assert_eq!(entry.mode(), EntryMode::Unknown);
-        assert_eq!(entry.metadata().version(), Some("v1"));
-        assert_eq!(stat_calls.load(Ordering::SeqCst), 0);
-
-        // 3. With stat=true and stat_with_version=true, versioned unknown entry refines via stat(version).
         let stat_calls = Arc::new(AtomicUsize::new(0));
         let observed_versions = Arc::new(Mutex::new(Vec::new()));
         let srv = Arc::new(UnknownEntryService {
@@ -1163,28 +1106,6 @@ mod tests {
             *observed_versions.lock().expect("mutex must not poison"),
             vec![Some("v1".to_string())]
         );
-
-        // 4. If stat unexpectedly returns Unsupported at runtime, keep the listed entry unchanged.
-        let stat_calls = Arc::new(AtomicUsize::new(0));
-        let srv = Arc::new(UnknownEntryService {
-            capability: Capability {
-                list: true,
-                stat: true,
-                ..Default::default()
-            },
-            entries: vec![oio::Entry::new("b", MetadataBuilder::unknown().build())],
-            stat_result: Some(Err(Error::new(ErrorKind::Unsupported, "stat unsupported"))),
-            stat_calls: stat_calls.clone(),
-            observed_stat_versions: Arc::default(),
-        }) as Servicer;
-        let completed = CompleteLayer.apply_service(srv);
-        let mut lister = completed.list_dyn(&ctx, "/", OpList::new())?;
-        let entry = oio::List::next(&mut lister)
-            .await?
-            .expect("entry must be yielded");
-        assert_eq!(entry.path(), "b");
-        assert_eq!(entry.mode(), EntryMode::Unknown);
-        assert_eq!(stat_calls.load(Ordering::SeqCst), 1);
 
         Ok(())
     }

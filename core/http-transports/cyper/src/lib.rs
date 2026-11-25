@@ -228,15 +228,11 @@ async fn fetch(
             .set_source(err)
     })?;
 
-    // RFC 9110 §8.6: responses to HEAD and 1xx, 204, and 304 responses never
-    // carry a message body. A 304 may still carry the Content-Length of the
-    // selected representation, so it cannot validate the body. Encoded bodies
-    // also do not have the encoded content length after decoding.
+    // RFC 9110 §8.6: HEAD and 304 responses may carry the Content-Length
+    // of the selected representation even though they have no body.
+    // Encoded bodies also have a different length after decoding.
     let status = resp.status();
-    let is_bodyless = is_head
-        || status == StatusCode::NOT_MODIFIED
-        || status == StatusCode::NO_CONTENT
-        || status.is_informational();
+    let is_bodyless = is_head || status == StatusCode::NOT_MODIFIED;
     let content_length = if is_bodyless || parse_content_encoding(resp.headers())?.is_some() {
         None
     } else {

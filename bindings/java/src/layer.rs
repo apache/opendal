@@ -68,15 +68,11 @@ pub extern "system" fn Java_org_apache_opendal_layer_RetryLayer_doLayer<'local>(
     max_times: jlong,
 ) -> jlong {
     env.with_env(|_| -> Result<jlong> {
-        let min_delay = u64::try_from(min_delay)
-            .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "minDelay must be non-negative"))?;
-        let max_delay = u64::try_from(max_delay)
-            .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "maxDelay must be non-negative"))?;
         let op = unsafe { &*op };
         let mut retry = RetryLayer::new();
         retry = retry.with_factor(factor);
-        retry = retry.with_min_delay(Duration::from_nanos(min_delay));
-        retry = retry.with_max_delay(Duration::from_nanos(max_delay));
+        retry = retry.with_min_delay(Duration::from_nanos(min_delay as u64));
+        retry = retry.with_max_delay(Duration::from_nanos(max_delay as u64));
         if jitter {
             retry = retry.with_jitter()
         }
@@ -128,33 +124,43 @@ pub extern "system" fn Java_org_apache_opendal_layer_CacheLayer_createLayer<'loc
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_apache_opendal_layer_CacheLayer_doLayer<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     op: *const Operator,
     layer: *const CacheLayer,
 ) -> jlong {
-    let op = unsafe { &*op };
-    let layer = unsafe { &*layer };
-    Box::into_raw(Box::new(op.clone().layer(layer.clone()))) as jlong
+    env.with_env(|_| -> Result<jlong> {
+        let op = unsafe { &*op };
+        let layer = unsafe { &*layer };
+        Ok(Box::into_raw(Box::new(op.clone().layer(layer.clone()))) as jlong)
+    })
+    .resolve::<ThrowException>()
 }
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_apache_opendal_layer_CacheLayer_disposeLayer<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     layer: *mut CacheLayer,
 ) {
-    drop(unsafe { Box::from_raw(layer) });
+    env.with_env(|_| -> Result<()> {
+        drop(unsafe { Box::from_raw(layer) });
+        Ok(())
+    })
+    .resolve::<ThrowException>()
 }
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_apache_opendal_layer_CapabilityCheckLayer_doLayer<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     op: *mut Operator,
 ) -> jlong {
-    let op = unsafe { &*op };
-    Box::into_raw(Box::new(op.clone().layer(CapabilityCheckLayer::new()))) as jlong
+    env.with_env(|_| -> Result<jlong> {
+        let op = unsafe { &*op };
+        Ok(Box::into_raw(Box::new(op.clone().layer(CapabilityCheckLayer::new()))) as jlong)
+    })
+    .resolve::<ThrowException>()
 }
 
 #[unsafe(no_mangle)]
@@ -322,30 +328,39 @@ pub extern "system" fn Java_org_apache_opendal_layer_ImmutableIndexLayer_doLayer
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_apache_opendal_layer_LoggingLayer_doLayer<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     op: *mut Operator,
 ) -> jlong {
-    let op = unsafe { &*op };
-    Box::into_raw(Box::new(op.clone().layer(LoggingLayer::default()))) as jlong
+    env.with_env(|_| -> Result<jlong> {
+        let op = unsafe { &*op };
+        Ok(Box::into_raw(Box::new(op.clone().layer(LoggingLayer::default()))) as jlong)
+    })
+    .resolve::<ThrowException>()
 }
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_apache_opendal_layer_MimeGuessLayer_doLayer<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     op: *mut Operator,
 ) -> jlong {
-    let op = unsafe { &*op };
-    Box::into_raw(Box::new(op.clone().layer(MimeGuessLayer::new()))) as jlong
+    env.with_env(|_| -> Result<_> {
+        let op = unsafe { &*op };
+        Ok(Box::into_raw(Box::new(op.clone().layer(MimeGuessLayer::new()))) as jlong)
+    })
+    .resolve::<ThrowException>()
 }
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_apache_opendal_layer_RouteLayer_createBuilder<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JClass<'local>,
 ) -> jlong {
-    Box::into_raw(Box::new(RouteLayer::builder())) as jlong
+    env.with_env(|_| -> Result<jlong> {
+        Ok(Box::into_raw(Box::new(RouteLayer::builder())) as jlong)
+    })
+    .resolve::<ThrowException>()
 }
 
 #[unsafe(no_mangle)]
@@ -386,32 +401,43 @@ pub extern "system" fn Java_org_apache_opendal_layer_RouteLayer_buildLayer<'loca
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_apache_opendal_layer_RouteLayer_disposeBuilder<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     builder: *mut RouteLayerBuilder,
 ) {
-    drop(unsafe { Box::from_raw(builder) });
+    env.with_env(|_| -> Result<()> {
+        drop(unsafe { Box::from_raw(builder) });
+        Ok(())
+    })
+    .resolve::<ThrowException>()
 }
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_apache_opendal_layer_RouteLayer_doLayer<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     op: *const Operator,
     layer: *const RouteLayer,
 ) -> jlong {
-    let op = unsafe { &*op };
-    let layer = unsafe { &*layer };
-    Box::into_raw(Box::new(op.clone().layer(layer.clone()))) as jlong
+    env.with_env(|_| -> Result<jlong> {
+        let op = unsafe { &*op };
+        let layer = unsafe { &*layer };
+        Ok(Box::into_raw(Box::new(op.clone().layer(layer.clone()))) as jlong)
+    })
+    .resolve::<ThrowException>()
 }
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_apache_opendal_layer_RouteLayer_disposeLayer<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     layer: *mut RouteLayer,
 ) {
-    drop(unsafe { Box::from_raw(layer) });
+    env.with_env(|_| -> Result<()> {
+        drop(unsafe { Box::from_raw(layer) });
+        Ok(())
+    })
+    .resolve::<ThrowException>()
 }
 
 #[unsafe(no_mangle)]

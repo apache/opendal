@@ -89,7 +89,9 @@ import Data.Text (pack)
 import Data.Time (UTCTime, parseTimeM, zonedTimeToUTC)
 import Data.Time.Format (defaultTimeLocale)
 import Foreign
-import Foreign.C.String
+import Foreign.C.String (CString, peekCString)
+import qualified GHC.Foreign as GHCForeign
+import GHC.IO.Encoding (utf8)
 import GHC.Stack (emptyCallStack)
 import OpenDAL.FFI
 
@@ -332,18 +334,24 @@ parseEntryMode 0 = File
 parseEntryMode 1 = Dir
 parseEntryMode _ = Unknown
 
+withUtf8CString :: String -> (CString -> IO a) -> IO a
+withUtf8CString = GHCForeign.withCString utf8
+
+peekUtf8CString :: CString -> IO String
+peekUtf8CString = GHCForeign.peekCString utf8
+
 maybePeekCString :: CString -> IO (Maybe String)
 maybePeekCString value | value == nullPtr = return Nothing
-maybePeekCString value = Just <$> peekCString value
+maybePeekCString value = Just <$> peekUtf8CString value
 
 -- | Peek a Rust-owned `CString` and release it through Rust's `free_string`.
--- The pointer is always released, even when `peekCString` throws.
+-- The pointer is always released, even when `peekUtf8CString` throws.
 -- Every byte allocated by Rust must be freed by a Rust function; calling C
 -- `free` on it is an allocator mismatch.
 parseOwnedCString :: CString -> IO (Maybe String)
 parseOwnedCString value
   | value == nullPtr = return Nothing
-  | otherwise = (Just <$> peekCString value) `finally` freeString value
+  | otherwise = (Just <$> peekUtf8CString value) `finally` freeString value
 
 -- | Convert a failed `FFIResult` into an `OpenDALError`, releasing the
 -- Rust-owned `errorMessage` buffer through `free_string`.
@@ -417,9 +425,9 @@ runOp op = runExceptT . flip runReaderT op . runOperatorT
 newOperator :: OperatorConfig -> IO (Either OpenDALError Operator)
 newOperator (OperatorConfig scheme hashMap maybeLogger) = do
   let keysAndValues = HashMap.toList hashMap
-  withCString scheme $ \cScheme ->
-    withMany withCString (map fst keysAndValues) $ \cKeys ->
-      withMany withCString (map snd keysAndValues) $ \cValues ->
+  withUtf8CString scheme $ \cScheme ->
+    withMany withUtf8CString (map fst keysAndValues) $ \cKeys ->
+      withMany withUtf8CString (map snd keysAndValues) $ \cValues ->
         allocaArray (length keysAndValues) $ \cKeysPtr ->
           allocaArray (length keysAndValues) $ \cValuesPtr ->
             alloca $ \ffiResultPtr -> mask_ $ do
@@ -455,7 +463,7 @@ newOperator (OperatorConfig scheme hashMap maybeLogger) = do
 -- | Read the whole path into a bytes.
 readOpRaw :: Operator -> String -> IO (Either OpenDALError ByteString)
 readOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
-  withCString path $ \cPath ->
+  withUtf8CString path $ \cPath ->
     alloca $ \ffiResultPtr -> mask_ $ do
       c_blocking_read opptr cPath ffiResultPtr
       ffiResult <- peek ffiResultPtr
@@ -470,7 +478,7 @@ readOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
 -- | Write bytes into given path.
 writeOpRaw :: Operator -> String -> ByteString -> IO (Either OpenDALError ())
 writeOpRaw (Operator op) path byte = withForeignPtr op $ \opptr ->
-  withCString path $ \cPath ->
+  withUtf8CString path $ \cPath ->
     BS.useAsCStringLen byte $ \(cByte, len) ->
       alloca $ \ffiResultPtr -> mask_ $ do
         c_blocking_write opptr cPath cByte (fromIntegral len) ffiResultPtr
@@ -482,7 +490,7 @@ writeOpRaw (Operator op) path byte = withForeignPtr op $ \opptr ->
 -- | Check if this path exists or not.
 isExistOpRaw :: Operator -> String -> IO (Either OpenDALError Bool)
 isExistOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
-  withCString path $ \cPath ->
+  withUtf8CString path $ \cPath ->
     alloca $ \ffiResultPtr -> mask_ $ do
       c_blocking_is_exist opptr cPath ffiResultPtr
       ffiResult <- peek ffiResultPtr
@@ -496,7 +504,7 @@ isExistOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
 -- | Create a dir at given path.
 createDirOpRaw :: Operator -> String -> IO (Either OpenDALError ())
 createDirOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
-  withCString path $ \cPath ->
+  withUtf8CString path $ \cPath ->
     alloca $ \ffiResultPtr -> mask_ $ do
       c_blocking_create_dir opptr cPath ffiResultPtr
       ffiResult <- peek ffiResultPtr
@@ -507,8 +515,8 @@ createDirOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
 -- | Copy a file from srcPath to dstPath.
 copyOpRaw :: Operator -> String -> String -> IO (Either OpenDALError ())
 copyOpRaw (Operator op) srcPath dstPath = withForeignPtr op $ \opptr ->
-  withCString srcPath $ \cSrcPath ->
-    withCString dstPath $ \cDstPath ->
+  withUtf8CString srcPath $ \cSrcPath ->
+    withUtf8CString dstPath $ \cDstPath ->
       alloca $ \ffiResultPtr -> mask_ $ do
         c_blocking_copy opptr cSrcPath cDstPath ffiResultPtr
         ffiResult <- peek ffiResultPtr
@@ -519,8 +527,8 @@ copyOpRaw (Operator op) srcPath dstPath = withForeignPtr op $ \opptr ->
 -- | Rename a file from srcPath to dstPath.
 renameOpRaw :: Operator -> String -> String -> IO (Either OpenDALError ())
 renameOpRaw (Operator op) srcPath dstPath = withForeignPtr op $ \opptr ->
-  withCString srcPath $ \cSrcPath ->
-    withCString dstPath $ \cDstPath ->
+  withUtf8CString srcPath $ \cSrcPath ->
+    withUtf8CString dstPath $ \cDstPath ->
       alloca $ \ffiResultPtr -> mask_ $ do
         c_blocking_rename opptr cSrcPath cDstPath ffiResultPtr
         ffiResult <- peek ffiResultPtr
@@ -531,7 +539,7 @@ renameOpRaw (Operator op) srcPath dstPath = withForeignPtr op $ \opptr ->
 -- | Delete given path.
 deleteOpRaw :: Operator -> String -> IO (Either OpenDALError ())
 deleteOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
-  withCString path $ \cPath ->
+  withUtf8CString path $ \cPath ->
     alloca $ \ffiResultPtr -> mask_ $ do
       c_blocking_delete opptr cPath ffiResultPtr
       ffiResult <- peek ffiResultPtr
@@ -542,7 +550,7 @@ deleteOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
 -- | Get given path's metadata without cache directly.
 statOpRaw :: Operator -> String -> IO (Either OpenDALError Metadata)
 statOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
-  withCString path $ \cPath ->
+  withUtf8CString path $ \cPath ->
     alloca $ \ffiResultPtr -> mask_ $ do
       c_blocking_stat opptr cPath ffiResultPtr
       ffiResult <- peek ffiResultPtr
@@ -559,7 +567,7 @@ statOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
 -- An error will be returned if path doesn't end with /.
 listOpRaw :: Operator -> String -> IO (Either OpenDALError Lister)
 listOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
-  withCString path $ \cPath ->
+  withUtf8CString path $ \cPath ->
     alloca $ \ffiResultPtr -> mask_ $ do
       c_blocking_list opptr cPath ffiResultPtr
       ffiResult <- peek ffiResultPtr
@@ -577,7 +585,7 @@ listOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
 -- An error will be returned if given path doesn't end with /.
 scanOpRaw :: Operator -> String -> IO (Either OpenDALError Lister)
 scanOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
-  withCString path $ \cPath ->
+  withUtf8CString path $ \cPath ->
     alloca $ \ffiResultPtr -> mask_ $ do
       c_blocking_scan opptr cPath ffiResultPtr
       ffiResult <- peek ffiResultPtr
@@ -639,7 +647,7 @@ writerClose (Writer writer) = withForeignPtr writer $ \writerptr ->
 -- | Create a new writer for given path with specified options.
 writerOpRaw :: Operator -> String -> WriterOption -> IO (Either OpenDALError Writer)
 writerOpRaw (Operator op) path writerOption = withForeignPtr op $ \opptr ->
-  withCString path $ \cPath ->
+  withUtf8CString path $ \cPath ->
     alloca $ \ffiResultPtr -> mask_ $ do
       if woAppend writerOption
         then c_blocking_writer_append opptr cPath ffiResultPtr
@@ -659,7 +667,7 @@ writerOpRaw (Operator op) path writerOption = withForeignPtr op $ \opptr ->
 -- | Remove all files and directories recursively.
 removeAllOpRaw :: Operator -> String -> IO (Either OpenDALError ())
 removeAllOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
-  withCString path $ \cPath ->
+  withUtf8CString path $ \cPath ->
     alloca $ \ffiResultPtr -> mask_ $ do
       c_blocking_remove_all opptr cPath ffiResultPtr
       ffiResult <- peek ffiResultPtr

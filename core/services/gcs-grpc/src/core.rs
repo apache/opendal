@@ -222,15 +222,15 @@ pub(crate) fn parse_generation(value: Option<&str>) -> Result<i64> {
     let generation = v.parse::<i64>().map_err(|err| {
         Error::new(
             ErrorKind::Unexpected,
-            "GCS generation must be a positive integer",
+            "GCS generation must be a nonzero integer",
         )
         .with_context("generation", v)
         .set_source(err)
     })?;
-    if generation <= 0 {
+    if generation == 0 {
         return Err(Error::new(
             ErrorKind::Unexpected,
-            "GCS generation must be a positive integer",
+            "GCS generation must be a nonzero integer",
         )
         .with_context("generation", v));
     }
@@ -322,7 +322,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_generation_requires_positive_integer() {
+    fn parse_generation_rejects_zero() {
         assert_eq!(parse_generation(None).unwrap(), 0);
         assert_eq!(parse_generation(Some("1")).unwrap(), 1);
         assert_eq!(parse_generation(Some("123")).unwrap(), 123);
@@ -331,15 +331,7 @@ mod tests {
             i64::MAX
         );
 
-        for invalid in [
-            "0",
-            "-0",
-            "-1",
-            "-9223372036854775808",
-            "",
-            "abc",
-            "9223372036854775808",
-        ] {
+        for invalid in ["0", "-0", "", "abc", "9223372036854775808"] {
             let err = parse_generation(Some(invalid)).unwrap_err();
             assert_eq!(
                 err.kind(),

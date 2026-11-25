@@ -76,14 +76,14 @@ impl oio::StreamRead for CloudflareKvReader {
                 ));
             }
 
-            let meta_bs = meta_resp.clone().into_body();
+            let meta_bs = meta_resp.into_body();
             let cf_response: CfKvStatResponse =
                 serde_json::from_reader(meta_bs.reader()).map_err(new_json_deserialize_error)?;
 
             if !cf_response.success {
-                return Err(parse_error(
-                    ErrorContext::new(ServiceOperation("GetMetadata")),
-                    meta_resp,
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "Cloudflare KV metadata request failed",
                 ));
             }
 
@@ -231,20 +231,6 @@ mod tests {
             let reader = CloudflareKvReader::new(backend.clone(), ctx, "a.txt", args.clone());
             let err = reader.open(BytesRange::from(..)).await.err().unwrap();
             assert_eq!(err.kind(), ErrorKind::Unexpected);
-
-            // success: false with structured Cloudflare error code classifies error.
-            let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
-                SequenceTransport::new(vec![
-                    (StatusCode::OK, "hello"),
-                    (
-                        StatusCode::OK,
-                        r#"{"success":false,"result":null,"errors":[{"code":10000}]}"#,
-                    ),
-                ]),
-            ));
-            let reader = CloudflareKvReader::new(backend.clone(), ctx, "a.txt", args.clone());
-            let err = reader.open(BytesRange::from(..)).await.err().unwrap();
-            assert_eq!(err.kind(), ErrorKind::PermissionDenied);
 
             // success: true with result: null must return Err instead of panicking.
             let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(

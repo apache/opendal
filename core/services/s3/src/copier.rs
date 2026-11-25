@@ -408,16 +408,8 @@ impl oio::MultipartCopy for S3Copier {
     }
 
     async fn abort_copy(&self, upload_id: &str) -> Result<()> {
-        let resp = self
-            .core
-            .s3_abort_multipart_copy(&self.ctx, &self.to, upload_id)
-            .await?;
-        match resp.status() {
-            StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("AbortMultipartUpload")),
-                resp,
-            )),
-        }
+        self.core
+            .s3_abort_multipart_upload(&self.ctx, &self.to, upload_id, Operation::Copy)
+            .await
     }
 }

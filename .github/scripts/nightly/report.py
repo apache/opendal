@@ -34,6 +34,7 @@ KEY_RE = re.compile(r"<!--\s*opendal-nightly-key:\s*(.+?)\s*-->")
 
 FAILURE_CONCLUSIONS = {"failure", "timed_out", "startup_failure"}
 BROAD_FAILURE_THRESHOLD = 10
+MAX_RUN_JOBS = 3100
 
 TIER_LABELS = {
     "tier-a": ["ci/nightly"],
@@ -65,7 +66,12 @@ class ItemOutcome:
 
 
 def request(
-    url: str, token: str, method: str = "GET", body: dict[str, Any] | None = None
+    url: str,
+    token: str,
+    method: str = "GET",
+    body: dict[str, Any] | None = None,
+    *,
+    retry_timeouts: bool = False,
 ) -> Any:
     headers = {
         "Accept": "application/vnd.github+json",
@@ -88,7 +94,16 @@ def request(
                 raise RuntimeError(
                     f"{method} {url} failed with HTTP {error.code}: {detail}"
                 ) from None
-            time.sleep(2**attempt)
+        except (TimeoutError, urllib.error.URLError) as error:
+            reason = error.reason if isinstance(error, urllib.error.URLError) else error
+            if (
+                not retry_timeouts
+                or method != "GET"
+                or not isinstance(reason, TimeoutError)
+                or attempt == 2
+            ):
+                raise
+        time.sleep(2**attempt)
 
 
 class GitHub:
@@ -114,7 +129,37 @@ class GitHub:
         raise RuntimeError(f"pagination limit exceeded for {path}")
 
     def list_run_jobs(self, run_id: int) -> list[dict[str, Any]]:
-        return self.paginate_key(f"/actions/runs/{run_id}/jobs", "jobs")
+        path = f"/actions/runs/{run_id}/jobs"
+        # GitHub can return 502 for larger pages of jobs.
+        page_size = 25
+        jobs: list[dict[str, Any]] = []
+        job_ids: set[int] = set()
+        total_count = None
+        while total_count is None or len(jobs) < total_count:
+            page = len(jobs) // page_size + 1
+            payload = request(
+                f"{self.base}{path}?per_page={page_size}&page={page}",
+                self.token,
+                retry_timeouts=True,
+            )
+            if total_count is None:
+                total_count = payload["total_count"]
+                if not 0 <= total_count <= MAX_RUN_JOBS:
+                    raise RuntimeError(
+                        f"pagination limit exceeded for {path}: {total_count} jobs"
+                    )
+            batch = payload["jobs"]
+            batch_ids = {job["id"] for job in batch}
+            if (
+                payload["total_count"] != total_count
+                or len(batch) != min(page_size, total_count - len(jobs))
+                or len(batch_ids) != len(batch)
+                or not job_ids.isdisjoint(batch_ids)
+            ):
+                raise RuntimeError(f"incomplete job listing for {path} at page {page}")
+            jobs.extend(batch)
+            job_ids.update(batch_ids)
+        return jobs
 
     def last_green_schedule_sha(
         self, workflow_file: str, current_run_id: int

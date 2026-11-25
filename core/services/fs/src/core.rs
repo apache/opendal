@@ -560,7 +560,16 @@ async fn is_same_file(
         let _ = (from, to);
         from_meta.dev() == to_meta.dev() && from_meta.ino() == to_meta.ino()
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        let _ = (from_meta, to_meta);
+        let from = from.to_path_buf();
+        let to = to.to_path_buf();
+        tokio::task::spawn_blocking(move || windows_is_same_file(&from, &to))
+            .await
+            .unwrap_or(false)
+    }
+    #[cfg(not(any(unix, windows)))]
     {
         let _ = (from_meta, to_meta);
         matches!(
@@ -571,6 +580,67 @@ async fn is_same_file(
             (Ok(from_canon), Ok(to_canon)) if from_canon == to_canon
         )
     }
+}
+
+#[cfg(windows)]
+fn windows_is_same_file(from: &Path, to: &Path) -> bool {
+    use std::ffi::c_void;
+    use std::mem::MaybeUninit;
+    use std::os::windows::io::AsRawHandle;
+
+    #[repr(C)]
+    struct ByHandleFileInformation {
+        dw_file_attributes: u32,
+        ft_creation_time: [u32; 2],
+        ft_last_access_time: [u32; 2],
+        ft_last_write_time: [u32; 2],
+        dw_volume_serial_number: u32,
+        n_file_size_high: u32,
+        n_file_size_low: u32,
+        n_number_of_links: u32,
+        n_file_index_high: u32,
+        n_file_index_low: u32,
+    }
+
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetFileInformationByHandle(
+            h_file: *mut c_void,
+            lp_file_information: *mut ByHandleFileInformation,
+        ) -> i32;
+    }
+
+    fn file_identity(file: &std::fs::File) -> Option<(u32, u32, u32)> {
+        let mut info = MaybeUninit::<ByHandleFileInformation>::zeroed();
+        // SAFETY: `file` holds a valid open handle and `info` points to writable
+        // memory matching Win32 `BY_HANDLE_FILE_INFORMATION`.
+        let ok = unsafe { GetFileInformationByHandle(file.as_raw_handle(), info.as_mut_ptr()) };
+        if ok == 0 {
+            return None;
+        }
+        // SAFETY: `GetFileInformationByHandle` succeeded and initialized `info`.
+        let info = unsafe { info.assume_init() };
+        let id = (
+            info.dw_volume_serial_number,
+            info.n_file_index_high,
+            info.n_file_index_low,
+        );
+        // Some virtual or network filesystems report all zeros instead of a real file ID.
+        (id != (0, 0, 0)).then_some(id)
+    }
+
+    // Keep both handles open simultaneously so Windows cannot reuse a file index
+    // between queries.
+    if let (Ok(from_file), Ok(to_file)) = (std::fs::File::open(from), std::fs::File::open(to))
+        && let (Some(from_id), Some(to_id)) = (file_identity(&from_file), file_identity(&to_file))
+    {
+        return from_id == to_id;
+    }
+
+    matches!(
+        (std::fs::canonicalize(from), std::fs::canonicalize(to)),
+        (Ok(from_canon), Ok(to_canon)) if from_canon == to_canon
+    )
 }
 
 fn parse_io_error(err: std::io::Error, already_exists_as_condition: bool) -> Error {
@@ -1105,5 +1175,35 @@ mod tests {
             std::fs::read(root.join("created_via_link.txt")).unwrap(),
             b"payload"
         );
+    }
+
+    #[tokio::test]
+    async fn test_copy_same_file_via_hardlink_preserves_content() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        op.write("real.txt", "important").await.unwrap();
+        std::fs::hard_link(root.join("real.txt"), root.join("hard.txt")).unwrap();
+
+        for (from, to) in [
+            ("real.txt", "real.txt"),
+            ("real.txt", "hard.txt"),
+            ("hard.txt", "real.txt"),
+        ] {
+            let err = op.copy(from, to).await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::IsSameFile, "{from} -> {to}: {err:?}");
+            assert_eq!(
+                std::fs::read(root.join("real.txt")).unwrap(),
+                b"important",
+                "{from} -> {to} must not truncate source"
+            );
+        }
+
+        // Copying to a distinct file still succeeds normally.
+        op.copy("real.txt", "other.txt").await.unwrap();
+        assert_eq!(std::fs::read(root.join("other.txt")).unwrap(), b"important");
     }
 }

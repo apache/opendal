@@ -560,7 +560,16 @@ async fn is_same_file(
         let _ = (from, to);
         from_meta.dev() == to_meta.dev() && from_meta.ino() == to_meta.ino()
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        let _ = (from_meta, to_meta);
+        let from = from.to_path_buf();
+        let to = to.to_path_buf();
+        tokio::task::spawn_blocking(move || windows_is_same_file(&from, &to))
+            .await
+            .unwrap_or(false)
+    }
+    #[cfg(not(any(unix, windows)))]
     {
         let _ = (from_meta, to_meta);
         matches!(
@@ -571,6 +580,82 @@ async fn is_same_file(
             (Ok(from_canon), Ok(to_canon)) if from_canon == to_canon
         )
     }
+}
+
+#[cfg(windows)]
+fn windows_file_identity_from_raw(
+    volume_serial_number: u64,
+    file_id: [u8; 16],
+) -> Option<(u64, [u8; 16])> {
+    // Reject zero volume serials or zero 128-bit file IDs so filesystems without
+    // stable file identities fall back to canonical path comparison instead of
+    // falsely matching distinct files.
+    (volume_serial_number != 0 && file_id != [0u8; 16]).then_some((volume_serial_number, file_id))
+}
+
+#[cfg(windows)]
+fn windows_file_identity(file: &std::fs::File) -> Option<(u64, [u8; 16])> {
+    use std::ffi::c_void;
+    use std::mem::{MaybeUninit, size_of};
+    use std::os::windows::io::AsRawHandle;
+
+    // `FILE_INFO_BY_HANDLE_CLASS::FileIdInfo` (18) returns the 64-bit volume
+    // serial number and full 128-bit file ID, avoiding 64-bit index collisions
+    // on ReFS.
+    const FILE_ID_INFO_CLASS: i32 = 18;
+
+    #[repr(C)]
+    struct FileIdInfo {
+        volume_serial_number: u64,
+        file_id: [u8; 16],
+    }
+
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetFileInformationByHandleEx(
+            h_file: *mut c_void,
+            file_information_class: i32,
+            lp_file_information: *mut c_void,
+            dw_buffer_size: u32,
+        ) -> i32;
+    }
+
+    let mut info = MaybeUninit::<FileIdInfo>::zeroed();
+    // SAFETY: `file` holds a valid open handle and `info` points to writable
+    // memory matching Win32 `FILE_ID_INFO` (24 bytes).
+    let ok = unsafe {
+        GetFileInformationByHandleEx(
+            file.as_raw_handle(),
+            FILE_ID_INFO_CLASS,
+            info.as_mut_ptr().cast(),
+            size_of::<FileIdInfo>() as u32,
+        )
+    };
+    if ok == 0 {
+        return None;
+    }
+    // SAFETY: `GetFileInformationByHandleEx` succeeded and initialized `info`.
+    let info = unsafe { info.assume_init() };
+    windows_file_identity_from_raw(info.volume_serial_number, info.file_id)
+}
+
+#[cfg(windows)]
+fn windows_is_same_file(from: &Path, to: &Path) -> bool {
+    // Keep both handles open simultaneously so Windows cannot reuse a file ID
+    // between queries.
+    if let (Ok(from_file), Ok(to_file)) = (std::fs::File::open(from), std::fs::File::open(to))
+        && let (Some(from_id), Some(to_id)) = (
+            windows_file_identity(&from_file),
+            windows_file_identity(&to_file),
+        )
+    {
+        return from_id == to_id;
+    }
+
+    matches!(
+        (std::fs::canonicalize(from), std::fs::canonicalize(to)),
+        (Ok(from_canon), Ok(to_canon)) if from_canon == to_canon
+    )
 }
 
 fn parse_io_error(err: std::io::Error, already_exists_as_condition: bool) -> Error {
@@ -1105,5 +1190,68 @@ mod tests {
             std::fs::read(root.join("created_via_link.txt")).unwrap(),
             b"payload"
         );
+    }
+
+    #[tokio::test]
+    async fn test_copy_same_file_via_hardlink_preserves_content() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        op.write("real.txt", "important").await.unwrap();
+        std::fs::hard_link(root.join("real.txt"), root.join("hard.txt")).unwrap();
+
+        for (from, to) in [
+            ("real.txt", "real.txt"),
+            ("real.txt", "hard.txt"),
+            ("hard.txt", "real.txt"),
+        ] {
+            let err = op.copy(from, to).await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::IsSameFile, "{from} -> {to}: {err:?}");
+            assert_eq!(
+                std::fs::read(root.join("real.txt")).unwrap(),
+                b"important",
+                "{from} -> {to} must not truncate source"
+            );
+        }
+
+        // Copying to a distinct file still succeeds normally.
+        op.copy("real.txt", "other.txt").await.unwrap();
+        assert_eq!(std::fs::read(root.join("other.txt")).unwrap(), b"important");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_windows_file_identity_rejects_zero_components_and_matches_hardlinks() {
+        assert_eq!(windows_file_identity_from_raw(0, [1u8; 16]), None);
+        assert_eq!(windows_file_identity_from_raw(42, [0u8; 16]), None);
+        assert_eq!(windows_file_identity_from_raw(0, [0u8; 16]), None);
+        assert_eq!(
+            windows_file_identity_from_raw(42, [1u8; 16]),
+            Some((42, [1u8; 16]))
+        );
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+        let real_path = root.join("real.txt");
+        let hard_path = root.join("hard.txt");
+        let other_path = root.join("other.txt");
+        std::fs::write(&real_path, b"a").unwrap();
+        std::fs::hard_link(&real_path, &hard_path).unwrap();
+        std::fs::write(&other_path, b"b").unwrap();
+
+        let real_f = std::fs::File::open(&real_path).unwrap();
+        let hard_f = std::fs::File::open(&hard_path).unwrap();
+        let other_f = std::fs::File::open(&other_path).unwrap();
+
+        let real_id = windows_file_identity(&real_f).expect("NTFS file must have 128-bit file ID");
+        let hard_id = windows_file_identity(&hard_f).expect("hard link must have 128-bit file ID");
+        let other_id =
+            windows_file_identity(&other_f).expect("distinct file must have 128-bit file ID");
+
+        assert_eq!(real_id, hard_id);
+        assert_ne!(real_id, other_id);
     }
 }

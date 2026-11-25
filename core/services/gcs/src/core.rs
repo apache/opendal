@@ -898,26 +898,6 @@ impl GcsCore {
             .map_err(new_request_build_error)
     }
 
-    pub async fn gcs_rewrite_object(
-        &self,
-        ctx: &OperationContext,
-        from: &str,
-        to: &str,
-        args: &OpCopy,
-        max_bytes_rewritten_per_call: Option<usize>,
-        rewrite_token: Option<&str>,
-    ) -> Result<Response<Buffer>> {
-        let req = self.gcs_rewrite_object_request(
-            from,
-            to,
-            args,
-            max_bytes_rewritten_per_call,
-            rewrite_token,
-        )?;
-        let req = self.sign(ctx, req).await?;
-        self.send(ctx, req).await
-    }
-
     fn gcs_build_list_objects_request(
         &self,
         path: &str,
@@ -1289,6 +1269,9 @@ pub struct ListResponseItem {
     pub md5_hash: String,
     pub updated: String,
     pub content_type: String,
+    pub time_deleted: Option<String>,
+    pub soft_delete_time: Option<String>,
+    pub restore_token: Option<String>,
 }
 
 /// Result of CreateMultipartUpload
@@ -2362,8 +2345,17 @@ impl ErrorContext {
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
-struct GcsErrorResponse {
+pub(super) struct GcsErrorResponse {
     error: GcsError,
+}
+
+impl GcsErrorResponse {
+    pub(super) fn has_reason(&self, reason: &str) -> bool {
+        self.error
+            .errors
+            .iter()
+            .any(|detail| detail.reason == reason)
+    }
 }
 
 #[derive(Default, Debug, Deserialize)]

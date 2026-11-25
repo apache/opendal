@@ -28,6 +28,7 @@ mod core;
 mod deleter;
 mod lister;
 mod reader;
+mod restore;
 mod writer;
 
 pub use backend::GcsBuilder as Gcs;

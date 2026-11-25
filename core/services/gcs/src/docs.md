@@ -9,6 +9,7 @@ Depending on its configuration and the backing system, this service can expose:
 - [x] delete
 - [x] list
 - [x] copy
+- [x] restore
 - [ ] rename
 - [x] presign
 
@@ -20,6 +21,22 @@ Inspect the effective capability set with [`opendal_core::Operator::info`] and
 Use [`crate::GcsConfig`] for serializable configuration and this builder's
 methods for direct construction. The field and method documentation defines
 accepted values, defaults, and environment interaction.
+
+## Restore
+
+Restore uses the authenticated Google Cloud Storage JSON API. A path-only
+restore leaves a live object unchanged. If the path is absent, it selects the
+most recently deleted recoverable generation by comparing when generations
+became noncurrent or soft-deleted. A concurrent writer that recreates the live
+object wins the destination precondition.
+
+A version-selected restore takes a GCS generation ID and creates a new live
+object from that generation. `if_not_exists` applies a destination generation
+precondition to both rewrite and soft-delete restoration. Restoring a
+soft-deleted generation preserves the retained source. Recovery depends on
+Object Versioning or Soft Delete and on the caller's object permissions.
+Soft-deleted generations that require a hierarchical namespace restore token
+return `Unsupported`.
 
 ## Options to authenticate to GCS
 

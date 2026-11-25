@@ -22,7 +22,8 @@
 
 // ANCHOR: quickstart
 import 'dart:typed_data';
-import '../lib/opendal.dart';
+
+import 'package:opendal/opendal.dart';
 
 void main() async {
   // Initialize storage with the memory service — no credentials needed.
@@ -48,4 +49,5 @@ void main() async {
   // Delete the file.
   await file.delete();
 }
+
 // ANCHOR_END: quickstart

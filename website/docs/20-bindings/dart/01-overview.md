@@ -38,23 +38,13 @@ createDir. Listing, copy, and presigned URLs are not yet surfaced.
 
 ## Installation
 
-This binding is not yet published to pub.dev. Add it as a path dependency from
-the repository, or build it from source following the
-[Development guide](https://github.com/apache/opendal/tree/main/bindings/dart#development).
-
-The native Rust library must be compiled separately:
-
-```shell
-cd bindings/dart/rust
-cargo build -r
-```
+Follow [Getting started](./02-getting-started.md) to build the native library
+and run the example from a source checkout. To use the checkout in another
+Dart project, follow the
+[path dependency instructions](https://github.com/apache/opendal/blob/main/bindings/dart/README.md#installation).
 
 ## Useful Links
 
 - **Source & examples**: [`bindings/dart/`](https://github.com/apache/opendal/tree/main/bindings/dart)
 - **Services & configuration**: [/services](/services)
 - **Concepts**: [Concepts](../../03-concepts.mdx)
-
-## Next steps
-
-1. [Getting started](./02-getting-started.md) — build and run a minimal program.

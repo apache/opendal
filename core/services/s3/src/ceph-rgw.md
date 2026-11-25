@@ -9,7 +9,7 @@ required DNS and TLS configuration.
 Use the S3 access and secret keys of a gateway user. See the Ceph guides for
 [bucket addressing](https://docs.ceph.com/en/latest/radosgw/s3/commons/#bucket-and-host-name),
 [SigV4 authentication](https://docs.ceph.com/en/latest/radosgw/s3/authentication/#aws-signature-v4),
-and [SDK examples](https://docs.ceph.com/en/latest/radosgw/STS/).
+and [Python S3 examples](https://docs.ceph.com/en/latest/radosgw/s3/python/).
 
 Pass the provider’s access key ID and secret access key together, or supply them
 through the AWS credential environment variables or shared credentials file.

@@ -17,6 +17,35 @@ through the AWS credential environment variables or shared credentials file.
 The [RGW authentication guide](https://docs.ceph.com/en/latest/radosgw/s3/authentication/#presigned-urls)
 describes a deployment option that disables presigned URL authentication.
 
+## Source ETag conditions in writer copies
+
+On Ceph RGW 20.2.5, a bounded native `UploadPartCopy` can accept a stale
+source ETag passed to `Writer::copy_from_options` as `if_match`.
+`Writer::close` can then succeed and commit bytes from the current source.
+On the same RGW version, a ranged `GetObject` with the stale `If-Match`
+returns HTTP 412.
+
+For an affected deployment, disable native writer copies on the operator to
+stream the source bytes through the client. The streaming path sends
+`If-Match` with the source read and returns `ErrorKind::ConditionNotMatch`
+if RGW rejects it. The override applies to all writer copies on the layered
+operator, including unconditional copies. Conditional reads remain available,
+and operators without the layer can still use native writer copies when
+eligible.
+
+```rust
+# fn use_streaming_copies(op: opendal_core::Operator) -> opendal_core::Result<opendal_core::Operator> {
+use opendal_core::layers::CapabilityOverrideLayer;
+
+let op = op.layer(CapabilityOverrideLayer::from_overrides(
+    "write_can_copy_from=false",
+)?);
+# Ok(op)
+# }
+```
+
+## Example
+
 ```rust
 use opendal_core::{Operator, Result};
 use opendal_service_s3::CephRgw;

@@ -491,7 +491,32 @@ func testListWithDeleted(ctx context.Context, assert *require.Assertions, op *op
 	assert.Nil(obs.Error())
 	assert.Equal(1, beforeCount, "active file must appear exactly once before deletion")
 
+	var generation string
+	if op.Info().GetScheme() == "gcs" {
+		metadata, err := op.Stat(ctx, path)
+		assert.NoError(err)
+		version, ok := metadata.Version()
+		assert.True(ok, "GCS generation must be present")
+		assert.NotEmpty(version)
+		generation = version
+	}
 	assert.Nil(op.Delete(ctx, path), "delete must succeed")
+	if generation != "" {
+		versions, err := op.List(ctx, path, opendal.ListWithVersions(true))
+		assert.NoError(err)
+		defer versions.Close()
+		for versions.Next(ctx) {
+			entry := versions.Entry()
+			if entry.Path() == path {
+				version, ok := entry.Metadata().Version()
+				if ok && version == generation {
+					assert.NoError(op.Delete(ctx, path, opendal.DeleteWithVersion(generation)))
+					break
+				}
+			}
+		}
+		assert.NoError(versions.Error())
+	}
 
 	obs2, err := op.List(ctx, path, opendal.ListWithDeleted(true))
 	assert.Nil(err, "list with deleted must succeed after deletion")
@@ -505,6 +530,9 @@ func testListWithDeleted(ctx context.Context, assert *require.Assertions, op *op
 				version, ok := meta.Version()
 				assert.True(ok, "delete marker must have a version ID")
 				assert.NotEmpty(version, "delete marker must have a version ID")
+				if generation != "" {
+					assert.Equal(generation, version)
+				}
 				foundDeleteMarker = true
 				break
 			}

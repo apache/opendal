@@ -336,7 +336,9 @@ impl GcsBuilder {
         let credential_provider = Arc::new(credential_chain);
         let request_signer = Arc::new(RequestSigner::new("storage").with_scope(&scope));
 
-        let gcs_can_restore = endpoint == DEFAULT_GCS_ENDPOINT && !skip_signature;
+        let authenticated_default_endpoint = endpoint == DEFAULT_GCS_ENDPOINT && !skip_signature;
+        let gcs_can_restore = authenticated_default_endpoint;
+        let gcs_can_list_deleted = authenticated_default_endpoint;
         let info = ServiceInfo::new(GCS_SCHEME, &root, bucket);
         let capability = Capability {
             stat: true,
@@ -416,6 +418,7 @@ impl GcsBuilder {
             list_with_start_after: true,
             list_with_recursive: true,
             list_with_versions: true,
+            list_with_deleted: gcs_can_list_deleted,
 
             presign: true,
             presign_stat: true,
@@ -465,7 +468,7 @@ pub struct GcsBackend {
 impl Service for GcsBackend {
     type Reader = oio::StreamReader<GcsReader>;
     type Writer = GcsWriters;
-    type Lister = oio::PageLister<GcsLister>;
+    type Lister = GcsLister;
     type Deleter = oio::BatchDeleter<GcsDeleter>;
     type Copier = GcsCopier;
     type Composer = GcsComposer;
@@ -563,13 +566,7 @@ impl Service for GcsBackend {
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        let output: oio::PageLister<GcsLister> = {
-            let l = GcsLister::new(self.core.clone(), ctx.clone(), path, args);
-
-            Ok(oio::PageLister::new(l))
-        }?;
-
-        Ok(output)
+        Ok(GcsLister::new(self.core.clone(), ctx.clone(), path, args))
     }
 
     fn copy(

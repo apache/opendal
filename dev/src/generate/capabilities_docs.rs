@@ -688,6 +688,12 @@ fn describe_bool_condition(expr: &Expr, rel_path: &str) -> Result<String> {
                             .to_string(),
                     );
                 }
+                if ident == "gcs_can_list_deleted" {
+                    return Ok(
+                        "Requires a bucket with a soft-delete policy at the default endpoint (`https://storage.googleapis.com`) with `skip_signature` and `allow_anonymous` disabled. Entries requiring a hierarchical namespace restore token are unsupported"
+                            .to_string(),
+                    );
+                }
                 if ident == "s3_write_can_multi" {
                     return Ok("When `checksum_algorithm` is not `md5`".to_string());
                 }
@@ -1180,6 +1186,13 @@ mod tests {
         ] {
             assert_eq!(gcs.native.get(flag), Some(&gcs_restore), "{flag}");
         }
+        assert_eq!(
+            gcs.native.get("list_with_deleted"),
+            Some(&NativeBoolDoc::Conditional(
+                "Requires a bucket with a soft-delete policy at the default endpoint (`https://storage.googleapis.com`) with `skip_signature` and `allow_anonymous` disabled. Entries requiring a hierarchical namespace restore token are unsupported"
+                    .to_string(),
+            ))
+        );
         assert_eq!(
             gcs.limits.get("copy_multi_max_size"),
             Some(&LimitValueDoc {

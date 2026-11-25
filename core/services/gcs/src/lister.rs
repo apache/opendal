@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -24,33 +25,86 @@ use super::core::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// GcsLister takes over task of listing objects and
-/// helps walking directory
 pub struct GcsLister {
-    core: Arc<GcsCore>,
-    ctx: OperationContext,
-
-    path: String,
-    args: OpList,
+    ordinary: oio::PageLister<GcsListPage>,
+    soft_deleted: Option<oio::PageLister<GcsListPage>>,
+    seen_prefixes: HashSet<String>,
 }
 
 impl GcsLister {
-    /// Generate a new directory walker
     pub fn new(core: Arc<GcsCore>, ctx: OperationContext, path: &str, args: OpList) -> Self {
-        Self {
+        let soft_deleted = args.deleted().then(|| {
+            oio::PageLister::new(GcsListPage {
+                core: core.clone(),
+                ctx: ctx.clone(),
+                path: path.to_string(),
+                args: args.clone(),
+                soft_deleted: true,
+            })
+        });
+        let ordinary = oio::PageLister::new(GcsListPage {
             core,
             ctx,
             path: path.to_string(),
             args,
+            soft_deleted: false,
+        });
+        Self {
+            ordinary,
+            soft_deleted,
+            seen_prefixes: HashSet::new(),
         }
     }
 }
 
-impl oio::PageList for GcsLister {
+impl oio::List for GcsLister {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        loop {
+            let entry = if let Some(entry) = self.ordinary.next().await? {
+                entry
+            } else if let Some(soft_deleted) = &mut self.soft_deleted {
+                let Some(entry) = soft_deleted.next().await? else {
+                    return Ok(None);
+                };
+                entry
+            } else {
+                return Ok(None);
+            };
+
+            // A delimiter prefix can appear in both streams. Directory objects
+            // with generation IDs are entries in their own right.
+            if self.soft_deleted.is_some()
+                && entry.metadata().is_dir()
+                && entry.metadata().version().is_none()
+                && !entry.metadata().is_deleted()
+                && !self.seen_prefixes.insert(entry.path().to_string())
+            {
+                continue;
+            }
+            return Ok(Some(entry));
+        }
+    }
+}
+
+struct GcsListPage {
+    core: Arc<GcsCore>,
+    ctx: OperationContext,
+    path: String,
+    args: OpList,
+    soft_deleted: bool,
+}
+
+impl oio::PageList for GcsListPage {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
             .core
-            .gcs_list_objects(&self.ctx, &self.path, &ctx.token, &self.args)
+            .gcs_list_objects(
+                &self.ctx,
+                &self.path,
+                &ctx.token,
+                &self.args,
+                self.soft_deleted,
+            )
             .await?;
 
         if !resp.status().is_success() {
@@ -64,6 +118,13 @@ impl oio::PageList for GcsLister {
         let output: ListResponse =
             serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
+        if self.soft_deleted && output.items.iter().any(|item| item.restore_token.is_some()) {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "soft-deleted objects that require a restore token are unsupported",
+            ));
+        }
+
         if let Some(token) = output.next_page_token.as_deref().filter(|t| !t.is_empty()) {
             ctx.token = token.to_string();
         } else {
@@ -72,10 +133,11 @@ impl oio::PageList for GcsLister {
         }
 
         for prefix in output.prefixes {
-            let de = oio::Entry::new(
-                &build_relative_path(&self.core.root, &prefix),
-                MetadataBuilder::dir().build(),
-            );
+            let path = build_relative_path(&self.core.root, &prefix);
+            if self.args.start_after() == Some(path.as_str()) {
+                continue;
+            }
+            let de = oio::Entry::new(&path, MetadataBuilder::dir().build());
 
             ctx.entries.push_back(de);
         }
@@ -100,6 +162,7 @@ impl oio::PageList for GcsLister {
             };
 
             // set metadata fields
+            meta.is_deleted(self.soft_deleted);
             meta.content_md5(object.md5_hash.as_str());
             meta.etag(object.etag.as_str());
             if !object.generation.is_empty() {
@@ -149,7 +212,7 @@ mod tests {
         }
     }
 
-    fn lister_with_body(body: &str) -> GcsLister {
+    fn lister_with_body(body: &str) -> GcsListPage {
         let core = Arc::new(GcsCore {
             info: ServiceInfo::new("gcs", "/", "test-bucket"),
             capability: Capability {
@@ -171,7 +234,13 @@ mod tests {
         });
         let ctx = OperationContext::default()
             .with_http_transport(HttpTransporter::new(StaticListTransport(body.to_string())));
-        GcsLister::new(core, ctx, "", OpList::default())
+        GcsListPage {
+            core,
+            ctx,
+            path: String::new(),
+            args: OpList::default(),
+            soft_deleted: false,
+        }
     }
 
     #[tokio::test]

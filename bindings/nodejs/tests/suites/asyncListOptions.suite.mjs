@@ -24,8 +24,9 @@ import { EntryMode } from '../../index.mjs'
 
 /**
  * @param {import("../../index").Operator} op
+ * @param {string} scheme
  */
-export function run(op) {
+export function run(op, scheme) {
   const capability = op.capability()
 
   describe.runIf(capability.write && capability.read && capability.list && capability.createDir)(
@@ -170,12 +171,29 @@ export function run(op) {
         expect(lists.length).toBe(1)
 
         await op.write(filePath, '2')
+        const generation = scheme === 'gcs' ? (await op.stat(filePath)).version : null
+        if (scheme === 'gcs') expect(generation).toBeTruthy()
         await op.delete(filePath)
 
+        const archived = generation
+          ? (await op.list(filePath, { versions: true })).filter((entry) => entry.path() === filePath)
+          : []
+        if (archived.some((entry) => entry.metadata().version === generation)) {
+          await op.delete(filePath, { version: generation })
+        }
+
         const ds = await op.list(filePath, { deleted: true })
-        const actual = ds.filter((item) => item.path() === filePath && item.metadata().isDeleted())
+        const actual = ds.filter((entry) => {
+          const metadata = entry.metadata()
+          return entry.path() === filePath && metadata.isDeleted() && (!generation || metadata.version === generation)
+        })
         expect(actual.length).toBe(1)
 
+        for (const entry of archived) {
+          const version = entry.metadata().version
+          expect(version).toBeTruthy()
+          if (version !== generation) await op.delete(filePath, { version })
+        }
         await op.removeAll(dirname)
       })
     },

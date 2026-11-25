@@ -387,7 +387,11 @@ impl OssCore {
         Ok(req)
     }
 
-    fn oss_delete_object_request(&self, path: &str, args: &OpDelete) -> Result<Request<Buffer>> {
+    pub(super) fn oss_delete_object_request(
+        &self,
+        path: &str,
+        args: &OpDelete,
+    ) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path);
         let endpoint = self.get_endpoint(false);
         let mut url = format!("{}/{}", endpoint, percent_encode_path(&p));
@@ -526,12 +530,12 @@ impl OssCore {
         self.send(ctx, req).await
     }
 
-    pub async fn oss_copy_object(
+    pub(super) fn oss_copy_object_request(
         &self,
-        ctx: &OperationContext,
         from: &str,
         to: &str,
-    ) -> Result<Response<Buffer>> {
+        source_version: Option<&str>,
+    ) -> Result<Request<Buffer>> {
         let source = build_absolute_path(&self.root, from);
         let target = build_absolute_path(&self.root, to);
 
@@ -540,7 +544,13 @@ impl OssCore {
             self.get_endpoint(false),
             percent_encode_path(&target)
         );
-        let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
+        let mut source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
+        if let Some(version) = source_version {
+            source.push('?');
+            source.push_str(constants::OSS_QUERY_VERSION_ID);
+            source.push('=');
+            source.push_str(&percent_encode_path(version));
+        }
 
         let mut req = Request::put(&url);
 
@@ -552,7 +562,16 @@ impl OssCore {
             .extension(Operation::Copy)
             .extension(ServiceOperation("CopyObject"));
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        req.body(Buffer::new()).map_err(new_request_build_error)
+    }
+
+    pub async fn oss_copy_object(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+    ) -> Result<Response<Buffer>> {
+        let req = self.oss_copy_object_request(from, to, None)?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }

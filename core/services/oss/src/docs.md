@@ -127,3 +127,21 @@ let _builder = Oss::default()
     // This chain replaces, rather than extends, the default provider chain.
     .credential_provider_chain(chain);
 ```
+
+## Restore
+
+Enable versioning on the OSS bucket to recover deleted objects. `Operator::restore`
+lists object versions and deletes the current delete marker by version ID. An
+already-live object stays unchanged, and an unknown path returns `NotFound`.
+Each call removes one marker, so stacked delete markers can require multiple
+restore calls. The caller needs permission to list and delete object versions.
+
+`Operator::restore_with(...).version(...)` copies the selected version to the
+same key as a new current version. It requires read access to the selected
+version and write access to the destination. OSS does not support the atomic
+`if_not_exists` condition for restore. The provider's CopyObject limits apply,
+including limits when the copy changes storage class or encryption.
+
+If OSS fails to confirm a restore mutation, check the current state before
+retrying. The request might already have removed the marker or created a new
+version.

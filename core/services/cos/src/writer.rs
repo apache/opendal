@@ -176,10 +176,15 @@ impl oio::MultipartWrite for CosWriter {
             })
             .collect();
 
-        let mut resp = self
-            .core
-            .cos_complete_multipart_upload(&self.ctx, &self.path, upload_id, parts, &self.op)
-            .await?;
+        let req = self.core.cos_complete_multipart_upload_request(
+            &self.path,
+            upload_id,
+            parts,
+            self.op.if_not_exists(),
+            Operation::Write,
+        )?;
+        let req = self.core.sign(&self.ctx, req).await?;
+        let mut resp = self.core.send(&self.ctx, req).await?;
 
         let mut meta = Self::parse_metadata(resp.headers())?.into_builder();
 

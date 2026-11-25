@@ -31,6 +31,8 @@ static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
 });
 
 pub fn new_operator(scheme: &str, map: HashMap<String, String>) -> Result<od::Operator, od::Error> {
+    // Static linking can omit the facade's startup constructor.
+    od::install_default();
     od::Operator::via_iter(scheme, map)
 }
 

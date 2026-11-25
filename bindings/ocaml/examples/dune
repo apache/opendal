@@ -15,20 +15,11 @@
 ; specific language governing permissions and limitations
 ; under the License.
 
-(executables
- (libraries opendal)
- (names getting_started)
- (modules getting_started))
+(executable
+ (name getting_started)
+ (libraries opendal))
 
 (rule
  (alias run_examples)
- (deps ../src/libopendal_core.so)
  (action
-  (progn
-   (setenv
-    LD_LIBRARY_PATH
-    "../src:%{env:LD_LIBRARY_PATH=}"
-    (setenv
-     DYLD_LIBRARY_PATH
-     "../src:%{env:DYLD_LIBRARY_PATH=}"
-     (run ./getting_started.exe))))))
+  (run ./getting_started.exe)))

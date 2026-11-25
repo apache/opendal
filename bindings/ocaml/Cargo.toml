@@ -27,11 +27,12 @@ repository = "https://github.com/apache/opendal"
 rust-version = "1.91"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["staticlib", "cdylib"]
 doc = false
 
 [dependencies]
-ocaml = { version = "1.2.0" }
+# The OCaml executable owns and initializes the runtime.
+ocaml = { version = "1.2.0", features = ["no-caml-startup"] }
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   "blocking",

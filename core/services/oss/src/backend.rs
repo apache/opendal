@@ -51,11 +51,10 @@ use opendal_core::*;
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 // OSS multipart uploads use 100 KiB to 5 GiB parts, with a smaller final part allowed.
 const MIN_MULTIPART_PART_SIZE: usize = 100 * 1024;
-const MAX_MULTIPART_PART_SIZE: usize = if usize::BITS >= 64 {
-    (5_u64 * 1024 * 1024 * 1024) as usize
-} else {
-    usize::MAX
-};
+#[cfg(target_pointer_width = "64")]
+const MAX_MULTIPART_PART_SIZE: usize = 5 * 1024 * 1024 * 1024;
+#[cfg(not(target_pointer_width = "64"))]
+const MAX_MULTIPART_PART_SIZE: usize = usize::MAX;
 
 /// Aliyun Object Storage Service (OSS) support
 #[doc = include_str!("docs.md")]

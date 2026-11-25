@@ -63,6 +63,7 @@ pub(crate) fn parse_list_line(line: &str) -> Result<Option<File>> {
 pub struct FtpLister {
     path: String,
     file_iter: IntoIter<String>,
+    dir_entry: Option<oio::Entry>,
 }
 
 impl FtpLister {
@@ -70,12 +71,23 @@ impl FtpLister {
         Self {
             path: path.to_string(),
             file_iter: files.into_iter(),
+            dir_entry: None,
         }
+    }
+
+    /// Return the listed directory itself before its children.
+    pub fn with_dir_entry(mut self) -> Self {
+        self.dir_entry = Some(oio::Entry::new(&self.path, MetadataBuilder::dir().build()));
+        self
     }
 }
 
 impl oio::List for FtpLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        if let Some(entry) = self.dir_entry.take() {
+            return Ok(Some(entry));
+        }
+
         let de = loop {
             let Some(file_str) = self.file_iter.next() else {
                 return Ok(None);
@@ -112,6 +124,24 @@ impl oio::List for FtpLister {
 mod tests {
     use super::*;
     use opendal_core::raw::oio::List as _;
+
+    #[tokio::test]
+    async fn test_lister_returns_dir_entry_first() {
+        let lines = vec!["-rw-r--r-- 1 user group 12 Nov  5  2018 file".to_string()];
+        let mut lister = FtpLister::new("dir/", lines).with_dir_entry();
+
+        let first = lister.next().await.unwrap().unwrap();
+        assert_eq!(first.path(), "dir/");
+        assert_eq!(first.metadata().mode(), EntryMode::DIR);
+        let second = lister.next().await.unwrap().unwrap();
+        assert_eq!(second.path(), "dir/file");
+        assert!(lister.next().await.unwrap().is_none());
+
+        // An empty directory still returns itself.
+        let mut lister = FtpLister::new("empty/", vec![]).with_dir_entry();
+        assert_eq!(lister.next().await.unwrap().unwrap().path(), "empty/");
+        assert!(lister.next().await.unwrap().is_none());
+    }
 
     #[tokio::test]
     async fn test_lister_filters_dots_total_header_and_blank_lines() {

@@ -20,6 +20,7 @@ use super::core::FtpCore;
 use super::core::Manager;
 use super::core::format_ftp_error;
 use super::lister::FtpLister;
+use super::lister::parse_list_line;
 use super::writer::FtpWriter;
 use asyncband::pool::bounded;
 use bytes::BytesMut;
@@ -240,10 +241,36 @@ impl FtpLazyLister {
             };
             let files = ftp_stream.list(pathname).await.map_err(format_ftp_error)?;
 
-            self.inner = Some(FtpLister::new(
-                if self.path == "/" { "" } else { &self.path },
-                files,
-            ));
+            // Listing `dir/` returns `dir/` itself first, as other services
+            // do. A non-empty listing proves the directory exists. Some
+            // servers answer LIST on a missing path with an empty success, so
+            // an empty listing must be confirmed in the parent listing.
+            let mut dir_exists = false;
+            if self.path != "/" && self.path.ends_with('/') {
+                dir_exists = files
+                    .iter()
+                    .any(|line| matches!(parse_list_line(line), Ok(Some(_))));
+                if !dir_exists {
+                    let (parent, basename) = (get_parent(&self.path), get_basename(&self.path));
+                    let parent = if parent == "/" { None } else { Some(parent) };
+                    let basename = basename.trim_end_matches('/');
+                    // A parent that cannot be listed leaves the directory
+                    // unconfirmed instead of failing the listing.
+                    dir_exists = ftp_stream
+                        .list(parent)
+                        .await
+                        .unwrap_or_default()
+                        .iter()
+                        .filter_map(|line| parse_list_line(line).ok().flatten())
+                        .any(|file| file.is_directory() && file.name() == basename);
+                }
+            }
+
+            let mut lister = FtpLister::new(if self.path == "/" { "" } else { &self.path }, files);
+            if dir_exists {
+                lister = lister.with_dir_entry();
+            }
+            self.inner = Some(lister);
         }
 
         Ok(self.inner.as_mut().expect("ftp lister must be initialized"))

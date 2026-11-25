@@ -115,10 +115,17 @@ mod tests {
 
     #[test]
     fn from_uri_accepts_localhost() {
-        let uri =
-            OperatorUri::new("file://localhost/tmp/data", Vec::<(String, String)>::new()).unwrap();
-        let cfg = FsConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.root.as_deref(), Some("/tmp/data"));
+        // `file://localhost/...` is normalized by the URL parser before it
+        // reaches the service, so `fs://localhost/...` is the case that
+        // exercises the service's own host check.
+        for (base, expected) in [
+            ("file://localhost/tmp/data", "/tmp/data"),
+            ("fs://localhost/data", "/data"),
+        ] {
+            let uri = OperatorUri::new(base, Vec::<(String, String)>::new()).unwrap();
+            let cfg = FsConfig::from_uri(&uri).unwrap();
+            assert_eq!(cfg.root.as_deref(), Some(expected), "{base}");
+        }
     }
 
     #[test]

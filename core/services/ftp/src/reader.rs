@@ -243,26 +243,22 @@ impl FtpLazyLister {
 
             // Listing `dir/` returns `dir/` itself first, as other services
             // do. A non-empty listing proves the directory exists. Some
-            // servers answer LIST on a missing path with an empty success, so
-            // an empty listing must be confirmed in the parent listing.
+            // servers answer LIST on a missing path with an empty success,
+            // and a parent listing can miss the directory (an unlistable
+            // parent, or servers that hide dot directories), so an empty
+            // listing is confirmed by changing into the directory.
             let mut dir_exists = false;
             if self.path != "/" && self.path.ends_with('/') {
                 dir_exists = files
                     .iter()
                     .any(|line| matches!(parse_list_line(line), Ok(Some(_))));
                 if !dir_exists {
-                    let (parent, basename) = (get_parent(&self.path), get_basename(&self.path));
-                    let parent = if parent == "/" { None } else { Some(parent) };
-                    let basename = basename.trim_end_matches('/');
-                    // A parent that cannot be listed leaves the directory
-                    // unconfirmed instead of failing the listing.
-                    dir_exists = ftp_stream
-                        .list(parent)
-                        .await
-                        .unwrap_or_default()
-                        .iter()
-                        .filter_map(|line| parse_list_line(line).ok().flatten())
-                        .any(|file| file.is_directory() && file.name() == basename);
+                    // CWD moves the connection away from the root that every
+                    // relative path depends on. Detach it from the pool first,
+                    // so success, failure and cancellation all drop it
+                    // instead of returning it for reuse.
+                    let mut ftp_stream = bounded::Object::detach(ftp_stream);
+                    dir_exists = ftp_stream.cwd(&self.path).await.is_ok();
                 }
             }
 

@@ -30,6 +30,7 @@ use crate::core::*;
 use crate::deleter::TosDeleter;
 use crate::lister::{TosLister, TosListers, TosObjectVersionsLister};
 use crate::writer::TosWriter;
+use bytes::Buf;
 use http::StatusCode;
 use opendal_core::OperationContext;
 use opendal_core::raw::*;
@@ -222,6 +223,9 @@ impl Builder for TosBuilder {
             } else {
                 Some(usize::MAX)
             },
+
+            restore: true,
+            restore_with_version: true,
 
             list: true,
             list_with_limit: true,
@@ -436,6 +440,134 @@ impl Service for TosBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        args.check(&self.capability())?;
+
+        if let Some(version) = args.version() {
+            if version.is_empty() {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "empty restore version ID",
+                ));
+            }
+            let req = self
+                .core
+                .tos_copy_object_request(path, path, Some(version), false)?;
+            let req = self.core.sign(ctx, req).await?;
+            // Replaying after a lost response can create another version.
+            let resp = ctx
+                .http_transport()
+                .send(req)
+                .await
+                .map_err(Error::set_permanent)?;
+            if resp.status() != StatusCode::OK {
+                return Err(
+                    parse_error(ErrorContext::new(ServiceOperation("CopyObject")), resp)
+                        .set_permanent(),
+                );
+            }
+            let output: CopyObjectOutput = serde_json::from_reader(resp.into_body().reader())
+                .map_err(new_json_deserialize_error)
+                .map_err(Error::set_permanent)?;
+            if output.etag.is_empty() {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "ETag not present in restore copy response",
+                )
+                .set_permanent());
+            }
+            return Ok(RpRestore::new());
+        }
+
+        let key = build_absolute_path(&self.core.root, path);
+        let mut key_marker = "";
+        let mut version_id_marker = String::new();
+        let mut current_marker = None;
+        let marker = loop {
+            let resp = self
+                .core
+                .tos_list_object_versions(ctx, path, "", Some(2), key_marker, &version_id_marker)
+                .await?;
+            if resp.status() != StatusCode::OK {
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("ListObjectVersions")),
+                    resp,
+                ));
+            }
+            let output: ListObjectVersionsOutput =
+                serde_json::from_reader(resp.into_body().reader())
+                    .map_err(new_json_deserialize_error)
+                    .map_err(Error::set_temporary)?;
+
+            if output
+                .versions
+                .iter()
+                .any(|version| version.key == key && version.is_latest)
+            {
+                return Ok(RpRestore::new());
+            }
+            if current_marker.is_none() {
+                current_marker = output
+                    .delete_markers
+                    .into_iter()
+                    .find(|marker| marker.key == key && marker.is_latest)
+                    .map(|marker| marker.version_id);
+            }
+            if current_marker.is_none() {
+                break None;
+            }
+            // A delete marker can outlive all data versions of its key.
+            if output.versions.iter().any(|version| version.key == key) {
+                break current_marker;
+            }
+            if output.is_truncated != Some(true) || output.next_key_marker.as_deref() != Some(&key)
+            {
+                break None;
+            }
+            key_marker = &key;
+            version_id_marker = output
+                .next_version_id_marker
+                .filter(|next| !next.is_empty() && *next != version_id_marker)
+                .ok_or_else(|| {
+                    Error::new(ErrorKind::Unexpected, "version listing did not advance")
+                })?;
+        };
+        let Some(marker) = marker else {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "no live or recoverable version exists",
+            ));
+        };
+        if marker.is_empty() || marker == "null" {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "restore requires a persistent delete marker version ID",
+            ));
+        }
+
+        let args = OpDelete::new().into_version(&marker);
+        let req = self.core.tos_delete_object_request(path, &args)?;
+        let req = self.core.sign(ctx, req).await?;
+        // Replaying discovery after a lost response can remove the next marker.
+        let resp = ctx
+            .http_transport()
+            .send(req)
+            .await
+            .map_err(Error::set_permanent)?;
+        match resp.status() {
+            StatusCode::NO_CONTENT => Ok(RpRestore::new()),
+            _ => Err(
+                parse_error(ErrorContext::new(ServiceOperation("DeleteObject")), resp)
+                    .set_permanent(),
+            ),
+        }
     }
 
     async fn presign(

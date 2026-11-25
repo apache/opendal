@@ -37,6 +37,17 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         tests.extend(async_trials!(op, test_restore_with_version));
     }
 
+    if op.info().scheme() == "tos"
+        && cap.restore
+        && cap.read
+        && cap.write
+        && cap.delete_with_version
+        && cap.list_with_versions
+        && cap.list_with_deleted
+    {
+        tests.extend(async_trials!(op, test_tos_restore_adjacent_markers));
+    }
+
     if cap.restore
         && cap.restore_with_version
         && cap.restore_with_if_not_exists
@@ -160,6 +171,61 @@ pub async fn test_restore_with_if_not_exists_conflict(op: Operator) -> Result<()
     assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
     assert_eq!(op.read(&path).await?.to_bytes(), new_content);
     Ok(())
+}
+
+pub async fn test_tos_restore_adjacent_markers(op: Operator) -> Result<()> {
+    use anyhow::Context as _;
+
+    let path = uuid::Uuid::new_v4().to_string();
+    let result = async {
+        let older = op.write(&path, "older version").await?;
+        op.delete(&path).await?;
+        let newer = op.write(&path, "newer version").await?;
+        op.delete(&path).await?;
+        // TOS reuses a current marker on repeated deletes. Remove the data
+        // version between the two markers to exercise adjacent markers.
+        op.delete_with(&path)
+            .version(newer.version().context("missing newer version ID")?)
+            .await?;
+
+        op.restore(&path).await?;
+        anyhow::ensure!(!op.exists(&path).await?, "the older marker must remain");
+        op.restore(&path).await?;
+        anyhow::ensure!(op.read(&path).await?.to_bytes().as_ref() == b"older version");
+
+        op.delete(&path).await?;
+        op.delete_with(&path)
+            .version(older.version().context("missing older version ID")?)
+            .await?;
+        let err = op
+            .restore(&path)
+            .await
+            .err()
+            .context("restore must fail when only a marker remains")?;
+        anyhow::ensure!(err.kind() == ErrorKind::NotFound);
+        Ok(())
+    }
+    .await;
+
+    for entry in op
+        .list_with(&path)
+        .recursive(true)
+        .versions(true)
+        .deleted(true)
+        .await?
+    {
+        if entry.path() == path {
+            op.delete_with(&path)
+                .version(
+                    entry
+                        .metadata()
+                        .version()
+                        .context("missing cleanup version ID")?,
+                )
+                .await?;
+        }
+    }
+    result
 }
 
 /// A prefix match must not restore or otherwise change a different object.

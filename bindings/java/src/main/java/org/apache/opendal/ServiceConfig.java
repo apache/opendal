@@ -3487,6 +3487,71 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service obs-s3.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class ObsS3 implements ServiceConfig {
+        /**
+         * <p>Huawei Cloud access key ID (AK).</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>OBS bucket name as a single lowercase DNS label.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>HTTP(S) base endpoint override. OpenDAL prepends the bucket to the host.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>OBS bucket region. Also used to sign requests.</p>
+         */
+        public final @NonNull String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Huawei Cloud secret access key (SK).</p>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>Session token for temporary Huawei Cloud credentials. Requires both keys.</p>
+         */
+        public final String sessionToken;
+
+        @Override
+        public String scheme() {
+            return "obs-s3";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            map.put("region", region);
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            if (sessionToken != null) {
+                map.put("session_token", sessionToken);
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service oci.
      */
     @Builder

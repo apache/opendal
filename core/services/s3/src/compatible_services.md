@@ -53,6 +53,7 @@ corresponding preset feature to select an S3 API explicitly.
 - Use [`crate::CosS3`] or the `cos-s3` scheme for Tencent Cloud COS.
 - Use [`crate::GcsS3`] or the `gcs-s3` scheme for Google Cloud Storage.
 - Use [`crate::LakefsS3`] or the `lakefs-s3` scheme for the lakeFS S3 Gateway.
+- Use [`crate::ObsS3`] or the `obs-s3` scheme for Huawei Cloud OBS in the China public cloud.
 - Use [`crate::OssS3`] or the `oss-s3` scheme for Alibaba Cloud OSS.
 - Use [`crate::SwiftS3api`] or the `swift-s3api` scheme for OpenStack Swift s3api.
 - Use [`crate::TosS3`] or the `tos-s3` scheme for Volcengine and BytePlus TOS.

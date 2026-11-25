@@ -47,6 +47,7 @@ mod idrive_e2_config;
 mod ionos_config;
 mod lakefs_s3_config;
 mod neon_config;
+mod obs_s3_config;
 mod oci_config;
 mod oss_s3_config;
 mod ovhcloud_config;
@@ -86,6 +87,7 @@ pub use lakefs_s3_config::{
 pub use minio::MinioBuilder as Minio;
 pub use minio_config::MinioConfig;
 pub use neon_config::{NEON_SCHEME, Neon, NeonConfig, register_neon_service};
+pub use obs_s3_config::{OBS_S3_SCHEME, ObsS3, ObsS3Config, register_obs_s3_service};
 pub use oci_config::{OCI_SCHEME, Oci, OciConfig, register_oci_service};
 pub use oss_s3_config::{OSS_S3_SCHEME, OssS3, OssS3Config, register_oss_s3_service};
 pub use ovhcloud_config::{OVHCLOUD_SCHEME, Ovhcloud, OvhcloudConfig, register_ovhcloud_service};

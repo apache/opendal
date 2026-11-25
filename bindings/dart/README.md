@@ -34,11 +34,20 @@ the platform-specific target directory (for example,
 `rust/target/release/`. For cross-compiled targets, build with
 `--target <triple>` so the library is placed in the matching target directory.
 
-To use the binding in another Dart project, add `opendal` as a `path`
-dependency pointing to `bindings/dart/` in your checkout. After
-`cargo build -r`, copy the native library from `bindings/dart/rust/target/release/`
-into `rust/target/release/` under the directory where you run your app. Run
-`dart pub get` in your app.
+To use the binding from another Dart project, add the checkout to that app's
+`pubspec.yaml`. Adjust the path to match your checkout.
+
+```yaml
+dependencies:
+  opendal:
+    path: ../opendal/bindings/dart
+```
+
+Run `dart pub get` in the app. Copy the native library from the checkout into
+the same relative path under the app's working directory. For a default build,
+use `rust/target/release/` relative to `bindings/dart/` and the app respectively.
+For a build with `--target <triple>`, use `rust/target/<triple>/release/`
+for a target triple recognized by the loader.
 
 ## Quickstart
 

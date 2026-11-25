@@ -46,6 +46,20 @@ impl opendal_core::Configurator for PersyConfig {
                 .or_insert_with(|| format!("/{path}"));
         }
 
+        // A local path has no host. Ignoring one would silently move the
+        // datafile: `persy://tmp/data` would become `/data`. An explicit
+        // `datafile` option takes precedence, as for fs.
+        if !uri.options().contains_key("datafile")
+            && let Some(host) = uri.name()
+            && !host.eq_ignore_ascii_case("localhost")
+        {
+            return Err(opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
+                "persy uri must not contain a host, use persy:///path",
+            )
+            .with_context("host", host));
+        }
+
         Self::from_iter(map)
     }
 
@@ -72,5 +86,30 @@ mod tests {
         assert_eq!(cfg.datafile.as_deref(), Some("/var/data/persy"));
         assert_eq!(cfg.segment.as_deref(), Some("segment"));
         assert_eq!(cfg.index.as_deref(), Some("index"));
+    }
+
+    #[test]
+    fn from_uri_rejects_host() {
+        let no_opts = Vec::<(String, String)>::new;
+        let uri = OperatorUri::new("persy://tmp/data", no_opts()).unwrap();
+        let err = PersyConfig::from_uri(&uri).unwrap_err();
+        assert_eq!(err.kind(), opendal_core::ErrorKind::ConfigInvalid);
+
+        let uri = OperatorUri::new("persy://localhost/data", no_opts()).unwrap();
+        assert_eq!(
+            PersyConfig::from_uri(&uri).unwrap().datafile.as_deref(),
+            Some("/data")
+        );
+
+        // An explicit `datafile` option takes precedence over the host.
+        let uri = OperatorUri::new(
+            "persy://tmp/data",
+            [("datafile".to_string(), "/explicit".to_string())],
+        )
+        .unwrap();
+        assert_eq!(
+            PersyConfig::from_uri(&uri).unwrap().datafile.as_deref(),
+            Some("/explicit")
+        );
     }
 }

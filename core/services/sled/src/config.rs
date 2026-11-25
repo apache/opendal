@@ -57,6 +57,20 @@ impl opendal_core::Configurator for SledConfig {
                 .or_insert_with(|| format!("/{path}"));
         }
 
+        // A local path has no host. Ignoring one would silently move the
+        // datadir: `sled://tmp/data` would become `/data`. An explicit
+        // `datadir` option takes precedence, as for fs.
+        if !uri.options().contains_key("datadir")
+            && let Some(host) = uri.name()
+            && !host.eq_ignore_ascii_case("localhost")
+        {
+            return Err(opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
+                "sled uri must not contain a host, use sled:///path",
+            )
+            .with_context("host", host));
+        }
+
         Self::from_iter(map)
     }
 
@@ -83,5 +97,30 @@ mod tests {
         assert_eq!(cfg.datadir.as_deref(), Some("/var/data/sled"));
         assert_eq!(cfg.tree.as_deref(), Some("cache"));
         assert_eq!(cfg.root.as_deref(), Some("items"));
+    }
+
+    #[test]
+    fn from_uri_rejects_host() {
+        let no_opts = Vec::<(String, String)>::new;
+        let uri = OperatorUri::new("sled://tmp/data", no_opts()).unwrap();
+        let err = SledConfig::from_uri(&uri).unwrap_err();
+        assert_eq!(err.kind(), opendal_core::ErrorKind::ConfigInvalid);
+
+        let uri = OperatorUri::new("sled://localhost/data", no_opts()).unwrap();
+        assert_eq!(
+            SledConfig::from_uri(&uri).unwrap().datadir.as_deref(),
+            Some("/data")
+        );
+
+        // An explicit `datadir` option takes precedence over the host.
+        let uri = OperatorUri::new(
+            "sled://tmp/data",
+            [("datadir".to_string(), "/explicit".to_string())],
+        )
+        .unwrap();
+        assert_eq!(
+            SledConfig::from_uri(&uri).unwrap().datadir.as_deref(),
+            Some("/explicit")
+        );
     }
 }

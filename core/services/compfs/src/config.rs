@@ -38,7 +38,22 @@ impl opendal_core::Configurator for CompfsConfig {
         if let Some(root) = uri.root()
             && !root.is_empty()
         {
-            map.insert("root".to_string(), uri_path_to_root(root));
+            map.entry("root".to_string())
+                .or_insert_with(|| uri_path_to_root(root));
+        }
+
+        // A local path has no host. Ignoring one would silently move the
+        // root: `compfs://tmp/data` would become `/data`. An explicit
+        // `root` option takes precedence, as for fs.
+        if !uri.options().contains_key("root")
+            && let Some(host) = uri.name()
+            && !host.eq_ignore_ascii_case("localhost")
+        {
+            return Err(opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
+                "compfs uri must not contain a host, use compfs:///path",
+            )
+            .with_context("host", host));
         }
 
         Self::from_iter(map)
@@ -98,5 +113,30 @@ mod tests {
         let cfg = CompfsConfig::from_uri(&uri).unwrap();
         let expected = if cfg!(windows) { "C:/" } else { "/C:" };
         assert_eq!(cfg.root.as_deref(), Some(expected));
+    }
+
+    #[test]
+    fn from_uri_rejects_host() {
+        let no_opts = Vec::<(String, String)>::new;
+        let uri = OperatorUri::new("compfs://tmp/data", no_opts()).unwrap();
+        let err = CompfsConfig::from_uri(&uri).unwrap_err();
+        assert_eq!(err.kind(), opendal_core::ErrorKind::ConfigInvalid);
+
+        let uri = OperatorUri::new("compfs://localhost/data", no_opts()).unwrap();
+        assert_eq!(
+            CompfsConfig::from_uri(&uri).unwrap().root.as_deref(),
+            Some("/data")
+        );
+
+        // An explicit `root` option takes precedence over the host.
+        let uri = OperatorUri::new(
+            "compfs://tmp/data",
+            [("root".to_string(), "/explicit".to_string())],
+        )
+        .unwrap();
+        assert_eq!(
+            CompfsConfig::from_uri(&uri).unwrap().root.as_deref(),
+            Some("/explicit")
+        );
     }
 }

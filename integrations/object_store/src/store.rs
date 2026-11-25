@@ -25,7 +25,6 @@ use crate::datetime_to_timestamp;
 use crate::utils::*;
 use async_trait::async_trait;
 use asyncband::mutex::Mutex;
-use asyncband::oneshot;
 use bytes::Bytes;
 use futures::FutureExt;
 use futures::StreamExt;
@@ -64,6 +63,7 @@ use opendal::raw::normalize_path;
 use opendal::raw::percent_decode_path;
 use opendal::{Operator, OperatorInfo};
 use std::collections::HashMap;
+use std::collections::VecDeque;
 
 const DEFAULT_CONCURRENT: usize = 8;
 const DEFAULT_GET_RANGES_GAP: usize = object_store::OBJECT_STORE_COALESCE_DEFAULT as usize;
@@ -1199,17 +1199,16 @@ impl ObjectStore for OpendalStore {
 /// # Notes
 ///
 /// OpenDAL writer can handle concurrent internally we don't generate real `UploadPart` like existing
-/// implementation do. Instead, we just write the part and notify the next task to be written.
+/// implementation do. Instead, we write the parts through one `Writer`.
 ///
-/// Parts are written one at a time in call order. The notification chain only
-/// carries success: a part that fails or is dropped before its write succeeds
-/// poisons the upload instead of releasing the next part.
-///
-/// The lock here doesn't really involve the write process, it's just for the notify mechanism.
+/// `put_part` queues its data in call order. Whichever part future holds the
+/// writer lock writes every queued part in that order, so the lock both
+/// serializes and orders the writes, and the futures can be awaited in any
+/// order. A part that fails or is dropped before it succeeds poisons the
+/// upload.
 struct OpendalMultipartUpload {
     writer: Arc<Mutex<Writer>>,
     location: Path,
-    next_notify: oneshot::Receiver<()>,
     state: Arc<std::sync::Mutex<MultipartUploadState>>,
 }
 
@@ -1221,26 +1220,28 @@ struct MultipartUploadState {
     finished: bool,
     /// Parts registered by `put_part` that have not finished or been dropped.
     pending: usize,
+    /// Part data in `put_part` call order that has not been written yet.
+    queued: VecDeque<PutPayload>,
 }
 
 /// Registers one part as pending and poisons the upload unless the part
 /// succeeds. The guard is moved into the part future, so dropping the future
-/// before its first poll still releases the next part with a failure.
+/// before its first poll still fails the parts after it.
 struct PutPartGuard {
     state: Arc<std::sync::Mutex<MultipartUploadState>>,
-    notify: Option<oneshot::Sender<()>>,
     succeeded: bool,
 }
 
 impl PutPartGuard {
-    fn register(
-        state: Arc<std::sync::Mutex<MultipartUploadState>>,
-        notify: oneshot::Sender<()>,
-    ) -> Self {
-        state.lock().unwrap().pending += 1;
+    /// Queue the part data in call order and register the part as pending.
+    fn register(state: Arc<std::sync::Mutex<MultipartUploadState>>, data: PutPayload) -> Self {
+        {
+            let mut state = state.lock().unwrap();
+            state.pending += 1;
+            state.queued.push_back(data);
+        }
         Self {
             state,
-            notify: Some(notify),
             succeeded: false,
         }
     }
@@ -1258,9 +1259,6 @@ impl PutPartGuard {
 
     fn succeed(&mut self) {
         self.succeeded = true;
-        if let Some(notify) = self.notify.take() {
-            let _ = notify.send(());
-        }
     }
 }
 
@@ -1283,14 +1281,9 @@ fn format_multipart_error(location: &Path, message: &str) -> object_store::Error
 
 impl OpendalMultipartUpload {
     fn new(writer: Writer, location: Path) -> Self {
-        // The first part does not wait for a predecessor.
-        let (tx, rx) = oneshot::channel();
-        tx.send(()).expect("new receiver must be alive");
-
         Self {
             writer: Arc::new(Mutex::new(writer)),
             location,
-            next_notify: rx,
             state: Arc::new(std::sync::Mutex::new(MultipartUploadState::default())),
         }
     }
@@ -1301,37 +1294,29 @@ impl MultipartUpload for OpendalMultipartUpload {
     fn put_part(&mut self, data: PutPayload) -> UploadPart {
         let writer = self.writer.clone();
         let location = self.location.clone();
-
-        // Generate next notify which will be notified only after the current
-        // part is written successfully.
-        let (tx, rx) = oneshot::channel();
-        // Fetch the notify for current part to wait for it to be written.
-        let last_rx = std::mem::replace(&mut self.next_notify, rx);
-        let mut guard = PutPartGuard::register(self.state.clone(), tx);
+        let state = self.state.clone();
+        let mut guard = PutPartGuard::register(self.state.clone(), data);
 
         async move {
-            // Wait for the previous part to be written. A predecessor that
-            // failed or was dropped disconnects the channel.
-            if last_rx.await.is_err() {
-                return Err(format_multipart_error(
-                    &location,
-                    "previous multipart part failed or was cancelled",
-                ));
-            }
             guard.ensure_active(&location)?;
-
             let mut writer = writer.lock().await;
-            guard.ensure_active(&location)?;
 
-            let result = writer
-                .write(Buffer::from_iter(data))
-                .await
-                .map_err(|err| format_object_store_error(err, location.as_ref()));
-
-            if result.is_ok() {
-                guard.succeed();
+            // Write every queued part in call order, including this one.
+            // Whichever part future runs first also writes the parts queued
+            // before it, so the futures can be awaited in any order.
+            loop {
+                guard.ensure_active(&location)?;
+                let Some(data) = state.lock().unwrap().queued.pop_front() else {
+                    break;
+                };
+                writer
+                    .write(Buffer::from_iter(data))
+                    .await
+                    .map_err(|err| format_object_store_error(err, location.as_ref()))?;
             }
-            result
+
+            guard.succeed();
+            Ok(())
         }
         .into_send()
         .boxed()
@@ -2244,15 +2229,18 @@ mod tests {
         let mut upload = object_store.put_multipart(&path).await.unwrap();
 
         let part1 = upload.put_part(Bytes::from_static(b"A").into());
-        let mut part2 = Box::pin(upload.put_part(Bytes::from_static(b"B").into()));
-        assert!(matches!(
-            poll_once(part2.as_mut()),
-            std::task::Poll::Pending
-        ));
+        let part2 = upload.put_part(Bytes::from_static(b"B").into());
+        let part3 = upload.put_part(Bytes::from_static(b"C").into());
 
-        let (part1, part2) = futures::future::join(part1, part2).await;
-        part1.unwrap();
-        part2.unwrap();
+        // Await the parts one at a time in a different order than they were
+        // created, as object_store's `multipart_out_of_order` test does.
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            part2.await.unwrap();
+            part3.await.unwrap();
+            part1.await.unwrap();
+        })
+        .await
+        .expect("awaiting parts out of order must not hang");
         upload.complete().await.unwrap();
 
         assert_eq!(
@@ -2263,7 +2251,7 @@ mod tests {
                 .bytes()
                 .await
                 .unwrap(),
-            Bytes::from_static(b"AB")
+            Bytes::from_static(b"ABC")
         );
     }
 

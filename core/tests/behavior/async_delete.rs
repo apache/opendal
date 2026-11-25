@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::time::Duration;
+
 use anyhow::Result;
 use futures::TryStreamExt;
 use opendal::layers::CapabilityOverrideLayer;
-use opendal::raw::OpDelete;
 
 use crate::*;
 
@@ -35,9 +36,11 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_delete_stream,
             test_remove_one_file,
             test_delete_with_version,
+            test_delete_with_version_keeps_newer_object,
             test_delete_with_not_existing_version,
             test_batch_delete,
-            test_batch_delete_with_version
+            test_batch_delete_with_version,
+            test_batch_delete_with_version_keeps_newer_objects
         ));
         if cap.delete_with_recursive {
             tests.extend(async_trials!(op, test_delete_with_recursive_basic));
@@ -197,47 +200,51 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
     Ok(())
 }
 
-async fn test_blocking_remove_all_with_objects(
-    op: Operator,
-    parent: String,
-    paths: impl IntoIterator<Item = &'static str>,
-) -> Result<()> {
-    for path in paths {
-        let path = format!("{parent}/{path}");
-        let (content, _) = gen_bytes(op.info().capability());
-        op.write(&path, content).await.expect("write must succeed");
-    }
-
-    op.delete_with(&parent).recursive(true).await?;
-
-    let found = op
-        .lister_with(&format!("{parent}/"))
-        .recursive(true)
-        .await
-        .expect("list must succeed")
-        .try_next()
-        .await
-        .expect("list must succeed")
-        .is_some();
-
-    assert!(!found, "all objects should be removed");
-
-    Ok(())
-}
-
-/// Remove all under a prefix
+/// Remove a directory and its descendants without deleting sibling prefixes.
+#[allow(deprecated)]
 pub async fn test_remove_all_basic(op: Operator) -> Result<()> {
     #[cfg(feature = "services-hf")]
     {
         if op.info().scheme() == services::HF_SCHEME {
-            // Hugging Face only guarantees recursive listing for repository trees,
-            // while this case expects prefix-recursive semantics for a non-directory path.
+            // Hugging Face does not provide a stable recursive delete contract
+            // for repository trees under concurrent commits.
             return Ok(());
         }
     }
 
-    let parent = uuid::Uuid::new_v4().to_string();
-    test_blocking_remove_all_with_objects(op, parent, ["a/b", "a/c", "a/d/e"]).await
+    let base = uuid::Uuid::new_v4();
+    let directory = format!("{base}/a/");
+    let descendants = [format!("{directory}b.txt"), format!("{directory}c/d.txt")];
+    let sibling_file = format!("{base}/ab/e.txt");
+
+    for path in descendants.iter().chain(std::iter::once(&sibling_file)) {
+        TEST_FIXTURE.add_path(path.clone());
+        op.write(path, "recursive delete").await?;
+    }
+
+    assert!(op.exists(&directory).await?, "{directory} should exist");
+    op.remove_all(&directory).await?;
+
+    // COS ListObjects is eventually consistent after deletes, so the removed
+    // directory can stay visible to existence checks that list its prefix.
+    // See apache/opendal#7502.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while op.exists(&directory).await? {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "{directory} should be removed"
+        );
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    for path in descendants {
+        assert!(!op.exists(&path).await?, "{path} should be removed");
+    }
+    assert!(
+        op.exists(&sibling_file).await?,
+        "{sibling_file} should remain"
+    );
+
+    Ok(())
 }
 
 /// Remove all under a prefix, while the prefix itself is also an object.
@@ -262,11 +269,30 @@ pub async fn test_remove_all_with_prefix_exists(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    test_blocking_remove_all_with_objects(op, parent, ["a", "a/b", "a/c", "a/b/e"]).await
+    for child in ["a", "a/b", "a/c", "a/b/e"] {
+        let path = format!("{parent}/{child}");
+        let (content, _) = gen_bytes(op.info().capability());
+        op.write(&path, content).await.expect("write must succeed");
+    }
+
+    op.delete_with(&parent).recursive(true).await?;
+
+    let mut lister = op
+        .lister_with(&format!("{parent}/"))
+        .recursive(true)
+        .await?;
+    assert!(
+        lister.try_next().await?.is_none(),
+        "all objects should be removed"
+    );
+
+    Ok(())
 }
 
 pub async fn test_delete_with_version(op: Operator) -> Result<()> {
-    if !op.info().capability().delete_with_version {
+    let cap = op.info().capability();
+    // This test verifies deleted versions through versioned stat.
+    if !cap.delete_with_version || !cap.stat_with_version {
         return Ok(());
     }
 
@@ -301,6 +327,54 @@ pub async fn test_delete_with_version(op: Operator) -> Result<()> {
     Ok(())
 }
 
+pub async fn test_delete_with_version_keeps_newer_object(op: Operator) -> Result<()> {
+    if !op.info().capability().delete_with_version {
+        return Ok(());
+    }
+
+    let (path, old_content, _) = TEST_FIXTURE.new_file(op.clone());
+    op.write(path.as_str(), old_content)
+        .await
+        .expect("write must success");
+    let old_version = op
+        .stat(path.as_str())
+        .await
+        .expect("stat must success")
+        .version()
+        .expect("must have version")
+        .to_string();
+
+    let (new_content, _) = gen_bytes(op.info().capability());
+    op.write(path.as_str(), new_content.clone())
+        .await
+        .expect("write must success");
+    let new_version = op
+        .stat(path.as_str())
+        .await
+        .expect("stat must success")
+        .version()
+        .expect("must have version")
+        .to_string();
+    assert_ne!(old_version, new_version);
+
+    // Deleting an older version must not touch the current object.
+    op.delete_with(path.as_str())
+        .version(old_version.as_str())
+        .await
+        .expect("delete must success");
+    let bs = op.read(path.as_str()).await.expect("read must success");
+    assert_eq!(bs.to_bytes(), new_content);
+
+    // Deleting the current version removes the object.
+    op.delete_with(path.as_str())
+        .version(new_version.as_str())
+        .await
+        .expect("delete must success");
+    assert!(!op.exists(path.as_str()).await?);
+
+    Ok(())
+}
+
 pub async fn test_delete_with_not_existing_version(op: Operator) -> Result<()> {
     if !op.info().capability().delete_with_version {
         return Ok(());
@@ -328,6 +402,61 @@ pub async fn test_delete_with_not_existing_version(op: Operator) -> Result<()> {
         .version(version.as_str())
         .await;
     assert!(ret.is_ok());
+
+    Ok(())
+}
+
+pub async fn test_batch_delete_with_version_keeps_newer_objects(op: Operator) -> Result<()> {
+    let mut cap = op.info().capability();
+    if !cap.delete_with_version {
+        return Ok(());
+    }
+    if cap.delete_max_size.unwrap_or(1) <= 1 {
+        return Ok(());
+    }
+
+    cap.delete_max_size = Some(2);
+    let op = op.layer(CapabilityOverrideLayer::new(move |_| cap));
+
+    let mut files = Vec::new();
+    let mut deletes = Vec::new();
+    for _ in 0..2 {
+        let (path, old_content, _) = TEST_FIXTURE.new_file(op.clone());
+        op.write(path.as_str(), old_content)
+            .await
+            .expect("write must succeed");
+        let old_version = op
+            .stat(path.as_str())
+            .await
+            .expect("stat must succeed")
+            .version()
+            .expect("must have version")
+            .to_string();
+
+        let (new_content, _) = gen_bytes(op.info().capability());
+        op.write(path.as_str(), new_content.clone())
+            .await
+            .expect("write must succeed");
+
+        deletes.push((
+            path.clone(),
+            options::DeleteOptions {
+                version: Some(old_version),
+                ..Default::default()
+            },
+        ));
+        files.push((path, new_content));
+    }
+
+    // Deleting older versions in a batch must not touch the current objects.
+    op.delete_iter(deletes)
+        .await
+        .expect("batch delete must succeed");
+
+    for (path, new_content) in files {
+        let bs = op.read(path.as_str()).await.expect("read must succeed");
+        assert_eq!(bs.to_bytes(), new_content);
+    }
 
     Ok(())
 }
@@ -424,7 +553,10 @@ pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
             .expect("write must succeed");
         let meta = op.stat(path.as_str()).await.expect("stat must succeed");
         let version = meta.version().expect("must have version");
-        let op_args = OpDelete::new().with_version(version);
+        let op_args = options::DeleteOptions {
+            version: Some(version.to_owned()),
+            ..Default::default()
+        };
         files.push((path, op_args));
     }
 
@@ -433,9 +565,13 @@ pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
         .expect("batch delete must succeed");
 
     for (path, args) in files {
+        assert!(!op.exists(path.as_str()).await?);
+        if !cap.stat_with_version {
+            continue;
+        }
         let stat = op
             .stat_with(path.as_str())
-            .version(args.version().unwrap())
+            .version(args.version.as_deref().unwrap())
             .await;
         assert!(stat.is_err());
         assert_eq!(stat.unwrap_err().kind(), ErrorKind::NotFound);
@@ -540,11 +676,17 @@ pub async fn test_batch_delete_with_if_match(op: Operator) -> Result<()> {
         .delete_iter([
             (
                 matching_path.clone(),
-                OpDelete::new().with_if_match(&matching_etag),
+                options::DeleteOptions {
+                    if_match: Some(matching_etag.clone()),
+                    ..Default::default()
+                },
             ),
             (
                 stale_path.clone(),
-                OpDelete::new().with_if_match(&stale_etag),
+                options::DeleteOptions {
+                    if_match: Some(stale_etag.clone()),
+                    ..Default::default()
+                },
             ),
         ])
         .await
@@ -617,11 +759,17 @@ pub async fn test_batch_delete_with_if_none_match(op: Operator) -> Result<()> {
     op.delete_iter([
         (
             path.clone(),
-            OpDelete::new().with_if_none_match("\"different-etag\""),
+            options::DeleteOptions {
+                if_none_match: Some("\"different-etag\"".to_owned()),
+                ..Default::default()
+            },
         ),
         (
             missing_path,
-            OpDelete::new().with_if_none_match("\"different-etag\""),
+            options::DeleteOptions {
+                if_none_match: Some("\"different-etag\"".to_owned()),
+                ..Default::default()
+            },
         ),
     ])
     .await?;
@@ -740,7 +888,7 @@ pub async fn test_delete_if_not_changed(op: Operator) -> Result<()> {
     Ok(())
 }
 
-/// `Deleter` should lower and preserve `if_not_changed` for queued deletes.
+/// `Deleter` should lower `if_not_changed` before passing a delete to the raw queue.
 pub async fn test_deleter_if_not_changed(op: Operator) -> Result<()> {
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
     op.write(&path, content).await?;
@@ -748,7 +896,13 @@ pub async fn test_deleter_if_not_changed(op: Operator) -> Result<()> {
 
     let mut deleter = op.deleter().await?;
     deleter
-        .delete(DeleteInput::new(path.clone()).with_if_not_changed(&expected))
+        .delete((
+            path.clone(),
+            options::DeleteOptions {
+                if_not_changed: Some(expected),
+                ..Default::default()
+            },
+        ))
         .await?;
     deleter.close().await?;
     assert!(!op.exists(&path).await?);

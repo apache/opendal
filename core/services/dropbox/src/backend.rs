@@ -200,6 +200,7 @@ impl Service for DropboxBackend {
     type Lister = oio::PageLister<DropboxLister>;
     type Deleter = oio::OneShotDeleter<DropboxDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -250,25 +251,27 @@ impl Service for DropboxBackend {
                     _ => EntryMode::Unknown,
                 };
 
-                let mut metadata = Metadata::new(entry_mode);
+                let mut metadata = match entry_mode {
+                    EntryMode::FILE => {
+                        MetadataBuilder::file(decoded_response.size.ok_or_else(|| {
+                            Error::new(
+                                ErrorKind::Unexpected,
+                                format!("no size found for file {path}"),
+                            )
+                        })?)
+                    }
+                    EntryMode::DIR => MetadataBuilder::dir(),
+                    EntryMode::Unknown => MetadataBuilder::unknown(),
+                };
                 // Only set last_modified and size if entry_mode is FILE, because Dropbox API
                 // returns last_modified and size only for files.
                 // FYI: https://www.dropbox.com/developers/documentation/http/documentation#files-get_metadata
                 if entry_mode == EntryMode::FILE {
                     let date_utc_last_modified =
                         decoded_response.client_modified.parse::<Timestamp>()?;
-                    metadata.set_last_modified(date_utc_last_modified);
-
-                    if let Some(size) = decoded_response.size {
-                        metadata.set_content_length(size);
-                    } else {
-                        return Err(Error::new(
-                            ErrorKind::Unexpected,
-                            format!("no size found for file {path}"),
-                        ));
-                    }
+                    metadata.last_modified(date_utc_last_modified);
                 }
-                Ok(RpStat::new(metadata))
+                Ok(RpStat::new(metadata.build()))
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("GetMetadata")),
@@ -333,7 +336,6 @@ impl Service for DropboxBackend {
         from: &str,
         to: &str,
         _: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         let core = self.core.clone();
         let ctx = ctx.clone();
@@ -345,14 +347,16 @@ impl Service for DropboxBackend {
             let status = resp.status();
 
             match status {
-                StatusCode::OK => Ok(Metadata::default()),
-                _ => {
-                    let err = parse_error(ErrorContext::new(ServiceOperation("CopyFile")), resp);
-                    match err.kind() {
-                        ErrorKind::NotFound => Ok(Metadata::default()),
-                        _ => Err(err),
-                    }
+                StatusCode::OK => {
+                    let decoded_response: DropboxMetadataResponse =
+                        serde_json::from_reader(resp.into_body().reader())
+                            .map_err(new_json_deserialize_error)?;
+                    DropboxWriter::parse_metadata(decoded_response)
                 }
+                _ => Err(parse_error(
+                    ErrorContext::new(ServiceOperation("CopyFile")),
+                    resp,
+                )),
             }
         }))
     }

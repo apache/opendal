@@ -35,10 +35,11 @@ protected:
         opendal_operator_options* options = opendal_operator_options_new();
         opendal_operator_options_set(options, "root", "/myroot");
 
-        opendal_result_operator_new result = opendal_operator_new("memory", options);
-        EXPECT_TRUE(result.error == nullptr);
+        opendal_operator* op = nullptr;
+        opendal_error* error = opendal_operator_new("memory", options, &op);
+        EXPECT_EQ(error, nullptr);
 
-        this->p = result.op;
+        this->p = op;
         EXPECT_TRUE(this->p);
 
         opendal_operator_options_free(options);
@@ -69,39 +70,40 @@ TEST_F(OpendalListTest, ListDirTest)
         nullptr);
 
     // list must succeed since the write succeeded
-    opendal_result_list l = opendal_operator_list(this->p, (dname + "/").c_str());
-    EXPECT_EQ(l.error, nullptr);
-
-    opendal_lister* lister = l.lister;
+    opendal_lister* lister = nullptr;
+    opendal_error* err = opendal_operator_list(this->p, (dname + "/").c_str(), &lister);
+    EXPECT_EQ(err, nullptr);
+    ASSERT_NE(lister, nullptr);
 
     // start checking the lister's result
     bool found = false;
 
-    opendal_result_lister_next result = opendal_lister_next(lister);
-    EXPECT_EQ(result.error, nullptr);
-    opendal_entry* entry = result.entry;
+    opendal_entry* entry = nullptr;
+    err = opendal_lister_next(lister, &entry);
+    EXPECT_EQ(err, nullptr);
     while (entry) {
         char* de_path = opendal_entry_path(entry);
 
         // stat must succeed
-        opendal_result_stat s = opendal_operator_stat(this->p, de_path);
-        EXPECT_EQ(s.error, nullptr);
+        opendal_metadata* meta = nullptr;
+        err = opendal_operator_stat(this->p, de_path, &meta);
+        EXPECT_EQ(err, nullptr);
+        ASSERT_NE(meta, nullptr);
 
         if (!strcmp(de_path, path.c_str())) {
             found = true;
 
             // the path we found has to be a file, and the length must be coherent
-            EXPECT_TRUE(opendal_metadata_is_file(s.meta));
-            EXPECT_EQ(opendal_metadata_content_length(s.meta), nbytes);
+            EXPECT_TRUE(opendal_metadata_is_file(meta));
+            EXPECT_EQ(opendal_metadata_content_length(meta), nbytes);
         }
 
         opendal_string_free(de_path);
-        opendal_metadata_free(s.meta);
+        opendal_metadata_free(meta);
         opendal_entry_free(entry);
 
-        result = opendal_lister_next(lister);
-        EXPECT_EQ(result.error, nullptr);
-        entry = result.entry;
+        err = opendal_lister_next(lister, &entry);
+        EXPECT_EQ(err, nullptr);
     }
 
     // we must have found the file we wrote

@@ -16,14 +16,13 @@
 // under the License.
 
 use std::ops::Range;
-use std::sync::Arc;
 use std::sync::OnceLock;
 
 use crate::raw::oio::Read as _;
 use crate::raw::*;
 use crate::*;
 
-/// ReadContext holds the immutable context for give read operation.
+/// ReadContext holds the immutable context for a given read operation.
 pub struct ReadContext {
     /// The composed context used to execute operations.
     ctx: OperationContext,
@@ -35,7 +34,7 @@ pub struct ReadContext {
     args: OpRead,
     /// Options for the reader.
     options: OpReader,
-    /// Raw reader returned by [`Access::read`].
+    /// Raw reader returned by [`Service::read`].
     reader: oio::Reader,
     /// Complete object metadata observed from successful read opens.
     metadata: OnceLock<Metadata>,
@@ -113,32 +112,11 @@ impl ReadContext {
         }
     }
 
-    async fn content_length(&self) -> Result<u64> {
-        if let Some(v) = self.args().content_length_hint() {
-            return Ok(v);
-        }
-
-        if let Some(v) = self.metadata().map(|v| v.content_length()) {
-            return Ok(v);
-        }
-
-        let mut op_stat = OpStat::new();
-
-        if let Some(v) = self.args().version() {
-            op_stat = op_stat.with_version(v);
-        }
-        if let Some(v) = self.args().if_match() {
-            op_stat = op_stat.with_if_match(v);
-        }
-        if let Some(v) = self.args().if_none_match() {
-            op_stat = op_stat.with_if_none_match(v);
-        }
-        if let Some(v) = self.args().if_modified_since() {
-            op_stat = op_stat.with_if_modified_since(v);
-        }
-        if let Some(v) = self.args().if_unmodified_since() {
-            op_stat = op_stat.with_if_unmodified_since(v);
-        }
+    pub(crate) async fn stat_content_length(&self) -> Result<u64> {
+        let op_stat = OpStat::from_read(self.args());
+        op_stat
+            .check(&self.srv.capability())
+            .map_err(|err| err.with_context("service", self.srv.info().scheme()))?;
 
         Ok(self
             .srv
@@ -146,6 +124,78 @@ impl ReadContext {
             .await?
             .into_metadata()
             .content_length())
+    }
+
+    pub(crate) async fn content_length(&self) -> Result<u64> {
+        if let Some(v) = self
+            .args()
+            .content_length_hint()
+            .or_else(|| self.metadata().map(|v| v.content_length()))
+        {
+            return Ok(v);
+        }
+
+        self.stat_content_length().await
+    }
+
+    /// Open the first range of a suffix read resolved ahead of time, revalidating
+    /// the object size against `RpRead` metadata or re-stating once on
+    /// `RangeNotSatisfied`.
+    pub(crate) async fn open_revalidated_suffix(
+        &self,
+        reval: &mut SuffixRevalidation,
+        plan_first: impl Fn(Range<u64>) -> Option<BytesRange>,
+    ) -> Result<Option<RevalidatedSuffixOpen>> {
+        let mut retried = false;
+        loop {
+            let full_range = reval.resolved_range();
+            let Some(first_range) = plan_first(full_range.clone()) else {
+                return Ok(None);
+            };
+            match self.reader.open(first_range).await {
+                Ok((rp, reader)) => {
+                    if let Some(actual_len) = rp
+                        .metadata()
+                        .filter(|m| m.is_file())
+                        .map(Metadata::content_length)
+                        && actual_len != reval.expected_len
+                    {
+                        drop(reader);
+                        let expected_len = reval.expected_len;
+                        reval.expected_len = actual_len;
+                        if !retried {
+                            retried = true;
+                            continue;
+                        }
+                        return Err(Error::new(
+                            ErrorKind::Conflict,
+                            "object size changed while resolving suffix read",
+                        )
+                        .set_temporary()
+                        .with_operation(Operation::Read)
+                        .with_context("service", self.srv.info().scheme())
+                        .with_context("path", &self.path)
+                        .with_context("expected_size", expected_len.to_string())
+                        .with_context("actual_size", actual_len.to_string()));
+                    }
+                    return Ok(Some(RevalidatedSuffixOpen {
+                        full_range,
+                        first_range,
+                        rp,
+                        reader,
+                    }));
+                }
+                Err(err) if err.kind() == ErrorKind::RangeNotSatisfied && !retried => {
+                    let new_len = self.stat_content_length().await?;
+                    if new_len == reval.expected_len {
+                        return Err(err);
+                    }
+                    retried = true;
+                    reval.expected_len = new_len;
+                }
+                Err(err) => return Err(err),
+            }
+        }
     }
 
     /// Parse the range into an absolute bounded range.
@@ -186,84 +236,33 @@ impl ReadContext {
     }
 }
 
-/// ReadGenerator is used to generate new readers.
-///
-/// If chunk is None, ReaderGenerator will only return one reader.
-/// Otherwise, ReaderGenerator will return multiple readers, each with size
-/// of chunk.
-///
-/// It's design that we didn't implement the generator as a stream, because
-/// we don't expose the generator to the user. Instead, we use the async method
-/// directly to keep it simple and easy to understand.
-pub struct ReadGenerator {
-    ctx: Arc<ReadContext>,
-
-    range: BytesRange,
-    done: bool,
+/// State required to revalidate a suffix range that was resolved via `stat`
+/// before opening the first read request.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SuffixRevalidation {
+    suffix_size: u64,
+    expected_len: u64,
 }
 
-impl ReadGenerator {
-    /// Create a new ReadGenerator.
-    #[inline]
-    pub fn new(ctx: Arc<ReadContext>, range: BytesRange) -> Self {
+impl SuffixRevalidation {
+    pub(crate) fn new(suffix_size: u64, expected_len: u64) -> Self {
         Self {
-            ctx,
-            range,
-            done: false,
+            suffix_size,
+            expected_len,
         }
     }
 
-    /// Generate next range to read.
-    fn next_range(&mut self) -> Option<BytesRange> {
-        if self.done || self.range.size() == Some(0) {
-            return None;
-        }
-
-        match self.range {
-            BytesRange::Suffix { .. } => {
-                self.done = true;
-                Some(self.range)
-            }
-            BytesRange::Range { offset, size } => {
-                let next_size = match size {
-                    // Given size is None, read all data.
-                    None => {
-                        self.done = true;
-                        None
-                    }
-                    Some(remaining) => {
-                        // If chunk is set, read data in chunks.
-                        let read_size = self
-                            .ctx
-                            .options
-                            .chunk()
-                            .map_or(remaining, |chunk| remaining.min(chunk as u64));
-                        self.range =
-                            BytesRange::new(offset + read_size, Some(remaining - read_size));
-                        Some(read_size)
-                    }
-                };
-
-                Some(BytesRange::new(offset, next_size))
-            }
-        }
+    pub(crate) fn resolved_range(&self) -> Range<u64> {
+        let start = self.expected_len.saturating_sub(self.suffix_size);
+        start..self.expected_len
     }
+}
 
-    /// Generate next reader.
-    pub async fn next_reader(&mut self) -> Result<Option<Box<dyn oio::ReadStreamDyn>>> {
-        let Some(range) = self.next_range() else {
-            return Ok(None);
-        };
-
-        let (rp, r) = self.ctx.reader().open(range).await?;
-        self.ctx.observe_read_response(rp);
-        Ok(Some(r))
-    }
-
-    /// Get metadata observed by generated readers.
-    pub(crate) fn metadata(&self) -> Option<&Metadata> {
-        self.ctx.metadata()
-    }
+pub(crate) struct RevalidatedSuffixOpen {
+    pub(crate) full_range: Range<u64>,
+    pub(crate) first_range: BytesRange,
+    pub(crate) rp: RpRead,
+    pub(crate) reader: Box<dyn oio::ReadStreamDyn>,
 }
 
 #[cfg(test)]
@@ -297,60 +296,6 @@ mod tests {
             options,
             reader,
         ))
-    }
-
-    #[tokio::test]
-    async fn test_next_reader() -> Result<()> {
-        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
-        op.write(
-            "test",
-            Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
-        )
-        .await?;
-
-        let ctx = op.context().clone();
-        let srv = op.service().clone();
-        let ctx = Arc::new(new_read_context(
-            ctx,
-            srv,
-            "test",
-            OpReader::new().with_chunk(3),
-        )?);
-        let mut generator = ReadGenerator::new(ctx, BytesRange::new(0, Some(10)));
-        let mut readers = vec![];
-        while let Some(r) = generator.next_reader().await? {
-            readers.push(r);
-        }
-
-        pretty_assertions::assert_eq!(readers.len(), 4);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_next_reader_without_size() -> Result<()> {
-        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
-        op.write(
-            "test",
-            Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
-        )
-        .await?;
-
-        let ctx = op.context().clone();
-        let srv = op.service().clone();
-        let ctx = Arc::new(new_read_context(
-            ctx,
-            srv,
-            "test",
-            OpReader::new().with_chunk(3),
-        )?);
-        let mut generator = ReadGenerator::new(ctx, BytesRange::new(0, None));
-        let mut readers = vec![];
-        while let Some(r) = generator.next_reader().await? {
-            readers.push(r);
-        }
-
-        pretty_assertions::assert_eq!(readers.len(), 1);
-        Ok(())
     }
 
     #[tokio::test]

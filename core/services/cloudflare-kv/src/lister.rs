@@ -40,7 +40,7 @@ pub struct CloudflareKvLister {
 /// removed. `str::replace` removes *every* occurrence anywhere in the key, which silently mangles
 /// any key that repeats the root as an inner path segment.
 ///
-/// The sibling object-store listers reach for `build_rel_path` here, but that helper
+/// The sibling object-store listers reach for `build_relative_path` here, but that helper
 /// `debug_assert!`s that the path really does start with the root -- a guarantee this service does
 /// not enforce on the values the API hands back -- so this stays total and leaves a
 /// non-root-prefixed key untouched.
@@ -84,14 +84,15 @@ impl CloudflareKvLister {
         }
 
         let entry_metadata = if name.ends_with('/') {
-            Metadata::new(EntryMode::DIR)
-                .with_etag(build_tmp_path_of(&name))
-                .with_content_length(0)
+            let mut metadata = MetadataBuilder::dir();
+            metadata.etag(build_tmp_path_of(&name));
+            metadata.build()
         } else {
-            Metadata::new(EntryMode::FILE)
-                .with_etag(metadata.etag)
-                .with_content_length(metadata.content_length as u64)
-                .with_last_modified(metadata.last_modified.parse::<Timestamp>()?)
+            let mut result = MetadataBuilder::file(metadata.content_length as u64);
+            result
+                .etag(&metadata.etag)
+                .last_modified(metadata.last_modified.parse::<Timestamp>()?);
+            result.build()
         };
 
         Ok(oio::Entry::new(&name, entry_metadata))
@@ -106,16 +107,21 @@ impl CloudflareKvLister {
         if let Some(item) = result.iter().find(|item| item.name == self.path) {
             let entry = self.build_entry_for_item(item, root)?;
             ctx.entries.push_back(entry);
-        } else if !result.is_empty() {
+            ctx.done = true;
+            return Ok(());
+        }
+
+        let dir_prefix = format!("{}/", self.path);
+        if result.iter().any(|item| item.name.starts_with(&dir_prefix)) {
             let path_name = relative_to_root(root, &self.path);
-            let entry = oio::Entry::new(
-                &format!("{path_name}/"),
-                Metadata::new(EntryMode::DIR)
-                    .with_etag(build_tmp_path_of(&path_name))
-                    .with_content_length(0),
-            );
+            let entry = oio::Entry::new(&format!("{path_name}/"), {
+                let mut metadata = MetadataBuilder::dir();
+                metadata.etag(build_tmp_path_of(&path_name));
+                metadata.build()
+            });
             ctx.entries.push_back(entry);
         }
+
         ctx.done = true;
         Ok(())
     }
@@ -143,7 +149,7 @@ impl oio::PageList for CloudflareKvLister {
         if !res.success {
             return Err(Error::new(
                 ErrorKind::Unexpected,
-                "oss list this key failed for reason we don't know",
+                "Cloudflare KV list request failed",
             ));
         }
 
@@ -160,7 +166,7 @@ impl oio::PageList for CloudflareKvLister {
         if let Some(result) = res.result {
             let root = self.core.info.root().to_string();
 
-            if !self.path.ends_with('/') && !self.recursive {
+            if !self.path.is_empty() && !self.path.ends_with('/') && !self.recursive {
                 self.handle_non_recursive_file_list(ctx, &result, &root)?;
                 return Ok(());
             }
@@ -169,6 +175,13 @@ impl oio::PageList for CloudflareKvLister {
                 let mut name = item.name.clone();
                 if item.metadata.is_dir && !name.ends_with('/') {
                     name += "/";
+                }
+
+                // When listing a directory path (trailing `/`), `list()` stripped the trailing
+                // `/` to match directory marker keys without `/`. Filter out sibling prefixes
+                // such as `dir2/x` or `dir_other`.
+                if self.path.ends_with('/') && !name.starts_with(&self.path) {
+                    continue;
                 }
 
                 // For non-recursive listing, filter out entries not in the current directory.
@@ -193,7 +206,72 @@ impl oio::PageList for CloudflareKvLister {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
+    use std::sync::Mutex;
+    use std::time::Duration;
+
+    use futures::stream;
+    use http::{Response, StatusCode};
+    use opendal_core::raw::oio::{List, PageLister};
+
     use super::*;
+    use crate::CLOUDFLARE_KV_SCHEME;
+
+    struct ListTransport {
+        uris: Arc<Mutex<Vec<String>>>,
+        responses: Mutex<VecDeque<String>>,
+    }
+
+    impl ListTransport {
+        fn new(responses: Vec<&str>) -> (Self, Arc<Mutex<Vec<String>>>) {
+            let uris = Arc::new(Mutex::new(Vec::new()));
+            (
+                Self {
+                    uris: uris.clone(),
+                    responses: Mutex::new(responses.into_iter().map(String::from).collect()),
+                },
+                uris,
+            )
+        }
+    }
+
+    impl HttpTransport for ListTransport {
+        async fn fetch(&self, req: http::Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.uris.lock().unwrap().push(req.uri().to_string());
+            let body_str = self
+                .responses
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("unexpected extra list request");
+            let body = Buffer::from(body_str);
+            let len = body.len() as u64;
+            Response::builder()
+                .status(StatusCode::OK)
+                .body(HttpBody::new(stream::iter([Ok(body)]), Some(len)))
+                .map_err(new_request_build_error)
+        }
+    }
+
+    fn test_core(root: &str) -> Arc<CloudflareKvCore> {
+        Arc::new(CloudflareKvCore {
+            api_token: "Bearer test-token".to_string(),
+            account_id: "acc123".to_string(),
+            namespace_id: "ns456".to_string(),
+            expiration_ttl: None,
+            info: ServiceInfo::new(CLOUDFLARE_KV_SCHEME, root, ""),
+            capability: Capability::default(),
+        })
+    }
+
+    async fn collect_entries(lister: CloudflareKvLister) -> Vec<(String, EntryMode)> {
+        let mut pager = PageLister::new(lister);
+        let mut out = Vec::new();
+        while let Some(entry) = pager.next().await.unwrap() {
+            out.push((entry.path().to_string(), entry.metadata().mode()));
+        }
+        out
+    }
 
     #[test]
     fn relative_to_root_strips_only_the_prefix() {
@@ -218,5 +296,94 @@ mod tests {
     fn relative_to_root_handles_the_root_itself_and_a_bare_root() {
         assert_eq!(relative_to_root("/data/", "data/"), "");
         assert_eq!(relative_to_root("/", "file.txt"), "file.txt");
+    }
+
+    #[tokio::test]
+    async fn recursive_list_excludes_sibling_prefix_keys() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let page = r#"{
+                "success": true,
+                "result_info": {"cursor": ""},
+                "result": [
+                    {"name": "prefix/dir", "metadata": {"etag": "e0", "last_modified": "2026-01-01T00:00:00Z", "content_length": 0, "is_dir": true}},
+                    {"name": "prefix/dir", "metadata": {"etag": "e1", "last_modified": "2026-01-01T00:00:00Z", "content_length": 1, "is_dir": false}},
+                    {"name": "prefix/dir/a", "metadata": {"etag": "e2", "last_modified": "2026-01-01T00:00:00Z", "content_length": 2, "is_dir": false}},
+                    {"name": "prefix/dir/sub/b", "metadata": {"etag": "e3", "last_modified": "2026-01-01T00:00:00Z", "content_length": 3, "is_dir": false}},
+                    {"name": "prefix/dir2/x", "metadata": {"etag": "e4", "last_modified": "2026-01-01T00:00:00Z", "content_length": 4, "is_dir": false}},
+                    {"name": "prefix/dir_other", "metadata": {"etag": "e5", "last_modified": "2026-01-01T00:00:00Z", "content_length": 5, "is_dir": false}}
+                ]
+            }"#;
+            let (transport, _uris) = ListTransport::new(vec![page]);
+            let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
+            let lister = CloudflareKvLister::new(
+                test_core("/prefix/"),
+                ctx,
+                "prefix/dir/",
+                true,
+                Some(100),
+            );
+
+            let entries = collect_entries(lister).await;
+            assert_eq!(
+                entries,
+                vec![
+                    ("dir/".to_string(), EntryMode::DIR),
+                    ("dir/a".to_string(), EntryMode::FILE),
+                    ("dir/sub/b".to_string(), EntryMode::FILE),
+                ]
+            );
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn non_recursive_file_list_excludes_sibling_prefix_keys() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let page = r#"{
+                "success": true,
+                "result_info": {"cursor": ""},
+                "result": [
+                    {"name": "ab", "metadata": {"etag": "e1", "last_modified": "2026-01-01T00:00:00Z", "content_length": 2, "is_dir": false}}
+                ]
+            }"#;
+            let (transport, _uris) = ListTransport::new(vec![page]);
+            let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
+            let lister = CloudflareKvLister::new(test_core("/"), ctx, "a", false, Some(100));
+
+            let entries = collect_entries(lister).await;
+            assert!(entries.is_empty(), "expected no entries, got {entries:?}");
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn non_recursive_root_list_returns_top_level_entries() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let page = r#"{
+                "success": true,
+                "result_info": {"cursor": ""},
+                "result": [
+                    {"name": "file.txt", "metadata": {"etag": "e1", "last_modified": "2026-01-01T00:00:00Z", "content_length": 4, "is_dir": false}},
+                    {"name": "dir", "metadata": {"etag": "e2", "last_modified": "2026-01-01T00:00:00Z", "content_length": 0, "is_dir": true}},
+                    {"name": "dir/nested.txt", "metadata": {"etag": "e3", "last_modified": "2026-01-01T00:00:00Z", "content_length": 5, "is_dir": false}}
+                ]
+            }"#;
+            let (transport, _uris) = ListTransport::new(vec![page]);
+            let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
+            let lister = CloudflareKvLister::new(test_core("/"), ctx, "", false, Some(100));
+
+            let entries = collect_entries(lister).await;
+            assert_eq!(
+                entries,
+                vec![
+                    ("file.txt".to_string(), EntryMode::FILE),
+                    ("dir/".to_string(), EntryMode::DIR),
+                ]
+            );
+        })
+        .await
+        .unwrap();
     }
 }

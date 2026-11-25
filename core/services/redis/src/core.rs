@@ -18,8 +18,8 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use asyncband::pool::{ManageObject, ObjectStatus, bounded};
 use bytes::Bytes;
-use fastpool::{ManageObject, ObjectStatus, bounded};
 use redis::AsyncCommands;
 use redis::Client;
 use redis::Cmd;
@@ -177,36 +177,69 @@ impl RedisCore {
 
     pub async fn len(&self, key: &str) -> Result<Option<usize>> {
         let mut conn = self.conn().await?;
-        let exists: bool = conn.exists(key).await.map_err(format_redis_error)?;
-        if !exists {
-            return Ok(None);
-        }
-
-        let len: usize = redis::cmd("STRLEN")
+        let (len, exists): (usize, bool) = redis::pipe()
+            .cmd("STRLEN")
+            .arg(key)
+            .cmd("EXISTS")
             .arg(key)
             .query_async(&mut *conn)
             .await
             .map_err(format_redis_error)?;
-        Ok(Some(len))
+        if len > 0 {
+            Ok(Some(len))
+        } else if exists {
+            Ok(Some(0))
+        } else {
+            Ok(None)
+        }
     }
 
-    pub async fn get_range(&self, key: &str, start: isize, end: isize) -> Result<Option<Buffer>> {
+    pub async fn get_range(
+        &self,
+        key: &str,
+        start: i64,
+        end: i64,
+    ) -> Result<Option<(usize, Buffer)>> {
         let mut conn = self.conn().await?;
-        let result: Option<Bytes> = conn
-            .getrange(key, start, end)
+        // Redis-compatible servers such as Kvrocks return RESP nil instead of
+        // an empty bulk string for out-of-range or missing GETRANGE responses.
+        let (bytes, len, exists): (Option<Bytes>, usize, bool) = redis::pipe()
+            .cmd("GETRANGE")
+            .arg(key)
+            .arg(start)
+            .arg(end)
+            .cmd("STRLEN")
+            .arg(key)
+            .cmd("EXISTS")
+            .arg(key)
+            .query_async(&mut *conn)
             .await
             .map_err(format_redis_error)?;
-        Ok(result.map(Buffer::from))
+        let bytes = bytes.unwrap_or_default();
+        if len > 0 {
+            Ok(Some((len, Buffer::from(bytes))))
+        } else if exists {
+            Ok(Some((0, Buffer::from(bytes))))
+        } else {
+            Ok(None)
+        }
     }
 
-    pub async fn set(&self, key: &str, value: Buffer) -> Result<()> {
+    pub async fn set(&self, key: &str, value: Buffer, expires: Option<Duration>) -> Result<()> {
+        let expiration_ms = resolve_expiration(expires, self.default_ttl)?;
         let mut conn = self.conn().await?;
         let value = value.to_vec();
-        if let Some(dur) = self.default_ttl {
-            let _: () = conn
-                .set_ex(key, value, dur.as_secs())
-                .await
-                .map_err(format_redis_error)?;
+        if let Some(milliseconds) = expiration_ms {
+            let options =
+                redis::SetOptions::default().with_expiration(redis::SetExpiry::PX(milliseconds));
+            let _: () = conn.set_options(key, value, options).await.map_err(|err| {
+                // Redis also checks whether adding the TTL to its clock overflows.
+                if err.detail() == Some("invalid expire time in 'set' command") {
+                    return Error::new(ErrorKind::ConfigInvalid, "expires is too large for Redis")
+                        .set_source(err);
+                }
+                format_redis_error(err)
+            })?;
         } else {
             let _: () = conn.set(key, value).await.map_err(format_redis_error)?;
         }
@@ -220,8 +253,87 @@ impl RedisCore {
     }
 }
 
+fn encode_expiration(expires: Duration) -> Result<u64> {
+    u64::try_from(expires.as_nanos().div_ceil(1_000_000))
+        .ok()
+        .filter(|ttl| (1..=i64::MAX as u64).contains(ttl))
+        .ok_or_else(|| {
+            Error::new(
+                ErrorKind::ConfigInvalid,
+                "expires must be positive and fit in Redis milliseconds",
+            )
+        })
+}
+
+fn resolve_expiration(
+    expires: Option<Duration>,
+    default_ttl: Option<Duration>,
+) -> Result<Option<u64>> {
+    expires.or(default_ttl).map(encode_expiration).transpose()
+}
+
 pub fn format_redis_error(e: RedisError) -> Error {
     Error::new(ErrorKind::Unexpected, e.category())
         .set_source(e)
         .set_temporary()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_redis_expiration() {
+        assert_eq!(resolve_expiration(None, None).unwrap(), None);
+        let err = resolve_expiration(None, Some(Duration::ZERO)).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        for ttl in [
+            Duration::from_nanos(1),
+            Duration::from_micros(500),
+            Duration::from_millis(1),
+        ] {
+            assert_eq!(resolve_expiration(None, Some(ttl)).unwrap(), Some(1));
+        }
+
+        assert_eq!(
+            resolve_expiration(None, Some(Duration::from_millis(500))).unwrap(),
+            Some(500)
+        );
+        assert_eq!(
+            resolve_expiration(None, Some(Duration::from_millis(1500))).unwrap(),
+            Some(1500)
+        );
+        assert_eq!(
+            resolve_expiration(None, Some(Duration::from_nanos(1_500_000_001))).unwrap(),
+            Some(1501)
+        );
+        assert_eq!(
+            resolve_expiration(
+                Some(Duration::from_secs(2)),
+                Some(Duration::from_millis(500))
+            )
+            .unwrap(),
+            Some(2000)
+        );
+
+        let err =
+            resolve_expiration(Some(Duration::ZERO), Some(Duration::from_secs(60))).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    }
+
+    #[test]
+    fn encode_redis_expiration_bounds() {
+        let max_ms = Duration::from_millis(i64::MAX as u64);
+        assert_eq!(encode_expiration(max_ms).unwrap(), i64::MAX as u64);
+
+        for ttl in [
+            Duration::ZERO,
+            max_ms + Duration::from_nanos(1),
+            Duration::MAX,
+        ] {
+            let err = encode_expiration(ttl).unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+    }
 }

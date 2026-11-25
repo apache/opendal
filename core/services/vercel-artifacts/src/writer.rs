@@ -58,7 +58,7 @@ impl oio::OneShotWrite for VercelArtifactsWriter {
         let status = response.status();
 
         match status {
-            StatusCode::OK | StatusCode::ACCEPTED => Ok(Metadata::default()),
+            StatusCode::OK | StatusCode::ACCEPTED => Ok(MetadataBuilder::unknown().build()),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("PutArtifact")),
                 response,

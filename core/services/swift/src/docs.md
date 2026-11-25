@@ -10,7 +10,10 @@ Depending on its configuration and the backing system, this service can expose:
 - [x] list
 - [x] copy
 - [ ] ~~rename~~
-- [ ] ~~presign~~
+- [x] presign (requires `temp_url_key`)
+
+For a presigned read with a byte range, send the `Range` header from the
+presigned request along with the TempURL.
 
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.

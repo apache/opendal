@@ -32,12 +32,19 @@
 //!
 //! For examples, you may see the examples subdirectory
 
+mod cancel;
+pub use cancel::opendal_cancel_token;
+
 mod error;
 pub use error::opendal_code;
 pub use error::opendal_error;
 
 mod lister;
 pub use lister::opendal_lister;
+
+mod logging;
+pub use logging::opendal_log_callback;
+pub use logging::opendal_logging_init;
 
 mod layer;
 pub use layer::opendal_operator_layers;
@@ -55,23 +62,6 @@ mod operator_info;
 mod presign;
 pub use presign::opendal_http_header_pair;
 pub use presign::opendal_presigned_request;
-pub use presign::opendal_result_presign;
-
-mod result;
-pub use result::opendal_result_copier_next;
-pub use result::opendal_result_exists;
-pub use result::opendal_result_is_exist;
-pub use result::opendal_result_list;
-pub use result::opendal_result_lister_next;
-pub use result::opendal_result_operator_copier;
-pub use result::opendal_result_operator_new;
-pub use result::opendal_result_operator_reader;
-pub use result::opendal_result_operator_writer;
-pub use result::opendal_result_read;
-pub use result::opendal_result_reader_read;
-pub use result::opendal_result_stat;
-pub use result::opendal_result_write;
-pub use result::opendal_result_writer_write;
 
 mod types;
 pub use types::opendal_bytes;
@@ -96,3 +86,6 @@ pub use writer::opendal_writer;
 
 mod copier;
 pub use copier::opendal_copier;
+
+mod deleter;
+pub use deleter::opendal_deleter;

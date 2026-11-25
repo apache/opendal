@@ -39,9 +39,28 @@ await op.write("hello.txt", "Hello from S3!");
 console.log((await op.read("hello.txt")).toString());
 ```
 
-The package bundles every service, so there is nothing extra to install. The next
-page, [Connecting to your storage](./03-connecting.md), covers configuration and
-credentials in depth; [Services](/services) lists every backend and its keys.
+[Connecting to your storage](./03-connecting.md) covers configuration and
+credentials. [Services](/services) lists the backends and their configuration keys.
+
+## Build with additional services
+
+The npm native packages enable `services-all` on Linux and macOS and
+`default` on Windows. Both groups are listed in the binding's
+[Cargo.toml](https://github.com/apache/opendal/blob/main/bindings/nodejs/Cargo.toml).
+
+To add FTP to the Linux or macOS release service set, run these commands
+from `bindings/nodejs` in a POSIX shell:
+
+```shell
+pnpm install --frozen-lockfile
+NAPI_FEATURES=services-all,services-ftp pnpm build
+```
+
+On Windows, set `$env:NAPI_FEATURES = "services-ftp"` in PowerShell before
+running `pnpm build` to add FTP to the default services.
+
+The [Node.js layers](./05-production.md#layers) are built in. Exposing a new
+Rust layer requires Node.js binding code.
 
 ## Async and sync {#blocking-vs-async}
 

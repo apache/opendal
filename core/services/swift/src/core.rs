@@ -130,7 +130,7 @@ impl SwiftCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}",
@@ -176,7 +176,7 @@ impl SwiftCore {
         let body_str: String = paths
             .iter()
             .map(|(path, _)| {
-                let abs = build_abs_path(&self.root, path);
+                let abs = build_absolute_path(&self.root, path);
                 format!("{}/{}", self.container, percent_encode_path(&abs))
             })
             .collect::<Vec<_>>()
@@ -201,7 +201,7 @@ impl SwiftCore {
         limit: Option<usize>,
         marker: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         // The delimiter is used to disable recursive listing.
         // Swift returns a 200 status code when there is no such pseudo directory in prefix.
@@ -238,7 +238,7 @@ impl SwiftCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let url = format!(
             "{}/{}/{}",
             self.endpoint,
@@ -287,7 +287,7 @@ impl SwiftCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -339,10 +339,10 @@ impl SwiftCore {
         let src_p = format!(
             "/{}/{}",
             self.container,
-            build_abs_path(&self.root, src_p).trim_end_matches('/')
+            build_absolute_path(&self.root, src_p).trim_end_matches('/')
         );
 
-        let dst_p = build_abs_path(&self.root, dst_p)
+        let dst_p = build_absolute_path(&self.root, dst_p)
             .trim_end_matches('/')
             .to_string();
 
@@ -380,7 +380,7 @@ impl SwiftCore {
         path: &str,
         args: &OpStat,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}",
@@ -419,7 +419,7 @@ impl SwiftCore {
     ///
     /// Segments are stored as: `.segments/{object_path}/{upload_id}/{part_number:08}`
     pub fn slo_segment_path(&self, path: &str, upload_id: &str, part_number: usize) -> String {
-        let abs = build_abs_path(&self.root, path);
+        let abs = build_absolute_path(&self.root, path);
         format!(
             ".segments/{}{}/{:08}",
             abs.trim_end_matches('/'),
@@ -474,7 +474,7 @@ impl SwiftCore {
         manifest: &[SloManifestEntry],
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let abs = build_abs_path(&self.root, path);
+        let abs = build_absolute_path(&self.root, path);
         let url = format!(
             "{}/{}/{}?multipart-manifest=put",
             self.endpoint,
@@ -487,7 +487,21 @@ impl SwiftCore {
         let mut req = Request::put(&url);
         req = req.header("X-Auth-Token", &self.token);
         req = req.header(header::CONTENT_LENGTH, body.len());
-        req = req.header(header::CONTENT_TYPE, "application/json");
+
+        // Headers on PUT ?multipart-manifest=put become the resulting SLO object's metadata;
+        // Swift parses the manifest body as JSON regardless of Content-Type.
+        if let Some(content_type) = args.content_type() {
+            req = req.header(header::CONTENT_TYPE, content_type);
+        }
+        if let Some(content_disposition) = args.content_disposition() {
+            req = req.header(header::CONTENT_DISPOSITION, content_disposition);
+        }
+        if let Some(content_encoding) = args.content_encoding() {
+            req = req.header(header::CONTENT_ENCODING, content_encoding);
+        }
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(header::CACHE_CONTROL, cache_control);
+        }
 
         // Forward user metadata to the manifest object.
         if let Some(user_metadata) = args.user_metadata() {
@@ -520,7 +534,7 @@ impl SwiftCore {
         // List segments under the upload_id prefix and delete them individually.
         // We can't use multipart-manifest=delete because we haven't created
         // the manifest yet (abort happens before complete).
-        let abs = build_abs_path(&self.root, path);
+        let abs = build_absolute_path(&self.root, path);
         let prefix = format!(".segments/{}{}/", abs.trim_end_matches('/'), upload_id);
 
         // List all segments with this prefix.
@@ -587,7 +601,7 @@ impl SwiftCore {
             ));
         }
 
-        let abs = build_abs_path(&self.root, path);
+        let abs = build_absolute_path(&self.root, path);
 
         // Extract the path portion from the endpoint URL for signing.
         // The endpoint is like "https://host:port/v1/AUTH_account".
@@ -614,7 +628,7 @@ impl SwiftCore {
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("system time before epoch")
             .as_secs()
-            + expire.as_secs();
+            .saturating_add(expire.as_secs());
 
         let sig_body = format!("{}\n{}\n{}", method.as_str(), expires, signing_path);
 
@@ -693,6 +707,17 @@ pub struct SloManifestEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::from("The Range requested is not available."))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("GetObject")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
 
     #[test]
     fn parse_list_response_test() -> Result<()> {
@@ -853,6 +878,26 @@ mod tests {
     }
 
     #[test]
+    fn temp_url_saturates_on_large_expire() {
+        let core = SwiftCore {
+            info: ServiceInfo::new(crate::SWIFT_SCHEME, "/", "container"),
+            capability: Capability::default(),
+            root: "/".to_string(),
+            endpoint: "https://swift.example.com/v1/AUTH_test".to_string(),
+            container: "container".to_string(),
+            token: String::new(),
+            temp_url_key: "secret-key".to_string(),
+            temp_url_hash_algorithm: TempUrlHashAlgorithm::Sha256,
+        };
+
+        let url = core
+            .swift_temp_url(&Method::GET, "dir/file.txt", Duration::MAX)
+            .unwrap();
+        assert!(url.contains(&format!("temp_url_expires={}", u64::MAX)));
+        assert!(url.parse::<http::Uri>().is_ok());
+    }
+
+    #[test]
     fn html_body_is_used_as_message() {
         let resp = Response::builder()
             .status(StatusCode::NOT_FOUND)
@@ -905,6 +950,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED => {
             (ErrorKind::ConditionNotMatch, false)
         }

@@ -19,12 +19,12 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use asyncband::rwlock::RwLock;
 use goosefs_sdk::client::MasterClient;
 use goosefs_sdk::config::GoosefsConfig as ClientConfig;
 use goosefs_sdk::context::FileSystemContext;
 use goosefs_sdk::io::{GoosefsFileReader, GoosefsFileWriter};
 use goosefs_sdk::proto::grpc::file::FileInfo;
-use tokio::sync::RwLock;
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -200,7 +200,7 @@ impl GoosefsCore {
 
     /// Build the full GooseFS path from a relative OpenDAL path.
     fn full_path(&self, path: &str) -> String {
-        build_rooted_abs_path(&self.root, path)
+        build_rooted_absolute_path(&self.root, path)
     }
 
     // ── Metadata Operations ──────────────────────────────────
@@ -546,27 +546,31 @@ impl GoosefsCore {
     // ── Metadata Conversion ──────────────────────────────────
 
     /// Convert goosefs FileInfo to OpenDAL Metadata.
-    pub fn file_info_to_metadata(&self, info: &FileInfo) -> Metadata {
+    pub fn file_info_to_metadata(&self, info: &FileInfo) -> Result<Metadata> {
         let mut metadata = if info.folder.unwrap_or(false) {
-            Metadata::new(EntryMode::DIR)
+            MetadataBuilder::dir()
         } else {
-            Metadata::new(EntryMode::FILE)
+            let length = info.length.ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "goosefs response does not contain file length",
+                )
+            })?;
+            MetadataBuilder::file(u64::try_from(length).map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "goosefs file length is negative").set_source(err)
+            })?)
         };
-
-        if let Some(length) = info.length {
-            metadata.set_content_length(length as u64);
-        }
         if let Some(mtime) = info.last_modification_time_ms
             && let Ok(ts) = Timestamp::from_millisecond(mtime)
         {
-            metadata.set_last_modified(ts);
+            metadata.last_modified(ts);
         }
         // GooseFS Master rename preserves the same inode id; use it as etag
         // for cache keys / checkout short-circuit (not commit conflict detection).
         if let Some(fid) = info.file_id {
-            metadata.set_etag(&fid.to_string());
+            metadata.etag(fid.to_string());
         }
-        metadata
+        Ok(metadata.build())
     }
 
     /// Convert goosefs FileInfo to OpenDAL Metadata (for list results),
@@ -578,8 +582,8 @@ impl GoosefsCore {
         } else {
             path
         };
-        let rel = build_rel_path(&self.root, &rel_path);
-        Ok((rel, self.file_info_to_metadata(info)))
+        let rel = build_relative_path(&self.root, &rel_path);
+        Ok((rel, self.file_info_to_metadata(info)?))
     }
 }
 
@@ -623,7 +627,7 @@ async fn rename_creating_parent_if_missing(
 ///
 /// Input paths here are always produced by [`GoosefsCore::full_path`],
 /// so they are already normalized, absolute (leading `/`) and do not
-/// contain trailing slashes (OpenDAL's `build_rooted_abs_path` strips
+/// contain trailing slashes (OpenDAL's `build_rooted_absolute_path` strips
 /// them for non-directory paths). We deliberately do not depend on
 /// `opendal_core::raw::get_parent` because that function's contract is
 /// defined for OpenDAL *relative* paths and treats trailing slashes

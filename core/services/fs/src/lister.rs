@@ -15,133 +15,1229 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fs::Metadata as StdMetadata;
 use std::path::Path;
-use std::path::PathBuf;
+use std::sync::Arc;
+use std::vec::IntoIter;
 
 use opendal_core::EntryMode;
-use opendal_core::Metadata;
+use opendal_core::ErrorKind;
+use opendal_core::MetadataBuilder;
 use opendal_core::Result;
 use opendal_core::raw::*;
+use tokio::fs::{DirEntry, ReadDir};
 
-pub struct FsLister<P> {
-    root: PathBuf,
+use super::core::FsCore;
 
-    current_path: Option<String>,
-
-    rd: P,
+pub enum FsLister {
+    Plain(PlainLister),
+    Glob(GlobLister),
 }
 
-impl<P> FsLister<P> {
-    pub fn new(root: &Path, path: &str, rd: P) -> Self {
-        Self {
-            root: root.to_owned(),
-            current_path: Some(path.to_string()),
-            rd,
+impl FsLister {
+    pub(super) fn new(core: Arc<FsCore>, path: &str, args: OpList) -> Result<Self> {
+        if let Some(glob) = args.glob() {
+            let pattern = GlobPattern::new(glob)?;
+            Ok(Self::Glob(GlobLister::new(core, path, args, pattern)))
+        } else {
+            Ok(Self::Plain(PlainLister::new(core, path, args)))
         }
     }
 }
 
-/// # Safety
-///
-/// We will only take `&mut Self` reference for FsLister.
-unsafe impl<P> Sync for FsLister<P> {}
+impl oio::List for FsLister {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        match self {
+            Self::Plain(lister) => lister.next().await,
+            Self::Glob(lister) => lister.next().await,
+        }
+    }
+}
 
-impl oio::List for FsLister<tokio::fs::ReadDir> {
+pub struct PlainLister {
+    core: Arc<FsCore>,
+    prefix: String,
+    recursive: bool,
+    start_after: Option<String>,
+    next_dir: Option<PendingDir>,
+    active: Vec<DirectoryEntries>,
+}
+
+/// A directory waiting to be listed.
+///
+/// The initial directory comes from the caller and has not been validated yet.
+/// `oio::Entry` rejects paths whose metadata exceeds the compact block limit,
+/// so materialize it only after `fs_list` succeeds.
+enum PendingDir {
+    Initial(String),
+    Discovered(oio::Entry),
+}
+
+impl PendingDir {
+    fn path(&self) -> &str {
+        match self {
+            PendingDir::Initial(path) => path,
+            PendingDir::Discovered(entry) => entry.path(),
+        }
+    }
+
+    fn into_entry(self) -> oio::Entry {
+        match self {
+            PendingDir::Initial(path) => oio::Entry::new(&path, MetadataBuilder::dir().build()),
+            PendingDir::Discovered(entry) => entry,
+        }
+    }
+}
+
+struct ListedEntry {
+    entry: oio::Entry,
+    /// Only descend into real directories during recursive listing so
+    /// directory symlinks do not trigger duplicate traversal or cycles.
+    descend: bool,
+}
+
+enum DirectoryEntries {
+    Streaming {
+        reader: Box<ReadDir>,
+        after_children: Option<oio::Entry>,
+    },
+    Sorted(IntoIter<ListedEntry>),
+}
+
+impl PlainLister {
+    fn new(core: Arc<FsCore>, path: &str, args: OpList) -> Self {
+        let directory = if path.ends_with('/') {
+            path
+        } else {
+            get_parent(path)
+        };
+        let prefix = if path == "/" { "" } else { path };
+        Self {
+            core,
+            prefix: prefix.to_string(),
+            recursive: args.recursive(),
+            start_after: args.start_after().map(str::to_owned),
+            next_dir: Some(PendingDir::Initial(directory.to_string())),
+            active: Vec::new(),
+        }
+    }
+
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
-            // since list should return path itself, we return it first
-            if let Some(path) = self.current_path.take() {
-                let e = oio::Entry::new(path.as_str(), Metadata::new(EntryMode::DIR));
-                return Ok(Some(e));
+            if let Some(dir) = &self.next_dir {
+                // A discovered child always has an active parent directory.
+                let discovered_child = matches!(dir, PendingDir::Discovered(_));
+                let mut reader = match self.core.fs_list(dir.path()).await {
+                    Ok(Some(reader)) => reader,
+                    Ok(None) => {
+                        if discovered_child {
+                            log::warn!(
+                                "FS recursive listing skipped missing directory: {}",
+                                dir.path()
+                            );
+                        }
+                        self.next_dir = None;
+                        continue;
+                    }
+                    Err(err)
+                        if discovered_child
+                            && matches!(
+                                err.kind(),
+                                ErrorKind::PermissionDenied | ErrorKind::NotFound
+                            ) =>
+                    {
+                        log::warn!(
+                            "FS recursive listing skipped directory {}: {err}",
+                            dir.path()
+                        );
+                        self.next_dir = None;
+                        continue;
+                    }
+                    Err(err) => return Err(err),
+                };
+                let include_dir = dir.path().starts_with(&self.prefix)
+                    && self
+                        .start_after
+                        .as_deref()
+                        .is_none_or(|marker| dir.path() > marker);
+
+                if let Some(marker) = &self.start_after {
+                    // Keep next_dir until the buffer is complete, so an error or
+                    // cancelled read leaves the entire directory available to retry.
+                    let mut entries = Vec::new();
+                    while let Some(entry) = next_entry(
+                        &mut reader,
+                        &self.core.root,
+                        &self.prefix,
+                        Some(marker),
+                        self.recursive,
+                    )
+                    .await?
+                    {
+                        entries.push(entry);
+                    }
+                    let mut dir = self.next_dir.take().filter(|_| include_dir);
+                    // Unlike other directory paths, "/" is not a prefix of its
+                    // children. It can sort between entries in the root.
+                    if dir.as_ref().is_some_and(|dir| dir.path() == "/") {
+                        entries.extend(dir.take().map(|dir| ListedEntry {
+                            entry: dir.into_entry(),
+                            descend: false,
+                        }));
+                    }
+                    entries.sort_unstable_by(|a, b| a.entry.path().cmp(b.entry.path()));
+                    self.active
+                        .push(DirectoryEntries::Sorted(entries.into_iter()));
+                    // A non-root directory sorts before all its descendants.
+                    if let Some(dir) = dir {
+                        return Ok(Some(dir.into_entry()));
+                    }
+                } else {
+                    let mut dir = self.next_dir.take().filter(|_| include_dir);
+                    // Keep bottom-up ordering for ordinary recursive listings.
+                    let after_children = if self.recursive {
+                        dir.take().map(PendingDir::into_entry)
+                    } else {
+                        None
+                    };
+                    self.active.push(DirectoryEntries::Streaming {
+                        reader: Box::new(reader),
+                        after_children,
+                    });
+                    if let Some(dir) = dir {
+                        return Ok(Some(dir.into_entry()));
+                    }
+                }
             }
 
-            let de = match self.rd.next_entry().await {
-                Ok(Some(de)) => de,
-                Ok(None) => return Ok(None),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    // Directory can be removed during listing; stop gracefully.
-                    return Ok(None);
-                }
-                Err(e) => return Err(new_std_io_error(e)),
+            let Some(directory) = self.active.last_mut() else {
+                return Ok(None);
             };
-
-            let entry_path = de.path();
-            let raw = entry_path
-                .strip_prefix(&self.root)
-                .expect("cannot fail because the prefix is iterated")
-                .to_string_lossy();
-            #[cfg(windows)]
-            let raw = raw.replace('\\', "/");
-            let rel_path = normalize_path(&raw);
-
-            let ft = match de.file_type().await {
-                Ok(ft) => ft,
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    // Entry can be deleted between readdir and stat calls.
-                    continue;
+            let entry = match directory {
+                DirectoryEntries::Streaming { reader, .. } => {
+                    next_entry(reader, &self.core.root, &self.prefix, None, self.recursive).await?
                 }
-                Err(e) => return Err(new_std_io_error(e)),
+                DirectoryEntries::Sorted(entries) => entries.next(),
             };
-            let (path, mode) = if ft.is_dir() {
-                // Make sure we are returning the correct path.
-                (&format!("{rel_path}/"), EntryMode::DIR)
-            } else if ft.is_file() {
-                (&rel_path, EntryMode::FILE)
+            let Some(listed) = entry else {
+                if let Some(DirectoryEntries::Streaming {
+                    after_children: Some(dir),
+                    ..
+                }) = self.active.pop()
+                {
+                    return Ok(Some(dir));
+                }
+                continue;
+            };
+            if self.recursive && listed.descend && listed.entry.path() != "/" {
+                self.next_dir = Some(PendingDir::Discovered(listed.entry));
             } else {
-                (&rel_path, EntryMode::Unknown)
-            };
+                return Ok(Some(listed.entry));
+            }
+        }
+    }
+}
 
-            let de_metadata = match de.metadata().await {
+pub struct GlobLister {
+    core: Arc<FsCore>,
+    pattern: GlobPattern,
+    prefix: String,
+    start_after: Option<String>,
+    next_dir: Option<GlobPendingDir>,
+    active: Vec<GlobDirectoryEntries>,
+}
+
+struct GlobPendingDir {
+    path: String,
+    positions: Vec<usize>,
+    /// Found while listing a parent rather than requested directly.
+    discovered: bool,
+}
+
+struct GlobListedEntry {
+    path: String,
+    entry: Option<oio::Entry>,
+    descend_positions: Option<Vec<usize>>,
+}
+
+enum GlobDirectoryEntries {
+    Streaming {
+        reader: Box<ReadDir>,
+        positions: Vec<usize>,
+    },
+    Sorted(IntoIter<GlobListedEntry>),
+}
+
+impl GlobLister {
+    fn new(core: Arc<FsCore>, path: &str, args: OpList, pattern: GlobPattern) -> Self {
+        let base = if path.ends_with('/') {
+            path
+        } else {
+            get_parent(path)
+        };
+        let prefix = if path == "/" { "" } else { path };
+        let start_after = args.start_after().map(str::to_owned);
+
+        let mut directory = if base == "/" {
+            String::new()
+        } else {
+            base.to_owned()
+        };
+        let mut position = 0;
+        for component in pattern.literal_directories() {
+            directory.push_str(component);
+            directory.push('/');
+            position += 1;
+        }
+        if directory.is_empty() {
+            directory.push('/');
+        }
+
+        let in_prefix = position == 0 || directory.starts_with(prefix);
+        // Since `directory` ends with `/`, when it sits strictly before `start_after` and is not
+        // a prefix of it, every descendant also sorts before `start_after`, so an empty lister is safe.
+        let in_cursor = position == 0
+            || start_after.as_deref().is_none_or(|marker| {
+                directory.as_str() > marker || marker.starts_with(directory.as_str())
+            });
+        let next_dir = (in_prefix && in_cursor).then_some(GlobPendingDir {
+            path: directory,
+            positions: vec![position],
+            discovered: false,
+        });
+
+        Self {
+            core,
+            pattern,
+            prefix: prefix.to_string(),
+            start_after,
+            next_dir,
+            active: Vec::new(),
+        }
+    }
+
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        loop {
+            if let Some(dir) = &self.next_dir {
+                let mut reader = match self.core.fs_list(&dir.path).await {
+                    Ok(Some(reader)) => reader,
+                    Ok(None) => {
+                        if dir.discovered {
+                            log::warn!("FS glob listing skipped missing directory: {}", dir.path);
+                        }
+                        self.next_dir = None;
+                        continue;
+                    }
+                    Err(err)
+                        if dir.discovered
+                            && matches!(
+                                err.kind(),
+                                ErrorKind::PermissionDenied | ErrorKind::NotFound
+                            ) =>
+                    {
+                        log::warn!("FS glob listing skipped directory {}: {err}", dir.path);
+                        self.next_dir = None;
+                        continue;
+                    }
+                    Err(err) => return Err(err),
+                };
+
+                if let Some(marker) = &self.start_after {
+                    // Keep next_dir until the buffer is complete, so an error or
+                    // cancelled read leaves the entire directory available to retry.
+                    let mut entries = Vec::new();
+                    while let Some(entry) = next_glob_entry(
+                        &mut reader,
+                        &self.core.root,
+                        &self.prefix,
+                        Some(marker),
+                        &self.pattern,
+                        &dir.positions,
+                    )
+                    .await?
+                    {
+                        entries.push(entry);
+                    }
+                    entries.sort_unstable_by(|a, b| a.path.cmp(&b.path));
+                    self.next_dir = None;
+                    self.active
+                        .push(GlobDirectoryEntries::Sorted(entries.into_iter()));
+                } else {
+                    let dir = self.next_dir.take().expect("pending directory exists");
+                    self.active.push(GlobDirectoryEntries::Streaming {
+                        reader: Box::new(reader),
+                        positions: dir.positions,
+                    });
+                }
+            }
+
+            let Some(directory) = self.active.last_mut() else {
+                return Ok(None);
+            };
+            let entry = match directory {
+                GlobDirectoryEntries::Streaming { reader, positions } => {
+                    next_glob_entry(
+                        reader,
+                        &self.core.root,
+                        &self.prefix,
+                        None,
+                        &self.pattern,
+                        positions,
+                    )
+                    .await?
+                }
+                GlobDirectoryEntries::Sorted(entries) => entries.next(),
+            };
+            let Some(listed) = entry else {
+                self.active.pop();
+                continue;
+            };
+            if let Some(positions) = listed.descend_positions {
+                self.next_dir = Some(GlobPendingDir {
+                    path: listed.path,
+                    positions,
+                    discovered: true,
+                });
+            }
+            if let Some(entry) = listed.entry {
+                return Ok(Some(entry));
+            }
+        }
+    }
+}
+
+struct RawDirEntry {
+    path: String,
+    mode: EntryMode,
+    descend: bool,
+    target_metadata: Option<StdMetadata>,
+    de: DirEntry,
+}
+
+impl RawDirEntry {
+    async fn into_entry(self) -> Result<Option<oio::Entry>> {
+        let de_metadata = match self.target_metadata {
+            Some(meta) => meta,
+            None => match self.de.metadata().await {
                 Ok(de_metadata) => de_metadata,
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                     // Entry can be deleted between readdir and metadata calls.
-                    continue;
+                    return Ok(None);
                 }
                 Err(e) => return Err(new_std_io_error(e)),
-            };
-            let last_modified = match de_metadata.modified() {
-                Ok(v) => v,
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    continue;
-                }
-                Err(e) => return Err(new_std_io_error(e)),
-            };
-            let metadata = Metadata::new(mode)
-                .with_content_length(de_metadata.len())
-                .with_last_modified(Timestamp::try_from(last_modified)?);
-
-            return Ok(Some(oio::Entry::new(path, metadata)));
-        }
+            },
+        };
+        let last_modified = match de_metadata.modified() {
+            Ok(v) => v,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(None);
+            }
+            Err(e) => return Err(new_std_io_error(e)),
+        };
+        let mut metadata = match self.mode {
+            EntryMode::FILE => MetadataBuilder::file(de_metadata.len()),
+            EntryMode::DIR => MetadataBuilder::dir(),
+            EntryMode::Unknown => MetadataBuilder::unknown(),
+        };
+        metadata.last_modified(Timestamp::try_from(last_modified)?);
+        Ok(Some(oio::Entry::new(&self.path, metadata.build())))
     }
+}
+
+async fn read_dir_entry(
+    reader: &mut ReadDir,
+    root: &Path,
+    resolve_symlinks: bool,
+) -> Result<Option<RawDirEntry>> {
+    loop {
+        let de = match reader.next_entry().await {
+            Ok(Some(de)) => de,
+            Ok(None) => return Ok(None),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                // Directory can be removed during listing; stop gracefully.
+                return Ok(None);
+            }
+            Err(e) => return Err(new_std_io_error(e)),
+        };
+
+        let entry_path = de.path();
+        let raw = entry_path
+            .strip_prefix(root)
+            .expect("cannot fail because the prefix is iterated")
+            .to_string_lossy();
+        #[cfg(windows)]
+        let raw = raw.replace('\\', "/");
+        let rel_path = normalize_path(&raw);
+
+        let ft = match de.file_type().await {
+            Ok(ft) => ft,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                // Entry can be deleted between readdir and stat calls.
+                continue;
+            }
+            Err(e) => return Err(new_std_io_error(e)),
+        };
+        let (path, mode, descend, target_metadata) = if ft.is_dir() {
+            // Make sure we are returning the correct path.
+            (format!("{rel_path}/"), EntryMode::DIR, true, None)
+        } else if ft.is_file() {
+            (rel_path, EntryMode::FILE, false, None)
+        } else if ft.is_symlink() && resolve_symlinks {
+            // Resolve symlinks before start_after filtering and sorting so
+            // directory symlinks carry their trailing '/' and sort in their
+            // final path order. Keep streaming listings (start_after == None)
+            // returning EntryMode::Unknown so CompleteLayer refines only
+            // emitted entries and traversal never descends into symlinks.
+            match tokio::fs::metadata(&entry_path).await {
+                Ok(meta) if meta.is_dir() => {
+                    (format!("{rel_path}/"), EntryMode::DIR, false, Some(meta))
+                }
+                Ok(meta) if meta.is_file() => (rel_path, EntryMode::FILE, false, Some(meta)),
+                Ok(meta) => (rel_path, EntryMode::Unknown, false, Some(meta)),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    // Dangling symlink (or removed concurrently; de.metadata()
+                    // in into_entry distinguishes the two).
+                    (rel_path, EntryMode::Unknown, false, None)
+                }
+                Err(e) => return Err(new_std_io_error(e)),
+            }
+        } else {
+            (rel_path, EntryMode::Unknown, false, None)
+        };
+
+        return Ok(Some(RawDirEntry {
+            path,
+            mode,
+            descend,
+            target_metadata,
+            de,
+        }));
+    }
+}
+
+async fn next_entry(
+    reader: &mut ReadDir,
+    root: &Path,
+    prefix: &str,
+    start_after: Option<&str>,
+    recursive: bool,
+) -> Result<Option<ListedEntry>> {
+    while let Some(raw) = read_dir_entry(reader, root, start_after.is_some()).await? {
+        if !raw.path.starts_with(prefix) {
+            continue;
+        }
+        // A directory we will descend into can still have later children.
+        if let Some(marker) = start_after
+            && raw.path.as_str() <= marker
+            && !(recursive && raw.descend && marker.starts_with(raw.path.as_str()))
+        {
+            continue;
+        }
+
+        let descend = raw.descend;
+        let Some(entry) = raw.into_entry().await? else {
+            continue;
+        };
+        return Ok(Some(ListedEntry { entry, descend }));
+    }
+    Ok(None)
+}
+
+async fn next_glob_entry(
+    reader: &mut ReadDir,
+    root: &Path,
+    prefix: &str,
+    start_after: Option<&str>,
+    pattern: &GlobPattern,
+    positions: &[usize],
+) -> Result<Option<GlobListedEntry>> {
+    while let Some(raw) = read_dir_entry(reader, root, start_after.is_some()).await? {
+        if !raw.path.starts_with(prefix) {
+            continue;
+        }
+        let trimmed = raw.path.trim_end_matches('/');
+        let name = trimmed.rsplit_once('/').map_or(trimmed, |(_, name)| name);
+        let next_positions = pattern.advance(positions, name);
+        let matches = pattern.accepts(&next_positions, raw.mode.is_dir());
+        let can_descend = raw.descend && pattern.can_descend(&next_positions);
+        if !matches && !can_descend {
+            continue;
+        }
+
+        let after_marker = start_after.is_none_or(|marker| raw.path.as_str() > marker);
+        let emit = matches && after_marker;
+        let descend = can_descend
+            && (after_marker
+                || start_after.is_some_and(|marker| marker.starts_with(raw.path.as_str())));
+        if !emit && !descend {
+            continue;
+        }
+
+        let path = raw.path.clone();
+        let entry = if emit {
+            let Some(entry) = raw.into_entry().await? else {
+                continue;
+            };
+            Some(entry)
+        } else {
+            None
+        };
+        return Ok(Some(GlobListedEntry {
+            path,
+            entry,
+            descend_positions: descend.then_some(next_positions),
+        }));
+    }
+    Ok(None)
 }
 
 #[cfg(all(test, unix))]
 mod tests {
-    use super::*;
-    use opendal_core::raw::oio::List;
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
+    use opendal_core::EntryMode;
+    use opendal_core::ErrorKind;
+    use opendal_core::Operator;
+
+    use crate::Fs;
 
     #[tokio::test]
     async fn list_file_with_backslash_in_name() {
-        let root = std::env::temp_dir().join("opendal-test-fs-lister-backslash");
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("has\\slash"), b"data").unwrap();
+        let op = Operator::new(Fs::default().root(root.path().to_str().unwrap())).unwrap();
 
-        std::fs::write(root.join("has\\slash"), b"data").unwrap();
-
-        let rd = tokio::fs::read_dir(&root).await.unwrap();
-        let mut lister = FsLister::new(&root, "/", rd);
-
-        let first = lister.next().await.unwrap().unwrap();
-        assert_eq!(first.mode(), EntryMode::DIR);
-
-        let file_entry = lister.next().await.unwrap().unwrap();
-        assert_eq!(file_entry.mode(), EntryMode::FILE);
+        let entries = op.list("/").await.unwrap();
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].metadata().mode(), EntryMode::DIR);
+        assert_eq!(entries[1].metadata().mode(), EntryMode::FILE);
         assert!(
-            !file_entry.path().ends_with('/'),
+            !entries[1].path().ends_with('/'),
             "file path must not end with /: {}",
-            file_entry.path()
+            entries[1].path()
         );
+    }
 
-        std::fs::remove_dir_all(&root).unwrap();
+    #[tokio::test]
+    async fn glob_does_not_traverse_discovered_symlinks() {
+        let root = tempfile::tempdir().unwrap();
+        let op = Operator::new(Fs::default().root(root.path().to_str().unwrap())).unwrap();
+        op.write("dir/photo.jpg", "data").await.unwrap();
+        std::os::unix::fs::symlink("dir", root.path().join("alias")).unwrap();
+
+        let entries = op.list_with("/").glob("**/*.jpg").await.unwrap();
+        let paths: Vec<_> = entries.iter().map(|entry| entry.path()).collect();
+        assert_eq!(paths, ["dir/photo.jpg"]);
+    }
+
+    #[tokio::test]
+    async fn glob_follows_leading_literal_symlink_consistently_with_start_after() {
+        let root = tempfile::tempdir().unwrap();
+        let op = Operator::new_without_glob_simulation(
+            Fs::default().root(root.path().to_str().unwrap()),
+        )
+        .unwrap();
+        op.write("dir/photo.jpg", "data").await.unwrap();
+        op.write("dir/sub/deep.jpg", "data").await.unwrap();
+        std::os::unix::fs::symlink("dir", root.path().join("alias")).unwrap();
+
+        let mut recursive: Vec<_> = op
+            .list_with("/")
+            .glob("alias/**/*.jpg")
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|entry| entry.path().to_owned())
+            .collect();
+        recursive.sort_unstable();
+        assert_eq!(recursive, ["alias/photo.jpg", "alias/sub/deep.jpg"]);
+
+        for (glob, marker, expected) in [
+            (
+                "alias/**/*.jpg",
+                "",
+                vec!["alias/photo.jpg", "alias/sub/deep.jpg"],
+            ),
+            (
+                "alias/**/*.jpg",
+                "alias/",
+                vec!["alias/photo.jpg", "alias/sub/deep.jpg"],
+            ),
+            (
+                "alias/**/*.jpg",
+                "alias/photo.jpg",
+                vec!["alias/sub/deep.jpg"],
+            ),
+            ("alias/*", "", vec!["alias/photo.jpg", "alias/sub/"]),
+            ("alias/*", "alias/", vec!["alias/photo.jpg", "alias/sub/"]),
+            ("alias/*", "alias/photo.jpg", vec!["alias/sub/"]),
+        ] {
+            let paths: Vec<_> = op
+                .list_with("/")
+                .glob(glob)
+                .start_after(marker)
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|entry| entry.path().to_owned())
+                .collect();
+            assert_eq!(paths, expected, "glob={glob:?}, start_after={marker:?}");
+        }
+
+        let mut shallow: Vec<_> = op
+            .list_with("/")
+            .glob("alias/*")
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|entry| entry.path().to_owned())
+            .collect();
+        shallow.sort_unstable();
+        assert_eq!(shallow, ["alias/photo.jpg", "alias/sub/"]);
+    }
+
+    #[tokio::test]
+    async fn list_recursively_skips_unreadable_child() {
+        let root = tempfile::tempdir().unwrap();
+        let locked = root.path().join("locked");
+        fs::create_dir(&locked).unwrap();
+        fs::write(root.path().join("z.txt"), b"data").unwrap();
+        let op = Operator::new(Fs::default().root(root.path().to_str().unwrap())).unwrap();
+        let permissions = fs::metadata(&locked).unwrap().permissions();
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+
+        // Privileged processes can read the directory even with mode 000.
+        match fs::read_dir(&locked) {
+            Ok(_) => {
+                fs::set_permissions(&locked, permissions).unwrap();
+                return;
+            }
+            Err(err) => assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied),
+        }
+
+        let recursive = op.list_with("/").recursive(true).await;
+        let resumed = op.list_with("/").recursive(true).start_after("a").await;
+        let direct = op.list_with("locked/").recursive(true).await;
+        let direct_resumed = op
+            .list_with("locked/")
+            .recursive(true)
+            .start_after("a")
+            .await;
+        fs::set_permissions(&locked, permissions).unwrap();
+
+        let recursive = recursive.unwrap();
+        let paths: Vec<_> = recursive.iter().map(|entry| entry.path()).collect();
+        assert_eq!(paths, ["z.txt", "/"]);
+        let resumed = resumed.unwrap();
+        let paths: Vec<_> = resumed.iter().map(|entry| entry.path()).collect();
+        assert_eq!(paths, ["z.txt"]);
+        assert_eq!(direct.unwrap_err().kind(), ErrorKind::PermissionDenied);
+        assert_eq!(
+            direct_resumed.unwrap_err().kind(),
+            ErrorKind::PermissionDenied
+        );
+    }
+
+    #[tokio::test]
+    async fn glob_skips_unreadable_child() {
+        let root = tempfile::tempdir().unwrap();
+        let locked = root.path().join("data/locked");
+        fs::create_dir_all(&locked).unwrap();
+        fs::create_dir_all(root.path().join("data/open")).unwrap();
+        fs::write(locked.join("a.jpg"), b"data").unwrap();
+        fs::write(root.path().join("data/open/b.jpg"), b"data").unwrap();
+        let op = Operator::new(Fs::default().root(root.path().to_str().unwrap())).unwrap();
+        let permissions = fs::metadata(&locked).unwrap().permissions();
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+
+        // Privileged processes can read the directory even with mode 000.
+        match fs::read_dir(&locked) {
+            Ok(_) => {
+                fs::set_permissions(&locked, permissions).unwrap();
+                return;
+            }
+            Err(err) => assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied),
+        }
+
+        let any_depth = op.list_with("/").glob("data/**/*.jpg").await;
+        let one_level = op.list_with("/").glob("data/*/*.jpg").await;
+        let direct = op.list_with("data/locked/").glob("*.jpg").await;
+        fs::set_permissions(&locked, permissions).unwrap();
+
+        for entries in [any_depth.unwrap(), one_level.unwrap()] {
+            let paths: Vec<_> = entries.iter().map(|entry| entry.path()).collect();
+            assert_eq!(paths, ["data/open/b.jpg"]);
+        }
+        assert_eq!(direct.unwrap_err().kind(), ErrorKind::PermissionDenied);
+    }
+
+    #[tokio::test]
+    async fn glob_literal_directories_skip_unreadable_parents() {
+        let root = tempfile::tempdir().unwrap();
+        let parent = root.path().join("data");
+        let target = parent.join("open");
+        fs::create_dir_all(&target).unwrap();
+        fs::write(target.join("b.jpg"), b"data").unwrap();
+        let op = Operator::new_without_glob_simulation(
+            Fs::default().root(root.path().to_str().unwrap()),
+        )
+        .unwrap();
+
+        let permissions = fs::metadata(&parent).unwrap().permissions();
+        // Searchable (x) without read (r): read_dir(data) fails, read_dir(data/open) succeeds.
+        fs::set_permissions(&parent, fs::Permissions::from_mode(0o111)).unwrap();
+
+        match fs::read_dir(&parent) {
+            Ok(_) => {
+                fs::set_permissions(&parent, permissions).unwrap();
+                return;
+            }
+            Err(err) => assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied),
+        }
+
+        let literal = op.list_with("/").glob("data/open/*.jpg").await;
+        let literal_sorted = op
+            .list_with("/")
+            .glob("data/open/*.jpg")
+            .start_after("")
+            .await;
+        let wildcard = op.list_with("data/").glob("*/*.jpg").await;
+        fs::set_permissions(&parent, permissions).unwrap();
+
+        assert_eq!(
+            literal
+                .unwrap()
+                .iter()
+                .map(|entry| entry.path())
+                .collect::<Vec<_>>(),
+            ["data/open/b.jpg"]
+        );
+        assert_eq!(
+            literal_sorted
+                .unwrap()
+                .iter()
+                .map(|entry| entry.path())
+                .collect::<Vec<_>>(),
+            ["data/open/b.jpg"]
+        );
+        assert_eq!(wildcard.unwrap_err().kind(), ErrorKind::PermissionDenied);
+    }
+}
+
+#[cfg(test)]
+mod glob_tests {
+    use std::fs;
+    use std::sync::Arc;
+
+    use opendal_core::options::ListOptions;
+    use opendal_core::raw::{
+        GlobPattern, OpCompose, OpCopy, OpCreateDir, OpList, OpPresign, OpRead, OpRename, OpStat,
+        OpWrite, RpCreateDir, RpPresign, RpRename, RpStat, Service, ServiceInfo, Servicer, oio,
+    };
+    use opendal_core::{
+        Builder, Capability, EntryMode, ErrorKind, OperationContext, Operator, Result,
+    };
+
+    use super::{FsLister, GlobLister};
+    use crate::{Fs, FsConfig};
+
+    #[derive(Debug, Default)]
+    struct StripGlobBuilder(Fs);
+
+    impl Builder for StripGlobBuilder {
+        type Config = FsConfig;
+
+        fn build(self) -> Result<impl Service> {
+            let inner = Arc::new(self.0.build()?) as Servicer;
+            Ok(StripGlobService { inner })
+        }
+    }
+
+    #[derive(Debug)]
+    struct StripGlobService {
+        inner: Servicer,
+    }
+
+    impl Service for StripGlobService {
+        type Reader = oio::Reader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
+        type Copier = oio::Copier;
+        type Composer = oio::Composer;
+
+        fn info(&self) -> ServiceInfo {
+            self.inner.info()
+        }
+
+        fn capability(&self) -> Capability {
+            let mut cap = self.inner.capability();
+            cap.list_with_glob = false;
+            cap
+        }
+
+        async fn create_dir(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            self.inner.create_dir(ctx, path, args).await
+        }
+
+        async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+            self.inner.stat(ctx, path, args).await
+        }
+
+        fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+            self.inner.read(ctx, path, args)
+        }
+
+        fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+            self.inner.write(ctx, path, args)
+        }
+
+        fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+            self.inner.delete(ctx)
+        }
+
+        fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+            self.inner.list(ctx, path, args)
+        }
+
+        fn copy(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpCopy,
+        ) -> Result<Self::Copier> {
+            self.inner.copy(ctx, from, to, args)
+        }
+
+        fn compose(
+            &self,
+            ctx: &OperationContext,
+            to: &str,
+            args: OpCompose,
+        ) -> Result<Self::Composer> {
+            self.inner.compose(ctx, to, args)
+        }
+
+        async fn rename(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpRename,
+        ) -> Result<RpRename> {
+            self.inner.rename(ctx, from, to, args).await
+        }
+
+        async fn presign(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpPresign,
+        ) -> Result<RpPresign> {
+            self.inner.presign(ctx, path, args).await
+        }
+    }
+
+    #[tokio::test]
+    async fn native_glob_works_without_glob_simulation() {
+        let root = tempfile::tempdir().unwrap();
+        let op = Operator::new_without_glob_simulation(
+            Fs::default().root(root.path().to_str().unwrap()),
+        )
+        .unwrap();
+        assert!(op.info().capability().list_with_glob);
+
+        op.write("a.jpg", "data").await.unwrap();
+        op.write("sub/b.jpg", "data").await.unwrap();
+        op.write("sub/c.png", "data").await.unwrap();
+
+        let mut paths: Vec<_> = op
+            .list_with("/")
+            .glob("**/*.jpg")
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|entry| entry.path().to_owned())
+            .collect();
+        paths.sort_unstable();
+        assert_eq!(paths, ["a.jpg", "sub/b.jpg"]);
+
+        for invalid in ["", "/", "a**b", "../*.jpg", "[z-a]", "{a,b", "file\\"] {
+            let err = op.list_with("/").glob(invalid).await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "pattern {invalid:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn glob_lister_prunes_non_matching_subdirectories() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir_all(root.path().join("keep")).unwrap();
+        fs::create_dir_all(root.path().join("keep1")).unwrap();
+        fs::create_dir_all(root.path().join("skip/nested")).unwrap();
+        fs::write(root.path().join("keep/a.jpg"), b"data").unwrap();
+        fs::write(root.path().join("keep1/a.jpg"), b"data").unwrap();
+        fs::write(root.path().join("skip/nested/b.jpg"), b"data").unwrap();
+
+        let core = Arc::new(crate::core::FsCore {
+            info: ServiceInfo::new(crate::FS_SCHEME, root.path().to_string_lossy(), ""),
+            capability: Capability {
+                list: true,
+                list_with_glob: true,
+                ..Default::default()
+            },
+            root: root.path().canonicalize().unwrap(),
+            atomic_write_dir: None,
+            direct_io: false,
+            buf_pool: oio::PooledBuf::new(1),
+        });
+
+        // Leading literal directory jumps straight to `keep/`.
+        let FsLister::Glob(lister) =
+            FsLister::new(core.clone(), "/", OpList::default().with_glob("keep/*.jpg")).unwrap()
+        else {
+            panic!("expected GlobLister");
+        };
+        assert_eq!(lister.next_dir.as_ref().unwrap().path, "keep/");
+
+        // Single-level glob never schedules subdirectories for descent.
+        let mut shallow = GlobLister::new(
+            core.clone(),
+            "/",
+            OpList::default().with_glob("*.jpg"),
+            GlobPattern::new("*.jpg").unwrap(),
+        );
+        assert!(shallow.next().await.unwrap().is_none());
+        assert!(shallow.next_dir.is_none());
+
+        // Pattern matching only `keep*` skips `skip/` completely.
+        let list_args = OpList::from_options(
+            &Capability {
+                list: true,
+                list_with_glob: true,
+                list_with_start_after: true,
+                ..Default::default()
+            },
+            ListOptions {
+                glob: Some("keep*/*.jpg".to_string()),
+                start_after: Some(String::new()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mut pruned = GlobLister::new(
+            core,
+            "/",
+            list_args,
+            GlobPattern::new("keep*/*.jpg").unwrap(),
+        );
+        let mut found = Vec::new();
+        while let Some(entry) = pruned.next().await.unwrap() {
+            assert_ne!(
+                pruned.next_dir.as_ref().map(|dir| dir.path.as_str()),
+                Some("skip/")
+            );
+            found.push(entry.path().to_owned());
+        }
+        assert_eq!(found, ["keep/a.jpg", "keep1/a.jpg"]);
+    }
+
+    #[tokio::test]
+    async fn native_glob_matches_glob_layer_differentially() {
+        let root = tempfile::tempdir().unwrap();
+        for dir in [
+            "a/b/b",
+            "a/b/x",
+            "a/x/b",
+            "a/empty",
+            "ab",
+            "a-1",
+            "dir/[b]/sub",
+            "dir/c",
+            "empty",
+        ] {
+            fs::create_dir_all(root.path().join(dir)).unwrap();
+        }
+        for file in [
+            "a.jpg",
+            "a-1.jpg",
+            "a0.jpg",
+            "b.png",
+            "é.jpg",
+            "猫.jpg",
+            "[b].txt",
+            "a/x.jpg",
+            "a/b/c.jpg",
+            "a/b/b/c.jpg",
+            "a/b/x/c.jpg",
+            "a/x/b/c.jpg",
+            "ab/x.jpg",
+            "a-1/x.jpg",
+            "dir/[b]/file.json",
+            "dir/[b]/sub/deep.json",
+            "dir/c/file.json",
+        ] {
+            fs::write(root.path().join(file), b"data").unwrap();
+        }
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink("a", root.path().join("alias")).unwrap();
+            std::os::unix::fs::symlink("a.jpg", root.path().join("link.jpg")).unwrap();
+            std::os::unix::fs::symlink("missing", root.path().join("dangling.jpg")).unwrap();
+        }
+
+        let root_str = root.path().to_str().unwrap();
+        let native_op =
+            Operator::new_without_glob_simulation(Fs::default().root(root_str)).unwrap();
+        let layer_op = Operator::new(StripGlobBuilder(Fs::default().root(root_str))).unwrap();
+
+        let cases: &[(&str, &str, bool, Option<&str>)] = &[
+            ("/", "*.jpg", false, None),
+            ("/", "*.jpg", true, None),
+            ("/", "?.jpg", false, None),
+            ("/", "?.jpg", true, None),
+            ("/", "[a-b].{jpg,png}", false, None),
+            ("/", "[!a-z].jpg", false, None),
+            ("/", r"\[b\].txt", false, None),
+            ("/", r"dir/\[b\]/**/*.json", false, None),
+            ("/", "**/*.jpg", false, None),
+            ("/", "**/?.jpg", false, None),
+            ("/", "a/**/**/b/**/c.jpg", false, None),
+            ("/", "a/b/**", false, None),
+            ("/", "**", false, None),
+            ("/", "*/", false, None),
+            ("/", "**/", false, None),
+            ("/", "a/*/", false, None),
+            ("/", "a/b/", false, None),
+            ("/", "a/x.jpg/", false, None),
+            ("/", "a/b/*.jpg", false, None),
+            ("/", "missing/sub/*.jpg", false, None),
+            ("/", "a.jpg/*.txt", false, None),
+            ("a/", "?.jpg", true, None),
+            ("a/", "**/c.jpg", false, None),
+            ("a/", "b/", false, None),
+            ("a/b", "b/*.jpg", false, None),
+            ("a/b", "b/**", false, None),
+            ("a/b", "b", false, None),
+            ("a/x", "b/*.jpg", false, None),
+            ("a", "**/*.jpg", false, None),
+            ("a", "*.jpg", false, None),
+            // start_after cases
+            ("/", "*.jpg", false, Some("")),
+            ("/", "*.jpg", false, Some("a.jpg")),
+            ("/", "**/*.jpg", false, Some("")),
+            ("/", "**/*.jpg", false, Some("a/")),
+            ("/", "**/*.jpg", false, Some("a/b/")),
+            ("/", "**/*.jpg", false, Some("a/b/c.jpg")),
+            ("/", "**/*.jpg", false, Some("a0.jpg")),
+            ("/", "**/*.jpg", false, Some("z")),
+            ("/", "**", false, Some("")),
+            ("/", "**", false, Some("a/b/")),
+            ("/", "*/", false, Some("")),
+            ("/", "a/b/*.jpg", false, Some("")),
+            ("/", "a/b/*.jpg", false, Some("a/b/c.jpg")),
+            ("/", "a/b/*.jpg", false, Some("z")),
+            ("a/b", "b/*.jpg", false, Some("")),
+            ("a", "**/*.jpg", false, Some("a/b/")),
+        ];
+
+        for &(path, glob, recursive, start_after) in cases {
+            let mut native_req = native_op.list_with(path).glob(glob).recursive(recursive);
+            let mut layer_req = layer_op.list_with(path).glob(glob).recursive(recursive);
+            if let Some(marker) = start_after {
+                native_req = native_req.start_after(marker);
+                layer_req = layer_req.start_after(marker);
+            }
+
+            let mut native: Vec<(String, EntryMode)> = native_req
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|entry| (entry.path().to_owned(), entry.metadata().mode()))
+                .collect();
+            let mut expected: Vec<(String, EntryMode)> = layer_req
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|entry| (entry.path().to_owned(), entry.metadata().mode()))
+                .collect();
+
+            if start_after.is_some() {
+                assert!(
+                    native.windows(2).all(|pair| pair[0].0 < pair[1].0),
+                    "native output not strictly sorted for ({path:?}, {glob:?}, {recursive}, {start_after:?}): {native:?}"
+                );
+                assert_eq!(
+                    native, expected,
+                    "ordered mismatch for ({path:?}, {glob:?}, {recursive}, {start_after:?})"
+                );
+            } else {
+                native.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+                expected.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+                assert_eq!(
+                    native, expected,
+                    "set mismatch for ({path:?}, {glob:?}, {recursive}, {start_after:?})"
+                );
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod oversized_path {
+    use opendal_core::Operator;
+
+    use crate::Fs;
+
+    #[tokio::test]
+    async fn list_oversized_path_does_not_panic() {
+        let root = tempfile::tempdir().unwrap();
+        let op = Operator::new(Fs::default().root(root.path().to_str().unwrap())).unwrap();
+
+        // A path this long cannot fit in the compact metadata block, so listing
+        // must fail before building an entry instead of after a successful lookup.
+        let component = "a".repeat(65531);
+        for path in [format!("{component}/"), format!("{component}/child")] {
+            assert_oversized_list_result(op.list(&path).await);
+            assert_oversized_list_result(op.list_with(&path).recursive(true).await);
+            assert_oversized_list_result(op.list_with(&path).start_after("marker").await);
+            assert_oversized_list_result(
+                op.list_with(&path)
+                    .recursive(true)
+                    .start_after("marker")
+                    .await,
+            );
+            assert_oversized_list_result(op.list_with(&path).glob("*.jpg").await);
+            assert_oversized_list_result(
+                op.list_with(&path)
+                    .glob("*.jpg")
+                    .start_after("marker")
+                    .await,
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    fn assert_oversized_list_result(result: opendal_core::Result<Vec<opendal_core::Entry>>) {
+        assert_eq!(
+            result.unwrap_err().kind(),
+            opendal_core::ErrorKind::Unexpected,
+            "oversized path must fail before building an entry"
+        );
+    }
+
+    #[cfg(not(unix))]
+    fn assert_oversized_list_result(result: opendal_core::Result<Vec<opendal_core::Entry>>) {
+        // Windows may reject the path at the OS level or report it as missing.
+        // Either outcome is fine as long as listing does not panic.
+        if let Ok(entries) = result {
+            assert!(entries.is_empty());
+        }
     }
 }

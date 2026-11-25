@@ -26,10 +26,8 @@ use opendal_core::raw::*;
 use opendal_core::*;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
-use reqsign_core::ProvideCredentialChain;
-use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
-use reqsign_huaweicloud_obs::EnvCredentialProvider;
+use reqsign_huaweicloud_obs::DefaultCredentialProvider;
 use reqsign_huaweicloud_obs::RequestSigner;
 use reqsign_huaweicloud_obs::StaticCredentialProvider;
 
@@ -111,6 +109,23 @@ impl ObsBuilder {
         self
     }
 
+    /// Set security_token of this backend.
+    ///
+    /// Use this together with `access_key_id` and `secret_access_key` when the
+    /// credentials are temporary. The signer attaches the token as the
+    /// `x-obs-security-token` header.
+    ///
+    /// - If it is set, we will take user's input first.
+    /// - If not, we will try to load it from environment (unless
+    ///   `disable_config_load` is enabled).
+    pub fn security_token(mut self, security_token: &str) -> Self {
+        if !security_token.is_empty() {
+            self.config.security_token = Some(security_token.to_string());
+        }
+
+        self
+    }
+
     /// Set bucket of this backend.
     /// The param is required.
     pub fn bucket(mut self, bucket: &str) -> Self {
@@ -118,6 +133,23 @@ impl ObsBuilder {
             self.config.bucket = Some(bucket.to_string());
         }
 
+        self
+    }
+
+    /// Disable config load so that opendal will not load config from
+    /// environment.
+    ///
+    /// For examples:
+    ///
+    /// - envs like `HUAWEI_CLOUD_ACCESS_KEY_ID`
+    pub fn disable_config_load(mut self) -> Self {
+        self.config.disable_config_load = true;
+        self
+    }
+
+    /// Skip signature will skip loading credentials and signing requests.
+    pub fn skip_signature(mut self) -> Self {
+        self.config.skip_signature = true;
         self
     }
 
@@ -137,7 +169,7 @@ impl Builder for ObsBuilder {
     fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", self);
 
-        let root = normalize_root(&self.config.root.unwrap_or_default());
+        let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {root}");
 
         let bucket = match &self.config.bucket {
@@ -178,12 +210,7 @@ impl Builder for ObsBuilder {
 
         let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
-        let mut provider = ProvideCredentialChain::new().push(EnvCredentialProvider::new());
-
-        if let (Some(ak), Some(sk)) = (&self.config.access_key_id, &self.config.secret_access_key) {
-            let static_provider = StaticCredentialProvider::new(ak, sk);
-            provider = provider.push_front(static_provider);
-        }
+        let provider = credential_provider(&self.config);
 
         // Set the bucket name in CanonicalizedResource.
         // 1. If the bucket is bound to a user domain name, use the user domain name as the bucket name,
@@ -192,8 +219,12 @@ impl Builder for ObsBuilder {
         //
         // Please refer to this doc for more details:
         // https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0010.html
-        let request_signer = RequestSigner::new(if is_obs_default { &bucket } else { &endpoint });
-        let signer = Signer::new(ctx, provider, request_signer);
+        let credential_provider = Arc::new(provider);
+        let request_signer = Arc::new(RequestSigner::new(if is_obs_default {
+            &bucket
+        } else {
+            &endpoint
+        }));
 
         let info = ServiceInfo::new(OBS_SCHEME, &root, &bucket);
         let capability = Capability {
@@ -253,9 +284,38 @@ impl Builder for ObsBuilder {
                 bucket,
                 root,
                 endpoint: format!("{}://{}", scheme, endpoint),
-                signer,
+                skip_signature: self.config.skip_signature,
+                sign_ctx: ctx,
+                credential_provider,
+                request_signer,
+                signers: HttpTransportCache::new(),
             }),
         })
+    }
+}
+
+/// Build the credential chain used by the signer.
+///
+/// Explicit static credentials always take precedence over the environment.
+/// `disable_config_load` drops the environment provider so that ambient
+/// credentials are never loaded.
+pub(super) fn credential_provider(config: &ObsConfig) -> DefaultCredentialProvider {
+    let provider = if config.disable_config_load {
+        DefaultCredentialProvider::builder().no_env().build()
+    } else {
+        DefaultCredentialProvider::builder().build()
+    };
+
+    match (&config.access_key_id, &config.secret_access_key) {
+        (Some(ak), Some(sk)) => {
+            let static_provider = match config.security_token.as_deref() {
+                Some(token) => StaticCredentialProvider::with_security_token(ak, sk, token),
+                None => StaticCredentialProvider::new(ak, sk),
+            };
+
+            provider.push_front(static_provider)
+        }
+        _ => provider,
     }
 }
 
@@ -271,6 +331,7 @@ impl Service for ObsBackend {
     type Lister = oio::PageLister<ObsLister>;
     type Deleter = oio::OneShotDeleter<ObsDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -301,7 +362,7 @@ impl Service for ObsBackend {
         // The response is very similar to azblob.
         match status {
             StatusCode::OK => {
-                let mut meta = parse_into_metadata(path, headers)?;
+                let meta = parse_into_metadata(path, headers)?;
                 let user_meta = headers
                     .iter()
                     .filter_map(|(name, _)| {
@@ -315,18 +376,19 @@ impl Service for ObsBackend {
                     })
                     .collect::<HashMap<_, _>>();
 
+                let mut meta = meta.into_builder();
                 if !user_meta.is_empty() {
-                    meta = meta.with_user_metadata(user_meta);
+                    meta.user_metadata(user_meta);
                 }
 
                 if let Some(v) = parse_header_to_str(headers, constants::X_OBS_VERSION_ID)? {
-                    meta.set_version(v);
+                    meta.version(v);
                 }
 
-                Ok(RpStat::new(meta))
+                Ok(RpStat::new(meta.build()))
             }
             StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+                Ok(RpStat::new(MetadataBuilder::dir().build()))
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("HeadObject")),
@@ -398,20 +460,30 @@ impl Service for ObsBackend {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpCopy,
-        _opts: OpCopier,
+        args: OpCopy,
     ) -> Result<Self::Copier> {
+        let backend = self.clone();
         let core = self.core.clone();
         let ctx = ctx.clone();
         let from = from.to_string();
         let to = to.to_string();
+        let source_content_length_hint = args.source_content_length_hint();
         Ok(oio::OneShotCopier::new(async move {
+            let source_size = match source_content_length_hint {
+                Some(size) => size,
+                None => backend
+                    .stat(&ctx, &from, OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .content_length(),
+            };
+
             let resp = core.obs_copy_object(&ctx, &from, &to).await?;
 
             let status = resp.status();
 
             match status {
-                StatusCode::OK => Ok(Metadata::default()),
+                StatusCode::OK => Ok(MetadataBuilder::file(source_size).build()),
                 _ => Err(parse_error(
                     ErrorContext::new(ServiceOperation("CopyObject")),
                     resp,
@@ -466,5 +538,126 @@ impl Service for ObsBackend {
             parts.uri,
             parts.headers,
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use reqsign_core::Context;
+    use reqsign_core::ProvideCredential;
+    use reqsign_core::Signer;
+    use reqsign_core::StaticEnv;
+
+    use super::*;
+
+    const AMBIENT_ENVS: [(&str, &str); 3] = [
+        ("HUAWEI_CLOUD_ACCESS_KEY_ID", "env-access-key-id"),
+        ("HUAWEI_CLOUD_SECRET_ACCESS_KEY", "env-secret-access-key"),
+        ("HUAWEI_CLOUD_SECURITY_TOKEN", "env-security-token"),
+    ];
+
+    fn ambient_context() -> Context {
+        Context::new().with_env(StaticEnv {
+            home_dir: None,
+            envs: AMBIENT_ENVS
+                .into_iter()
+                .map(|(key, value)| (key.to_string(), value.to_string()))
+                .collect::<HashMap<_, _>>(),
+        })
+    }
+
+    fn static_config() -> ObsConfig {
+        ObsConfig {
+            access_key_id: Some("static-access-key-id".to_string()),
+            secret_access_key: Some("static-secret-access-key".to_string()),
+            security_token: Some("static-security-token".to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn default_provider_loads_ambient_credentials() {
+        let provider = credential_provider(&ObsConfig::default());
+
+        let credential = provider
+            .provide_credential(&ambient_context())
+            .await
+            .unwrap()
+            .expect("ambient credentials must be loaded");
+
+        assert_eq!(credential.access_key_id, "env-access-key-id");
+        assert_eq!(
+            credential.security_token.as_deref(),
+            Some("env-security-token")
+        );
+    }
+
+    #[tokio::test]
+    async fn disable_config_load_ignores_ambient_credentials() {
+        let provider = credential_provider(&ObsConfig {
+            disable_config_load: true,
+            ..Default::default()
+        });
+
+        let credential = provider
+            .provide_credential(&ambient_context())
+            .await
+            .unwrap();
+
+        assert!(credential.is_none());
+    }
+
+    #[tokio::test]
+    async fn disable_config_load_keeps_explicit_credentials() {
+        let provider = credential_provider(&ObsConfig {
+            disable_config_load: true,
+            ..static_config()
+        });
+
+        let credential = provider
+            .provide_credential(&ambient_context())
+            .await
+            .unwrap()
+            .expect("explicit static credentials must be used");
+
+        assert_eq!(credential.access_key_id, "static-access-key-id");
+        assert_eq!(credential.secret_access_key, "static-secret-access-key");
+        assert_eq!(
+            credential.security_token.as_deref(),
+            Some("static-security-token")
+        );
+    }
+
+    #[tokio::test]
+    async fn security_token_is_signed_into_request_headers() {
+        let config = ObsConfig {
+            disable_config_load: true,
+            ..static_config()
+        };
+        let signer = Signer::new(
+            ambient_context(),
+            credential_provider(&config),
+            RequestSigner::new("example-bucket"),
+        );
+        let (mut parts, _) =
+            http::Request::get("https://example-bucket.obs.cn-north-4.myhuaweicloud.com/test.txt")
+                .body(())
+                .unwrap()
+                .into_parts();
+
+        signer.sign(&mut parts, None).await.unwrap();
+
+        assert_eq!(
+            parts.headers["x-obs-security-token"],
+            "static-security-token"
+        );
+        assert!(
+            parts.headers[http::header::AUTHORIZATION]
+                .to_str()
+                .unwrap()
+                .starts_with("OBS static-access-key-id:")
+        );
     }
 }

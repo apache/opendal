@@ -34,12 +34,17 @@ namespace OpenDAL.ServiceConfig
         [System.Obsolete("WebDAV copy capability is enabled by default and this option is no longer needed.")]
         public bool? DisableCopy { get; init; }
         /// <summary>
-        /// Disable automatic parent directory creation before write operations. By default, OpenDAL creates parent directories using MKCOL before writing files. This requires PROPFIND support to check directory existence. Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND or don't require explicit directory creation. Enable this option to skip the MKCOL calls and write files directly. Default: false
+        /// Disable automatic parent directory creation before writing files. By default, OpenDAL checks for parent directories using `PROPFIND` and creates missing directories using `MKCOL` before writing files. Enable this option to skip those checks and `MKCOL` calls for servers such as `bazel-remote`. Explicit `create_dir` calls are unaffected. Default: `false`
         /// </summary>
         public bool? DisableCreateDir { get; init; }
         /// <summary>
-        /// Enable conditional read support. When enabled (the default), OpenDAL forwards the RFC 7232 headers `If-Match`, `If-None-Match`, `If-Modified-Since` and `If-Unmodified-Since` to the server when callers provide them. Some WebDAV-compatible servers (e.g., nginx-dav) don't return ETags in PROPFIND or don't honor these headers on GET. Setting this to `false` drops the four `read_with_if_*` capabilities, so calls like `reader_with(path).if_match(...)` return `ErrorKind::Unsupported` locally instead of being silently ignored by the server. Default: true
+        /// Disable native recursive listing with WebDAV's `Depth: infinity`. Set this to `true` for servers that reject or ignore infinity depth. With capability simulation enabled, OpenDAL walks the directory tree using `Depth: 1` requests instead. The default is `false`.
         /// </summary>
+        public bool? DisableDepthInfinity { get; init; }
+        /// <summary>
+        /// Deprecated: WebDAV conditional read capabilities are enabled by default.
+        /// </summary>
+        [System.Obsolete("WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support.")]
         public bool? EnableConditionalRead { get; init; }
         /// <summary>
         /// Deprecated: WebDAV user metadata capability is enabled by default.
@@ -90,10 +95,16 @@ namespace OpenDAL.ServiceConfig
             {
                 map["disable_create_dir"] = Utilities.ToOptionString(DisableCreateDir);
             }
+            if (DisableDepthInfinity is not null)
+            {
+                map["disable_depth_infinity"] = Utilities.ToOptionString(DisableDepthInfinity);
+            }
+#pragma warning disable CS0618
             if (EnableConditionalRead is not null)
             {
                 map["enable_conditional_read"] = Utilities.ToOptionString(EnableConditionalRead);
             }
+#pragma warning restore CS0618
 #pragma warning disable CS0618
             if (EnableUserMetadata is not null)
             {

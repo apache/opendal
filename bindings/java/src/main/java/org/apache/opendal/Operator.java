@@ -23,10 +23,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Operator represents an underneath OpenDAL operator that accesses data
  * synchronously.
+ *
+ * <p>A Rust panic caught at a native method boundary is thrown as an {@link OpenDALPanicException}.</p>
  */
 public class Operator extends NativeObject {
     public final OperatorInfo info;
@@ -69,7 +72,7 @@ public class Operator extends NativeObject {
      * @see AsyncOperator#duplicate()
      */
     public Operator duplicate() {
-        final long nativeHandle = duplicate(this.nativeHandle);
+        final long nativeHandle = withHandle(Operator::duplicate);
         return new Operator(nativeHandle, this.info);
     }
 
@@ -78,7 +81,7 @@ public class Operator extends NativeObject {
     }
 
     public void write(String path, byte[] content) {
-        write(nativeHandle, path, content, WriteOptions.builder().build());
+        write(path, content, WriteOptions.builder().build());
     }
 
     public void write(String path, String content, WriteOptions options) {
@@ -86,7 +89,7 @@ public class Operator extends NativeObject {
     }
 
     public void write(String path, byte[] content, WriteOptions options) {
-        write(nativeHandle, path, content, options);
+        useHandle(handle -> write(handle, path, content, options));
     }
 
     public OperatorOutputStream createOutputStream(String path) {
@@ -111,11 +114,49 @@ public class Operator extends NativeObject {
     }
 
     public byte[] read(String path, ReadOptions options) {
-        return read(nativeHandle, path, options);
+        return withHandle(handle -> read(handle, path, options));
     }
 
+    /**
+     * Creates a reusable reader for a file with default execution options.
+     *
+     * @param path file path
+     * @return a reader that the caller must close
+     * @see #createReader(String, ReaderOptions)
+     */
+    public OperatorReader createReader(String path) {
+        return createReader(path, ReaderOptions.builder().build());
+    }
+
+    /**
+     * Creates a reusable reader for a file. Options apply to every read through the reader;
+     * each read selects its own byte range. The reader can outlive this operator.
+     * Creation does not read file contents or guarantee that the file exists.
+     * Version selection and conditions apply to all requests through the reader, including
+     * streams. All conditions must hold; a failed condition on an existing file
+     * fails with ConditionNotMatch and a missing file fails with NotFound. Depending on the
+     * service, errors may surface at creation or during reading.
+     *
+     * @param path file path
+     * @param options reader execution options
+     * @return a reader that the caller must close
+     * @throws OpenDALException if options are invalid (ConfigInvalid), the path is a directory
+     *     (IsADirectory), or the service does not support reads or a requested option (Unsupported)
+     * @throws IllegalStateException if this operator is closed
+     */
+    public OperatorReader createReader(String path, ReaderOptions options) {
+        final long reader = withHandle(handle -> {
+            Objects.requireNonNull(path, "path");
+            Objects.requireNonNull(options, "options");
+            return createReader(handle, path, options);
+        });
+        return new OperatorReader(reader);
+    }
+
+    private static native long createReader(long operator, String path, ReaderOptions options);
+
     public OperatorInputStream createInputStream(String path) {
-        return new OperatorInputStream(this, path, ReadOptions.builder().build());
+        return createInputStream(path, ReadOptions.builder().build());
     }
 
     public OperatorInputStream createInputStream(String path, ReadOptions options) {
@@ -123,31 +164,44 @@ public class Operator extends NativeObject {
     }
 
     public void delete(String path) {
-        delete(nativeHandle, path);
+        delete(path, DeleteOptions.builder().build());
+    }
+
+    /**
+     * Deletes the given path with the supplied options. A missing file is a successful
+     * no-op when all conditions hold. For recursive directory deletion, include the
+     * trailing slash in the path.
+     *
+     * @param path the path to delete
+     * @param options the delete options
+     * @throws OpenDALException if an option is unsupported, a condition fails, or deletion fails
+     */
+    public void delete(String path, DeleteOptions options) {
+        useHandle(handle -> delete(handle, path, options));
     }
 
     public Metadata stat(String path) {
-        return stat(nativeHandle, path, StatOptions.builder().build());
+        return stat(path, StatOptions.builder().build());
     }
 
     public Metadata stat(String path, StatOptions options) {
-        return stat(nativeHandle, path, options);
+        return withHandle(handle -> stat(handle, path, options));
     }
 
     public void createDir(String path) {
-        createDir(nativeHandle, path);
+        useHandle(handle -> createDir(handle, path));
     }
 
     public void copy(String sourcePath, String targetPath) {
-        copy(nativeHandle, sourcePath, targetPath);
+        useHandle(handle -> copy(handle, sourcePath, targetPath));
     }
 
     public void rename(String sourcePath, String targetPath) {
-        rename(nativeHandle, sourcePath, targetPath);
+        useHandle(handle -> rename(handle, sourcePath, targetPath));
     }
 
     public void removeAll(String path) {
-        removeAll(nativeHandle, path);
+        useHandle(handle -> removeAll(handle, path));
     }
 
     public List<Entry> list(String path) {
@@ -155,7 +209,8 @@ public class Operator extends NativeObject {
     }
 
     public List<Entry> list(String path, ListOptions options) {
-        return Arrays.asList(list(nativeHandle, path, options));
+        final Entry[] entries = withHandle(handle -> list(handle, path, options));
+        return Arrays.asList(entries);
     }
 
     @Override
@@ -167,7 +222,7 @@ public class Operator extends NativeObject {
 
     private static native byte[] read(long op, String path, ReadOptions options);
 
-    private static native void delete(long op, String path);
+    private static native void delete(long op, String path, DeleteOptions options);
 
     private static native Metadata stat(long op, String path, StatOptions options);
 

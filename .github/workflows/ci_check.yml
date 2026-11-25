@@ -18,21 +18,75 @@
 name: Check
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
+  workflow_call:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-check-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   RUST_BACKTRACE: 1
 
 jobs:
+  zizmor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Scan GitHub Actions workflows
+        run: pipx run --spec zizmor==1.32.0 zizmor --offline --min-severity high --min-confidence high --config .github/zizmor.yml .github/workflows/
+      - name: Check composite action pins
+        shell: bash
+        run: |
+          # Composite actions generate test manifests from workflow inputs. Gate only on pinning findings here.
+          pipx run --spec zizmor==1.32.0 zizmor --offline --strict-collection --collect=actions \
+            --no-exit-codes --format=json --config .github/zizmor.yml .github/ |
+            jq -er '
+              map(select(.ident == "unpinned-uses")) |
+              if length == 0 then "All composite action references satisfy the pinning policy."
+              else
+                map(.locations[] | select(.symbolic.kind == "Primary") |
+                  "\(.symbolic.key.Local.verbatim_path):\(.concrete.location.start_point.row + 1): \(.symbolic.annotation)") |
+                (join("\n") + "\n") | halt_error(1)
+              end
+            '
+
+  hf-temp-repo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: Test temporary HF repository cleanup
+        run: node --test .github/actions/hf-temp-repo/cleanup.test.js
+
+  labels:
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test label classification and event handling
+        run: python3 -m unittest discover -s scripts -p test_label.py
+
+  ci-scripts:
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test behavior planner and nightly reporter
+        run: |
+          python3 -m unittest discover -s .github/scripts/test_behavior -p 'test_*.py'
+          python3 -m unittest discover -s .github/scripts/nightly -p 'test_*.py'
+
   typos:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -41,7 +95,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Check typos
-        uses: crate-ci/typos@v1.48.0
+        uses: crate-ci/typos@276087d9a4f06398b3e04825487805e2d7375888 # v1.52.2
 
   licenses:
     runs-on: ubuntu-latest
@@ -50,8 +104,12 @@ jobs:
       FORCE_COLOR: 1
     steps:
       - uses: actions/checkout@v7
+      - name: Install Hawkeye
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: hawkeye@7.2.0
       - name: Check license headers
-        uses: korandoru/hawkeye@v6
+        run: hawkeye check
 
   # Add python format check later.
   code-format:
@@ -61,7 +119,7 @@ jobs:
       FORCE_COLOR: 1
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       - name: Rust Code Format
@@ -75,7 +133,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Setup taplo
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
           tool: taplo-cli
       - name: TOML format
@@ -93,7 +151,7 @@ jobs:
         uses: ./.github/actions/setup
         with:
           need-deny: true
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
@@ -109,13 +167,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           # Follow website/package.json packageManager field
           version: 11.8.0
           run_install: false
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: "website/.node-version"
           cache: pnpm
@@ -123,6 +181,9 @@ jobs:
 
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Test website image processing
+        run: pnpm test
 
       - name: Check dependencies
         run: |

@@ -70,7 +70,8 @@ impl Reader {
             return Err(anyhow::anyhow!("invalid seek to negative position"));
         }
 
-        self.position = u64::try_from(pos)?;
+        let target = i64::try_from(pos).map_err(|_| anyhow::anyhow!("seek position overflow"))?;
+        self.position = target as u64;
         Ok(self.position)
     }
 }

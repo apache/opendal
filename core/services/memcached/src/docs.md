@@ -21,6 +21,23 @@ Use [`crate::MemcachedConfig`] for serializable configuration and this builder's
 methods for direct construction. The field and method documentation defines
 accepted values, defaults, and environment interaction.
 
+Set `enable_tls(true)` for a TCP endpoint that requires TLS. The service verifies
+the server certificate and endpoint hostname or IP address using native trust
+roots loaded when the service is built. Build a new operator to reload changes
+to those trust roots. TLS is disabled by default and is not supported for Unix
+socket endpoints.
+
+## Expiration
+
+A write with `expires` overrides `default_ttl` for that key. Memcached uses
+whole seconds, so OpenDAL rounds positive durations up to that precision.
+An omitted or zero `default_ttl` disables expiration, while a zero per-write
+`expires` is invalid. A `default_ttl` over 30 days is invalid.
+
+If a per-write lifetime exceeds 30 days, OpenDAL uses its local clock to
+compute an absolute Unix time. The deadline must fit in a 32-bit unsigned
+Unix timestamp.
+
 ## Example
 
 ### Via Builder

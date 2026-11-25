@@ -180,16 +180,21 @@ impl From<jiff::Timestamp> for Timestamp {
 
 impl From<Timestamp> for SystemTime {
     fn from(ts: Timestamp) -> Self {
+        // jiff 1.0 makes converting a `jiff::Timestamp` to `SystemTime`
+        // fallible. Keep the public conversion infallible but surface the same
+        // failure as the previous jiff 0.2 conversion when `SystemTime` cannot
+        // represent the value. On wasm, `web_time::SystemTime` additionally
+        // cannot represent times before the Unix epoch.
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         {
-            SystemTime::from(ts.0)
+            SystemTime::try_from(ts.0).expect("jiff timestamp should fit in SystemTime")
         }
 
         #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
         {
             use std::time::SystemTime as StdSystemTime;
 
-            let t = StdSystemTime::from(ts.0);
+            let t = StdSystemTime::try_from(ts.0).expect("jiff timestamp should fit in SystemTime");
             <web_time::SystemTime as web_time::web::SystemTimeExt>::from_std(t)
         }
     }
@@ -309,6 +314,21 @@ mod tests {
         let s = "Sat, 29 Oct 1994 19:43:31 +0000";
         let v = Timestamp::parse_rfc2822(s).unwrap();
         assert_eq!("Sat, 29 Oct 1994 19:43:31 GMT", v.format_http_date());
+    }
+
+    #[test]
+    fn test_timestamp_to_system_time() {
+        let ts = test_time();
+        let system_time: SystemTime = ts.into();
+
+        assert_eq!(Timestamp::try_from(system_time).unwrap(), ts);
+    }
+
+    #[cfg(all(unix, target_pointer_width = "64"))]
+    #[test]
+    fn test_min_and_max_timestamps_convert_to_system_time() {
+        let _: SystemTime = Timestamp::MIN.into();
+        let _: SystemTime = Timestamp::MAX.into();
     }
 
     #[test]

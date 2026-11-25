@@ -16,6 +16,7 @@
 // under the License.
 
 use std::io::Cursor;
+use std::path::Path;
 use std::sync::Arc;
 
 use compio::dispatcher::Dispatcher;
@@ -95,6 +96,7 @@ impl Builder for CompfsBuilder {
 
                 copy: true,
                 rename: true,
+                rename_with_if_not_exists: cfg!(target_os = "linux"),
 
                 shared: true,
 
@@ -121,6 +123,7 @@ impl Service for CompfsBackend {
     type Lister = CompfsLazyLister;
     type Deleter = oio::OneShotDeleter<CompfsDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -160,10 +163,13 @@ impl Service for CompfsBackend {
             EntryMode::Unknown
         };
         let last_mod = Timestamp::try_from(meta.modified().map_err(new_std_io_error)?)?;
-        let ret = Metadata::new(mode)
-            .with_last_modified(last_mod)
-            .with_content_length(meta.len());
-        Ok(RpStat::new(ret))
+        let mut ret = match mode {
+            EntryMode::FILE => MetadataBuilder::file(meta.len()),
+            EntryMode::DIR => MetadataBuilder::dir(),
+            EntryMode::Unknown => MetadataBuilder::unknown(),
+        };
+        ret.last_modified(last_mod);
+        Ok(RpStat::new(ret.build()))
     }
 
     fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -182,13 +188,45 @@ impl Service for CompfsBackend {
         from: &str,
         to: &str,
         _: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         let core = self.core.clone();
         let from = self.core.prepare_path(from)?;
         let to = self.core.prepare_path(to)?;
 
         Ok(oio::OneShotCopier::new(async move {
+            let (from_meta, to_meta) = core
+                .exec({
+                    let from = from.clone();
+                    let to = to.clone();
+                    move || async move {
+                        let from_meta = compio::fs::metadata(&from).await?;
+                        if from_meta.is_dir() {
+                            return Ok((from_meta, None));
+                        }
+                        let to_meta = match compio::fs::metadata(&to).await {
+                            Ok(meta) => Some(meta),
+                            Err(err) if err.kind() == std::io::ErrorKind::NotFound => None,
+                            Err(err) => return Err(err),
+                        };
+                        Ok((from_meta, to_meta))
+                    }
+                })
+                .await?;
+            if from_meta.is_dir() {
+                return Err(Error::new(
+                    ErrorKind::IsADirectory,
+                    "copy source is a directory",
+                ));
+            }
+            if let Some(to_meta) = to_meta
+                && is_same_file(&core, &from, &from_meta, &to, &to_meta).await?
+            {
+                return Err(Error::new(
+                    ErrorKind::IsSameFile,
+                    "copy source and destination refer to the same file",
+                ));
+            }
+
             core.exec(move || async move {
                 let from = OpenOptions::new().read(true).open(from).await?;
                 if let Some(parent) = to.parent() {
@@ -202,9 +240,10 @@ impl Service for CompfsBackend {
                     .await?;
 
                 let (mut from, mut to) = (Cursor::new(from), Cursor::new(to));
-                compio::io::copy(&mut from, &mut to).await?;
+                let size = compio::io::copy(&mut from, &mut to).await?;
 
-                Ok(Metadata::default())
+                let metadata = MetadataBuilder::file(size);
+                Ok(metadata.build())
             })
             .await
         }))
@@ -215,13 +254,41 @@ impl Service for CompfsBackend {
         _ctx: &OperationContext,
         from: &str,
         to: &str,
-        _: OpRename,
+        args: OpRename,
     ) -> Result<RpRename> {
+        #[cfg(not(target_os = "linux"))]
+        if args.if_not_exists() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "Conditional rename is only supported on Linux",
+            ));
+        }
+
         let from = self.core.prepare_path(from)?;
         let to = self.core.prepare_path(to)?;
 
+        #[cfg(target_os = "linux")]
+        if args.if_not_exists() {
+            use rustix::fs::{CWD, RenameFlags, renameat_with};
+
+            self.core
+                .exec_blocking(move || {
+                    std::fs::metadata(&from).map_err(parse_conditional_rename_path_error)?;
+                    if let Some(parent) = to.parent() {
+                        std::fs::create_dir_all(parent)
+                            .map_err(parse_conditional_rename_path_error)?;
+                    }
+                    renameat_with(CWD, &from, CWD, &to, RenameFlags::NOREPLACE)
+                        .map_err(parse_conditional_rename_error)
+                })
+                .await??;
+
+            return Ok(RpRename::default());
+        }
+
         self.core
             .exec(move || async move {
+                compio::fs::metadata(&from).await?;
                 if let Some(parent) = to.parent() {
                     compio::fs::create_dir_all(parent).await?;
                 }
@@ -263,5 +330,224 @@ impl Service for CompfsBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+async fn is_same_file(
+    core: &CompfsCore,
+    from: &Path,
+    from_meta: &compio::fs::Metadata,
+    to: &Path,
+    to_meta: &compio::fs::Metadata,
+) -> Result<bool> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let _ = (core, from, to);
+        Ok(from_meta.dev() == to_meta.dev() && from_meta.ino() == to_meta.ino())
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (from_meta, to_meta);
+        let from = from.to_path_buf();
+        let to = to.to_path_buf();
+        core.exec_blocking(move || {
+            matches!(
+                (std::fs::canonicalize(from), std::fs::canonicalize(to)),
+                (Ok(from_canon), Ok(to_canon)) if from_canon == to_canon
+            )
+        })
+        .await
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn parse_conditional_rename_path_error(err: std::io::Error) -> Error {
+    let kind = match err.kind() {
+        std::io::ErrorKind::IsADirectory => ErrorKind::IsADirectory,
+        std::io::ErrorKind::NotADirectory => ErrorKind::NotADirectory,
+        _ => return new_std_io_error(err),
+    };
+    Error::new(kind, err.kind().to_string()).set_source(err)
+}
+
+#[cfg(target_os = "linux")]
+fn parse_conditional_rename_error(err: rustix::io::Errno) -> Error {
+    use rustix::io::Errno;
+
+    match err {
+        Errno::EXIST => Error::new(
+            ErrorKind::ConditionNotMatch,
+            "The destination already exists",
+        )
+        .set_source(std::io::Error::from(err)),
+        Errno::NOSYS | Errno::INVAL | Errno::OPNOTSUPP => Error::new(
+            ErrorKind::Unsupported,
+            "The kernel or filesystem does not support conditional rename",
+        )
+        .set_source(err),
+        _ => parse_conditional_rename_path_error(err.into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(unix)]
+    use std::time::Duration;
+
+    use super::*;
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_copy_same_file_alias_preserves_data() {
+        tokio::time::timeout(Duration::from_secs(30), async {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let root = temp_dir.path();
+            std::fs::write(root.join("real.txt"), b"important data").unwrap();
+            std::os::unix::fs::symlink("real.txt", root.join("link.txt")).unwrap();
+            std::fs::hard_link(root.join("real.txt"), root.join("hard.txt")).unwrap();
+            std::fs::create_dir(root.join("nested")).unwrap();
+            std::os::unix::fs::symlink("../real.txt", root.join("nested/link.txt")).unwrap();
+
+            let op = Operator::new(CompfsBuilder::default().root(root.to_str().unwrap())).unwrap();
+
+            for (from, to) in [
+                ("real.txt", "link.txt"),
+                ("link.txt", "real.txt"),
+                ("real.txt", "hard.txt"),
+                ("hard.txt", "real.txt"),
+                ("link.txt", "hard.txt"),
+                ("real.txt", "nested/link.txt"),
+            ] {
+                let err = op.copy(from, to).await.unwrap_err();
+                assert_eq!(err.kind(), ErrorKind::IsSameFile, "{from} -> {to}: {err:?}");
+                assert!(!err.is_temporary(), "{from} -> {to}: {err:?}");
+                assert_eq!(
+                    std::fs::read(root.join("real.txt")).unwrap(),
+                    b"important data",
+                    "{from} -> {to} must preserve data"
+                );
+            }
+        })
+        .await
+        .unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_conditional_rename_errno_mapping() {
+        use rustix::io::Errno;
+
+        for (errno, kind) in [
+            (Errno::EXIST, ErrorKind::ConditionNotMatch),
+            (Errno::NOSYS, ErrorKind::Unsupported),
+            (Errno::INVAL, ErrorKind::Unsupported),
+            (Errno::OPNOTSUPP, ErrorKind::Unsupported),
+            (Errno::NOENT, ErrorKind::NotFound),
+            (Errno::NOTDIR, ErrorKind::NotADirectory),
+            (Errno::ISDIR, ErrorKind::IsADirectory),
+        ] {
+            let err = parse_conditional_rename_error(errno);
+            assert_eq!(err.kind(), kind, "{errno:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn test_conditional_rename_rejects_file_as_parent() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        std::fs::write(root.join("source"), b"source contents").unwrap();
+        std::fs::write(root.join("file"), b"parent contents").unwrap();
+        let op = Operator::new(CompfsBuilder::default().root(root.to_str().unwrap())).unwrap();
+
+        for (from, to, kind) in [
+            ("file/child", "target", ErrorKind::NotADirectory),
+            ("source", "file/child", ErrorKind::AlreadyExists),
+            ("source", "file/dir/child", ErrorKind::NotADirectory),
+        ] {
+            let err = op
+                .rename_with(from, to)
+                .if_not_exists(true)
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), kind, "{from} -> {to}: {err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+        }
+
+        assert_eq!(
+            std::fs::read(root.join("source")).unwrap(),
+            b"source contents"
+        );
+        assert_eq!(
+            std::fs::read(root.join("file")).unwrap(),
+            b"parent contents"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_copy_directory_source_preserves_destination() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        std::fs::create_dir(root.join("dir")).unwrap();
+        std::fs::write(root.join("dir/child"), b"source contents").unwrap();
+        std::fs::write(root.join("dst"), b"destination contents").unwrap();
+        let op = Operator::new(CompfsBuilder::default().root(root.to_str().unwrap())).unwrap();
+
+        let err = op.copy("dir", "dst").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+        assert_eq!(
+            std::fs::read(root.join("dst")).unwrap(),
+            b"destination contents"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_copy_directory_source_does_not_create_destination() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        std::fs::create_dir(root.join("dir")).unwrap();
+        let op = Operator::new(CompfsBuilder::default().root(root.to_str().unwrap())).unwrap();
+
+        let err = op.copy("dir", "new_dir/missing").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+        assert!(!root.join("new_dir").exists());
+    }
+
+    #[tokio::test]
+    async fn test_rename_missing_source_does_not_create_destination_parent() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        let op = Operator::new(CompfsBuilder::default().root(root.to_str().unwrap())).unwrap();
+
+        let err = op.rename("missing", "ghost/dir/dst").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound, "{err:?}");
+        assert!(!root.join("ghost").exists());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn test_conditional_rename_missing_source_does_not_create_destination_parent() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        std::fs::write(root.join("file"), b"file contents").unwrap();
+        let op = Operator::new(CompfsBuilder::default().root(root.to_str().unwrap())).unwrap();
+
+        let err = op
+            .rename_with("missing", "ghost/dir/dst")
+            .if_not_exists(true)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound, "{err:?}");
+        assert!(!root.join("ghost").exists());
+
+        let err = op
+            .rename_with("missing", "file/target")
+            .if_not_exists(true)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound, "{err:?}");
+        assert_eq!(std::fs::read(root.join("file")).unwrap(), b"file contents");
     }
 }

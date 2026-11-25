@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
+
 use anyhow::Result;
 
 use crate::*;
@@ -94,6 +96,39 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_copy_with_source_version_to_same_file
         ))
     }
+
+    if cap.read
+        && cap.write
+        && cap.write_with_user_metadata
+        && cap.stat
+        && cap.copy
+        && cap.copy_with_user_metadata
+    {
+        tests.extend(async_trials!(op, test_copy_with_user_metadata_in_place))
+    }
+
+    if cap.read
+        && cap.write
+        && cap.write_with_user_metadata
+        && cap.write_with_content_language
+        && cap.stat
+        && cap.copy
+        && cap.copy_with_content_language
+    {
+        tests.extend(async_trials!(op, test_copy_with_content_language_in_place))
+    }
+
+    if cap.read
+        && cap.write
+        && cap.write_with_user_metadata
+        && cap.write_with_content_type
+        && cap.stat
+        && cap.copy_can_multi
+        && cap.copy_with_user_metadata
+        && cap.copy_with_content_language
+    {
+        tests.extend(async_trials!(op, test_copy_with_metadata_multipart))
+    }
 }
 
 fn copy_multi_chunk_size(cap: Capability) -> Option<(usize, usize)> {
@@ -129,7 +164,10 @@ pub async fn test_copy_file_with_ascii_name(op: Operator) -> Result<()> {
 
     let target_path = uuid::Uuid::new_v4().to_string();
 
-    op.copy(&source_path, &target_path).await?;
+    let metadata = op.copy(&source_path, &target_path).await?;
+    if metadata.is_file() {
+        assert_eq!(metadata.content_length(), source_content.len() as u64);
+    }
 
     let target_content = op
         .read(&target_path)
@@ -866,6 +904,101 @@ pub async fn test_copier_with_if_not_exists_to_existing_file(op: Operator) -> Re
         sha256_digest(current_content),
         sha256_digest(&target_content),
     );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copy onto the same path with user_metadata should replace the metadata
+/// and keep the content.
+pub async fn test_copy_with_user_metadata_in_place(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes(op.info().capability());
+    op.write_with(&path, content.clone())
+        .user_metadata([("old".to_string(), "value".to_string())])
+        .await?;
+
+    let new_metadata = HashMap::from([("mtime".to_string(), "1700000000".to_string())]);
+    op.copy_with(&path, &path)
+        .user_metadata(new_metadata.clone())
+        .await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    let current = meta
+        .user_metadata()
+        .expect("user metadata must exist")
+        .into_iter()
+        .map(|(key, value)| (key.to_owned(), value.to_owned()))
+        .collect::<HashMap<_, _>>();
+    assert_eq!(current, new_metadata);
+
+    let current_content = op.read(&path).await.expect("read must succeed").to_bytes();
+    assert_eq!(sha256_digest(current_content), sha256_digest(&content));
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copy onto the same path with only content_language should replace the
+/// whole metadata set: the new Content-Language is stored and the old user
+/// metadata is gone.
+pub async fn test_copy_with_content_language_in_place(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    let (content, _) = gen_bytes(op.info().capability());
+    op.write_with(&path, content.clone())
+        .content_language("en")
+        .user_metadata([("old".to_string(), "value".to_string())])
+        .await?;
+
+    op.copy_with(&path, &path)
+        .content_language("fr-CA, en")
+        .await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(meta.content_language(), Some("fr-CA, en"));
+    assert!(meta.user_metadata().is_none_or(|m| m.is_empty()));
+
+    let current_content = op.read(&path).await.expect("read must succeed").to_bytes();
+    assert_eq!(sha256_digest(current_content), sha256_digest(&content));
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// A multipart copy with metadata options should store exactly the given
+/// metadata on the destination: source user metadata and Content-Type are not
+/// inherited.
+pub async fn test_copy_with_metadata_multipart(op: Operator) -> Result<()> {
+    let Some((chunk, source_size)) = copy_multi_chunk_size(op.info().capability()) else {
+        return Ok(());
+    };
+
+    let source_path = uuid::Uuid::new_v4().to_string();
+    op.write_with(&source_path, gen_fixed_bytes(source_size))
+        .user_metadata([("old".to_string(), "value".to_string())])
+        .content_type("text/plain")
+        .await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+    let new_metadata = HashMap::from([("mtime".to_string(), "1700000000".to_string())]);
+    op.copy_with(&source_path, &target_path)
+        .chunk(chunk)
+        .user_metadata(new_metadata.clone())
+        .content_language("es-MX")
+        .await?;
+
+    let meta = op.stat(&target_path).await.expect("stat must succeed");
+    assert_eq!(meta.content_length(), source_size as u64);
+    assert_eq!(meta.content_language(), Some("es-MX"));
+    assert_ne!(meta.content_type(), Some("text/plain"));
+    let current = meta
+        .user_metadata()
+        .expect("user metadata must exist")
+        .into_iter()
+        .map(|(key, value)| (key.to_owned(), value.to_owned()))
+        .collect::<HashMap<_, _>>();
+    assert_eq!(current, new_metadata);
 
     op.delete(&source_path).await.expect("delete must succeed");
     op.delete(&target_path).await.expect("delete must succeed");

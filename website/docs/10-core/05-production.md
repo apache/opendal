@@ -82,7 +82,9 @@ if cap.copy {
 ```
 
 Calling an unsupported operation returns an error with `ErrorKind::Unsupported`,
-so capability checks are an optimization, not a requirement for safety.
+so capability checks are an optimization, not a requirement for safety. See the
+[service capability matrix](/services/capabilities) to compare supported
+operations, conditional features, and size limits across backends.
 
 [layers]: https://docs.rs/opendal/latest/opendal/layers/index.html
 [`ErrorKind`]: https://docs.rs/opendal/latest/opendal/enum.ErrorKind.html

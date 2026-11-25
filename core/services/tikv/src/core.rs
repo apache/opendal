@@ -115,13 +115,18 @@ impl TikvCore {
 }
 
 fn parse_error(ctx: ErrorContext, err: tikv_client::Error) -> Error {
-    let (kind, message) = if ctx.service_operation.0 == "Connect" {
-        (ErrorKind::ConfigInvalid, "invalid configuration")
-    } else {
-        (ErrorKind::Unexpected, "error from tikv")
+    let error = match (ctx.service_operation.0, &err) {
+        // tikv-client prefixes this internal error message with its source location.
+        ("Connect", tikv_client::Error::InternalError { message })
+            if message.ends_with("PD cluster failed to respond") =>
+        {
+            Error::new(ErrorKind::Unexpected, "PD cluster failed to respond").set_temporary()
+        }
+        ("Connect", _) => Error::new(ErrorKind::ConfigInvalid, "invalid configuration"),
+        _ => Error::new(ErrorKind::Unexpected, "error from tikv"),
     };
 
-    Error::new(kind, message)
+    error
         .with_context("service", TIKV_SCHEME)
         .with_context("service_operation", ctx.service_operation.0)
         .set_source(err)

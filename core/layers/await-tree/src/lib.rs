@@ -19,13 +19,25 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-use await_tree::InstrumentAwait;
+
 use std::sync::Arc;
+use std::time::Duration;
+
+use await_tree::InstrumentAwait;
+use await_tree::Registry;
+use futures::StreamExt;
+use futures::stream;
+use http::Request;
+use http::Response;
 
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// `AwaitTreeLayer` instruments service operations for actor-based applications.
+/// `AwaitTreeLayer` instruments service operations, HTTP requests and response bodies,
+/// and background tasks for actor-based applications.
+///
+/// When a registry is available at task submission, the layer gives the
+/// background task its own anonymous tree in that registry.
 ///
 /// # AwaitTree
 ///
@@ -60,28 +72,97 @@ impl AwaitTreeLayer {
 
 impl Layer for AwaitTreeLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
+        Arc::new(AwaitTreeService { inner })
+    }
+
+    fn apply_context(&self, _service: Servicer, inner: OperationContext) -> OperationContext {
+        let transport = HttpTransporter::new(AwaitTreeHttpTransport {
+            inner: inner.http_transport().clone(),
+        });
+        let executor = Executor::with(AwaitTreeExecutor {
+            inner: inner.executor().clone().into_inner(),
+        });
+
+        inner.with_http_transport(transport).with_executor(executor)
     }
 }
 
-impl AwaitTreeLayer {
-    fn layer(&self, inner: Servicer) -> AwaitTreeAccessor {
-        AwaitTreeAccessor { inner }
+struct AwaitTreeHttpTransport {
+    inner: HttpTransporter,
+}
+
+impl HttpTransport for AwaitTreeHttpTransport {
+    async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+        let response = self
+            .inner
+            .fetch(req)
+            .instrument_await("opendal::http::fetch")
+            .await?;
+
+        Ok(response.map(|body| {
+            body.map_inner(|stream| {
+                // Keep one span across polls of each pending stream item.
+                Box::new(Box::pin(
+                    stream::unfold(stream, |mut stream| async move {
+                        let item = stream.next().instrument_await("opendal::http::body").await;
+                        item.map(|item| (item, stream))
+                    })
+                    .fuse(),
+                ))
+            })
+        }))
     }
 }
 
-#[doc(hidden)]
+struct AwaitTreeExecutor {
+    inner: Arc<dyn Execute>,
+}
+
+impl AwaitTreeExecutor {
+    fn instrument_task(f: BoxedStaticFuture<()>) -> BoxedStaticFuture<()> {
+        match Registry::try_current() {
+            Some(registry) => {
+                let root = registry.register_anonymous("opendal::executor::task");
+                Box::pin(root.instrument(f))
+            }
+            None => f,
+        }
+    }
+}
+
+impl Execute for AwaitTreeExecutor {
+    fn execute(&self, f: BoxedStaticFuture<()>) {
+        self.inner.execute(Self::instrument_task(f));
+    }
+
+    fn try_execute(&self, f: BoxedStaticFuture<()>) -> Result<()> {
+        self.inner.try_execute(Self::instrument_task(f))
+    }
+
+    fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
+        self.inner.timeout()
+    }
+
+    fn sleep(&self, duration: Duration) -> Option<BoxedStaticFuture<()>> {
+        self.inner.sleep(duration)
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests;
+
 #[derive(Debug)]
-pub struct AwaitTreeAccessor {
+struct AwaitTreeService {
     inner: Servicer,
 }
 
-impl Service for AwaitTreeAccessor {
+impl Service for AwaitTreeService {
     type Reader = AwaitTreeWrapper<oio::Reader>;
     type Writer = AwaitTreeWrapper<oio::Writer>;
     type Lister = AwaitTreeWrapper<oio::Lister>;
     type Deleter = AwaitTreeWrapper<oio::Deleter>;
     type Copier = AwaitTreeWrapper<oio::Copier>;
+    type Composer = AwaitTreeWrapper<oio::Composer>;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -89,6 +170,10 @@ impl Service for AwaitTreeAccessor {
 
     fn capability(&self) -> Capability {
         self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args).map(AwaitTreeWrapper::new)
     }
 
     async fn create_dir(
@@ -117,10 +202,9 @@ impl Service for AwaitTreeAccessor {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         self.inner
-            .copy(ctx, from, to, args, opts)
+            .copy(ctx, from, to, args)
             .map(AwaitTreeWrapper::new)
     }
 
@@ -177,8 +261,7 @@ impl Service for AwaitTreeAccessor {
     }
 }
 
-#[doc(hidden)]
-pub struct AwaitTreeWrapper<R> {
+struct AwaitTreeWrapper<R> {
     inner: R,
 }
 
@@ -259,13 +342,32 @@ impl<R: oio::List> oio::List for AwaitTreeWrapper<R> {
 
 impl<R: oio::Delete> oio::Delete for AwaitTreeWrapper<R> {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner.delete(path, args).await
+        self.inner
+            .delete(path, args)
+            .instrument_await(format!("opendal::{}", Operation::Delete))
+            .await
     }
 
     async fn close(&mut self) -> Result<()> {
         self.inner
             .close()
             .instrument_await(format!("opendal::{}", Operation::Delete))
+            .await
+    }
+}
+
+impl<C: oio::Compose> oio::Compose for AwaitTreeWrapper<C> {
+    async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
+        self.inner
+            .compose(path, args)
+            .instrument_await(format!("opendal::{}", Operation::Compose))
+            .await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner
+            .close()
+            .instrument_await(format!("opendal::{}", Operation::Compose))
             .await
     }
 }

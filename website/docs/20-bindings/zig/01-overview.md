@@ -12,7 +12,8 @@ the local filesystem, and [50+ more services](/services) through one API backed 
 Rust core.
 
 New to the model behind the API? Read [Concepts](../../03-concepts.mdx) first —
-service, operator, layer, operation are the same four ideas in every language.
+the shared storage semantics and path and operation concepts every binding
+expresses through its own native API.
 
 :::caution Early-stage / Experimental
 This binding is **early-stage and a work in progress**. The API is incomplete,
@@ -42,10 +43,9 @@ Operations available through `Operator`:
 - **createDir** — create a directory path
 - **rename** — rename/move a path (supported only on backends that expose this capability)
 - **copy** — copy a path (supported only on backends that expose this capability)
+- **info** — inspect operator details (`OperatorInfo`: scheme, root, name, and capabilities)
 
-All operations return Zig errors (`OpendalError`) rather than raw C error codes.
-
-`info()` / `OperatorInfo` exist in the source but are currently broken (a compile error in `src/opendal.zig` references an undefined variable) and cannot be used until the bug is fixed.
+Storage operations map C error codes to Zig errors in `OpendalError`.
 
 The binding also exposes the raw C API under the `opendal.c` namespace for cases where
 the thin layer does not yet cover what you need.

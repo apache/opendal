@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
@@ -55,7 +56,7 @@ impl LakefsCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -85,9 +86,9 @@ impl LakefsCore {
         ctx: &OperationContext,
         path: &str,
         range: BytesRange,
-        _args: &OpRead,
+        args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -104,6 +105,9 @@ impl LakefsCore {
         let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
+        if let Some(etag) = args.if_none_match() {
+            req = req.header(header::IF_NONE_MATCH, format_etag(etag).as_ref());
+        }
         if !range.is_full() {
             req = req.header(header::RANGE, range.to_header());
         }
@@ -124,7 +128,7 @@ impl LakefsCore {
         amount: &Option<usize>,
         after: Option<String>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "{}/api/v1/repositories/{}/refs/{}/objects/ls?",
@@ -167,7 +171,7 @@ impl LakefsCore {
         _args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -198,7 +202,7 @@ impl LakefsCore {
         path: &str,
         _args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -229,10 +233,10 @@ impl LakefsCore {
         path: &str,
         dest: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
-        let d = build_abs_path(&self.root, dest)
+        let d = build_absolute_path(&self.root, dest)
             .trim_end_matches('/')
             .to_string();
 
@@ -262,7 +266,7 @@ impl LakefsCore {
     }
 
     /// Parse LakefsStatus into Metadata
-    pub fn parse_lakefs_status_into_metadata(status: &LakefsStatus) -> Metadata {
+    pub fn parse_lakefs_status_into_metadata(status: &LakefsStatus) -> Result<Metadata> {
         // Determine entry mode based on path_type
         // "common_prefix" indicates a directory in list operations
         let mode = if status.path_type == "common_prefix" {
@@ -271,29 +275,42 @@ impl LakefsCore {
             EntryMode::FILE
         };
 
-        let mut meta = Metadata::new(mode);
+        let mut meta = if mode == EntryMode::FILE {
+            MetadataBuilder::file(status.size_bytes.ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "lakefs response does not contain file size",
+                )
+            })?)
+        } else {
+            MetadataBuilder::dir()
+        };
 
         // Set checksum as etag
         if !status.checksum.is_empty() {
-            meta.set_etag(&status.checksum);
-        }
-
-        // Set content length
-        if let Some(size) = status.size_bytes {
-            meta.set_content_length(size);
+            meta.etag(&status.checksum);
         }
 
         // Set content type
         if let Some(ref content_type) = status.content_type {
-            meta.set_content_type(content_type);
+            meta.content_type(content_type);
         }
 
         // Set last modified time
         if let Ok(timestamp) = Timestamp::from_second(status.mtime) {
-            meta.set_last_modified(timestamp);
+            meta.last_modified(timestamp);
         }
 
-        meta
+        Ok(meta.build())
+    }
+}
+
+// lakeFS returns bare checksums in object metadata and quoted ETags in GET headers.
+pub(super) fn format_etag(etag: &str) -> Cow<'_, str> {
+    if etag.starts_with('"') && etag.ends_with('"') {
+        Cow::Borrowed(etag)
+    } else {
+        Cow::Owned(format!("\"{etag}\""))
     }
 }
 

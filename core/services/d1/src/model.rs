@@ -38,46 +38,59 @@ impl D1Response {
         let response: D1Response = serde_json::from_slice(bs).map_err(|e| {
             Error::new(
                 opendal_core::ErrorKind::Unexpected,
-                format!("failed to parse error response: {e}"),
+                format!("failed to parse d1 response: {e}"),
             )
         })?;
 
         if !response.success {
             return Err(Error::new(
-                opendal_core::ErrorKind::Unexpected,
+                ErrorKind::Unexpected,
                 String::from_utf8_lossy(bs),
             ));
         }
         Ok(response)
     }
 
-    pub fn get_result(&self, key: &str) -> Option<Buffer> {
-        if self.result.is_empty() || self.result[0].results.is_empty() {
-            return None;
-        }
-        let result = &self.result[0].results[0];
-        let value = result.get(key);
+    pub fn get_result(&self, key: &str) -> Result<Option<Buffer>, Error> {
+        let Some(first_result) = self.result.first() else {
+            return Ok(None);
+        };
+        let Some(row) = first_result.results.first() else {
+            return Ok(None);
+        };
+        let Some(value) = row.get(key) else {
+            return Ok(None);
+        };
 
         match value {
-            Some(Value::Array(s)) => {
-                let mut v = Vec::new();
-                for i in s {
-                    if let Value::Number(n) = i {
-                        v.push(n.as_u64().unwrap() as u8);
-                    }
+            Value::Array(items) => {
+                let mut bytes = Vec::with_capacity(items.len());
+                for item in items {
+                    let byte = item
+                        .as_u64()
+                        .and_then(|n| u8::try_from(n).ok())
+                        .ok_or_else(|| {
+                            Error::new(
+                                opendal_core::ErrorKind::Unexpected,
+                                "d1 value contains invalid byte element",
+                            )
+                        })?;
+                    bytes.push(byte);
                 }
-                Some(Buffer::from(v))
+                Ok(Some(Buffer::from(bytes)))
             }
-            _ => None,
+            _ => Ok(None),
         }
     }
 
     pub fn get_usize_result(&self, key: &str) -> Result<Option<usize>, Error> {
-        if self.result.is_empty() || self.result[0].results.is_empty() {
+        let Some(first_result) = self.result.first() else {
             return Ok(None);
-        }
-        let result = &self.result[0].results[0];
-        let Some(value) = result.get(key) else {
+        };
+        let Some(row) = first_result.results.first() else {
+            return Ok(None);
+        };
+        let Some(value) = row.get(key) else {
             return Ok(None);
         };
 
@@ -180,5 +193,47 @@ mod test {
             Some(6)
         );
         assert_eq!(response.get_usize_result("missing").unwrap(), None);
+    }
+
+    #[test]
+    fn test_get_result_validates_byte_elements() {
+        let ok_data = r#"{
+            "result": [{"results": [{"value": [65, 66]}]}],
+            "success": true,
+            "errors": []
+        }"#;
+        let response: D1Response = serde_json::from_str(ok_data).unwrap();
+        let buf = response.get_result("value").unwrap().unwrap();
+        assert_eq!(buf.to_bytes().as_ref(), b"AB");
+
+        let empty_data = r#"{
+            "result": [{"results": [{"value": []}]}],
+            "success": true,
+            "errors": []
+        }"#;
+        let response: D1Response = serde_json::from_str(empty_data).unwrap();
+        let buf = response.get_result("value").unwrap().unwrap();
+        assert!(buf.is_empty());
+
+        let null_data = r#"{
+            "result": [{"results": [{"value": null}]}],
+            "success": true,
+            "errors": []
+        }"#;
+        let response: D1Response = serde_json::from_str(null_data).unwrap();
+        assert!(response.get_result("value").unwrap().is_none());
+
+        for invalid_value in ["[-1]", "[1.5]", "[256]", r#"["x"]"#] {
+            let data = format!(
+                r#"{{"result":[{{"results":[{{"value":{invalid_value}}}]}}],"success":true,"errors":[]}}"#
+            );
+            let response: D1Response = serde_json::from_str(&data).unwrap();
+            let err = response.get_result("value").unwrap_err();
+            assert_eq!(
+                err.kind(),
+                ErrorKind::Unexpected,
+                "expected Unexpected for {invalid_value}"
+            );
+        }
     }
 }

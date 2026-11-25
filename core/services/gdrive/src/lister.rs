@@ -26,6 +26,7 @@ use http::StatusCode;
 use super::core::GdriveFile;
 use super::core::GdriveFileList;
 use super::core::GdriveRecentPathState;
+use super::core::metadata_from_gdrive_file;
 use super::core::parse_error;
 use super::core::{ErrorContext, GdriveCore};
 use opendal_core::raw::*;
@@ -71,12 +72,12 @@ impl GdriveLister {
     ) -> Result<()> {
         match self.core.recent_entry_for_path(&abs_path).await {
             GdriveRecentPathState::Present(recent_metadata) => {
-                let path = build_rel_path(&self.core.root, &abs_path);
+                let path = build_relative_path(&self.core.root, &abs_path);
                 self.push_entry(ctx, path, *recent_metadata).await
             }
             GdriveRecentPathState::Deleted => Ok(()),
             GdriveRecentPathState::Missing => {
-                let path = build_rel_path(&self.core.root, &abs_path);
+                let path = build_relative_path(&self.core.root, &abs_path);
                 self.push_entry(ctx, path, metadata).await
             }
         }
@@ -90,37 +91,12 @@ impl GdriveLister {
         *recent_entries_loaded = true;
 
         for (abs_path, metadata) in self.core.recent_entries_for_list(&self.path, false).await {
-            let path = build_rel_path(&self.core.root, &abs_path);
+            let path = build_relative_path(&self.core.root, &abs_path);
             self.push_entry(ctx, path, metadata).await?;
         }
 
         Ok(())
     }
-}
-
-fn metadata_from_gdrive_file(file: &GdriveFile) -> Result<Metadata> {
-    let mut metadata = Metadata::new(
-        if file.mime_type.as_str() == "application/vnd.google-apps.folder" {
-            EntryMode::DIR
-        } else {
-            EntryMode::FILE
-        },
-    )
-    .with_content_type(file.mime_type.clone());
-
-    if let Some(size) = &file.size {
-        metadata = metadata.with_content_length(size.parse::<u64>().map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
-        })?);
-    }
-    if let Some(modified_time) = &file.modified_time {
-        metadata =
-            metadata.with_last_modified(modified_time.parse::<Timestamp>().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-            })?);
-    }
-
-    Ok(metadata)
 }
 
 impl oio::PageList for GdriveLister {
@@ -234,8 +210,8 @@ impl oio::PageList for GdriveLister {
 
         // Include the current directory itself when handling the first page of the listing.
         if ctx.token.is_empty() && !ctx.done {
-            let path = build_rel_path(&self.core.root, &self.path);
-            self.push_entry(ctx, path, Metadata::new(EntryMode::DIR))
+            let path = build_relative_path(&self.core.root, &self.path);
+            self.push_entry(ctx, path, MetadataBuilder::dir().build())
                 .await?;
             self.inject_recent_entries(ctx).await?;
         }
@@ -271,7 +247,7 @@ impl oio::PageList for GdriveLister {
 
 // GdriveFlatLister implements efficient recursive listing for Google Drive.
 //
-// Unlike the generic FlatLister which makes one API call per directory,
+// Unlike generic simulated recursive listing which makes one API call per directory,
 // this implementation uses batch queries with OR conditions to list
 // multiple directories in a single API call (up to 50 parent IDs per query).
 //
@@ -372,12 +348,12 @@ impl GdriveFlatLister {
     ) -> Result<()> {
         match recent_state {
             GdriveRecentPathState::Present(recent_metadata) => {
-                let rel_path = build_rel_path(&self.core.root, &abs_path);
+                let rel_path = build_relative_path(&self.core.root, &abs_path);
                 self.push_entry(rel_path, *recent_metadata);
             }
             GdriveRecentPathState::Deleted => {}
             GdriveRecentPathState::Missing => {
-                let rel_path = build_rel_path(&self.core.root, &abs_path);
+                let rel_path = build_relative_path(&self.core.root, &abs_path);
                 self.push_entry(rel_path, metadata);
             }
         }
@@ -393,7 +369,7 @@ impl GdriveFlatLister {
 
         let scope_path = self.prefix.as_deref().unwrap_or(&self.root_path);
         for (abs_path, metadata) in self.core.recent_entries_for_list(scope_path, true).await {
-            let rel_path = build_rel_path(&self.core.root, &abs_path);
+            let rel_path = build_relative_path(&self.core.root, &abs_path);
             self.push_entry(rel_path, metadata);
         }
 
@@ -551,11 +527,11 @@ impl GdriveFlatLister {
             }
 
             // Add the root directory entry first.
-            let mut rel_path = build_rel_path(&self.core.root, &self.root_path);
+            let mut rel_path = build_relative_path(&self.core.root, &self.root_path);
             if !rel_path.is_empty() && !rel_path.ends_with('/') {
                 rel_path.push('/');
             }
-            self.push_entry(rel_path, Metadata::new(EntryMode::DIR));
+            self.push_entry(rel_path, MetadataBuilder::dir().build());
 
             // Queue the root directory for listing.
             self.pending_dirs.push_back(PendingDir {
@@ -806,8 +782,9 @@ mod tests {
             info: info.clone(),
             capability: Capability::default(),
             root: "/".to_string(),
+            drive_id: None,
             signer: signer.clone(),
-            path_index: GdrivePathIndex::new(GdrivePathQuery::new(signer)),
+            path_index: GdrivePathIndex::new(GdrivePathQuery::new(signer, None)),
             recent_entries: Mutex::new(GdriveRecentState::default()),
         })
     }

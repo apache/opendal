@@ -20,12 +20,6 @@ use std::io;
 use crate::*;
 
 /// Parse std io error into opendal::Error.
-///
-/// # TODO
-///
-/// Add `NotADirectory` and `IsADirectory` once they are stable.
-///
-/// ref: <https://github.com/rust-lang/rust/issues/86442>
 pub fn new_std_io_error(err: io::Error) -> Error {
     use std::io::ErrorKind::*;
 
@@ -33,7 +27,15 @@ pub fn new_std_io_error(err: io::Error) -> Error {
         NotFound => (ErrorKind::NotFound, false),
         PermissionDenied => (ErrorKind::PermissionDenied, false),
         AlreadyExists => (ErrorKind::AlreadyExists, false),
+        IsADirectory => (ErrorKind::IsADirectory, false),
+        NotADirectory => (ErrorKind::NotADirectory, false),
         Unsupported => (ErrorKind::Unsupported, false),
+        // These describe the target path or the file itself, so retrying
+        // cannot succeed. `ReadOnlyFilesystem` stays retryable: HDFS reports
+        // NameNode safe mode as EROFS. `InvalidInput` stays retryable: it also
+        // reports connects to hosts whose DNS lookup returned no address.
+        DirectoryNotEmpty | InvalidFilename | FileTooLarge | NotSeekable | CrossesDevices
+        | TooManyLinks => (ErrorKind::Unexpected, false),
 
         Interrupted | UnexpectedEof | TimedOut | WouldBlock => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, true),
@@ -67,6 +69,48 @@ pub(crate) fn format_std_io_error(err: Error) -> io::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_new_std_io_error_directory_kinds_are_permanent() {
+        for (io_kind, expected_kind) in [
+            (io::ErrorKind::IsADirectory, ErrorKind::IsADirectory),
+            (io::ErrorKind::NotADirectory, ErrorKind::NotADirectory),
+        ] {
+            let err = new_std_io_error(io::Error::from(io_kind));
+            assert_eq!(err.kind(), expected_kind);
+            assert!(!err.is_temporary(), "{err:?}");
+        }
+    }
+
+    #[test]
+    fn test_new_std_io_error_permanent_kinds_are_not_temporary() {
+        for io_kind in [
+            io::ErrorKind::DirectoryNotEmpty,
+            io::ErrorKind::InvalidFilename,
+            io::ErrorKind::FileTooLarge,
+            io::ErrorKind::NotSeekable,
+            io::ErrorKind::CrossesDevices,
+            io::ErrorKind::TooManyLinks,
+        ] {
+            let err = new_std_io_error(io::Error::from(io_kind));
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(!err.is_temporary(), "{err:?}");
+        }
+    }
+
+    #[test]
+    fn test_new_std_io_error_transient_kinds_are_temporary() {
+        for io_kind in [
+            io::ErrorKind::Interrupted,
+            io::ErrorKind::TimedOut,
+            io::ErrorKind::ReadOnlyFilesystem,
+            io::ErrorKind::InvalidInput,
+            io::ErrorKind::Other,
+        ] {
+            let err = new_std_io_error(io::Error::from(io_kind));
+            assert!(err.is_temporary(), "{err:?}");
+        }
+    }
 
     #[test]
     fn test_read_to_end_stops_on_persistent_error() {

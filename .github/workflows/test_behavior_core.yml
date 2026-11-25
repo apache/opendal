@@ -26,10 +26,23 @@ on:
       cases:
         required: true
         type: string
+      enable_secrets:
+        required: false
+        type: boolean
+        default: false
+      retry_attempts:
+        required: false
+        type: number
+        default: 1
+    secrets:
+      OP_CONNECT_HOST:
+        required: false
+      OP_CONNECT_TOKEN:
+        required: false
 
 jobs:
   test:
-    name: ${{ matrix.cases.service }}
+    name: ${{ matrix.cases.label || matrix.cases.service }}
     runs-on: ${{ inputs.os }}
     strategy:
       fail-fast: false
@@ -41,10 +54,12 @@ jobs:
         uses: ./.github/actions/setup
         with:
           need-protoc: true
-          need-rocksdb: true
+          # 3FS builds its bundled RocksDB; its Rust service does not use this copy.
+          need-rocksdb: ${{ matrix.cases.service != 'hf3fs' }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup 1Password Connect
+        if: inputs.enable_secrets
         shell: bash
         run: |
           echo "::add-mask::${{ secrets.OP_CONNECT_HOST }}"
@@ -53,8 +68,42 @@ jobs:
           echo "OP_CONNECT_TOKEN=${{ secrets.OP_CONNECT_TOKEN }}" >> "$GITHUB_ENV"
 
       - name: Test Core
+        id: test
+        continue-on-error: ${{ inputs.retry_attempts > 1 }}
         uses: ./.github/actions/test_behavior_core
         with:
           setups: ${{ join(matrix.cases.setups, ',') }}
           service: ${{ matrix.cases.service }}
           feature: ${{ matrix.cases.feature }}
+        env:
+          # Forward the workflow token only for live/secret-enabled runs so
+          # deterministic local runs never inject external API tokens.
+          GITHUB_TOKEN: ${{ inputs.enable_secrets && secrets.GITHUB_TOKEN || '' }}
+
+      - name: Retry Test Core
+        if: steps.test.outcome == 'failure' && inputs.retry_attempts > 1
+        uses: ./.github/actions/test_behavior_core
+        with:
+          setups: ${{ join(matrix.cases.setups, ',') }}
+          service: ${{ matrix.cases.service }}
+          feature: ${{ matrix.cases.feature }}
+        env:
+          GITHUB_TOKEN: ${{ inputs.enable_secrets && secrets.GITHUB_TOKEN || '' }}
+
+      - name: Stop 3FS
+        if: always() && matrix.cases.service == 'hf3fs'
+        shell: bash
+        run: |
+          sudo journalctl -u opendal-hf3fs --no-pager > "$RUNNER_TEMP/hf3fs-journal.log" 2>&1 || true
+          sudo systemctl stop opendal-hf3fs || true
+          fusermount3 -u "$RUNNER_TEMP/hf3fs-cluster/mnt" 2>/dev/null || true
+          sudo rdma link delete opendal_rxe 2>/dev/null || true
+
+      - name: Upload 3FS logs
+        if: always() && matrix.cases.service == 'hf3fs'
+        uses: actions/upload-artifact@v7
+        with:
+          name: hf3fs-logs
+          path: |
+            ${{ runner.temp }}/hf3fs-journal.log
+            ${{ runner.temp }}/hf3fs-cluster/log

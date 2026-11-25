@@ -16,6 +16,8 @@
 // under the License.
 
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 
 use bytes::Buf;
 use constants::X_AMZ_OBJECT_SIZE;
@@ -36,6 +38,7 @@ pub struct S3Writer {
 
     op: OpWrite,
     path: String,
+    appended: AtomicBool,
 }
 
 impl S3Writer {
@@ -45,30 +48,33 @@ impl S3Writer {
             ctx,
             path: path.to_string(),
             op,
+            appended: AtomicBool::new(false),
         }
     }
 
     fn parse_header_into_meta(path: &str, headers: &http::HeaderMap) -> Result<Metadata> {
-        let mut meta = Metadata::new(EntryMode::from_path(path));
+        let mut meta = if path.ends_with('/') {
+            MetadataBuilder::dir()
+        } else {
+            MetadataBuilder::unknown()
+        };
         if let Some(etag) = parse_etag(headers)? {
-            meta.set_etag(etag);
+            meta.etag(etag);
         }
         if let Some(version) = parse_header_to_str(headers, X_AMZ_VERSION_ID)? {
-            meta.set_version(version);
+            meta.version(version);
         }
-        if let Some(value) =
-            parse_header_to_str(headers, X_AMZ_OBJECT_SIZE)?.and_then(|size| size.parse().ok())
+        if !path.ends_with('/')
+            && let Some(value) =
+                parse_header_to_str(headers, X_AMZ_OBJECT_SIZE)?.and_then(|size| size.parse().ok())
         {
-            meta.set_content_length(value);
+            meta.set_file(value);
         }
-        Ok(meta)
+        Ok(meta.build())
     }
 
     fn error_context(&self, service_operation: ServiceOperation) -> ErrorContext {
-        ErrorContext::new(service_operation)
-            .with_if_match(self.op.if_match().is_some())
-            .with_if_none_match(self.op.if_none_match().is_some())
-            .with_if_not_exists(self.op.if_not_exists())
+        ErrorContext::new(service_operation).with_caller_condition(self.op.is_conditional())
     }
 }
 
@@ -78,10 +84,7 @@ impl oio::MultipartWrite for S3Writer {
             .core
             .s3_put_object_request(&self.path, Some(size), &self.op, body)?;
 
-        let resp = self
-            .core
-            .send(&self.ctx, req, self.core.signers.default())
-            .await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         let status = resp.status();
 
@@ -148,10 +151,7 @@ impl oio::MultipartWrite for S3Writer {
             checksum.clone(),
         )?;
 
-        let resp = self
-            .core
-            .send(&self.ctx, req, self.core.signers.default())
-            .await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         let status = resp.status();
 
@@ -193,10 +193,7 @@ impl oio::MultipartWrite for S3Writer {
             .expect("multipart writer copy range must be bounded");
         let part_number = part_number + 1;
         let error_context = ErrorContext::new(ServiceOperation("UploadPartCopy"))
-            .with_if_match(args.if_match().is_some())
-            .with_if_none_match(args.if_none_match().is_some())
-            .with_if_modified_since(args.if_modified_since().is_some())
-            .with_if_unmodified_since(args.if_unmodified_since().is_some());
+            .with_caller_condition(args.is_conditional());
         let req = self
             .core
             .s3_upload_part_copy_request(S3UploadPartCopyRequest {
@@ -213,10 +210,7 @@ impl oio::MultipartWrite for S3Writer {
                 operation: Operation::Write,
             })?;
 
-        let resp = self
-            .core
-            .send(&self.ctx, req, self.core.signers.iam())
-            .await?;
+        let resp = self.core.send_iam(&self.ctx, req).await?;
         match resp.status() {
             StatusCode::OK => {
                 let (parts, body) = resp.into_parts();
@@ -278,7 +272,7 @@ impl oio::MultipartWrite for S3Writer {
 
         let status = resp.status();
 
-        let mut meta = S3Writer::parse_header_into_meta(&self.path, resp.headers())?;
+        let meta = S3Writer::parse_header_into_meta(&self.path, resp.headers())?;
 
         match status {
             StatusCode::OK => {
@@ -289,7 +283,7 @@ impl oio::MultipartWrite for S3Writer {
 
                 let ret: CompleteMultipartUploadResult =
                     quick_xml::de::from_reader(bs.as_ref()).map_err(new_xml_deserialize_error)?;
-                if !ret.code.is_empty() {
+                if !ret.code.is_empty() || ret.etag.is_empty() {
                     let err = parse_error(
                         self.error_context(ServiceOperation("CompleteMultipartUpload")),
                         Response::from_parts(parts, Buffer::from(bs)),
@@ -303,9 +297,10 @@ impl oio::MultipartWrite for S3Writer {
                         Err(err)
                     };
                 }
-                meta.set_etag(&ret.etag);
+                let mut meta = meta.into_builder();
+                meta.etag(&ret.etag);
 
-                Ok(meta)
+                Ok(meta.build())
             }
             _ => {
                 let err = parse_error(
@@ -360,27 +355,210 @@ impl oio::AppendWrite for S3Writer {
     }
 
     async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
-        let error_ctx = if offset == 0 {
+        let include_conditions = !self.appended.load(Ordering::Relaxed);
+        let error_ctx = if include_conditions {
             self.error_context(ServiceOperation("PutObject"))
         } else {
             ErrorContext::new(ServiceOperation("PutObject"))
         };
-        let req = self
-            .core
-            .s3_append_object_request(&self.path, offset, size, &self.op, body)?;
+        let req = self.core.s3_append_object_request(
+            &self.path,
+            offset,
+            size,
+            &self.op,
+            include_conditions,
+            body,
+        )?;
 
-        let resp = self
-            .core
-            .send(&self.ctx, req, self.core.signers.default())
-            .await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         let status = resp.status();
 
         let meta = S3Writer::parse_header_into_meta(&self.path, resp.headers())?;
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(error_ctx, resp)),
+            StatusCode::CREATED | StatusCode::OK => {
+                self.appended.store(true, Ordering::Relaxed);
+                Ok(meta)
+            }
+            _ => {
+                let err = parse_error(error_ctx, resp);
+                if include_conditions
+                    && self.op.if_match().is_some()
+                    && err.kind() == ErrorKind::NotFound
+                {
+                    Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "write precondition requires a live target",
+                    ))
+                } else {
+                    Err(err)
+                }
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::Bytes;
+    use http::Method;
+    use http::Request;
+    use http::Response;
+    use http::StatusCode;
+    use http::header::ETAG;
+    use opendal_core::*;
+
+    use crate::backend::S3Builder;
+
+    #[derive(Clone)]
+    struct MultipartCompleteTransport {
+        complete_body: &'static str,
+    }
+
+    impl HttpTransport for MultipartCompleteTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let query = req.uri().query().unwrap_or_default();
+            match (req.method(), query) {
+                (&Method::POST, "uploads") => {
+                    let body = Buffer::from(Bytes::from_static(
+                        b"<InitiateMultipartUploadResult><UploadId>u1</UploadId></InitiateMultipartUploadResult>",
+                    ));
+                    let size = body.len() as u64;
+                    Ok(Response::builder()
+                        .status(StatusCode::OK)
+                        .body(HttpBody::new(
+                            futures::stream::iter(vec![Ok(body)]),
+                            Some(size),
+                        ))
+                        .expect("mock response must build"))
+                }
+                (&Method::PUT, q) if q.contains("partNumber=") => Ok(Response::builder()
+                    .status(StatusCode::OK)
+                    .header(ETAG, "\"part-etag\"")
+                    .body(HttpBody::new(futures::stream::empty(), Some(0)))
+                    .expect("mock response must build")),
+                (&Method::POST, q) if q.contains("uploadId=u1") => {
+                    let body = Buffer::from(Bytes::from_static(self.complete_body.as_bytes()));
+                    let size = body.len() as u64;
+                    Ok(Response::builder()
+                        .status(StatusCode::OK)
+                        .body(HttpBody::new(
+                            futures::stream::iter(vec![Ok(body)]),
+                            Some(size),
+                        ))
+                        .expect("mock response must build"))
+                }
+                (method, q) => panic!("unexpected request: {method} ?{q}"),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn complete_part_rejects_empty_etag_and_200_xml_errors() {
+        const PART_SIZE: usize = 5 * 1024 * 1024;
+        let part_payload = Bytes::from(vec![0u8; PART_SIZE]);
+
+        for (body, expected_kind, expected_temporary) in [
+            (
+                "<CompleteMultipartUploadResult/>",
+                ErrorKind::Unexpected,
+                false,
+            ),
+            (
+                "<Error><Message>missing code</Message></Error>",
+                ErrorKind::Unexpected,
+                false,
+            ),
+            (
+                "<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>",
+                ErrorKind::Unexpected,
+                false,
+            ),
+            (
+                "<Error><Code>InternalError</Code><Message>retry me</Message></Error>",
+                ErrorKind::Unexpected,
+                true,
+            ),
+        ] {
+            let op = Operator::new(
+                S3Builder::default()
+                    .bucket("example")
+                    .region("us-east-1")
+                    .skip_signature()
+                    .disable_config_load()
+                    .disable_ec2_metadata(),
+            )
+            .expect("S3 operator must build")
+            .with_context(
+                OperationContext::new().with_http_transport(HttpTransporter::new(
+                    MultipartCompleteTransport {
+                        complete_body: body,
+                    },
+                )),
+            );
+
+            let mut writer = op.writer("object.bin").await.expect("writer must open");
+            writer
+                .write(part_payload.clone())
+                .await
+                .expect("first 5 MiB part");
+            writer.write("tail").await.expect("second part");
+            let err = writer
+                .close()
+                .await
+                .expect_err("complete_part must reject empty ETag / 200-OK XML error");
+            assert_eq!(err.kind(), expected_kind, "body={body}");
+            assert_eq!(err.is_temporary(), expected_temporary, "body={body}");
+        }
+    }
+
+    #[derive(Clone)]
+    struct SinglePutMd5Transport;
+
+    impl HttpTransport for SinglePutMd5Transport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            assert_eq!(
+                req.method(),
+                Method::PUT,
+                "checksum_algorithm=md5 write must use single PutObject, not multipart: {} {:?}",
+                req.method(),
+                req.uri()
+            );
+            assert!(
+                req.headers().contains_key("content-md5"),
+                "single PutObject with checksum_algorithm=md5 must attach content-md5"
+            );
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header(ETAG, "\"single-put-etag\"")
+                .body(HttpBody::new(futures::stream::empty(), Some(0)))
+                .expect("mock response must build"))
+        }
+    }
+
+    #[tokio::test]
+    async fn md5_checksum_writes_over_5mib_in_single_put_without_multipart() {
+        let op = Operator::new(
+            S3Builder::default()
+                .bucket("example")
+                .region("us-east-1")
+                .checksum_algorithm("md5")
+                .skip_signature()
+                .disable_config_load()
+                .disable_ec2_metadata(),
+        )
+        .expect("S3 operator must build")
+        .with_context(
+            OperationContext::new()
+                .with_http_transport(HttpTransporter::new(SinglePutMd5Transport)),
+        );
+
+        let payload = Bytes::from(vec![b'a'; 6 * 1024 * 1024]);
+        let meta = op
+            .write("large-md5.bin", payload)
+            .await
+            .expect("single write >5 MiB with checksum_algorithm=md5 must succeed via PutObject");
+        assert_eq!(meta.etag(), Some("\"single-put-etag\""));
     }
 }

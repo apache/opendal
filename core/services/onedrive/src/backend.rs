@@ -223,6 +223,7 @@ impl Service for OnedriveBackend {
     type Lister = oio::PageLister<OneDriveLister>;
     type Deleter = oio::OneShotDeleter<OneDriveDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -300,18 +301,28 @@ impl Service for OnedriveBackend {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpCopy,
-        _opts: OpCopier,
+        args: OpCopy,
     ) -> Result<Self::Copier> {
+        let backend = self.clone();
         let core = self.core.clone();
         let ctx = ctx.clone();
         let from = from.to_string();
         let to = to.to_string();
+        let source_content_length_hint = args.source_content_length_hint();
 
         Ok(oio::OneShotCopier::new(async move {
+            let source_size = match source_content_length_hint {
+                Some(size) => size,
+                None => backend
+                    .stat(&ctx, &from, OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .content_length(),
+            };
+
             let monitor_url = core.initialize_copy(&ctx, &from, &to).await?;
             core.wait_until_complete(&ctx, monitor_url).await?;
-            Ok(Metadata::default())
+            Ok(MetadataBuilder::file(source_size).build())
         }))
     }
 

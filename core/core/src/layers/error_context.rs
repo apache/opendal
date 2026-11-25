@@ -49,18 +49,12 @@ impl std::fmt::Debug for ErrorContextLayer {
 
 impl Layer for ErrorContextLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
-    }
-}
-
-impl ErrorContextLayer {
-    fn layer(&self, inner: Servicer) -> ErrorContextService {
-        ErrorContextService { inner }
+        Arc::new(ErrorContextService { inner })
     }
 }
 
 /// Provide error context wrapper for backend.
-pub struct ErrorContextService {
+struct ErrorContextService {
     inner: Servicer,
 }
 
@@ -76,6 +70,7 @@ impl Service for ErrorContextService {
     type Lister = ErrorContextWrapper<oio::Lister>;
     type Deleter = ErrorContextWrapper<oio::Deleter>;
     type Copier = ErrorContextWrapper<oio::Copier>;
+    type Composer = ErrorContextWrapper<oio::Composer>;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -126,15 +121,25 @@ impl Service for ErrorContextService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         self.inner
-            .copy(ctx, from, to, args, opts)
+            .copy(ctx, from, to, args)
             .map(|p| ErrorContextWrapper::new(self.info().scheme(), to, p))
             .map_err(|err| {
                 err.with_operation(Operation::Copy)
                     .with_context("service", self.info().scheme())
                     .with_context("from", from)
+                    .with_context("to", to)
+            })
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner
+            .compose(ctx, to, args)
+            .map(|composer| ErrorContextWrapper::new(self.info().scheme(), to, composer))
+            .map_err(|err| {
+                err.with_operation(Operation::Compose)
+                    .with_context("service", self.info().scheme())
                     .with_context("to", to)
             })
     }
@@ -210,7 +215,7 @@ impl Service for ErrorContextService {
     }
 }
 
-pub struct ErrorContextWrapper<T> {
+struct ErrorContextWrapper<T> {
     scheme: &'static str,
     path: String,
     inner: T,
@@ -414,6 +419,33 @@ impl<T: oio::Copy> oio::Copy for ErrorContextWrapper<T> {
                 .with_context("service", self.scheme)
                 .with_context("path", &self.path)
                 .with_context("copied", self.processed.to_string())
+        })
+    }
+}
+
+impl<T: oio::Compose> oio::Compose for ErrorContextWrapper<T> {
+    async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
+        self.inner
+            .compose(path, args)
+            .await
+            .inspect(|_| {
+                self.processed += 1;
+            })
+            .map_err(|err| {
+                err.with_operation(Operation::Compose)
+                    .with_context("service", self.scheme)
+                    .with_context("from", path)
+                    .with_context("to", &self.path)
+                    .with_context("accepted", self.processed.to_string())
+            })
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner.close().await.map_err(|err| {
+            err.with_operation(Operation::Compose)
+                .with_context("service", self.scheme)
+                .with_context("to", &self.path)
+                .with_context("accepted", self.processed.to_string())
         })
     }
 }

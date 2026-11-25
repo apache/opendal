@@ -19,25 +19,22 @@ name: Bindings Swift CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
-    paths: &paths
-      - "bindings/swift/**"
-      - "bindings/c/**"
-      - "core/**"
-      - ".github/actions/setup/**"
-      - ".github/workflows/ci_bindings_swift.yml"
   pull_request:
     branches:
       - main
-    paths: *paths
+    paths:
+      - "bindings/c/**"
+      - "bindings/swift/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_swift.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-swift-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -56,7 +53,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Setup Swift toolchain
-        uses: swift-actions/setup-swift@v3
+        uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9 # v3.0.0-beta.1
         with:
           swift-version: 5
 

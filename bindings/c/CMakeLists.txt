@@ -25,7 +25,7 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(TEST_ENABLE_ASAN "Enable AddressSanitizer for tests" OFF)
-set(FEATURES "" CACHE STRING "opendal features")
+set(FEATURES "opendal/services-fs" CACHE STRING "opendal features")
 
 set(CARGO_FEATURES_FLAG "--features=${FEATURES}")
 
@@ -92,8 +92,10 @@ target_link_libraries(getting_started opendal_c_shared)
 # test targets
 set(GTEST_SRCS
     tests/bdd.cpp
+    tests/cancel.cpp
     tests/error_msg.cpp
     tests/list.cpp
+    tests/logging.cpp
     tests/opinfo.cpp
     tests/reader.cpp
 )

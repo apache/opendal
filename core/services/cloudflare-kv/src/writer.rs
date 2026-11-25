@@ -55,12 +55,12 @@ impl oio::OneShotWrite for CloudflareWriter {
 
         match status {
             StatusCode::OK => {
-                let mut metadata = Metadata::default();
-                metadata.set_etag(&cf_kv_metadata.etag);
-                metadata.set_last_modified(cf_kv_metadata.last_modified.parse::<Timestamp>()?);
-                metadata.set_content_length(cf_kv_metadata.content_length as u64);
+                let mut metadata = MetadataBuilder::unknown();
+                metadata.etag(&cf_kv_metadata.etag);
+                metadata.last_modified(cf_kv_metadata.last_modified.parse::<Timestamp>()?);
+                metadata.set_file(cf_kv_metadata.content_length as u64);
 
-                Ok(metadata)
+                Ok(metadata.build())
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("WriteValue")),

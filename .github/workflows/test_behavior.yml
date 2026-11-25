@@ -18,28 +18,53 @@
 name: Behavior Test
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
+  workflow_call:
+    inputs:
+      mode:
+        description: "Planner mode (pr, nightly-local, nightly-live)"
+        required: true
+        type: string
+      retry_attempts:
+        description: "Number of attempts per setup/job"
+        required: false
+        type: number
+        default: 1
+    secrets:
+      OP_CONNECT_HOST:
+        required: false
+      OP_CONNECT_TOKEN:
+        required: false
   workflow_dispatch:
     inputs:
-      pr_number:
-        description: "Upstream PR number (for mirrored runs)"
+      mode:
+        description: "Planner mode (pr, nightly-local, nightly-live)"
         required: false
-        type: string
+        default: "pr"
+        type: choice
+        options:
+          - pr
+          - nightly-local
+          - nightly-live
+      retry_attempts:
+        description: "Number of attempts per setup/job"
+        required: false
+        default: 1
+        type: number
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: test-behavior-${{ inputs.mode || github.event.inputs.mode || 'pr' }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   plan:
     runs-on: ubuntu-latest
     outputs:
       plan: ${{ steps.plan.outputs.plan }}
+      enable_secrets: ${{ steps.plan.outputs.enable_secrets }}
+      retry_attempts: ${{ steps.plan.outputs.retry_attempts }}
 
     steps:
       - uses: actions/checkout@v7
@@ -49,54 +74,57 @@ jobs:
 
       - name: Plan
         id: plan
+        env:
+          MODE: ${{ inputs.mode || github.event.inputs.mode || 'pr' }}
+          RETRY_ATTEMPTS: ${{ inputs.retry_attempts || github.event.inputs.retry_attempts || 1 }}
         run: |
+          set -euo pipefail
           event_name="${{ github.event_name }}"
           repository="${{ github.repository }}"
           files_changed=""
           has_secrets="false"
-          is_push="false"
 
-          # Handle event-specific logic
-          if [ "$event_name" == "push" ]; then
+          if [ "$MODE" == "nightly-live" ]; then
             if [ "$repository" == "apache/opendal" ]; then
-              is_push="true"
               has_secrets="true"
             fi
           elif [ "$event_name" == "pull_request" ]; then
-            pr_head_repo_fork="${{ github.event.pull_request.head.repo.fork }}"
-            # Only expose secrets for main repo and non-dependabot runs to mitigate security risks
-            if [ "$pr_head_repo_fork" != "true" ] && [ "${{ github.actor }}" != "dependabot[bot]" ]; then
-              has_secrets="true"
-            fi
-
+            # PR behavior tests are strictly local/deterministic; live cloud
+            # setups run in Nightly Tier B or via manual nightly-live dispatch.
+            has_secrets="false"
             files_changed=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
             echo "Files changed:"
             echo "$files_changed"
-          elif [ "$event_name" == "workflow_dispatch" ]; then
-            # Mirror runs are explicitly triggered by maintainers; allow secrets.
-            has_secrets="true"
-            # Compare against main to infer affected components.
+          elif [ "$event_name" == "workflow_dispatch" ] && [ "$MODE" == "pr" ]; then
+            has_secrets="false"
             git fetch --no-tags --prune --depth=1 origin main
             files_changed=$(git diff --name-only origin/main HEAD)
             echo "Files changed (main..HEAD):"
             echo "$files_changed"
           fi
 
-          # Export variables
-          export GITHUB_HAS_SECRETS=$has_secrets
-          export GITHUB_IS_PUSH=$is_push
-
-          # Run the workflow planner script
-          PLAN=$(./.github/scripts/test_behavior/plan.py $files_changed)
+          PLAN=$(./.github/scripts/test_behavior/plan.py --mode "$MODE" -- $files_changed)
+          echo "Mode: $MODE (enable_secrets=$has_secrets, retry_attempts=$RETRY_ATTEMPTS)"
           echo "Plan:"
           echo "$PLAN" | jq .
-          echo "plan=$PLAN" >> $GITHUB_OUTPUT
+          NOTES=$(echo "$PLAN" | jq -r '.notes[]? // empty')
+          if [ -n "$NOTES" ]; then
+            {
+              echo "### Behavior Test Coverage Notes"
+              echo ""
+              while IFS= read -r line; do
+                echo "- $line"
+              done <<< "$NOTES"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "plan=$PLAN" >> "$GITHUB_OUTPUT"
+          echo "enable_secrets=$has_secrets" >> "$GITHUB_OUTPUT"
+          echo "retry_attempts=$RETRY_ATTEMPTS" >> "$GITHUB_OUTPUT"
 
   test_core:
     name: core / ${{ matrix.os }}
     needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.core
-    secrets: inherit
     strategy:
       fail-fast: false
       matrix:
@@ -105,12 +133,16 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
+      enable_secrets: ${{ needs.plan.outputs.enable_secrets == 'true' }}
+      retry_attempts: ${{ fromJson(needs.plan.outputs.retry_attempts) }}
+    secrets:
+      OP_CONNECT_HOST: ${{ secrets.OP_CONNECT_HOST }}
+      OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
 
   test_binding_java:
     name: binding_java / ${{ matrix.os }}
     needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_java
-    secrets: inherit
     strategy:
       fail-fast: false
       matrix:
@@ -119,12 +151,16 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
+      enable_secrets: ${{ needs.plan.outputs.enable_secrets == 'true' }}
+      retry_attempts: ${{ fromJson(needs.plan.outputs.retry_attempts) }}
+    secrets:
+      OP_CONNECT_HOST: ${{ secrets.OP_CONNECT_HOST }}
+      OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
 
   test_binding_python:
     name: binding_python / ${{ matrix.os }}
     needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_python
-    secrets: inherit
     strategy:
       fail-fast: false
       matrix:
@@ -133,12 +169,16 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
-  
+      enable_secrets: ${{ needs.plan.outputs.enable_secrets == 'true' }}
+      retry_attempts: ${{ fromJson(needs.plan.outputs.retry_attempts) }}
+    secrets:
+      OP_CONNECT_HOST: ${{ secrets.OP_CONNECT_HOST }}
+      OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
+
   test_binding_ruby:
     name: binding_ruby / ${{ matrix.os }}
     needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_ruby
-    secrets: inherit
     strategy:
       fail-fast: false
       matrix:
@@ -147,12 +187,16 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
+      enable_secrets: ${{ needs.plan.outputs.enable_secrets == 'true' }}
+      retry_attempts: ${{ fromJson(needs.plan.outputs.retry_attempts) }}
+    secrets:
+      OP_CONNECT_HOST: ${{ secrets.OP_CONNECT_HOST }}
+      OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
 
   test_binding_nodejs:
     name: binding_nodejs / ${{ matrix.os }}
     needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_nodejs
-    secrets: inherit
     strategy:
       fail-fast: false
       matrix:
@@ -161,12 +205,16 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
+      enable_secrets: ${{ needs.plan.outputs.enable_secrets == 'true' }}
+      retry_attempts: ${{ fromJson(needs.plan.outputs.retry_attempts) }}
+    secrets:
+      OP_CONNECT_HOST: ${{ secrets.OP_CONNECT_HOST }}
+      OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
 
   test_binding_go:
     name: binding_go / ${{ matrix.os }}
     needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_go
-    secrets: inherit
     strategy:
       fail-fast: false
       matrix:
@@ -175,12 +223,16 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
+      enable_secrets: ${{ needs.plan.outputs.enable_secrets == 'true' }}
+      retry_attempts: ${{ fromJson(needs.plan.outputs.retry_attempts) }}
+    secrets:
+      OP_CONNECT_HOST: ${{ secrets.OP_CONNECT_HOST }}
+      OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
 
   test_binding_c:
     name: binding_c / ${{ matrix.os }}
     needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_c
-    secrets: inherit
     strategy:
       fail-fast: false
       matrix:
@@ -189,12 +241,16 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
+      enable_secrets: ${{ needs.plan.outputs.enable_secrets == 'true' }}
+      retry_attempts: ${{ fromJson(needs.plan.outputs.retry_attempts) }}
+    secrets:
+      OP_CONNECT_HOST: ${{ secrets.OP_CONNECT_HOST }}
+      OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
 
   test_binding_cpp:
     name: binding_cpp / ${{ matrix.os }}
     needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_cpp
-    secrets: inherit
     strategy:
       fail-fast: false
       matrix:
@@ -203,12 +259,16 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
+      enable_secrets: ${{ needs.plan.outputs.enable_secrets == 'true' }}
+      retry_attempts: ${{ fromJson(needs.plan.outputs.retry_attempts) }}
+    secrets:
+      OP_CONNECT_HOST: ${{ secrets.OP_CONNECT_HOST }}
+      OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
 
   test_binding_dotnet:
     name: binding_dotnet / ${{ matrix.os }}
     needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.binding_dotnet
-    secrets: inherit
     strategy:
       fail-fast: false
       matrix:
@@ -217,13 +277,16 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
-
+      enable_secrets: ${{ needs.plan.outputs.enable_secrets == 'true' }}
+      retry_attempts: ${{ fromJson(needs.plan.outputs.retry_attempts) }}
+    secrets:
+      OP_CONNECT_HOST: ${{ secrets.OP_CONNECT_HOST }}
+      OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
 
   test_integration_object_store:
     name: integration_object_store / ${{ matrix.os }}
     needs: [ plan ]
     if: fromJson(needs.plan.outputs.plan).components.integration_object_store
-    secrets: inherit
     strategy:
       fail-fast: false
       matrix:
@@ -232,3 +295,8 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
+      enable_secrets: ${{ needs.plan.outputs.enable_secrets == 'true' }}
+      retry_attempts: ${{ fromJson(needs.plan.outputs.retry_attempts) }}
+    secrets:
+      OP_CONNECT_HOST: ${{ secrets.OP_CONNECT_HOST }}
+      OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}

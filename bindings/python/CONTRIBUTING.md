@@ -14,7 +14,7 @@ Before you begin, please ensure you have the following tools installed:
 - **uv**: To manage the python dependencies and environment. See Installation instructions [here](https://docs.astral.sh/uv/getting-started/installation/).
 - **cargo**: To manage the rust dependencies and environment. See Installation instructions [here](https://doc.rust-lang.org/cargo/getting-started/installation.html).
 - **taplo**: Simple checker and formatter for TOML files. See Installation instructions [here](https://taplo.tamasfe.dev/cli/installation/cargo.html).
-- **hawkeye**: Simple license header checker and formatter. See Installation instructions [here](https://github.com/korandoru/hawkeye?tab=readme-ov-file#cargo-install).
+- **hawkeye**: Simple license header checker and formatter. See Installation instructions [here](https://github.com/fast/hawkeye#installation).
 - **Just**: A command runner used to simplify our development workflow. See Installation instructions [here](https://just.systems/man/en/packages.html).
 
 ---
@@ -25,6 +25,7 @@ All development commands are managed through a `justfile`. Setting up your envir
 is as simple as running one command.
 
 1. **Clone the repository:**
+
    ```shell
    git clone git@github.com:apache/opendal.git
    cd opendal/bindings/python
@@ -50,6 +51,7 @@ You can build a development or release version of the library.
 
 - **Install for development:** This builds the package and installs it in the current
   virtual environment, allowing you to immediately use it for testing.
+
   ```shell
   just install-dev
   ```
@@ -116,6 +118,10 @@ parsed with MyST. The example notebooks under `docs/examples/` are converted to
 Markdown with `nbconvert` before the site is built; the generated `.md` files are not
 tracked by Git. Sphinx imports the Python package to build the API reference, so the
 documentation setup also compiles a minimal extension with the memory service.
+
+After installing the local binding with `just install-dev`, run
+`just test-notebooks` to execute every cookbook notebook. The notebooks use local
+storage and memory and run without storage credentials.
 
 ```shell
 # Build the docs into docs/_build/html/

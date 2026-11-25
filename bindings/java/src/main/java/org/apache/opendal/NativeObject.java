@@ -19,7 +19,8 @@
 
 package org.apache.opendal;
 
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongConsumer;
+import java.util.function.LongFunction;
 
 /**
  * NativeObject is the base-class of all OpenDAL classes that have
@@ -56,7 +57,8 @@ public abstract class NativeObject implements AutoCloseable {
         NativeLibrary.loadLibrary();
     }
 
-    private final AtomicBoolean disposed = new AtomicBoolean(false);
+    private volatile boolean disposed;
+    private int handleBorrows;
 
     /**
      * An immutable reference to the value of the underneath pointer pointing
@@ -70,9 +72,46 @@ public abstract class NativeObject implements AutoCloseable {
 
     @Override
     public void close() {
-        if (disposed.compareAndSet(false, true)) {
-            disposeInternal(nativeHandle);
+        // Also coordinate with layer builders that clone a handle under this monitor.
+        synchronized (this) {
+            if (disposed) {
+                return;
+            }
+            disposed = true;
+            if (handleBorrows != 0) {
+                return;
+            }
         }
+        disposeInternal(nativeHandle);
+    }
+
+    // Keep the handle alive without holding the monitor across JNI or layer callbacks.
+    // After close marks the object disposed, the last borrower releases the handle.
+    final <T> T withHandle(LongFunction<T> action) {
+        synchronized (this) {
+            if (disposed) {
+                throw new IllegalStateException(getClass().getSimpleName() + " is closed");
+            }
+            handleBorrows++;
+        }
+        try {
+            return action.apply(nativeHandle);
+        } finally {
+            final boolean dispose;
+            synchronized (this) {
+                dispose = --handleBorrows == 0 && disposed;
+            }
+            if (dispose) {
+                disposeInternal(nativeHandle);
+            }
+        }
+    }
+
+    final void useHandle(LongConsumer action) {
+        withHandle(handle -> {
+            action.accept(handle);
+            return null;
+        });
     }
 
     /**
@@ -81,7 +120,7 @@ public abstract class NativeObject implements AutoCloseable {
      * @return if the object has been disposed.
      */
     public boolean isDisposed() {
-        return disposed.get();
+        return disposed;
     }
 
     /**

@@ -100,69 +100,17 @@ impl Deleter {
         })
     }
 
-    /// Delete a path.
+    /// Delete a path with default or per-entry options.
+    ///
+    /// Pass a path directly to use [`options::DeleteOptions::default`]. Pass
+    /// `(String, DeleteOptions)` when this entry needs version or condition
+    /// options.
     pub async fn delete(&mut self, input: impl IntoDeleteInput) -> Result<()> {
-        let input = input.into_delete_input();
-        let mut opts = options::DeleteOptions {
-            version: input.version,
-            recursive: input.recursive,
-            if_match: input.if_match,
-            if_none_match: input.if_none_match,
-            if_version_match: input.if_version_match,
-            if_version_not_match: input.if_version_not_match,
-            if_not_changed: input.if_not_changed,
-        };
-        if let Some(metadata) = opts.if_not_changed.take() {
-            if self.capability.delete_with_if_version_match
-                && let Some(version) = metadata.version()
-            {
-                if let Some(explicit) = opts.if_version_match.as_deref() {
-                    if explicit != version {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with if_version_match",
-                        )
-                        .with_operation(Operation::Delete.into_static()));
-                    }
-                } else {
-                    opts.if_version_match = Some(version.to_string());
-                }
-            } else if self.capability.delete_with_if_match
-                && let Some(etag) = metadata.etag()
-            {
-                if let Some(explicit) = opts.if_match.as_deref() {
-                    if explicit != etag {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "if_not_changed conflicts with if_match",
-                        )
-                        .with_operation(Operation::Delete.into_static()));
-                    }
-                } else {
-                    opts.if_match = Some(etag.to_string());
-                }
-            } else if !self.capability.delete_with_if_version_match
-                && !self.capability.delete_with_if_match
-            {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    format!(
-                        "The service {} does not support the operation delete with if_not_changed",
-                        self.scheme
-                    ),
-                )
-                .with_operation(Operation::Delete.into_static()));
-            } else {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata does not contain an identity supported by delete",
-                )
-                .with_operation(Operation::Delete.into_static()));
-            }
-        }
-        let op = opts.into();
-
-        self.deleter.delete(&input.path, op).await?;
+        let (path, options) = input.into_delete_input();
+        let path = normalize_path(&path);
+        let op = OpDelete::from_options(&self.capability, options)
+            .map_err(|err| err.with_context("service", self.scheme))?;
+        self.deleter.delete(&path, op).await?;
         Ok(())
     }
 
@@ -256,10 +204,16 @@ impl Deleter {
 
 #[cfg(test)]
 mod tests {
+    use std::future::poll_fn;
+    use std::pin::Pin;
     use std::sync::Arc;
     use std::sync::Mutex;
+    use std::task::Context;
+    use std::task::Poll;
 
+    use futures::Sink;
     use futures::SinkExt;
+    use futures::task::noop_waker;
 
     use super::*;
     use crate::raw::OpDelete;
@@ -294,7 +248,7 @@ mod tests {
 
         let deleter = Deleter {
             deleter: Box::new(mock),
-            scheme: "test",
+            scheme: "memory",
             capability: Capability::default(),
         };
         let mut sink = deleter.into_sink::<String>();
@@ -314,5 +268,167 @@ mod tests {
             "file_b should have been flushed by close, got: {:?}",
             *flushed
         );
+    }
+
+    struct FailCloseOnce<D> {
+        inner: D,
+        failed: bool,
+    }
+
+    impl<D: oio::Delete> oio::Delete for FailCloseOnce<D> {
+        async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+            self.inner.delete(path, args).await
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            if !self.failed {
+                self.failed = true;
+                return Err(Error::new(ErrorKind::Unexpected, "injected close failure"));
+            }
+            self.inner.close().await
+        }
+    }
+
+    struct PendingCloseOnce<D> {
+        inner: D,
+    }
+
+    impl<D: oio::Delete> oio::Delete for PendingCloseOnce<D> {
+        async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+            self.inner.delete(path, args).await
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            let mut pending = true;
+            poll_fn(|cx| {
+                if pending {
+                    pending = false;
+                    cx.waker().wake_by_ref();
+                    Poll::Pending
+                } else {
+                    Poll::Ready(())
+                }
+            })
+            .await;
+            self.inner.close().await
+        }
+    }
+
+    async fn pending_close_sink(op: &Operator) -> FuturesDeleteSink<String> {
+        let Deleter {
+            deleter,
+            scheme,
+            capability,
+        } = op.deleter().await.unwrap();
+        Deleter {
+            deleter: Box::new(PendingCloseOnce { inner: deleter }),
+            scheme,
+            capability,
+        }
+        .into_sink()
+    }
+
+    #[tokio::test]
+    async fn test_closed_sink_rejects_sends_and_allows_flush_and_close() {
+        let op = Operator::new(services::Memory::default()).unwrap();
+        op.write("file_a", "a").await.unwrap();
+        op.write("file_b", "b").await.unwrap();
+        let mut sink = op.deleter().await.unwrap().into_sink::<String>();
+
+        sink.send("file_a".to_string()).await.unwrap();
+        sink.close().await.unwrap();
+        assert!(!op.exists("file_a").await.unwrap());
+
+        let err = sink
+            .send("file_b".to_string())
+            .await
+            .expect_err("closed sink must reject sends");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(op.exists("file_b").await.unwrap());
+
+        sink.flush().await.expect("closed sink is already flushed");
+        sink.close().await.expect("closed sink is already closed");
+
+        let waker = noop_waker();
+        let mut cx = Context::from_waker(&waker);
+        let err = match Pin::new(&mut sink).poll_ready(&mut cx) {
+            Poll::Ready(Err(err)) => err,
+            result => panic!("closed sink must reject ready, got {result:?}"),
+        };
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        let err = Pin::new(&mut sink)
+            .start_send("file_b".to_string())
+            .expect_err("closed sink must reject start_send");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(op.exists("file_b").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_sink_close_can_retry_after_error() {
+        let op = Operator::new(services::Memory::default()).unwrap();
+        op.write("file_a", "a").await.unwrap();
+        op.write("file_b", "b").await.unwrap();
+        let Deleter {
+            deleter,
+            scheme,
+            capability,
+        } = op.deleter().await.unwrap();
+        let mut sink = Deleter {
+            deleter: Box::new(FailCloseOnce {
+                inner: deleter,
+                failed: false,
+            }),
+            scheme,
+            capability,
+        }
+        .into_sink::<String>();
+
+        sink.send("file_a".to_string()).await.unwrap();
+        let err = sink.close().await.expect_err("first close must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.message().contains("injected close failure"));
+
+        sink.close().await.expect("close retry must succeed");
+        assert!(!op.exists("file_a").await.unwrap());
+        let err = sink
+            .send("file_b".to_string())
+            .await
+            .expect_err("successful close retry must close the sink");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(op.exists("file_b").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_sink_ready_and_flush_can_finish_a_pending_close() {
+        let op = Operator::new(services::Memory::default()).unwrap();
+        let waker = noop_waker();
+        let mut cx = Context::from_waker(&waker);
+
+        let mut sink = pending_close_sink(&op).await;
+        assert!(Pin::new(&mut sink).poll_close(&mut cx).is_pending());
+        let err = match Pin::new(&mut sink).poll_ready(&mut cx) {
+            Poll::Ready(Err(err)) => err,
+            result => panic!("ready must reject a completed close, got {result:?}"),
+        };
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        let mut sink = pending_close_sink(&op).await;
+        assert!(Pin::new(&mut sink).poll_close(&mut cx).is_pending());
+        let result = Pin::new(&mut sink).poll_flush(&mut cx);
+        assert!(matches!(result, Poll::Ready(Ok(()))));
+        let result = Pin::new(&mut sink).poll_ready(&mut cx);
+        assert!(matches!(result, Poll::Ready(Err(_))));
+    }
+
+    #[tokio::test]
+    async fn test_delete_normalizes_path() {
+        let op = Operator::new(services::Memory::default()).unwrap();
+        op.write("dir/file", "data").await.unwrap();
+
+        let mut deleter = op.deleter().await.unwrap();
+        deleter.delete("/dir/file").await.unwrap();
+        deleter.close().await.unwrap();
+
+        assert!(!op.exists("dir/file").await.unwrap());
     }
 }

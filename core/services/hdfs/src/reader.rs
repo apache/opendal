@@ -92,13 +92,12 @@ impl HdfsLazyWriter {
 
     async fn inner(&mut self) -> Result<&mut HdfsWriter<hdrs::AsyncFile>> {
         if self.inner.is_none() {
-            let (target_path, tmp_path, f, target_exists, initial_size) =
+            let (target_path, tmp_path, file, target_exists, initial_size) =
                 self.core.hdfs_write(&self.path, &self.op).await?;
-
             self.inner = Some(HdfsWriter::new(
                 target_path,
                 tmp_path,
-                f,
+                file,
                 Arc::clone(&self.core.client),
                 target_exists,
                 initial_size,
@@ -119,6 +118,12 @@ impl oio::Write for HdfsLazyWriter {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.inner().await?.abort().await
+        match &mut self.inner {
+            Some(w) => w.abort().await,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "HdfsWriter doesn't support abort",
+            )),
+        }
     }
 }

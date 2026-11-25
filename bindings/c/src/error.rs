@@ -24,6 +24,7 @@ use crate::types::opendal_bytes;
 /// \todo The error handling is not complete, the error with error message will be
 /// added in the future.
 #[repr(C)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum opendal_code {
     /// returning it back. For example, s3 returns an internal service error.
     OPENDAL_UNEXPECTED,
@@ -51,6 +52,8 @@ pub enum opendal_code {
     OPENDAL_RANGE_NOT_SATISFIED,
     /// The operation conflicts with the current or transitional state of the resource.
     OPENDAL_CONFLICT,
+    /// The operation was cancelled via an `opendal_cancel_token`.
+    OPENDAL_CANCELLED,
 }
 
 impl From<core::ErrorKind> for opendal_code {
@@ -111,6 +114,31 @@ impl opendal_error {
         let message = opendal_bytes::new(Buffer::from(err.to_string()));
 
         Box::into_raw(Box::new(opendal_error { code, message }))
+    }
+
+    /// Create a new opendal error for a cancelled operation.
+    pub(crate) fn cancelled() -> *mut opendal_error {
+        let message = opendal_bytes::new(Buffer::from("operation cancelled"));
+
+        Box::into_raw(Box::new(opendal_error {
+            code: opendal_code::OPENDAL_CANCELLED,
+            message,
+        }))
+    }
+
+    /// Create a new opendal error from a [`CancellableError<core::Error>`].
+    pub(crate) fn from_cancellable(
+        err: crate::cancel::CancellableError<core::Error>,
+    ) -> *mut opendal_error {
+        match err {
+            crate::cancel::CancellableError::Cancelled => Self::cancelled(),
+            crate::cancel::CancellableError::Inner(e) => Self::new(e),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn code(&self) -> opendal_code {
+        self.code
     }
 
     /// \brief Frees the opendal_error, ok to call on NULL

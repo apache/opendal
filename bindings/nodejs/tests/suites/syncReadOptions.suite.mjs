@@ -194,7 +194,8 @@ export function run(op) {
         ifMatch: '"invalid_etag"',
       }
 
-      expect(() => op.readerSync(filename, invalidOptions)).toThrowError('ConditionNotMatch')
+      const invalidReader = op.readerSync(filename, invalidOptions)
+      expect(() => invalidReader.read(Buffer.alloc(1))).toThrowError('ConditionNotMatch')
 
       const r = op.readerSync(filename, { ifMatch: meta.etag })
       const rs = r.createReadStream()
@@ -220,7 +221,8 @@ export function run(op) {
       op.writeSync(filename, content)
       const meta = op.statSync(filename)
 
-      expect(() => op.readerSync(filename, { ifNoneMatch: meta.etag })).toThrowError('ConditionNotMatch')
+      const invalidReader = op.readerSync(filename, { ifNoneMatch: meta.etag })
+      expect(() => invalidReader.read(Buffer.alloc(1))).toThrowError('ConditionNotMatch')
 
       const r = op.readerSync(filename, { ifNoneMatch: '"invalid_etag"' })
       const rs = r.createReadStream()
@@ -264,9 +266,8 @@ export function run(op) {
       setTimeout(() => {
         const sinceAdd = new Date(meta.lastModified)
         sinceAdd.setSeconds(sinceAdd.getSeconds() + 1)
-        expect(() => op.readerSync(filename, { ifModifiedSince: sinceAdd.toISOString() })).toThrowError(
-          'ConditionNotMatch',
-        )
+        const invalidReader = op.readerSync(filename, { ifModifiedSince: sinceAdd.toISOString() })
+        expect(() => invalidReader.read(Buffer.alloc(1))).toThrowError('ConditionNotMatch')
 
         op.deleteSync(filename)
       }, 1000)
@@ -283,9 +284,8 @@ export function run(op) {
       const sinceMinus = new Date(meta.lastModified)
       sinceMinus.setSeconds(sinceMinus.getSeconds() - 1)
 
-      expect(() => op.readerSync(filename, { ifUnmodifiedSince: sinceMinus.toISOString() })).toThrowError(
-        'ConditionNotMatch',
-      )
+      const invalidReader = op.readerSync(filename, { ifUnmodifiedSince: sinceMinus.toISOString() })
+      expect(() => invalidReader.read(Buffer.alloc(1))).toThrowError('ConditionNotMatch')
 
       setTimeout(() => {
         const sinceAdd = new Date(meta.lastModified)

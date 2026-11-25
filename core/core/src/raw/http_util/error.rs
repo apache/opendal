@@ -20,6 +20,7 @@ use http::response::Parts;
 
 use crate::Error;
 use crate::ErrorKind;
+use crate::HttpUri;
 
 /// Create a new error happened during building request.
 pub fn new_request_build_error(err: http::Error) -> Error {
@@ -39,11 +40,15 @@ pub fn new_request_credential_error(err: anyhow::Error) -> Error {
     .set_source(err)
 }
 
-/// Create a new error happened during signing request.
+/// Wrap a signing failure, preserving reqsign's retryability when available.
 pub fn new_request_sign_error(err: anyhow::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "signing http request")
-        .with_operation("reqsign::Sign")
-        .set_source(err)
+    let error = Error::new(ErrorKind::Unexpected, "signing http request");
+    #[cfg(feature = "reqsign")]
+    let error = error.with_temporary(
+        err.downcast_ref::<reqsign_core::Error>()
+            .is_some_and(reqsign_core::Error::is_retryable),
+    );
+    error.with_operation("reqsign::Sign").set_source(err)
 }
 
 /// Add response context to error.
@@ -51,10 +56,10 @@ pub fn new_request_sign_error(err: anyhow::Error) -> Error {
 /// This helper function will:
 ///
 /// - remove sensitive or useless headers from parts.
-/// - fetch uri if parts extensions contains `Uri`.
+/// - include a redacted URI if the response extensions contain `Uri`.
 pub fn with_error_response_context(mut err: Error, mut parts: Parts) -> Error {
     if let Some(uri) = parts.extensions.get::<Uri>() {
-        err = err.with_context("uri", uri.to_string());
+        err = err.with_context("uri", HttpUri::new(uri.to_string()).redacted_uri());
     }
 
     // The following headers may contains sensitive information.
@@ -62,7 +67,62 @@ pub fn with_error_response_context(mut err: Error, mut parts: Parts) -> Error {
     parts.headers.remove("WWW-Authenticate");
     parts.headers.remove("Proxy-Authenticate");
 
+    if parts.headers.contains_key(http::header::LOCATION) {
+        let location = HttpUri::from_response_location(&mut parts)
+            .map(|uri| uri.redacted_uri())
+            .unwrap_or("<invalid URL>")
+            .parse()
+            .unwrap_or_else(|_| http::HeaderValue::from_static("<invalid URL>"));
+        parts.headers.insert(http::header::LOCATION, location);
+    }
+
     err = err.with_context("response", format!("{parts:?}"));
 
     err
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn redacts_request_and_location_in_response_error() {
+        let request_uri: Uri = concat!(
+            "https://example.com/object?access_token=",
+            "request-secret",
+            "&version=3"
+        )
+        .parse()
+        .unwrap();
+        let (parts, ()) = http::Response::builder()
+            .status(403)
+            .extension(request_uri)
+            .header(
+                http::header::LOCATION,
+                concat!("/next?access_token=", "redirect-secret", "&version=4"),
+            )
+            .body(())
+            .unwrap()
+            .into_parts();
+        let error =
+            with_error_response_context(Error::new(ErrorKind::PermissionDenied, "denied"), parts);
+
+        for diagnostic in [
+            error.to_string(),
+            format!("{error:?}"),
+            format!("{error:#?}"),
+        ] {
+            assert!(
+                diagnostic.contains("https://example.com/object?access_token=[REDACTED]&version=3")
+            );
+            assert!(diagnostic.contains("/next?access_token=[REDACTED]&version=4"));
+            assert!(!diagnostic.contains("request-secret"));
+            assert!(!diagnostic.contains("redirect-secret"));
+        }
+        assert!(
+            error
+                .to_string()
+                .contains("uri: https://example.com/object?access_token=[REDACTED]&version=3")
+        );
+    }
 }

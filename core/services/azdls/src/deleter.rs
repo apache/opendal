@@ -51,13 +51,42 @@ impl oio::OneShotDelete for AzdlsDeleter {
         } else {
             ServiceOperation("DeletePath")
         })
-        .with_if_match(args.if_match().is_some())
-        .with_delete();
+        .with_delete_match_condition(args.if_match().is_some());
 
         match status {
             StatusCode::OK => Ok(()),
             StatusCode::NOT_FOUND if args.if_match().is_none() => Ok(()),
             _ => Err(parse_error(error_ctx, resp)),
         }
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use bytes::Bytes;
+    use http::{Response, StatusCode};
+    use opendal_core::ErrorKind;
+
+    use crate::backend::test_util::{ScriptedTransport, test_operator};
+
+    #[tokio::test]
+    async fn delete_with_if_match_404_returns_condition_not_match() {
+        let transport = ScriptedTransport::new(vec![
+            Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .header("x-ms-error-code", "PathNotFound")
+                .body(Bytes::from_static(
+                    br#"{"error":{"code":"PathNotFound","message":"The specified path does not exist."}}"#,
+                ))
+                .unwrap(),
+        ]);
+        let op = test_operator(transport.clone());
+
+        let err = op
+            .delete_with("missing.txt")
+            .if_match("\"etag-1\"")
+            .await
+            .expect_err("conditional delete on 404 must fail with ConditionNotMatch");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
     }
 }

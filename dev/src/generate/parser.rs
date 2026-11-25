@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::fs::read_dir;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use syn::{
     Expr, ExprLit, Field, GenericArgument, Item, Lit, LitStr, Meta, PathArguments, Type, TypePath,
@@ -29,18 +30,20 @@ use syn::{
 
 pub type Services = HashMap<String, Service>;
 
-pub fn sorted_services(services: Services, test: fn(&str) -> bool) -> Services {
+pub fn service_feature(service: &str) -> String {
+    format!("services-{}", service.replace('_', "-"))
+}
+
+pub fn sorted_services(services: Services, test: impl Fn(&str) -> bool) -> Services {
     let mut srvs = Services::new();
-    for (k, srv) in services.into_iter() {
+    for (k, mut srv) in services.into_iter() {
         if !test(k.as_str()) {
             continue;
         }
 
         // Sort configs by name (lexicographically)
-        let mut sorted = srv.config;
-        sorted.sort_by(|a, b| a.name.cmp(&b.name));
-
-        srvs.insert(k, Service { config: sorted });
+        srv.config.sort_by(|a, b| a.name.cmp(&b.name));
+        srvs.insert(k, srv);
     }
     srvs
 }
@@ -48,6 +51,8 @@ pub fn sorted_services(services: Services, test: fn(&str) -> bool) -> Services {
 /// Service represents a service supported by opendal core, like `s3` and `fs`
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct Service {
+    /// Directory containing the configuration and runtime source files.
+    pub source_dir: PathBuf,
     /// All configurations for this service.
     pub config: Vec<Config>,
 }
@@ -59,7 +64,8 @@ pub struct Config {
     pub name: String,
     /// The value type this config.
     pub value: ConfigType,
-    /// If given config is optional or not.
+    /// Whether this config is optional in public configuration. An
+    /// `@required true` marker can make an `Option<T>` field required.
     pub optional: bool,
     /// if this field is deprecated, a deprecated message will be provided.
     pub deprecated: Option<AttrDeprecated>,
@@ -75,6 +81,9 @@ pub struct Config {
     pub default_value: Option<String>,
     /// An example value, parsed from a `@example <value>` doc marker.
     pub example: Option<String>,
+    /// Whether generated minimal examples should include this optional field,
+    /// parsed from a `@minimal true` doc marker.
+    pub minimal: bool,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
@@ -159,13 +168,15 @@ pub struct AttrDeprecated {
     pub note: String,
 }
 
-/// Structured markers extracted from a field's doc comment, e.g. `@group`,
-/// `@default` and `@example`.
+/// Structured markers extracted from a field's doc comment, such as `@group`,
+/// `@default`, `@example`, `@minimal`, and `@required`.
 #[derive(Debug, Default, Clone, Eq, PartialEq)]
 struct DocMarkers {
     group: Option<String>,
     default_value: Option<String>,
     example: Option<String>,
+    minimal: bool,
+    required: bool,
 }
 
 /// List and parse given path to a `Services` struct.
@@ -200,27 +211,69 @@ pub fn parse(path: &str) -> Result<Services> {
         if dir.file_type()?.is_file() {
             continue;
         }
-        let path = dir.path().join("config.rs");
+        let service_dir = dir.path();
+        let path = service_dir.join("config.rs");
         // Try the old layout (config.rs directly) first, then the new layout (src/config.rs)
         let path = if path.exists() {
             path
         } else {
-            dir.path().join("src/config.rs")
+            service_dir.join("src/config.rs")
         };
-        if !path.exists() {
+        if path.exists() {
+            insert_service(
+                &mut map,
+                dir.file_name().to_string_lossy().to_string(),
+                &path,
+            )?;
+        }
+
+        let src_dir = service_dir.join("src");
+        if !src_dir.exists() {
             continue;
         }
-        let content = fs::read_to_string(&path)?;
-        let parser = ServiceParser {
-            service: dir.file_name().to_string_lossy().to_string(),
-            path: path.to_string_lossy().to_string(),
-            content,
-        };
-        let service = parser.parse().context(format!("path: {path:?}"))?;
-        map.insert(parser.service, service);
+        // A service crate can expose additional schemes through
+        // `<scheme>_config.rs` files next to its primary `config.rs`.
+        for entry in read_dir(src_dir)? {
+            let entry = entry?;
+            if !entry.file_type()?.is_file() {
+                continue;
+            }
+            let Some(service) = supplemental_service_name(&entry.path()) else {
+                continue;
+            };
+            insert_service(&mut map, service, &entry.path())?;
+        }
     }
 
     Ok(map)
+}
+
+fn supplemental_service_name(path: &Path) -> Option<String> {
+    path.file_name()?
+        .to_str()?
+        .strip_suffix("_config.rs")
+        .filter(|name| !name.is_empty())
+        .map(ToString::to_string)
+}
+
+fn insert_service(map: &mut Services, service: String, path: &Path) -> Result<()> {
+    if map.contains_key(&service) {
+        bail!("duplicate config for service {service}");
+    }
+
+    let content = fs::read_to_string(path)?;
+    let parser = ServiceParser {
+        service: service.clone(),
+        path: path.to_string_lossy().to_string(),
+        content,
+    };
+    let config = parser.parse_fields().context(format!("path: {path:?}"))?;
+    let source_dir = path
+        .parent()
+        .context("config path has no parent directory")?
+        .to_path_buf();
+    map.insert(service, Service { source_dir, config });
+    Ok(())
 }
 
 /// ServiceParser is used to parse a service config file.
@@ -253,7 +306,7 @@ pub struct ServiceParser {
 /// ```
 impl ServiceParser {
     /// Parse the content of this service.
-    fn parse(&self) -> Result<Service> {
+    fn parse_fields(&self) -> Result<Vec<Config>> {
         log::debug!("service {} parse started", self.service);
 
         let ast = syn::parse_file(&self.content)?;
@@ -280,7 +333,7 @@ impl ServiceParser {
         }
 
         log::debug!("service {} parse finished", self.service);
-        Ok(Service { config })
+        Ok(config)
     }
 
     /// TODO: Add comment parse support.
@@ -334,6 +387,7 @@ impl ServiceParser {
             }
             v => return Err(anyhow!("unsupported config type {v:?}")),
         };
+        let optional = optional && !markers.required;
 
         Ok(Config {
             name: name.to_string(),
@@ -344,6 +398,7 @@ impl ServiceParser {
             group: markers.group,
             default_value: markers.default_value,
             example: markers.example,
+            minimal: markers.minimal,
         })
     }
 
@@ -388,6 +443,8 @@ impl ServiceParser {
             "group" => Some(("group", value)),
             "default" => Some(("default", value)),
             "example" => Some(("example", value)),
+            "minimal" => Some(("minimal", value)),
+            "required" => Some(("required", value)),
             _ => None,
         }
     }
@@ -419,6 +476,8 @@ impl ServiceParser {
                     "group" => markers.group = Some(value),
                     "default" => markers.default_value = Some(value),
                     "example" => markers.example = Some(value),
+                    "minimal" => markers.minimal = value == "true",
+                    "required" => markers.required = value == "true",
                     _ => {}
                 }
             }
@@ -499,6 +558,7 @@ mod tests {
                     group: None,
                     default_value: None,
                     example: None,
+                    minimal: false,
                 },
             ),
             (
@@ -512,6 +572,7 @@ mod tests {
                     group: None,
                     default_value: None,
                     example: None,
+                    minimal: false,
                 },
             ),
             (
@@ -525,6 +586,7 @@ mod tests {
                     group: None,
                     default_value: None,
                     example: None,
+                    minimal: false,
                 },
             ),
         ];
@@ -784,10 +846,10 @@ impl Debug for S3Config {
             content: content.to_string(),
         };
 
-        let service = parser.parse().unwrap();
-        assert_eq!(service.config.len(), 26);
+        let config = parser.parse_fields().unwrap();
+        assert_eq!(config.len(), 26);
         assert_eq!(
-            service.config[21],
+            config[21],
             Config {
                 name: "batch_max_operations".to_string(),
                 value: ConfigType::Usize,
@@ -806,10 +868,11 @@ Please tune this value based on services' document."
                 group: None,
                 default_value: None,
                 example: None,
+                minimal: false,
             },
         );
         assert_eq!(
-            service.config[25],
+            config[25],
             Config {
                 name: "disable_write_with_if_match".to_string(),
                 value: ConfigType::Bool,
@@ -821,6 +884,7 @@ For example, Ceph RADOS S3 doesn't support write with if match.".to_string(),
                 group: None,
                 default_value: None,
                 example: None,
+                minimal: false,
             },
         );
     }
@@ -836,7 +900,9 @@ For example, Ceph RADOS S3 doesn't support write with if match.".to_string(),
                 /// <!-- @group General -->
                 /// <!-- @default my-bucket -->
                 /// @example example-bucket
-                pub bucket: String
+                /// <!-- @minimal true -->
+                /// <!-- @required true -->
+                pub bucket: Option<String>
             }
         "#;
         let x: ItemStruct = syn::parse_str(input).unwrap();
@@ -848,7 +914,17 @@ For example, Ceph RADOS S3 doesn't support write with if match.".to_string(),
         assert_eq!(actual.group.as_deref(), Some("General"));
         assert_eq!(actual.default_value.as_deref(), Some("my-bucket"));
         assert_eq!(actual.example.as_deref(), Some("example-bucket"));
+        assert!(actual.minimal);
+        assert!(!actual.optional);
         assert_eq!(actual.comments, "bucket name of this backend.\n\nrequired.");
+    }
+
+    #[test]
+    fn test_service_feature() {
+        assert_eq!(service_feature("s3"), "services-s3");
+        assert_eq!(service_feature("r2"), "services-r2");
+        assert_eq!(service_feature("minio"), "services-minio");
+        assert_eq!(service_feature("mini_moka"), "services-mini-moka");
     }
 
     #[test]
@@ -860,5 +936,14 @@ For example, Ceph RADOS S3 doesn't support write with if match.".to_string(),
 
         // Parse should just pass.
         let _ = parse(&path.to_string_lossy()).unwrap();
+
+        let path = workspace_dir()
+            .join("core/services")
+            .canonicalize()
+            .unwrap();
+        let services = parse(&path.to_string_lossy()).unwrap();
+        assert!(services.contains_key("s3"));
+        assert!(services.contains_key("r2"));
+        assert!(services.contains_key("minio"));
     }
 }

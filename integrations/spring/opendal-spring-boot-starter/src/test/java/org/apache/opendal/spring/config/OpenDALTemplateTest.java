@@ -20,6 +20,7 @@
 package org.apache.opendal.spring.config;
 
 import org.apache.opendal.AsyncOperator;
+import org.apache.opendal.Operator;
 import org.apache.opendal.spring.TestApplication;
 import org.apache.opendal.spring.core.OpenDALOperations;
 import org.apache.opendal.spring.core.OpenDALTemplate;
@@ -49,7 +50,10 @@ public class OpenDALTemplateTest {
         Person person = ops.read(path);
         Assertions.assertEquals("Alice", person.name());
         Assertions.assertEquals(1, person.age());
-        String content = new String(asyncOperator.blocking().read(path), StandardCharsets.UTF_8);
+        String content;
+        try (Operator operator = asyncOperator.blocking()) {
+            content = new String(operator.read(path), StandardCharsets.UTF_8);
+        }
         Assertions.assertEquals("""
             {"name":"Alice","age":1}""", content);
         ops.delete(path);

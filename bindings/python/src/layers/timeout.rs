@@ -24,19 +24,17 @@ use opendal::Operator;
 
 /// Parse a timeout given in seconds into a [`Duration`].
 ///
-/// Rejects non-positive, non-finite, or out-of-range values. A zero timeout
-/// is rejected because it would make every operation time out immediately.
+/// Rejects non-positive, non-finite, or out-of-range values.
 fn parse_timeout_secs(name: &str, secs: f64) -> PyResult<Duration> {
-    if !secs.is_finite() || secs <= 0.0 {
-        return Err(ConfigInvalid::new_err(format!(
-            "{name} must be a positive, finite number of seconds"
-        )));
-    }
-    Duration::try_from_secs_f64(secs).map_err(|_| {
+    let invalid = || {
         ConfigInvalid::new_err(format!(
             "{name} must be a positive, finite number of seconds"
         ))
-    })
+    };
+    if secs <= 0.0 {
+        return Err(invalid());
+    }
+    Duration::try_from_secs_f64(secs).map_err(|_| invalid())
 }
 
 /// A layer that adds timeouts to operations.
@@ -50,7 +48,7 @@ fn parse_timeout_secs(name: &str, secs: f64) -> PyResult<Duration> {
 /// -----
 /// A small amount of overhead is added to IO operations to implement the
 /// timeout correctly.
-#[pyclass(module = "opendal.layers", extends = Layer, skip_from_py_object)]
+#[pyclass(module = "opendal.layers", extends = Layer)]
 #[derive(Clone)]
 pub struct TimeoutLayer(ocore::layers::TimeoutLayer);
 
@@ -67,14 +65,10 @@ impl TimeoutLayer {
     /// ----------
     /// timeout : Optional[float]
     ///     Timeout (in seconds) for control operations like ``stat`` and
-    ///     ``delete``. Must be a positive, finite number. A value of ``0``
-    ///     is rejected because it would make every operation time out
-    ///     immediately. Defaults to ``60.0``.
+    ///     ``delete``. Must be a positive, finite number. Defaults to ``60.0``.
     /// io_timeout : Optional[float]
     ///     Timeout (in seconds) for IO operations like ``read`` and
-    ///     ``write``. Must be a positive, finite number. A value of ``0``
-    ///     is rejected because it would make every operation time out
-    ///     immediately. Defaults to ``10.0``.
+    ///     ``write``. Must be a positive, finite number. Defaults to ``10.0``.
     ///
     /// Returns
     /// -------

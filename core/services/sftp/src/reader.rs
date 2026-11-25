@@ -16,14 +16,14 @@
 // under the License.
 
 use super::backend::*;
-use super::core::Manager;
+use super::core::SftpConnection;
+use super::core::create_dir_all;
 use super::core::is_not_found;
 use super::core::is_sftp_failure;
 use super::core::parse_sftp_error;
 use super::lister::SftpLister;
 use super::writer::SftpWriter;
 use bytes::BytesMut;
-use fastpool::bounded;
 use opendal_core::raw::*;
 use opendal_core::*;
 use openssh_sftp_client::file::File;
@@ -31,25 +31,24 @@ use std::io::SeekFrom;
 use tokio::io::AsyncSeekExt;
 
 pub struct SftpReadStream {
-    /// Keep the connection alive while data stream is alive.
-    _conn: bounded::Object<Manager>,
-
     file: File,
     chunk: usize,
     size: Option<usize>,
     read: usize,
     buf: BytesMut,
+    // Keep the connection checked out until after the file handle drops.
+    _conn: SftpConnection,
 }
 
 impl SftpReadStream {
-    pub fn new(conn: bounded::Object<Manager>, file: File, size: Option<u64>) -> Self {
+    pub fn new(conn: SftpConnection, file: File, size: Option<u64>) -> Self {
         Self {
-            _conn: conn,
             file,
             size: size.map(|v| v as usize),
             chunk: 2 * 1024 * 1024,
             read: 0,
             buf: BytesMut::new(),
+            _conn: conn,
         }
     }
 }
@@ -130,22 +129,15 @@ impl oio::StreamRead for SftpReader {
 
 pub struct SftpLazyWriter {
     backend: SftpBackend,
-    ctx: OperationContext,
     path: String,
     op: OpWrite,
     inner: Option<SftpWriter>,
 }
 
 impl SftpLazyWriter {
-    pub(super) fn new(
-        backend: SftpBackend,
-        ctx: OperationContext,
-        path: &str,
-        op: OpWrite,
-    ) -> Self {
+    pub(super) fn new(backend: SftpBackend, path: &str, op: OpWrite) -> Self {
         Self {
             backend,
-            ctx,
             path: path.to_string(),
             op,
             inner: None,
@@ -154,51 +146,55 @@ impl SftpLazyWriter {
 
     async fn inner(&mut self) -> Result<&mut SftpWriter> {
         if self.inner.is_none() {
-            if let Some((dir, _)) = self.path.rsplit_once('/') {
-                self.backend
-                    .create_dir(&self.ctx, dir, OpCreateDir::default())
-                    .await?;
-            }
-
             let client = self.backend.core.connect().await?;
 
-            let mut fs = client.fs();
-            fs.set_cwd(&self.backend.core.root);
-            let path = fs
-                .canonicalize(&self.path)
-                .await
-                .map_err(parse_sftp_error)?;
-
-            let mut option = client.options();
-            if self.op.if_not_exists() {
-                option.create_new(true);
-            } else {
-                option.create(true);
+            if let Some((dir, _)) = self.path.rsplit_once('/') {
+                create_dir_all(
+                    &client,
+                    &self.backend.core.root,
+                    dir.trim_start_matches('/'),
+                )
+                .await?;
             }
 
-            if self.op.append() {
-                option.append(true);
-            } else {
-                option.write(true).truncate(true);
-            }
+            let file = {
+                let mut fs = client.fs();
+                fs.set_cwd(&self.backend.core.root);
+                let path = fs
+                    .canonicalize(&self.path)
+                    .await
+                    .map_err(parse_sftp_error)?;
 
-            let res = option.open(&path).await;
-            let file = match res {
-                Ok(f) => f,
-                Err(e) if self.op.if_not_exists() && is_sftp_failure(&e) => {
-                    if fs.metadata(&path).await.is_ok() {
-                        return Err(Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "file already exists, doesn't match the condition if_not_exists",
-                        )
-                        .set_source(e));
-                    }
-                    return Err(parse_sftp_error(e));
+                let mut option = client.options();
+                if self.op.if_not_exists() {
+                    option.create_new(true);
+                } else {
+                    option.create(true);
                 }
-                Err(e) => return Err(parse_sftp_error(e)),
+
+                if self.op.append() {
+                    option.append(true);
+                } else {
+                    option.write(true).truncate(true);
+                }
+
+                match option.open(&path).await {
+                    Ok(f) => f,
+                    Err(e) if self.op.if_not_exists() && is_sftp_failure(&e) => {
+                        if fs.metadata(&path).await.is_ok() {
+                            return Err(Error::new(
+                                ErrorKind::ConditionNotMatch,
+                                "file already exists, doesn't match the condition if_not_exists",
+                            )
+                            .set_source(e));
+                        }
+                        return Err(parse_sftp_error(e));
+                    }
+                    Err(e) => return Err(parse_sftp_error(e)),
+                }
             };
 
-            self.inner = Some(SftpWriter::new(file));
+            self.inner = Some(SftpWriter::new(file, client));
         }
 
         Ok(self.inner.as_mut().expect("writer must be initialized"))
@@ -215,7 +211,13 @@ impl oio::Write for SftpLazyWriter {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.inner().await?.abort().await
+        match &mut self.inner {
+            Some(w) => w.abort().await,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "SftpWriter doesn't support abort",
+            )),
+        }
     }
 }
 
@@ -239,13 +241,16 @@ impl oio::List for SftpLazyLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         if self.inner.is_none() {
             let client = self.backend.core.connect().await?;
-            let mut fs = client.fs();
-            fs.set_cwd(&self.backend.core.root);
+            let dir = {
+                let mut fs = client.fs();
+                fs.set_cwd(&self.backend.core.root);
 
-            let file_path = format!("./{}", self.path);
+                let file_path = format!("./{}", self.path);
+                fs.open_dir(&file_path).await
+            };
 
-            self.inner = Some(match fs.open_dir(&file_path).await {
-                Ok(dir) => Some(SftpLister::new(dir.read_dir(), self.path.clone())),
+            self.inner = Some(match dir {
+                Ok(dir) => Some(SftpLister::new(dir.read_dir(), self.path.clone(), client)),
                 Err(e) if is_not_found(&e) => None,
                 Err(e) => return Err(parse_sftp_error(e)),
             });

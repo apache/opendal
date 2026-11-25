@@ -26,10 +26,23 @@ on:
       cases:
         required: true
         type: string
+      enable_secrets:
+        required: false
+        type: boolean
+        default: false
+      retry_attempts:
+        required: false
+        type: number
+        default: 1
+    secrets:
+      OP_CONNECT_HOST:
+        required: false
+      OP_CONNECT_TOKEN:
+        required: false
 
 concurrency:
-  group: binding_c-${{ inputs.os }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-binding_c-${{ inputs.os }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
@@ -50,6 +63,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup 1Password Connect
+        if: inputs.enable_secrets
         shell: bash
         run: |
           echo "::add-mask::${{ secrets.OP_CONNECT_HOST }}"
@@ -67,6 +81,16 @@ jobs:
         run: cargo build --features="opendal/${{ matrix.cases.feature }}"
 
       - name: Test Core
+        id: test
+        continue-on-error: ${{ inputs.retry_attempts > 1 }}
+        uses: ./.github/actions/test_behavior_binding_c
+        with:
+          setup: ${{ matrix.cases.setup }}
+          service: ${{ matrix.cases.service }}
+          feature: ${{ matrix.cases.feature }}
+
+      - name: Retry Test Core
+        if: steps.test.outcome == 'failure' && inputs.retry_attempts > 1
         uses: ./.github/actions/test_behavior_binding_c
         with:
           setup: ${{ matrix.cases.setup }}

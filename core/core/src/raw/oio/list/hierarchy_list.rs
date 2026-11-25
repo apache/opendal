@@ -105,8 +105,10 @@ impl<P> HierarchyLister<P> {
                 path.to_string()
             };
 
-            e.set_path(&path);
-            e.set_mode(EntryMode::DIR);
+            // The parent directory is synthesized from a descendant. Its metadata
+            // describes that descendant, not this directory, so start from fresh
+            // directory metadata instead of carrying file fields over.
+            *e = oio::Entry::with(path.clone(), MetadataBuilder::dir().build());
             self.visited.insert(path);
 
             return true;
@@ -131,5 +133,143 @@ impl<P: oio::List> oio::List for HierarchyLister<P> {
                 return Ok(Some(entry));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::raw::oio::List as _;
+
+    struct VecLister {
+        entries: std::vec::IntoIter<oio::Entry>,
+    }
+
+    impl oio::List for VecLister {
+        async fn next(&mut self) -> Result<Option<oio::Entry>> {
+            Ok(self.entries.next())
+        }
+    }
+
+    fn file_metadata() -> Metadata {
+        let mut builder = MetadataBuilder::file(1024);
+        builder
+            .cache_control("max-age=3600")
+            .content_disposition("attachment")
+            .content_md5("content-md5")
+            .content_type("text/plain")
+            .content_encoding("gzip")
+            .content_language("en")
+            .etag("etag")
+            .version("v1")
+            .last_modified(Timestamp::new(1_700_000_000, 123_456_789).unwrap())
+            .is_current(Some(true))
+            .is_deleted(true)
+            .user_metadata([("owner".to_string(), "opendal".to_string())]);
+        builder.build()
+    }
+
+    async fn drain(mut lister: HierarchyLister<VecLister>) -> Vec<oio::Entry> {
+        let mut entries = Vec::new();
+        while let Some(entry) = lister.next().await.unwrap() {
+            entries.push(entry);
+        }
+        entries
+    }
+
+    #[tokio::test]
+    async fn nested_file_creates_directory_without_file_metadata() {
+        let lister = HierarchyLister::new(
+            VecLister {
+                entries: vec![oio::Entry::new("a/b/c", file_metadata())].into_iter(),
+            },
+            "a/",
+            false,
+        );
+
+        let entries = drain(lister).await;
+        assert_eq!(entries.len(), 1);
+
+        let entry = &entries[0];
+        assert_eq!(entry.path(), "a/b/");
+
+        let metadata = entry.metadata();
+        assert_eq!(metadata.mode(), EntryMode::DIR);
+        assert_eq!(metadata.content_length(), 0);
+        assert_eq!(metadata.cache_control(), None);
+        assert_eq!(metadata.content_disposition(), None);
+        assert_eq!(metadata.content_md5(), None);
+        assert_eq!(metadata.content_type(), None);
+        assert_eq!(metadata.content_encoding(), None);
+        assert_eq!(metadata.content_language(), None);
+        assert_eq!(metadata.etag(), None);
+        assert_eq!(metadata.version(), None);
+        assert_eq!(metadata.last_modified(), None);
+        assert_eq!(metadata.is_current(), None);
+        assert!(!metadata.is_deleted());
+        assert!(metadata.user_metadata().is_none());
+    }
+
+    #[tokio::test]
+    async fn direct_directory_preserves_its_metadata() {
+        let modified = Timestamp::new(1_700_000_000, 1).unwrap();
+        let mut builder = MetadataBuilder::dir();
+        builder
+            .etag("dir-etag")
+            .version("dir-v1")
+            .content_type("application/x-directory")
+            .last_modified(modified)
+            .is_current(Some(false))
+            .user_metadata([("owner".to_string(), "opendal".to_string())]);
+
+        let lister = HierarchyLister::new(
+            VecLister {
+                entries: vec![oio::Entry::new("a/b/", builder.build())].into_iter(),
+            },
+            "a/",
+            false,
+        );
+
+        let entries = drain(lister).await;
+        assert_eq!(entries.len(), 1);
+
+        let entry = &entries[0];
+        assert_eq!(entry.path(), "a/b/");
+
+        let metadata = entry.metadata();
+        assert_eq!(metadata.mode(), EntryMode::DIR);
+        assert_eq!(metadata.etag(), Some("dir-etag"));
+        assert_eq!(metadata.version(), Some("dir-v1"));
+        assert_eq!(metadata.content_type(), Some("application/x-directory"));
+        assert_eq!(metadata.last_modified(), Some(modified));
+        assert_eq!(metadata.is_current(), Some(false));
+        assert_eq!(
+            metadata.user_metadata().unwrap().get("owner"),
+            Some("opendal")
+        );
+    }
+
+    #[tokio::test]
+    async fn direct_file_preserves_its_metadata() {
+        let lister = HierarchyLister::new(
+            VecLister {
+                entries: vec![oio::Entry::new("a/file", file_metadata())].into_iter(),
+            },
+            "a/",
+            false,
+        );
+
+        let entries = drain(lister).await;
+        assert_eq!(entries.len(), 1);
+
+        let entry = &entries[0];
+        assert_eq!(entry.path(), "a/file");
+
+        let metadata = entry.metadata();
+        assert_eq!(metadata.mode(), EntryMode::FILE);
+        assert_eq!(metadata.content_length(), 1024);
+        assert_eq!(metadata.etag(), Some("etag"));
+        assert_eq!(metadata.content_type(), Some("text/plain"));
+        assert!(metadata.is_deleted());
     }
 }

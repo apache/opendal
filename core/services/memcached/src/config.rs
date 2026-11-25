@@ -35,6 +35,10 @@ pub struct MemcachedConfig {
     ///
     /// For example: "tcp://localhost:11211"
     pub endpoint: Option<String>,
+    /// Enable TLS for TCP connections. Defaults to false.
+    ///
+    /// The server certificate must match the endpoint host and a native trust root.
+    pub enable_tls: bool,
     /// the working directory of the service. Can be "/path/to/dir"
     ///
     /// default is "/"
@@ -55,6 +59,7 @@ impl Debug for MemcachedConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MemcachedConfig")
             .field("endpoint", &self.endpoint)
+            .field("enable_tls", &self.enable_tls)
             .field("root", &self.root)
             .field("username", &self.username)
             .field("default_ttl", &self.default_ttl)
@@ -69,6 +74,16 @@ impl Configurator for MemcachedConfig {
         let mut map = uri.options().clone();
         if let Some(authority) = uri.authority() {
             map.insert("endpoint".to_string(), format!("tcp://{authority}"));
+        }
+
+        if let Some(username) = uri.username() {
+            map.entry("username".to_string())
+                .or_insert_with(|| username.to_string());
+        }
+
+        if let Some(password) = uri.password() {
+            map.entry("password".to_string())
+                .or_insert_with(|| password.to_string());
         }
 
         if let Some(root) = uri.root()
@@ -102,6 +117,17 @@ mod tests {
         let cfg = MemcachedConfig::from_uri(&uri)?;
         assert_eq!(cfg.endpoint.as_deref(), Some("tcp://cache.local:11211"));
         assert_eq!(cfg.root.as_deref(), Some("app/session"));
+        assert!(!cfg.enable_tls);
+        Ok(())
+    }
+
+    #[test]
+    fn from_uri_enables_tls() -> Result<()> {
+        let uri = OperatorUri::new(
+            "memcached://cache.local:11212/",
+            vec![("enable_tls".to_string(), "true".to_string())],
+        )?;
+        assert!(MemcachedConfig::from_uri(&uri)?.enable_tls);
         Ok(())
     }
 
@@ -110,6 +136,33 @@ mod tests {
         let cfg = MemcachedConfig::from_iter([("default_ttl".to_string(), "1500ms".to_string())])?;
 
         assert_eq!(cfg.default_ttl, Some(SignedDuration::from_millis(1500)));
+        Ok(())
+    }
+
+    #[test]
+    fn from_uri_extracts_userinfo_and_respects_explicit_options() -> Result<()> {
+        let uri = OperatorUri::new(
+            "memcached://alice:s%40cret@cache.local:11211/app/session",
+            Vec::<(String, String)>::new(),
+        )?;
+
+        let cfg = MemcachedConfig::from_uri(&uri)?;
+        assert_eq!(cfg.endpoint.as_deref(), Some("tcp://cache.local:11211"));
+        assert_eq!(cfg.root.as_deref(), Some("app/session"));
+        assert_eq!(cfg.username.as_deref(), Some("alice"));
+        assert_eq!(cfg.password.as_deref(), Some("s@cret"));
+        assert!(!format!("{cfg:?}").contains("s@cret"));
+
+        let uri_with_overrides = OperatorUri::new(
+            "memcached://alice:uri_pass@cache.local:11211/",
+            vec![
+                ("username".to_string(), "bob".to_string()),
+                ("password".to_string(), "opt_pass".to_string()),
+            ],
+        )?;
+        let cfg_override = MemcachedConfig::from_uri(&uri_with_overrides)?;
+        assert_eq!(cfg_override.username.as_deref(), Some("bob"));
+        assert_eq!(cfg_override.password.as_deref(), Some("opt_pass"));
         Ok(())
     }
 }

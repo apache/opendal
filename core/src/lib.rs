@@ -15,9 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#![doc(
-    html_logo_url = "https://raw.githubusercontent.com/apache/opendal/main/website/static/img/logo.svg"
-)]
+#![doc(html_logo_url = "https://opendal.apache.org/img/logo.svg")]
 #![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, doc(auto_cfg))]
@@ -25,31 +23,77 @@
 
 pub use opendal_core::*;
 
+/// Runtime executor implementations.
+pub mod executors {
+    #[cfg(all(feature = "executors-compio", not(target_arch = "wasm32")))]
+    pub use opendal_executor_compio::CompioExecutor;
+    #[cfg(feature = "executors-tokio")]
+    pub use opendal_executor_tokio::TokioExecutor;
+}
+
+#[cfg(any(
+    feature = "http-transport-cyper-native-tls",
+    feature = "http-transport-cyper-rustls"
+))]
+pub use opendal_http_transport_cyper::CyperTransport;
+
 #[cfg(feature = "tests")]
 pub extern crate opendal_testkit as tests;
 
 /// Install the global defaults provided by the facade crate.
 ///
 /// This function is safe to call multiple times. It registers enabled services
-/// and installs the default HTTP transport when the corresponding feature is
+/// and installs the default executor and HTTP transport when their features are
 /// enabled.
 ///
-/// # Process-wide HTTP transport
+/// # Process-wide defaults
 ///
 /// When `auto-register-services` is enabled, a process constructor calls this
-/// function before `main`. If a default HTTP transport feature is also enabled,
-/// that transport occupies the process-wide default because
-/// [`HttpTransporter::install_default`] uses first-installed-wins semantics.
+/// function before `main`. The first installed HTTP transport and executor
+/// remain the process-wide defaults.
 ///
 /// Applications that need to install their own process-wide transport should
 /// disable `auto-register-services`, call [`init_default_registry`] explicitly
 /// when URI-based construction is needed, and install the transport themselves.
-/// Per-operator transports can be configured regardless of this setting.
+/// If `auto-register-services` is disabled, call this function to install the
+/// facade defaults, or configure your own defaults with
+/// [`HttpTransporter::install_default`] and [`Executor::install_default`].
+/// Use [`OperationContext`] to configure runtime resources for one operator.
 pub fn install_default() {
     init_default_registry();
 
-    #[cfg(feature = "http-transport-reqwest")]
+    #[cfg(feature = "executors-tokio")]
+    opendal_executor_tokio::install_default();
+
+    #[cfg(any(
+        feature = "http-transport-reqwest",
+        feature = "http-transport-reqwest-native-tls",
+        feature = "http-transport-reqwest-rustls",
+        feature = "http-transport-reqwest-rustls-no-provider"
+    ))]
     opendal_http_transport_reqwest::install_default();
+}
+
+#[cfg(all(
+    test,
+    feature = "auto-register-services",
+    feature = "executors-tokio",
+    not(target_arch = "wasm32")
+))]
+mod default_executor_tests {
+    #[tokio::test]
+    async fn default_executor_runs_concurrent_reads() -> crate::Result<()> {
+        let op = crate::Operator::via_iter("memory", [])?;
+        op.write("file", "abcdefgh").await?;
+        let content = op
+            .read_with("file")
+            .range(0..8)
+            .chunk(2)
+            .concurrent(2)
+            .await?;
+        assert_eq!(content.to_bytes(), "abcdefgh");
+        Ok(())
+    }
 }
 
 /// Initialize the global [`OperatorRegistry`] with enabled services.
@@ -61,8 +105,8 @@ pub fn install_default() {
 ///
 /// Some bindings link `opendal` as a `staticlib`, where `#[ctor::ctor]`
 /// initializers may not be executed due to linker behavior. Those bindings
-/// should call this function explicitly before using `Operator::from_uri` or
-/// `Operator::via_iter`.
+/// should call [`install_default`] explicitly before using `Operator::from_uri`
+/// or `Operator::via_iter`.
 pub fn init_default_registry() {
     static DEFAULT_REGISTRY_INIT: std::sync::Once = std::sync::Once::new();
     DEFAULT_REGISTRY_INIT.call_once(|| init_default_registry_inner(OperatorRegistry::get()));
@@ -140,6 +184,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-ghac")]
     opendal_service_ghac::register_ghac_service(registry);
 
+    #[cfg(feature = "services-git")]
+    opendal_service_git::register_git_service(registry);
+
     #[cfg(feature = "services-github")]
     opendal_service_github::register_github_service(registry);
 
@@ -160,6 +207,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
 
     #[cfg(feature = "services-hf")]
     opendal_service_hf::register_hf_service(registry);
+
+    #[cfg(all(feature = "services-hf3fs", target_os = "linux"))]
+    opendal_service_hf3fs::register_hf3fs_service(registry);
 
     #[cfg(feature = "services-ipfs")]
     opendal_service_ipfs::register_ipfs_service(registry);
@@ -218,6 +268,42 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-s3")]
     opendal_service_s3::register_s3_service(registry);
 
+    #[cfg(feature = "services-r2")]
+    opendal_service_s3::register_r2_service(registry);
+
+    #[cfg(feature = "services-minio")]
+    opendal_service_s3::register_minio_service(registry);
+
+    #[cfg(feature = "services-exoscale")]
+    opendal_service_s3::register_exoscale_service(registry);
+
+    #[cfg(feature = "services-hetzner")]
+    opendal_service_s3::register_hetzner_service(registry);
+
+    #[cfg(feature = "services-oci")]
+    opendal_service_s3::register_oci_service(registry);
+
+    #[cfg(feature = "services-ovhcloud")]
+    opendal_service_s3::register_ovhcloud_service(registry);
+
+    #[cfg(feature = "services-qingstor")]
+    opendal_service_s3::register_qingstor_service(registry);
+
+    #[cfg(feature = "services-scaleway")]
+    opendal_service_s3::register_scaleway_service(registry);
+
+    #[cfg(feature = "services-spaces")]
+    opendal_service_s3::register_spaces_service(registry);
+
+    #[cfg(feature = "services-supabase")]
+    opendal_service_s3::register_supabase_service(registry);
+
+    #[cfg(feature = "services-tigris")]
+    opendal_service_s3::register_tigris_service(registry);
+
+    #[cfg(feature = "services-wasabi")]
+    opendal_service_s3::register_wasabi_service(registry);
+
     #[cfg(feature = "services-seafile")]
     opendal_service_seafile::register_seafile_service(registry);
 
@@ -226,6 +312,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
 
     #[cfg(feature = "services-sled")]
     opendal_service_sled::register_sled_service(registry);
+
+    #[cfg(feature = "services-smb")]
+    opendal_service_smb::register_smb_service(registry);
 
     #[cfg(feature = "services-sqlite")]
     opendal_service_sqlite::register_sqlite_service(registry);
@@ -277,7 +366,7 @@ fn register_default_operator_registry() {
 ///
 /// [`Memory`](services::Memory) is always available. Other builders are
 /// re-exported when their matching facade feature is enabled; for example,
-/// `services-s3` enables [`S3`](services::S3).
+/// `services-r2` enables the `R2` builder.
 ///
 /// Pass a configured builder to [`Operator::new`]. The facade automatically
 /// registers enabled services for [`Operator::from_uri`] and
@@ -330,6 +419,8 @@ pub mod services {
     pub use opendal_service_gdrive::*;
     #[cfg(feature = "services-ghac")]
     pub use opendal_service_ghac::*;
+    #[cfg(feature = "services-git")]
+    pub use opendal_service_git::*;
     #[cfg(feature = "services-github")]
     pub use opendal_service_github::*;
     #[cfg(feature = "services-goosefs")]
@@ -342,6 +433,8 @@ pub mod services {
     pub use opendal_service_hdfs_native::*;
     #[cfg(feature = "services-hf")]
     pub use opendal_service_hf::*;
+    #[cfg(all(feature = "services-hf3fs", target_os = "linux"))]
+    pub use opendal_service_hf3fs::*;
     #[cfg(feature = "services-http")]
     pub use opendal_service_http::*;
     #[cfg(feature = "services-ipfs")]
@@ -384,14 +477,52 @@ pub mod services {
     pub use opendal_service_redis::*;
     #[cfg(feature = "services-rocksdb")]
     pub use opendal_service_rocksdb::*;
+    #[cfg(feature = "services-exoscale")]
+    pub use opendal_service_s3::{
+        EXOSCALE_SCHEME, Exoscale, ExoscaleConfig, register_exoscale_service,
+    };
+    #[cfg(feature = "services-hetzner")]
+    pub use opendal_service_s3::{
+        HETZNER_SCHEME, Hetzner, HetznerConfig, register_hetzner_service,
+    };
+    #[cfg(feature = "services-minio")]
+    pub use opendal_service_s3::{MINIO_SCHEME, Minio, MinioConfig, register_minio_service};
+    #[cfg(feature = "services-oci")]
+    pub use opendal_service_s3::{OCI_SCHEME, Oci, OciConfig, register_oci_service};
+    #[cfg(feature = "services-ovhcloud")]
+    pub use opendal_service_s3::{
+        OVHCLOUD_SCHEME, Ovhcloud, OvhcloudConfig, register_ovhcloud_service,
+    };
+    #[cfg(feature = "services-qingstor")]
+    pub use opendal_service_s3::{
+        QINGSTOR_SCHEME, Qingstor, QingstorConfig, register_qingstor_service,
+    };
+    #[cfg(feature = "services-r2")]
+    pub use opendal_service_s3::{R2, R2_SCHEME, R2Config, register_r2_service};
     #[cfg(feature = "services-s3")]
-    pub use opendal_service_s3::*;
+    pub use opendal_service_s3::{S3, S3_SCHEME, S3Config, register_s3_service, reqsign_aws_v4};
+    #[cfg(feature = "services-scaleway")]
+    pub use opendal_service_s3::{
+        SCALEWAY_SCHEME, Scaleway, ScalewayConfig, register_scaleway_service,
+    };
+    #[cfg(feature = "services-spaces")]
+    pub use opendal_service_s3::{SPACES_SCHEME, Spaces, SpacesConfig, register_spaces_service};
+    #[cfg(feature = "services-supabase")]
+    pub use opendal_service_s3::{
+        SUPABASE_SCHEME, Supabase, SupabaseConfig, register_supabase_service,
+    };
+    #[cfg(feature = "services-tigris")]
+    pub use opendal_service_s3::{TIGRIS_SCHEME, Tigris, TigrisConfig, register_tigris_service};
+    #[cfg(feature = "services-wasabi")]
+    pub use opendal_service_s3::{WASABI_SCHEME, Wasabi, WasabiConfig, register_wasabi_service};
     #[cfg(feature = "services-seafile")]
     pub use opendal_service_seafile::*;
     #[cfg(feature = "services-sftp")]
     pub use opendal_service_sftp::*;
     #[cfg(feature = "services-sled")]
     pub use opendal_service_sled::*;
+    #[cfg(feature = "services-smb")]
+    pub use opendal_service_smb::*;
     #[cfg(feature = "services-sqlite")]
     pub use opendal_service_sqlite::*;
     #[cfg(feature = "services-surrealdb")]
@@ -416,6 +547,68 @@ pub mod services {
     pub use opendal_service_yandex_disk::*;
 }
 
+#[cfg(test)]
+mod service_feature_tests {
+    use super::*;
+
+    #[test]
+    fn registers_enabled_s3_provider_schemes() {
+        init_default_registry();
+        let schemes = OperatorRegistry::get().schemes();
+
+        assert!(schemes.contains("memory"));
+
+        #[cfg(feature = "services-s3")]
+        {
+            let chain =
+                reqsign_core::ProvideCredentialChain::<services::reqsign_aws_v4::Credential>::new();
+            let _ = services::S3::default().credential_provider_chain(chain);
+            assert!(schemes.contains("s3"));
+        }
+        #[cfg(not(feature = "services-s3"))]
+        assert!(!schemes.contains("s3"));
+
+        #[cfg(feature = "services-r2")]
+        {
+            let _ = services::R2::default();
+            assert!(schemes.contains("r2"));
+        }
+        #[cfg(not(feature = "services-r2"))]
+        assert!(!schemes.contains("r2"));
+
+        #[cfg(feature = "services-minio")]
+        {
+            let _ = services::Minio::default();
+            assert!(schemes.contains("minio"));
+        }
+        #[cfg(not(feature = "services-minio"))]
+        assert!(!schemes.contains("minio"));
+
+        for (scheme, enabled) in [
+            ("exoscale", cfg!(feature = "services-exoscale")),
+            ("hetzner", cfg!(feature = "services-hetzner")),
+            ("oci", cfg!(feature = "services-oci")),
+            ("ovhcloud", cfg!(feature = "services-ovhcloud")),
+            ("qingstor", cfg!(feature = "services-qingstor")),
+            ("scaleway", cfg!(feature = "services-scaleway")),
+            ("spaces", cfg!(feature = "services-spaces")),
+            ("supabase", cfg!(feature = "services-supabase")),
+            ("tigris", cfg!(feature = "services-tigris")),
+            ("wasabi", cfg!(feature = "services-wasabi")),
+        ] {
+            assert_eq!(schemes.contains(scheme), enabled, "{scheme}");
+        }
+
+        #[cfg(feature = "services-tigris")]
+        {
+            let op = Operator::from_uri("tigris://example-bucket/root").unwrap();
+            assert_eq!(op.info().scheme(), "tigris");
+            assert_eq!(op.info().name(), "example-bucket");
+            assert_eq!(op.info().root(), "/root/");
+        }
+    }
+}
+
 /// Layers enabled through `layers-*` Cargo features.
 ///
 /// A layer adds cross-service behavior to an [`Operator`]. Enable the matching
@@ -424,10 +617,14 @@ pub mod services {
 /// combining retries, timeouts, caching, or observability.
 pub mod layers {
     pub use opendal_core::layers::*;
+    #[cfg(feature = "layers-aimd")]
+    pub use opendal_layer_aimd::*;
     #[cfg(feature = "layers-async-backtrace")]
     pub use opendal_layer_async_backtrace::*;
     #[cfg(feature = "layers-await-tree")]
     pub use opendal_layer_await_tree::*;
+    #[cfg(feature = "layers-cache")]
+    pub use opendal_layer_cache::{CacheDecision, CacheLayer, CachePolicy, CacheReadRequest};
     #[cfg(feature = "layers-capability-check")]
     pub use opendal_layer_capability_check::*;
     #[cfg(feature = "layers-chaos")]
@@ -442,6 +639,8 @@ pub mod layers {
     pub use opendal_layer_fastrace::*;
     #[cfg(feature = "layers-foyer")]
     pub use opendal_layer_foyer::*;
+    #[cfg(feature = "layers-hedge")]
+    pub use opendal_layer_hedge::*;
     #[cfg(feature = "layers-hotpath")]
     pub use opendal_layer_hotpath::*;
     #[cfg(feature = "layers-immutable-index")]
@@ -464,6 +663,8 @@ pub mod layers {
     pub use opendal_layer_retry::*;
     #[cfg(feature = "layers-route")]
     pub use opendal_layer_route::*;
+    #[cfg(feature = "layers-sanity-check")]
+    pub use opendal_layer_sanity_check::*;
     #[cfg(feature = "layers-tail-cut")]
     pub use opendal_layer_tail_cut::*;
     #[cfg(feature = "layers-throttle")]

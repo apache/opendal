@@ -32,10 +32,10 @@ import {
   valueProps,
   capabilityThemes,
   usedBy,
+  featuredCaseStudy,
   USERS_LIST_URL,
   serviceGroups,
   bindings,
-  layers,
 } from "./data";
 
 export function Hero() {
@@ -54,10 +54,9 @@ export function Hero() {
               <span className={styles.heroTitleAccent}>All Storage.</span>
             </h1>
             <p className={styles.heroLede}>
-              One zero-cost{" "}
-              <span className={styles.termItalic}>operator</span> for object
-              storage, file systems, databases and more — in the language you
-              already ship.
+              Write clean storage code from simple reads and writes to
+              streaming, byte-range reads, and concurrent uploads — on a single
+              S3 bucket or across 50+ backends.
             </p>
             <div className={styles.heroActions}>
               <Link
@@ -94,7 +93,7 @@ export function Hero() {
 export function UsedBy() {
   const { withBaseUrl } = useBaseUrlUtils();
   return (
-    <section className={`${styles.section} ${styles.sectionSubtle}`}>
+    <section className={styles.section}>
       <div className="odl-container">
         <div className={styles.sectionHead}>
           <span className="odl-eyebrow">Used by</span>
@@ -106,6 +105,20 @@ export function UsedBy() {
             are some of the projects that build on it.
           </p>
         </div>
+        <Link className={styles.caseStudy} to={featuredCaseStudy.href}>
+          <span className={styles.caseStudyLabel}>Case study</span>
+          <span className={styles.caseStudyText}>
+            <span className={styles.caseStudyTitle}>
+              {featuredCaseStudy.title}
+            </span>
+            <span className={styles.caseStudyBody}>
+              {featuredCaseStudy.body}
+            </span>
+          </span>
+          <span className={styles.btnArrow} aria-hidden="true">
+            →
+          </span>
+        </Link>
         <ul className={styles.logoWall}>
           {usedBy.map((u) => (
             <li className={styles.logoWallItem} key={u.name}>
@@ -140,11 +153,12 @@ export function ValueProps() {
         <div className={styles.sectionHead}>
           <span className="odl-eyebrow">Why OpenDAL</span>
           <h2 className={styles.sectionTitle}>
-            A storage layer you can build production on.
+            Clean application code, from the first file to heavy I/O.
           </h2>
           <p className={styles.sectionLede}>
-            OpenDAL turns one vision — <em>One Layer, All Storage</em> — into a
-            practical foundation for applications, libraries and data systems.
+            Adopt OpenDAL for one bucket or local directory today, then add
+            large transfers, resilience policies, and more backends while your
+            storage code keeps the same shape.
           </p>
         </div>
         <div className={`${styles.valueGrid} ${styles.reveal}`}>
@@ -168,11 +182,14 @@ export function Capabilities() {
       <div className="odl-container">
         <div className={styles.sectionHead}>
           <span className="odl-eyebrow">Capabilities</span>
-          <h2 className={styles.sectionTitle}>Configure once. Access anything.</h2>
+          <h2 className={styles.sectionTitle}>
+            From simple reads to heavy I/O.
+          </h2>
           <p className={styles.sectionLede}>
-            One <span className={styles.termItalic}>operator</span> is a full
-            toolkit for real-world data — read and write at scale, recover from
-            failures, and work with files — the same way on every backend.
+            One <span className={styles.termItalic}>operator</span> covers
+            byte-range reads, concurrent transfers, file operations, and
+            production policies. Examples use the Rust core; each language
+            guide shows the options and layers its binding exposes.
           </p>
         </div>
         <ExplorerSection
@@ -202,9 +219,9 @@ export function Services() {
             50+ storage services, one interface.
           </h2>
           <p className={styles.sectionLede}>
-            Enable only the backends your application needs. The{" "}
-            <span className={styles.termItalic}>Operator</span> contract stays
-            identical across every one.
+            Enable only the backends your application needs. Core operations
+            share one interface, and each service reports optional features
+            through its capabilities.
           </p>
         </div>
         <div className={`${styles.serviceGroups} ${styles.reveal}`}>
@@ -257,8 +274,9 @@ export function Bindings() {
           <span className="odl-eyebrow">Bindings</span>
           <h2 className={styles.sectionTitle}>Ship it in your language.</h2>
           <p className={styles.sectionLede}>
-            Each binding exposes the same OpenDAL service model while following
-            its own ecosystem's conventions.
+            Each binding shares OpenDAL's service model and follows its own
+            ecosystem's conventions. Options and layers vary by binding; each
+            guide lists what it supports.
           </p>
         </div>
         <div className={`${styles.bindingGrid} ${styles.reveal}`}>
@@ -281,38 +299,6 @@ export function Bindings() {
   );
 }
 
-export function Layers() {
-  const [active, setActive] = useState(layers[0]);
-  return (
-    <section className={styles.section}>
-      <div className="odl-container">
-        <div className={styles.sectionHead}>
-          <span className="odl-eyebrow">Layers</span>
-          <h2 className={styles.sectionTitle}>
-            Production behavior, composed — not coded.
-          </h2>
-          <p className={styles.sectionLede}>
-            Stack cross-cutting concerns as reusable layers. The order is
-            explicit and the core stays zero-cost.
-          </p>
-        </div>
-        <ExplorerSection
-          id="landing-layer-preview"
-          items={layers}
-          activeItem={active}
-          onSelect={setActive}
-          getKey={(layer) => layer.name}
-          getTitle={(layer) => layer.name}
-          getDescription={(layer) => layer.desc}
-          getDoc={(layer) => layer.doc}
-          getCode={(layer) => layer.code}
-          variant="tiles"
-        />
-      </div>
-    </section>
-  );
-}
-
 export function FinalCta() {
   return (
     <section className={`${styles.section} ${styles.sectionSubtle}`}>
@@ -326,8 +312,8 @@ export function FinalCta() {
               One layer for all your storage.
             </h2>
             <p className={styles.finalCtaLede}>
-              Join the infrastructure builders, platform teams and application
-              developers accessing data freely, painlessly and efficiently.
+              Start with one bucket or directory, and keep the same operator
+              model as your workloads and backends grow.
             </p>
             <div className={styles.finalCtaActions}>
               <Link

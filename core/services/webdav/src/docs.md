@@ -1,3 +1,20 @@
+> **Warning:** Verify conditional writes and deletes against your endpoint before
+> relying on them. In the tested configurations, nginx’s `ngx_http_dav_module`
+> ignored PUT preconditions and `If-Match` on DELETE. Apache `mod_dav_fs` allowed
+> concurrent `If-None-Match: *` creates to succeed and ignores tagged WebDAV `If`
+> preconditions for weak ETags if a reverse proxy rewrites the request path.
+> Nextcloud and ownCloud (SabreDAV) could reuse an ETag after a same-second
+> overwrite, allowing a stale `If-Match` to overwrite or delete newer content;
+> they emit strong ETags by default, and return HTTP 404
+> ([`opendal_core::ErrorKind::NotFound`]) when a caller passes a weak ETag
+> precondition (`if_match` or `if_none_match`) on PUT for a missing target path
+> (use `if_not_exists` for create-only writes).
+>
+> Use [`CapabilityOverrideLayer`][opendal_core::layers::CapabilityOverrideLayer]
+> to disable the affected capabilities. OpenDAL returns
+> [`opendal_core::ErrorKind::Unsupported`] before sending a conditional write
+> or delete to the server if the operation uses a disabled capability.
+
 ## Capabilities
 
 Depending on its configuration and the backing system, this service can expose:
@@ -20,11 +37,124 @@ Inspect the effective capability set with [`opendal_core::Operator::info`] and
 Bazel Remote Caching and Ccache HTTP Storage is also part of this service.
 Users can use `webdav` to connect those services.
 
+nginx’s `ngx_http_dav_module` omits ETags from DAV `PUT` responses.
+
 ## Configuration
 
 Use [`crate::WebdavConfig`] for serializable configuration and this builder's
 methods for direct construction. The field and method documentation defines
 accepted values, defaults, and environment interaction.
+
+### Recursive listing
+
+Recursive listing sends a `PROPFIND` request with `Depth: infinity` by default.
+Nextcloud and `dav-server` with infinity depth enabled return nested entries.
+The tested nginx and ownCloud configurations reject infinity depth with HTTP
+403 and 412, respectively. Jianguoyun has been reported to return only one
+level. [Server compatibility reports](https://github.com/apache/opendal/issues/4256)
+
+Set `disable_depth_infinity = true` for these endpoints. The default
+`auto-simulate` feature installs `SimulateLayer`, which walks the directory
+tree with `Depth: 1` requests for recursive listing. If you build without
+`auto-simulate`, add `SimulateLayer::default()` to the operator to enable the
+walk. With native recursion disabled and no simulation, recursive listing
+returns `ErrorKind::Unsupported`.
+
+```rust,no_run
+use opendal_core::{Operator, Result};
+use opendal_service_webdav::Webdav;
+
+# fn main() -> Result<()> {
+let op = Operator::new(
+    Webdav::default()
+        .endpoint("http://localhost:8080")
+        .disable_depth_infinity(true),
+)?;
+# Ok(())
+# }
+```
+
+### Recursive delete
+
+Per [RFC 4918 §9.6.1](https://datatracker.ietf.org/doc/html/rfc4918#section-9.6.1),
+a WebDAV `DELETE` on a collection always acts as `Depth: infinity`: the
+server removes the collection and every member in one request, and clients
+must not send `Depth: 0` or `Depth: 1`. OpenDAL sends one `DELETE` for
+`delete("dir/")` and for `delete_with("dir/").recursive(true)`; there is no
+client-side traversal. `disable_depth_infinity` only controls recursive
+`PROPFIND` and does not affect this.
+
+This means a non-recursive `delete("dir/")` also removes the directory's
+contents, and `delete_with("/").recursive(true)` targets the configured root.
+
+When the server cannot remove every member, it answers `207 Multi-Status`
+with per-resource failures, for example on a locked or read-only subtree.
+OpenDAL reports that response as an error while some descendants may already
+have been deleted.
+
+### Conditional writes and deletes
+
+OpenDAL sends write preconditions on the PUT that writes the destination file
+and delete preconditions on the DELETE that removes the target resource.
+`if_match` on PUT and DELETE uses HTTP `If-Match` for strong ETags and a tagged
+WebDAV `If` header (`If: <url> ([W/"..."])`) for weak ETags. `if_none_match` on
+PUT uses HTTP `If-None-Match` for strong ETags, and sends both `If-None-Match`
+and a tagged WebDAV `If` header (`If: <url> (Not [W/"..."])`) for weak ETags.
+`if_not_exists` uses `If-None-Match: *`. OpenDAL reports HTTP 412 (and HTTP 404
+on conditional DELETE) as [`opendal_core::ErrorKind::ConditionNotMatch`].
+
+These conditional capabilities are enabled by default. Verify that your endpoint
+honors the preconditions and preserves the destination on failure. These
+results were observed using real servers and reading back the written files.
+Each concurrent create trial used eight requests against the same missing path.
+
+| Server | `if_match` (PUT & DELETE) | `if_none_match` | `if_not_exists` |
+| --- | --- | --- | --- |
+| nginx 1.30.7 with `ngx_http_dav_module` | Ignores both headers and overwrites or deletes the file. | Ignores the condition and overwrites the file. | Ignores the condition. All eight requests succeeded in each trial. |
+| ownCloud 10.16.0 and Nextcloud 35.0.3 (SabreDAV) | Emits strong ETags by default and evaluates tagged WebDAV `If` headers with strong ETag comparison. Accepts a matching strong ETag and rejects a different one or a weak form on existing files. Can reuse a strong ETag on same-second overwrites, allowing a stale match. On a missing target path, a weak ETag on PUT returns HTTP 404 (`ErrorKind::NotFound`). | Rejects a matching strong ETag and allows a different strong ETag or a missing file. A weak ETag on a missing target path returns HTTP 404 (`ErrorKind::NotFound`); a weak form of the current strong ETag allows an overwrite. | Rejects an existing file and creates a missing one. One request succeeded per trial. Other requests returned HTTP 412 or 423, or HTTP 404 on Nextcloud. |
+| Apache HTTP Server 2.4.71 with `mod_dav_fs` | Accepts a matching strong or weak ETag on PUT and DELETE (including nested paths) and rejects a stale tag or missing target. | Rejects a matching strong or weak ETag (including a weak ETag after the server upgrades it to a strong ETag) and allows a different ETag or creation of a missing file. | Rejects an existing file sequentially. All eight requests succeeded in each concurrent trial. |
+| `dav-server` 0.12.0 with `LocalFs` | Evaluates tagged WebDAV `If` headers with strong ETag comparison. Accepts a matching strong ETag and rejects a different one. A weak form of the current strong tag returned HTTP 412. | Rejects a matching strong ETag and allows a different strong ETag or a missing file. A weak form of the current strong tag allows an overwrite. | Rejects an existing file and creates a missing one. One request succeeded and seven returned HTTP 412 per trial. |
+
+Both SabreDAV (used by ownCloud and Nextcloud) and `dav-server` evaluate tagged
+WebDAV `If` headers using strong ETag comparison. Because SabreDAV emits strong
+ETags by default, standard read-modify-write flows using server-issued strong
+ETags send `If-Match` or `If-None-Match` without a WebDAV `If` header and are
+unaffected. However, when a caller passes a weak ETag (`W/"..."`) in `if_match`
+or `if_none_match` against SabreDAV (ownCloud or Nextcloud) for a missing
+target path, SabreDAV's `Server::checkPreconditions()` deviates from
+[RFC 4918 §10.4.4](https://datatracker.ietf.org/doc/html/rfc4918#section-10.4.4)
+by calling `getNodeForPath($uri)` and returning HTTP 404
+([`opendal_core::ErrorKind::NotFound`] on PUT; conditional DELETE maps HTTP 404
+to [`opendal_core::ErrorKind::ConditionNotMatch`]) instead of evaluating the
+`If` condition on the unmapped URL. Use `if_not_exists` for create-only writes.
+
+For Apache `mod_dav`, the server matches the tagged `<url>` in
+`If: <url> (...)` against the request URL observed by Apache. If a reverse
+proxy rewrites the request path between the client and Apache, Apache ignores
+unmatched tagged lists (fail-open), so `endpoint` must match the server's
+external request URL.
+
+For the nginx deployment above, use `CapabilityOverrideLayer` to disable all
+four conditional write and delete capabilities.
+
+```rust,no_run
+use opendal_core::layers::CapabilityOverrideLayer;
+use opendal_core::{Operator, Result};
+use opendal_service_webdav::Webdav;
+
+# fn main() -> Result<()> {
+let op = Operator::new(Webdav::default().endpoint("http://localhost:8080"))?
+    .layer(CapabilityOverrideLayer::new(|mut cap| {
+        cap.write_with_if_match = false;
+        cap.write_with_if_none_match = false;
+        cap.write_with_if_not_exists = false;
+        cap.delete_with_if_match = false;
+        cap
+    }));
+assert!(!op.info().capability().write_with_if_not_exists);
+# Ok(())
+# }
+```
 
 ## Example
 

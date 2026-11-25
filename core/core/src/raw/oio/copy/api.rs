@@ -45,7 +45,7 @@ impl Copy for () {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        Ok(Metadata::default())
+        Ok(MetadataBuilder::unknown().build())
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -53,9 +53,14 @@ impl Copy for () {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+type CopyFutureFactory = Box<dyn FnMut() -> BoxedStaticFuture<Result<Metadata>> + Send>;
+#[cfg(target_arch = "wasm32")]
+type CopyFutureFactory = Box<dyn FnMut() -> BoxedStaticFuture<Result<Metadata>>>;
+
 /// OneShotCopier drives a single asynchronous copy step.
 pub struct OneShotCopier {
-    factory: Option<Box<dyn FnMut() -> BoxedStaticFuture<Result<Metadata>>>>,
+    factory: Option<CopyFutureFactory>,
     fut: Option<BoxedStaticFuture<Result<Metadata>>>,
     meta: Option<Metadata>,
     consumed: bool,
@@ -68,7 +73,8 @@ unsafe impl Sync for OneShotCopier {}
 
 /// # Safety
 ///
-/// On wasm targets, futures are local but still only polled through `&mut self`.
+/// On wasm targets, futures and factories are local and only polled through `&mut self`.
+#[cfg(target_arch = "wasm32")]
 unsafe impl Send for OneShotCopier {}
 
 impl OneShotCopier {
@@ -88,7 +94,7 @@ impl OneShotCopier {
     /// upper layers like retry to rerun the one-shot copy body.
     pub fn new_with<F, Fut>(mut factory: F) -> Self
     where
-        F: FnMut() -> Fut + 'static,
+        F: FnMut() -> Fut + MaybeSend + 'static,
         Fut: Future<Output = Result<Metadata>> + MaybeSend + 'static,
     {
         Self {
@@ -106,7 +112,7 @@ impl OneShotCopier {
         Self {
             factory: None,
             fut: None,
-            meta: Some(Metadata::default()),
+            meta: Some(MetadataBuilder::unknown().build()),
             consumed: true,
         }
     }
@@ -140,12 +146,18 @@ impl Copy for OneShotCopier {
             self.fut = Some(factory());
         }
 
-        if let Some(fut) = self.fut.take() {
-            match fut.await {
+        if let Some(fut) = self.fut.as_mut() {
+            // Keep the future in `self.fut` across `.await` so dropping `close`
+            // while pending (for example on timeout) lets the next call resume it.
+            let res = fut.as_mut().await;
+            self.fut = None;
+
+            return match res {
                 Ok(meta) => {
+                    self.factory = None;
                     self.consumed = true;
                     self.meta = Some(meta.clone());
-                    return Ok(meta);
+                    Ok(meta)
                 }
                 Err(err) => {
                     if self.factory.is_none() {
@@ -153,9 +165,9 @@ impl Copy for OneShotCopier {
                         return Err(err.set_persistent());
                     }
 
-                    return Err(err);
+                    Err(err)
                 }
-            }
+            };
         }
 
         self.consumed = true;
@@ -217,11 +229,23 @@ impl<T: CopyDyn + ?Sized> Copy for Box<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::pin::pin;
     use std::sync::Arc;
+    use std::sync::Mutex;
     use std::sync::atomic::AtomicUsize;
     use std::sync::atomic::Ordering;
+    use std::task::Context;
+
+    use futures::channel::oneshot;
+    use futures::task::noop_waker;
 
     use super::*;
+
+    #[test]
+    fn one_shot_copier_is_send_and_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<OneShotCopier>();
+    }
 
     #[tokio::test]
     async fn one_shot_copier_rebuilds_future_after_error() {
@@ -238,7 +262,7 @@ mod tests {
                     );
                 }
 
-                Ok(Metadata::new(EntryMode::FILE))
+                Ok(MetadataBuilder::file(0).build())
             }
         });
 
@@ -256,6 +280,160 @@ mod tests {
         let err = copier.close().await.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unexpected);
         assert!(err.is_persistent());
+
+        let err = copier.close().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_persistent());
+    }
+
+    #[tokio::test]
+    async fn one_shot_copier_new_resumes_after_cancelled_close() {
+        let (tx, rx) = oneshot::channel();
+        let mut copier = OneShotCopier::new(async move {
+            let size = rx
+                .await
+                .expect("in-flight copy future should not be dropped");
+            Ok(MetadataBuilder::file(size).build())
+        });
+
+        {
+            let mut close_fut = pin!(copier.close());
+            let waker = noop_waker();
+            let mut cx = Context::from_waker(&waker);
+            assert!(close_fut.as_mut().poll(&mut cx).is_pending());
+        }
+
+        tx.send(42).expect("cancelled close must keep future alive");
+
+        let meta = copier.close().await.unwrap();
+        assert_eq!(meta.mode(), EntryMode::FILE);
+        assert_eq!(meta.content_length(), 42);
+
+        let meta_again = copier.close().await.unwrap();
+        assert_eq!(meta_again.content_length(), 42);
+    }
+
+    #[tokio::test]
+    async fn one_shot_copier_new_with_resumes_pending_and_rebuilds_after_error() {
+        let builds = Arc::new(AtomicUsize::new(0));
+        let (tx, rx) = oneshot::channel();
+        let first_rx = Arc::new(Mutex::new(Some(rx)));
+
+        let factory_builds = builds.clone();
+        let factory_rx = first_rx.clone();
+        let mut copier = OneShotCopier::new_with(move || {
+            let attempt = factory_builds.fetch_add(1, Ordering::Relaxed);
+            let rx = if attempt == 0 {
+                factory_rx.lock().unwrap().take()
+            } else {
+                None
+            };
+
+            async move {
+                if let Some(rx) = rx {
+                    return rx
+                        .await
+                        .expect("in-flight copy future should not be dropped");
+                }
+
+                Ok(MetadataBuilder::file(99).build())
+            }
+        });
+
+        for _ in 0..2 {
+            let mut close_fut = pin!(copier.close());
+            let waker = noop_waker();
+            let mut cx = Context::from_waker(&waker);
+            assert!(close_fut.as_mut().poll(&mut cx).is_pending());
+        }
+        assert_eq!(builds.load(Ordering::Relaxed), 1);
+
+        tx.send(Err(Error::new(
+            ErrorKind::Unexpected,
+            "temporary copy failure",
+        )
+        .set_temporary()))
+            .expect("cancelled close must keep future alive");
+
+        let err = copier.close().await.unwrap_err();
+        assert!(err.is_temporary());
+        assert_eq!(builds.load(Ordering::Relaxed), 1);
+
+        let meta = copier.close().await.unwrap();
+        assert_eq!(meta.mode(), EntryMode::FILE);
+        assert_eq!(meta.content_length(), 99);
+        assert_eq!(builds.load(Ordering::Relaxed), 2);
+
+        let meta_again = copier.close().await.unwrap();
+        assert_eq!(meta_again.content_length(), 99);
+        assert_eq!(builds.load(Ordering::Relaxed), 2);
+    }
+
+    #[tokio::test]
+    async fn one_shot_copier_survives_simulated_timeout_and_retry_via_next() {
+        let (tx, rx) = oneshot::channel();
+        let mut copier = OneShotCopier::new(async move {
+            let size = rx
+                .await
+                .expect("in-flight copy future should not be dropped");
+            Ok(MetadataBuilder::file(size).build())
+        });
+
+        let mut tx = Some(tx);
+        let mut timeout_attempts = 0;
+
+        // Simulate TimeoutLayer (inner) cancelling a pending `next()` call and
+        // returning a temporary error, followed by RetryLayer (outer) retrying.
+        loop {
+            let res = {
+                let mut next_fut = pin!(copier.next());
+                let waker = noop_waker();
+                let mut cx = Context::from_waker(&waker);
+                match next_fut.as_mut().poll(&mut cx) {
+                    std::task::Poll::Ready(res) => res,
+                    std::task::Poll::Pending => {
+                        timeout_attempts += 1;
+                        Err(Error::new(ErrorKind::Unexpected, "simulated timeout").set_temporary())
+                    }
+                }
+            };
+
+            match res {
+                Ok(None) => break,
+                Ok(Some(_)) => panic!("one-shot copier never reports partial progress"),
+                Err(err) if err.is_temporary() => {
+                    if let Some(tx) = tx.take() {
+                        tx.send(128).expect("cancelled next must keep future alive");
+                    }
+                }
+                Err(err) => panic!("unexpected persistent error during retry: {err}"),
+            }
+        }
+
+        assert_eq!(timeout_attempts, 1);
+        let meta = copier.close().await.unwrap();
+        assert_eq!(meta.mode(), EntryMode::FILE);
+        assert_eq!(meta.content_length(), 128);
+    }
+
+    #[tokio::test]
+    async fn one_shot_copier_abort_drops_in_flight_future() {
+        let (tx, rx) = oneshot::channel::<u64>();
+        let mut copier = OneShotCopier::new(async move {
+            let size = rx.await.unwrap();
+            Ok(MetadataBuilder::file(size).build())
+        });
+
+        {
+            let mut close_fut = pin!(copier.close());
+            let waker = noop_waker();
+            let mut cx = Context::from_waker(&waker);
+            assert!(close_fut.as_mut().poll(&mut cx).is_pending());
+        }
+
+        assert!(!tx.is_canceled());
+        copier.abort().await.unwrap();
+        assert!(tx.is_canceled());
 
         let err = copier.close().await.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unexpected);

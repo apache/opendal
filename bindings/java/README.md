@@ -4,7 +4,7 @@
 [![Maven Central](https://img.shields.io/maven-central/v/org.apache.opendal/opendal.svg?logo=Apache+Maven&logoColor=blue)](https://central.sonatype.com/search?q=opendal&smo=true)
 [![Website](https://img.shields.io/badge/opendal-OpenDAL_Website-red?logo=Apache&logoColor=red)](https://opendal.apache.org/docs/java/)
 
-A native Java binding for Apache OpenDAL™: access S3, GCS, Azure Blob, HDFS, the
+A native Java binding for Apache OpenDAL™: access S3, GCS, Azure Blob, the
 local filesystem, and many more services through one API.
 
 We release the OpenDAL Java binding independently of the
@@ -21,9 +21,22 @@ version.
 
 ## Installation
 
-The binding ships a platform-specific native library, so you depend on the main
-artifact plus a classifier for your platform. An OS detector plugin fills in the
-classifier automatically.
+The `all` classifier bundles the Java API and the JNI libraries for all seven
+published platforms. Declare a single Maven dependency to compile and run
+without an OS detector plugin or a separate platform JAR.
+
+```xml
+<dependency>
+  <groupId>org.apache.opendal</groupId>
+  <artifactId>opendal</artifactId>
+  <version>${opendal.version}</version>
+  <classifier>all</classifier>
+</dependency>
+```
+
+For Gradle, use `implementation "org.apache.opendal:opendal:$opendalVersion:all"`.
+The `all` JAR is about 200 MB. To download only the native library for your
+target platform, use the default JAR and a platform classifier as shown below.
 
 ### Maven
 
@@ -69,6 +82,25 @@ dependencies {
 On musl-based Linux distributions such as Alpine, use the `linux-x86_64-musl` or
 `linux-aarch_64-musl` classifier instead of the detected one.
 
+## Build with additional services
+
+The native JARs on Maven Central use the `opendal` dependency features in the
+binding's [Cargo.toml](https://github.com/apache/opendal/blob/main/bindings/java/Cargo.toml),
+with SFTP enabled on Unix targets.
+
+Java layers such as `RetryLayer` and `ConcurrentLimitLayer` are built in.
+Exposing a new Rust layer requires Java and JNI binding code.
+
+To add a service, add its feature name, such as `"services-d1"`, to the
+`opendal` feature list and run this from `bindings/java`:
+
+```shell
+./mvnw clean package -DskipTests=true
+```
+
+Use the resulting JARs in `target/`, including the JAR with your platform's
+classifier.
+
 ## Quickstart
 
 ```java
@@ -92,6 +124,25 @@ public class Main {
 Use the synchronous `Operator` for blocking calls, or `AsyncOperator` for
 `CompletableFuture`-based calls.
 
+## Reuse a reader
+
+`Operator.createReader(path, readerOptions)` creates an `OperatorReader` for repeated
+reads. `ReaderOptions` selects versions, conditions, and execution controls;
+each call selects its own byte range.
+
+```java
+ReaderOptions options = ReaderOptions.builder().chunk(8 * 1024 * 1024L).build();
+try (OperatorReader reader = op.createReader("large.bin", options)) {
+    byte[] first = reader.read(0, 1024);
+    byte[] next = reader.read(1024, 1024);
+}
+```
+
+The [Java task guide](../../website/docs/20-bindings/java/04-tasks.md#read-part-of-a-file)
+covers streams and resource lifetimes.
+See [ReaderOptions](src/main/java/org/apache/opendal/ReaderOptions.java) for all
+supported options, defaults, and constraints.
+
 ## Documentation
 
 The full user guide — getting started, connecting to services, common tasks, and
@@ -99,6 +150,10 @@ going to production — lives at
 [opendal.apache.org/docs/bindings/java](https://opendal.apache.org/docs/bindings/java).
 
 ## Contributing
+
+The Maven `source-release.zip` includes `bindings/java` and the Rust `core`
+workspace. After extracting it, run `./mvnw package` from `bindings/java`.
+The wrapper downloads its JAR on first use; the source archive does not bundle it.
 
 This project is built upon the native OpenDAL library and depends on JDK 8 or
 later. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build the binding, run

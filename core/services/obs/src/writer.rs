@@ -48,18 +48,18 @@ impl ObsWriter {
     }
 
     fn parse_metadata(headers: &HeaderMap<HeaderValue>) -> Result<Metadata> {
-        let mut meta = Metadata::default();
+        let mut meta = MetadataBuilder::unknown();
         if let Some(etag) = parse_etag(headers)? {
-            meta.set_etag(etag);
+            meta.etag(etag);
         }
         if let Some(md5) = parse_content_md5(headers)? {
-            meta.set_content_md5(md5);
+            meta.content_md5(md5);
         }
         if let Some(version) = parse_header_to_str(headers, constants::X_OBS_VERSION_ID)? {
-            meta.set_version(version);
+            meta.version(version);
         }
 
-        Ok(meta)
+        Ok(meta.build())
     }
 }
 
@@ -178,17 +178,17 @@ impl oio::MultipartWrite for ObsWriter {
             .obs_complete_multipart_upload(&self.ctx, &self.path, upload_id, parts)
             .await?;
 
-        let mut meta = Self::parse_metadata(resp.headers())?;
+        let mut meta = Self::parse_metadata(resp.headers())?.into_builder();
 
         let result: CompleteMultipartUploadResult =
             quick_xml::de::from_reader(resp.body_mut().reader())
                 .map_err(new_xml_deserialize_error)?;
-        meta.set_etag(&result.etag);
+        meta.etag(&result.etag);
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(meta),
+            StatusCode::OK => Ok(meta.build()),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
                 resp,
@@ -248,18 +248,18 @@ impl oio::AppendWrite for ObsWriter {
 
         let resp = self.core.send(&self.ctx, req).await?;
 
-        let mut meta = Metadata::default();
+        let mut meta = MetadataBuilder::unknown();
         if let Some(md5) = parse_content_md5(resp.headers())? {
-            meta.set_content_md5(md5);
+            meta.content_md5(md5);
         }
         if let Some(version) = parse_header_to_str(resp.headers(), constants::X_OBS_VERSION_ID)? {
-            meta.set_version(version);
+            meta.version(version);
         }
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(meta),
+            StatusCode::OK => Ok(meta.build()),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("AppendObject")),
                 resp,

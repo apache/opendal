@@ -22,7 +22,7 @@ version = "0.1.0"
 
 [dependencies]
 anyhow = "1.0"
-flutter_rust_bridge = "=2.12.0"
+flutter_rust_bridge = "=2.13.0"
 opendal = { path = "../../../core", features = [
   "blocking",
 
@@ -36,8 +36,20 @@ opendal = { path = "../../../core", features = [
   "services-http",
   "services-ipmfs",
   "services-memory",
+  "services-minio",
   "services-obs",
   "services-oss",
+  "services-r2",
+  "services-exoscale",
+  "services-hetzner",
+  "services-oci",
+  "services-ovhcloud",
+  "services-qingstor",
+  "services-scaleway",
+  "services-spaces",
+  "services-supabase",
+  "services-tigris",
+  "services-wasabi",
   "services-s3",
   "services-webdav",
   "services-webhdfs",

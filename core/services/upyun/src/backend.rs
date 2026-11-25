@@ -189,6 +189,7 @@ impl Service for UpyunBackend {
     type Lister = oio::PageLister<UpyunLister>;
     type Deleter = oio::OneShotDeleter<UpyunDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -281,24 +282,42 @@ impl Service for UpyunBackend {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpCopy,
-        _opts: OpCopier,
+        args: OpCopy,
     ) -> Result<Self::Copier> {
+        let backend = self.clone();
         let core = self.core.clone();
         let ctx = ctx.clone();
         let from = from.to_string();
         let to = to.to_string();
+        let source_content_length_hint = args.source_content_length_hint();
 
-        Ok(oio::OneShotCopier::new(async move {
-            let resp = core.copy(&ctx, &from, &to).await?;
-            let status = resp.status();
+        Ok(oio::OneShotCopier::new_with(move || {
+            let backend = backend.clone();
+            let core = core.clone();
+            let ctx = ctx.clone();
+            let from = from.clone();
+            let to = to.clone();
 
-            match status {
-                StatusCode::OK => Ok(Metadata::default()),
-                _ => Err(parse_error(
-                    ErrorContext::new(ServiceOperation("CopyFile")),
-                    resp,
-                )),
+            async move {
+                let source_size = match source_content_length_hint {
+                    Some(size) => size,
+                    None => backend
+                        .stat(&ctx, &from, OpStat::default())
+                        .await?
+                        .into_metadata()
+                        .content_length(),
+                };
+
+                let resp = core.copy(&ctx, &from, &to).await?;
+                let status = resp.status();
+
+                match status {
+                    StatusCode::OK => Ok(MetadataBuilder::file(source_size).build()),
+                    _ => Err(parse_error(
+                        ErrorContext::new(ServiceOperation("CopyFile")),
+                        resp,
+                    )),
+                }
             }
         }))
     }
@@ -333,5 +352,87 @@ impl Service for UpyunBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use futures::stream;
+    use http::{Method, Request, Response, StatusCode};
+    use opendal_core::raw::oio::Copy;
+
+    use super::*;
+    use crate::core::constants::{X_UPYUN_FILE_SIZE, X_UPYUN_FILE_TYPE};
+
+    #[derive(Clone, Default)]
+    struct RetryCopyTransport {
+        put_attempts: Arc<AtomicUsize>,
+    }
+
+    impl HttpTransport for RetryCopyTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            if req.method() == Method::HEAD {
+                return Ok(Response::builder()
+                    .status(StatusCode::OK)
+                    .header(X_UPYUN_FILE_TYPE, "file")
+                    .header(X_UPYUN_FILE_SIZE, "9")
+                    .body(HttpBody::new(stream::iter([Ok(Buffer::new())]), Some(0)))
+                    .unwrap());
+            }
+
+            let attempt = self.put_attempts.fetch_add(1, Ordering::SeqCst);
+            let (status, body) = if attempt == 0 {
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    r#"{"code": 50300001, "msg": "temporarily unavailable", "id": "id1"}"#,
+                )
+            } else {
+                (StatusCode::OK, "")
+            };
+            let len = body.len() as u64;
+            Ok(Response::builder()
+                .status(status)
+                .body(HttpBody::new(
+                    stream::iter([Ok(Buffer::from(body))]),
+                    Some(len),
+                ))
+                .unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn copy_retries_after_transient_error() {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let transport = RetryCopyTransport::default();
+            let backend = UpyunBuilder::default()
+                .bucket("test-bucket")
+                .operator("op")
+                .password("secret")
+                .build()
+                .unwrap();
+            let ctx = OperationContext::new()
+                .with_http_transport(HttpTransporter::new(transport.clone()));
+
+            let mut copier = backend
+                .copy(&ctx, "src/测试.txt", "dst/目标.txt", OpCopy::default())
+                .unwrap();
+
+            let first_err = copier
+                .close()
+                .await
+                .expect_err("first attempt must return transient 503");
+            assert!(first_err.is_temporary());
+
+            let meta = copier
+                .close()
+                .await
+                .expect("retry on same OneShotCopier must succeed");
+            assert_eq!(meta.content_length(), 9);
+            assert_eq!(transport.put_attempts.load(Ordering::SeqCst), 2);
+        })
+        .await
+        .expect("test timed out");
     }
 }

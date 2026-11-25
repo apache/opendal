@@ -52,7 +52,7 @@ impl oio::PageList for WebhdfsLister {
                     ctx.done = true;
                     ctx.entries.push_back(oio::Entry::new(
                         format!("{}/", self.path).as_str(),
-                        Metadata::new(EntryMode::DIR),
+                        MetadataBuilder::dir().build(),
                     ));
 
                     let bs = resp.into_body();
@@ -88,13 +88,24 @@ impl oio::PageList for WebhdfsLister {
                     if directory_listing.remaining_entries == 0 {
                         ctx.entries.push_back(oio::Entry::new(
                             format!("{}/", self.path).as_str(),
-                            Metadata::new(EntryMode::DIR),
+                            MetadataBuilder::dir().build(),
                         ));
 
                         ctx.done = true;
-                    } else if !file_statuses.is_empty() {
-                        ctx.token
-                            .clone_from(&file_statuses.last().unwrap().path_suffix);
+                    } else {
+                        let Some(last) = file_statuses.last() else {
+                            return Err(Error::new(
+                                ErrorKind::Unexpected,
+                                "webhdfs LISTSTATUS_BATCH returned empty page with remaining entries",
+                            ));
+                        };
+                        if last.path_suffix.is_empty() || last.path_suffix == ctx.token {
+                            return Err(Error::new(
+                                ErrorKind::Unexpected,
+                                "webhdfs LISTSTATUS_BATCH did not advance startAfter token",
+                            ));
+                        }
+                        ctx.token.clone_from(&last.path_suffix);
                     }
 
                     file_statuses
@@ -120,10 +131,13 @@ impl oio::PageList for WebhdfsLister {
             };
 
             let meta = match status.ty {
-                FileStatusType::Directory => Metadata::new(EntryMode::DIR),
-                FileStatusType::File => Metadata::new(EntryMode::FILE)
-                    .with_content_length(status.length)
-                    .with_last_modified(Timestamp::from_millisecond(status.modification_time)?),
+                FileStatusType::Directory => MetadataBuilder::dir().build(),
+                FileStatusType::File => {
+                    let mut metadata = MetadataBuilder::file(status.length);
+                    metadata.last_modified(Timestamp::from_millisecond(status.modification_time)?);
+                    metadata.build()
+                }
+                FileStatusType::Symlink => MetadataBuilder::unknown().build(),
             };
 
             if meta.mode().is_file() {
@@ -135,6 +149,180 @@ impl oio::PageList for WebhdfsLister {
             let entry = oio::Entry::new(&path, meta);
             ctx.entries.push_back(entry);
         }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::VecDeque;
+
+    use asyncband::once::OnceCell;
+    use http::{Request, Response};
+    use oio::PageList;
+
+    use super::*;
+
+    struct StaticTransport(String);
+
+    impl HttpTransport for StaticTransport {
+        async fn fetch(&self, _req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let body = Buffer::from(self.0.clone());
+            let size = body.len() as u64;
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .body(HttpBody::new(futures::stream::iter([Ok(body)]), Some(size)))
+                .unwrap())
+        }
+    }
+
+    fn lister_with_body(body: &str) -> WebhdfsLister {
+        let core = Arc::new(WebhdfsCore {
+            info: ServiceInfo::new("webhdfs", "/", ""),
+            capability: Capability {
+                list: true,
+                ..Default::default()
+            },
+            root: "/".to_string(),
+            endpoint: "http://127.0.0.1:9870".to_string(),
+            user_name: None,
+            delegation: None,
+            root_checker: OnceCell::new(),
+            atomic_write_dir: None,
+            disable_list_batch: false,
+        });
+        let ctx = OperationContext::default()
+            .with_http_transport(HttpTransporter::new(StaticTransport(body.to_string())));
+        WebhdfsLister::new(core, ctx, "dir")
+    }
+
+    #[tokio::test]
+    async fn next_page_errors_on_empty_batch_with_remaining_entries() {
+        let lister = lister_with_body(
+            r#"{
+                "DirectoryListing": {
+                    "partialListing": { "FileStatuses": { "FileStatus": [] } },
+                    "remainingEntries": 1
+                }
+            }"#,
+        );
+        let mut page_ctx = oio::PageContext {
+            done: false,
+            token: String::new(),
+            entries: VecDeque::new(),
+        };
+
+        let err = lister.next_page(&mut page_ctx).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+    }
+
+    #[tokio::test]
+    async fn next_page_errors_when_batch_token_does_not_advance() {
+        let lister = lister_with_body(
+            r#"{
+                "DirectoryListing": {
+                    "partialListing": {
+                        "FileStatuses": {
+                            "FileStatus": [{
+                                "length": 10,
+                                "modificationTime": 1700000000000,
+                                "pathSuffix": "same",
+                                "type": "FILE"
+                            }]
+                        }
+                    },
+                    "remainingEntries": 2
+                }
+            }"#,
+        );
+        let mut page_ctx = oio::PageContext {
+            done: false,
+            token: "same".to_string(),
+            entries: VecDeque::new(),
+        };
+
+        let err = lister.next_page(&mut page_ctx).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+    }
+
+    #[tokio::test]
+    async fn next_page_errors_on_empty_last_path_suffix_with_remaining_entries() {
+        let lister = lister_with_body(
+            r#"{
+                "DirectoryListing": {
+                    "partialListing": {
+                        "FileStatuses": {
+                            "FileStatus": [{
+                                "length": 10,
+                                "modificationTime": 1700000000000,
+                                "pathSuffix": "",
+                                "type": "FILE"
+                            }]
+                        }
+                    },
+                    "remainingEntries": 1
+                }
+            }"#,
+        );
+        let mut page_ctx = oio::PageContext {
+            done: false,
+            token: String::new(),
+            entries: VecDeque::new(),
+        };
+
+        let err = lister.next_page(&mut page_ctx).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+    }
+
+    #[tokio::test]
+    async fn next_page_maps_symlink_and_finishes_when_remaining_is_zero() -> Result<()> {
+        let lister = lister_with_body(
+            r#"{
+                "DirectoryListing": {
+                    "partialListing": {
+                        "FileStatuses": {
+                            "FileStatus": [
+                                {
+                                    "length": 0,
+                                    "modificationTime": 1700000000000,
+                                    "pathSuffix": "link",
+                                    "type": "SYMLINK"
+                                },
+                                {
+                                    "length": 42,
+                                    "modificationTime": 1700000000000,
+                                    "pathSuffix": "file.txt",
+                                    "type": "FILE"
+                                }
+                            ]
+                        }
+                    },
+                    "remainingEntries": 0
+                }
+            }"#,
+        );
+        let mut page_ctx = oio::PageContext {
+            done: false,
+            token: String::new(),
+            entries: VecDeque::new(),
+        };
+
+        lister.next_page(&mut page_ctx).await?;
+        assert!(page_ctx.done);
+        assert_eq!(page_ctx.entries.len(), 3);
+
+        let dir_entry = page_ctx.entries.pop_front().unwrap();
+        assert_eq!(dir_entry.path(), "dir/");
+        assert_eq!(dir_entry.metadata().mode(), EntryMode::DIR);
+
+        let symlink_entry = page_ctx.entries.pop_front().unwrap();
+        assert_eq!(symlink_entry.path(), "dir/link");
+        assert_eq!(symlink_entry.metadata().mode(), EntryMode::Unknown);
+
+        let file_entry = page_ctx.entries.pop_front().unwrap();
+        assert_eq!(file_entry.path(), "dir/file.txt");
+        assert_eq!(file_entry.metadata().mode(), EntryMode::FILE);
 
         Ok(())
     }

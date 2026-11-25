@@ -28,10 +28,22 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongBinaryOperator;
+import java.util.function.LongUnaryOperator;
 
 /**
  * AsyncOperator represents an underneath OpenDAL operator that
  * accesses data asynchronously.
+ *
+ * <p>Operators without an explicit executor share a default executor. Operators,
+ * derived streams, and outstanding operations keep it alive. Closing the last
+ * operator and stream releases it after outstanding operations complete; a later
+ * operator creates a new default executor.</p>
+ *
+ * <p>The default executor uses the same worker context class loader behavior as {@link AsyncExecutor}.</p>
+ *
+ * <p>If an asynchronous operation panics on the native executor, its future completes exceptionally
+ * with an {@link OpenDALPanicException}. A panic during the native call itself is thrown directly.</p>
  */
 public class AsyncOperator extends NativeObject {
 
@@ -104,7 +116,7 @@ public class AsyncOperator extends NativeObject {
 
     public final OperatorInfo info;
 
-    private final long executorHandle;
+    private final AsyncExecutor executor;
 
     /**
      * Construct an OpenDAL operator.
@@ -152,16 +164,15 @@ public class AsyncOperator extends NativeObject {
      * @param executor the underneath executor to run async operations; {@code null} to use a default global executor.
      */
     public static AsyncOperator of(String scheme, Map<String, String> map, AsyncExecutor executor) {
-        final long executorHandle = executor != null ? executor.nativeHandle : 0;
-        final long nativeHandle = constructor(scheme, map);
+        final long nativeHandle = withExecutor(executor, handle -> constructor(scheme, map, handle));
         final OperatorInfo info = makeOperatorInfo(nativeHandle);
-        return new AsyncOperator(nativeHandle, executorHandle, info);
+        return new AsyncOperator(nativeHandle, executor, info);
     }
 
-    private AsyncOperator(long nativeHandle, long executorHandle, OperatorInfo info) {
+    private AsyncOperator(long nativeHandle, AsyncExecutor executor, OperatorInfo info) {
         super(nativeHandle);
         this.info = info;
-        this.executorHandle = executorHandle;
+        this.executor = executor;
     }
 
     /**
@@ -174,8 +185,8 @@ public class AsyncOperator extends NativeObject {
      * @return the cloned operator.
      */
     public AsyncOperator duplicate() {
-        final long nativeHandle = duplicate(this.nativeHandle);
-        return new AsyncOperator(nativeHandle, this.executorHandle, this.info);
+        final long nativeHandle = withHandle(AsyncOperator::duplicate);
+        return new AsyncOperator(nativeHandle, executor, info);
     }
 
     /**
@@ -189,8 +200,8 @@ public class AsyncOperator extends NativeObject {
      * @return the layered new operator.
      */
     public AsyncOperator layer(Layer layer) {
-        final long nativeHandle = layer.layer(this.nativeHandle);
-        return new AsyncOperator(nativeHandle, this.executorHandle, makeOperatorInfo(nativeHandle));
+        final long nativeHandle = withHandle(handle -> layer.layer(handle));
+        return new AsyncOperator(nativeHandle, executor, makeOperatorInfo(nativeHandle));
     }
 
     /**
@@ -202,8 +213,7 @@ public class AsyncOperator extends NativeObject {
      * @return the blocking new operator.
      */
     public Operator blocking() {
-        final long nativeHandle = makeBlockingOp(this.nativeHandle, this.executorHandle);
-        final OperatorInfo info = this.info;
+        final long nativeHandle = withOperatorAndExecutor(AsyncOperator::makeBlockingOp);
         return new Operator(nativeHandle, info);
     }
 
@@ -223,7 +233,7 @@ public class AsyncOperator extends NativeObject {
     }
 
     public CompletableFuture<Void> write(String path, byte[] content, WriteOptions options) {
-        final long requestId = write(nativeHandle, executorHandle, path, content, options);
+        final long requestId = withOperatorAndExecutor((op, exec) -> write(op, exec, path, content, options));
         return AsyncRegistry.take(requestId);
     }
 
@@ -232,7 +242,7 @@ public class AsyncOperator extends NativeObject {
     }
 
     public CompletableFuture<Metadata> stat(String path, StatOptions options) {
-        final long requestId = stat(nativeHandle, executorHandle, path, options);
+        final long requestId = withOperatorAndExecutor((op, exec) -> stat(op, exec, path, options));
         return AsyncRegistry.take(requestId);
     }
 
@@ -245,47 +255,128 @@ public class AsyncOperator extends NativeObject {
     }
 
     public CompletableFuture<byte[]> read(String path, ReadOptions options) {
-        final long requestId = read(nativeHandle, executorHandle, path, options);
+        final long requestId = withOperatorAndExecutor((op, exec) -> read(op, exec, path, options));
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<PresignedRequest> presignRead(String path, Duration duration) {
-        final long requestId = presignRead(nativeHandle, executorHandle, path, duration.toNanos());
+        return presignRead(path, duration, ReadOptions.builder().build());
+    }
+
+    /**
+     * Creates a presigned read request with the given options.
+     *
+     * <p>The service must support presigning this operation. Support for individual options
+     * depends on the service. Send the returned HTTP method and headers along with the URI.
+     *
+     * @param path the path of the object.
+     * @param duration how long the presigned request remains valid.
+     * @param options the read options to include in the presigned request.
+     * @return the presigned request.
+     * @throws IllegalArgumentException if the duration is negative.
+     * @throws ArithmeticException if the duration exceeds {@link Long#MAX_VALUE} nanoseconds.
+     */
+    public CompletableFuture<PresignedRequest> presignRead(String path, Duration duration, ReadOptions options) {
+        final long expire = toNanos(duration);
+        final long requestId = withOperatorAndExecutor((op, exec) -> presignRead(op, exec, path, expire, options));
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<PresignedRequest> presignWrite(String path, Duration duration) {
-        final long requestId = presignWrite(nativeHandle, executorHandle, path, duration.toNanos());
+        return presignWrite(path, duration, WriteOptions.builder().build());
+    }
+
+    /**
+     * Creates a presigned write request with the given options.
+     *
+     * <p>The service must support presigning this operation. Support for individual options
+     * depends on the service. Send the returned HTTP method and headers along with the URI.
+     *
+     * @param path the path of the object.
+     * @param duration how long the presigned request remains valid.
+     * @param options the write options to include in the presigned request.
+     * @return the presigned request.
+     * @throws IllegalArgumentException if the duration is negative.
+     * @throws ArithmeticException if the duration exceeds {@link Long#MAX_VALUE} nanoseconds.
+     */
+    public CompletableFuture<PresignedRequest> presignWrite(String path, Duration duration, WriteOptions options) {
+        final long expire = toNanos(duration);
+        final long requestId = withOperatorAndExecutor((op, exec) -> presignWrite(op, exec, path, expire, options));
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<PresignedRequest> presignStat(String path, Duration duration) {
-        final long requestId = presignStat(nativeHandle, executorHandle, path, duration.toNanos());
+        return presignStat(path, duration, StatOptions.builder().build());
+    }
+
+    /**
+     * Creates a presigned stat request with the given options.
+     *
+     * <p>The service must support presigning this operation. Support for individual options
+     * depends on the service. Send the returned HTTP method and headers along with the URI.
+     *
+     * @param path the path of the object.
+     * @param duration how long the presigned request remains valid.
+     * @param options the stat options to include in the presigned request.
+     * @return the presigned request.
+     * @throws IllegalArgumentException if the duration is negative.
+     * @throws ArithmeticException if the duration exceeds {@link Long#MAX_VALUE} nanoseconds.
+     */
+    public CompletableFuture<PresignedRequest> presignStat(String path, Duration duration, StatOptions options) {
+        final long expire = toNanos(duration);
+        final long requestId = withOperatorAndExecutor((op, exec) -> presignStat(op, exec, path, expire, options));
         return AsyncRegistry.take(requestId);
     }
 
+    /**
+     * Converts a presign duration to the nanosecond count the native layer expects.
+     *
+     * <p>The native layer interprets the value as an unsigned 64-bit count, so reject
+     * negative durations before passing the value to JNI.
+     */
+    private static long toNanos(Duration duration) {
+        if (duration.isNegative()) {
+            throw new IllegalArgumentException("duration must be non-negative");
+        }
+        return duration.toNanos();
+    }
+
     public CompletableFuture<Void> delete(String path) {
-        final long requestId = delete(nativeHandle, executorHandle, path);
+        return delete(path, DeleteOptions.builder().build());
+    }
+
+    /**
+     * Deletes the given path with the supplied options. A missing file is a successful
+     * no-op when all conditions hold. For recursive directory deletion, include the
+     * trailing slash in the path.
+     *
+     * @param path the path to delete
+     * @param options the delete options
+     * @return a future that completes exceptionally with an {@link OpenDALException}
+     *     if an option is unsupported, a condition fails, or deletion fails
+     */
+    public CompletableFuture<Void> delete(String path, DeleteOptions options) {
+        final long requestId = withOperatorAndExecutor((op, exec) -> delete(op, exec, path, options));
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> createDir(String path) {
-        final long requestId = createDir(nativeHandle, executorHandle, path);
+        final long requestId = withOperatorAndExecutor((op, exec) -> createDir(op, exec, path));
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> copy(String sourcePath, String targetPath) {
-        final long requestId = copy(nativeHandle, executorHandle, sourcePath, targetPath);
+        final long requestId = withOperatorAndExecutor((op, exec) -> copy(op, exec, sourcePath, targetPath));
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> rename(String sourcePath, String targetPath) {
-        final long requestId = rename(nativeHandle, executorHandle, sourcePath, targetPath);
+        final long requestId = withOperatorAndExecutor((op, exec) -> rename(op, exec, sourcePath, targetPath));
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> removeAll(String path) {
-        final long requestId = removeAll(nativeHandle, executorHandle, path);
+        final long requestId = withOperatorAndExecutor((op, exec) -> removeAll(op, exec, path));
         return AsyncRegistry.take(requestId);
     }
 
@@ -294,9 +385,17 @@ public class AsyncOperator extends NativeObject {
     }
 
     public CompletableFuture<List<Entry>> list(String path, ListOptions options) {
-        final long requestId = list(nativeHandle, executorHandle, path, options);
+        final long requestId = withOperatorAndExecutor((op, exec) -> list(op, exec, path, options));
         final CompletableFuture<Entry[]> result = AsyncRegistry.take(requestId);
         return Objects.requireNonNull(result).thenApplyAsync(Arrays::asList);
+    }
+
+    private long withOperatorAndExecutor(LongBinaryOperator action) {
+        return withHandle(op -> withExecutor(executor, exec -> action.applyAsLong(op, exec)));
+    }
+
+    private static long withExecutor(AsyncExecutor executor, LongUnaryOperator action) {
+        return executor == null ? action.applyAsLong(0) : executor.withHandle(action::applyAsLong);
     }
 
     @Override
@@ -304,7 +403,7 @@ public class AsyncOperator extends NativeObject {
 
     private static native long duplicate(long nativeHandle);
 
-    private static native long constructor(String scheme, Map<String, String> map);
+    private static native long constructor(String scheme, Map<String, String> map, long executorHandle);
 
     private static native long read(long nativeHandle, long executorHandle, String path, ReadOptions options);
 
@@ -313,15 +412,18 @@ public class AsyncOperator extends NativeObject {
 
     private static native long append(long nativeHandle, long executorHandle, String path, byte[] content);
 
-    private static native long delete(long nativeHandle, long executorHandle, String path);
+    private static native long delete(long nativeHandle, long executorHandle, String path, DeleteOptions options);
 
     private static native long stat(long nativeHandle, long executorHandle, String path, StatOptions options);
 
-    private static native long presignRead(long nativeHandle, long executorHandle, String path, long duration);
+    private static native long presignRead(
+            long nativeHandle, long executorHandle, String path, long duration, ReadOptions options);
 
-    private static native long presignWrite(long nativeHandle, long executorHandle, String path, long duration);
+    private static native long presignWrite(
+            long nativeHandle, long executorHandle, String path, long duration, WriteOptions options);
 
-    private static native long presignStat(long nativeHandle, long executorHandle, String path, long duration);
+    private static native long presignStat(
+            long nativeHandle, long executorHandle, String path, long duration, StatOptions options);
 
     private static native OperatorInfo makeOperatorInfo(long nativeHandle);
 

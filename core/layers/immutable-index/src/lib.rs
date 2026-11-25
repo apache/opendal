@@ -81,22 +81,15 @@ impl ImmutableIndexLayer {
 
 impl Layer for ImmutableIndexLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
-    }
-}
-
-impl ImmutableIndexLayer {
-    fn layer(&self, inner: Servicer) -> ImmutableIndexService {
-        ImmutableIndexService {
+        Arc::new(ImmutableIndexService {
             inner,
             vec: self.vec.clone(),
-        }
+        })
     }
 }
 
-#[doc(hidden)]
 #[derive(Debug)]
-pub struct ImmutableIndexService {
+struct ImmutableIndexService {
     inner: Servicer,
     vec: Vec<String>,
 }
@@ -105,7 +98,7 @@ impl ImmutableIndexService {
     fn children_flat(&self, path: &str) -> Vec<String> {
         self.vec
             .iter()
-            .filter(|v| v.starts_with(path) && v.as_str() != path)
+            .filter(|v| !v.is_empty() && v.starts_with(path))
             .cloned()
             .collect()
     }
@@ -114,13 +107,14 @@ impl ImmutableIndexService {
         let mut res = HashSet::new();
 
         for i in self.vec.iter() {
-            // `/xyz` should not belong to `/abc`
-            if !i.starts_with(path) {
+            // The root is represented by an empty path, so an empty key must
+            // not be emitted as an entry.
+            if i.is_empty() {
                 continue;
             }
 
-            // remove `/abc` if self
-            if i == path {
+            // `/xyz` should not belong to `/abc`
+            if !i.starts_with(path) {
                 continue;
             }
 
@@ -155,6 +149,7 @@ impl Service for ImmutableIndexService {
     type Lister = ImmutableDir;
     type Deleter = oio::Deleter;
     type Copier = oio::Copier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -162,9 +157,30 @@ impl Service for ImmutableIndexService {
 
     fn capability(&self) -> Capability {
         let mut capability = self.inner.capability();
+
+        // List operations are answered by the index, so all `list_with_*`
+        // options must reflect what the index actually implements instead of
+        // inheriting the inner service's capabilities.
         capability.list = true;
         capability.list_with_recursive = true;
+        capability.list_with_start_after = true;
+        // `limit` is a per-request size hint; the index materializes the whole
+        // listing, so it is ignored rather than advertised.
+        capability.list_with_limit = false;
+        // The index only stores paths, so it cannot return versions or
+        // deleted entries.
+        capability.list_with_versions = false;
+        capability.list_with_deleted = false;
+        // `GlobLayer` sits below this layer and advertises `list_with_glob` on
+        // its wrapped stack, but this layer answers list calls directly. The
+        // index cannot honor glob patterns.
+        capability.list_with_glob = false;
+
         capability
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(
@@ -194,9 +210,8 @@ impl Service for ImmutableIndexService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
-        self.inner.copy(ctx, from, to, args, opts)
+        self.inner.copy(ctx, from, to, args)
     }
 
     fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
@@ -205,11 +220,23 @@ impl Service for ImmutableIndexService {
             path = ""
         }
 
-        let idx = if args.recursive() {
+        let mut idx = if args.recursive() {
             self.children_flat(path)
         } else {
             self.children_hierarchy(path)
         };
+
+        // Entries must be emitted in lexicographical order without duplicates
+        // so `start_after` marks a resumable position and recursive listings
+        // match non-recursive deduplication.
+        idx.sort_unstable();
+        idx.dedup();
+
+        if let Some(start_after) = args.start_after()
+            && start_after != "/"
+        {
+            idx.retain(|v| v.as_str() > start_after);
+        }
 
         Ok(ImmutableDir::new(idx))
     }
@@ -247,8 +274,7 @@ impl Service for ImmutableIndexService {
     }
 }
 
-#[doc(hidden)]
-pub struct ImmutableDir {
+struct ImmutableDir {
     idx: IntoIter<String>,
 }
 
@@ -261,13 +287,12 @@ impl ImmutableDir {
 
     fn inner_next(&mut self) -> Option<oio::Entry> {
         self.idx.next().map(|v| {
-            let mode = if v.ends_with('/') {
-                EntryMode::DIR
+            let metadata = if v.ends_with('/') {
+                MetadataBuilder::dir()
             } else {
-                EntryMode::FILE
+                MetadataBuilder::unknown()
             };
-            let meta = Metadata::new(mode);
-            oio::Entry::with(v, meta)
+            oio::Entry::with(v, metadata.build())
         })
     }
 }
@@ -299,6 +324,7 @@ mod tests {
         type Lister = ();
         type Deleter = ();
         type Copier = ();
+        type Composer = ();
 
         fn info(&self) -> ServiceInfo {
             ServiceInfo::with_scheme("mock")
@@ -307,7 +333,12 @@ mod tests {
         fn capability(&self) -> Capability {
             Capability {
                 list: true,
+                list_with_limit: true,
+                list_with_start_after: true,
                 list_with_recursive: true,
+                list_with_versions: true,
+                list_with_deleted: true,
+                list_with_glob: true,
                 ..Default::default()
             }
         }
@@ -359,14 +390,7 @@ mod tests {
             ))
         }
 
-        fn copy(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: &str,
-            _: OpCopy,
-            _: OpCopier,
-        ) -> Result<Self::Copier> {
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
@@ -431,9 +455,55 @@ mod tests {
             map.insert(entry.path().to_string(), entry.metadata().mode());
         }
 
-        assert_eq!(map["file"], EntryMode::FILE);
+        assert_eq!(map["file"], EntryMode::Unknown);
         assert_eq!(map["dir/"], EntryMode::DIR);
         assert_eq!(map["dir_without_prefix/"], EntryMode::DIR);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_list_exact_file() -> Result<()> {
+        setup();
+
+        let mut iil = ImmutableIndexLayer::default();
+        for i in ["file", "file-1"] {
+            iil.insert(i.to_string())
+        }
+
+        let op = build_operator(iil);
+
+        let entries = op.list("file").await?;
+        let paths = entries.iter().map(|e| e.path()).collect::<Vec<_>>();
+        assert_eq!(paths, vec!["file", "file-1"]);
+
+        let entries = op.list_with("file").recursive(true).await?;
+        let paths = entries.iter().map(|e| e.path()).collect::<Vec<_>>();
+        assert_eq!(paths, vec!["file", "file-1"]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_list_exact_dir() -> Result<()> {
+        setup();
+
+        let mut iil = ImmutableIndexLayer::default();
+        for i in ["dir/", "dir/file", "dir/sub/", "dir/sub/file"] {
+            iil.insert(i.to_string())
+        }
+
+        let op = build_operator(iil);
+
+        let entries = op.list("dir/").await?;
+        let paths = entries.iter().map(|e| e.path()).collect::<Vec<_>>();
+        assert_eq!(paths, vec!["dir/", "dir/file", "dir/sub/"]);
+
+        let entries = op.list_with("dir/").recursive(true).await?;
+        let paths = entries.iter().map(|e| e.path()).collect::<Vec<_>>();
+        assert_eq!(paths, vec!["dir/", "dir/file", "dir/sub/", "dir/sub/file"]);
+
+        let entries = op.list("dir").await?;
+        let paths = entries.iter().map(|e| e.path()).collect::<Vec<_>>();
+        assert_eq!(paths, vec!["dir/"]);
         Ok(())
     }
 
@@ -463,9 +533,9 @@ mod tests {
 
         debug!("current files: {map:?}");
 
-        assert_eq!(map["file"], EntryMode::FILE);
+        assert_eq!(map["file"], EntryMode::Unknown);
         assert_eq!(map["dir/"], EntryMode::DIR);
-        assert_eq!(map["dir_without_prefix/file"], EntryMode::FILE);
+        assert_eq!(map["dir_without_prefix/file"], EntryMode::Unknown);
         Ok(())
     }
 
@@ -513,9 +583,18 @@ mod tests {
             map.insert(entry.path().to_string(), entry.metadata().mode());
         }
 
-        assert_eq!(map["dataset/stateful/ontime_2007_200.csv"], EntryMode::FILE);
-        assert_eq!(map["dataset/stateful/ontime_2008_200.csv"], EntryMode::FILE);
-        assert_eq!(map["dataset/stateful/ontime_2009_200.csv"], EntryMode::FILE);
+        assert_eq!(
+            map["dataset/stateful/ontime_2007_200.csv"],
+            EntryMode::Unknown
+        );
+        assert_eq!(
+            map["dataset/stateful/ontime_2008_200.csv"],
+            EntryMode::Unknown
+        );
+        assert_eq!(
+            map["dataset/stateful/ontime_2009_200.csv"],
+            EntryMode::Unknown
+        );
         Ok(())
     }
 
@@ -549,9 +628,298 @@ mod tests {
 
         debug!("current files: {map:?}");
 
-        assert_eq!(map["dataset/stateful/ontime_2007_200.csv"], EntryMode::FILE);
-        assert_eq!(map["dataset/stateful/ontime_2008_200.csv"], EntryMode::FILE);
-        assert_eq!(map["dataset/stateful/ontime_2009_200.csv"], EntryMode::FILE);
+        assert_eq!(
+            map["dataset/stateful/ontime_2007_200.csv"],
+            EntryMode::Unknown
+        );
+        assert_eq!(
+            map["dataset/stateful/ontime_2008_200.csv"],
+            EntryMode::Unknown
+        );
+        assert_eq!(
+            map["dataset/stateful/ontime_2009_200.csv"],
+            EntryMode::Unknown
+        );
+        Ok(())
+    }
+
+    /// The index owns all list options: `start_after` and `recursive` are
+    /// implemented; `limit`, `versions`, `deleted`, and `glob` must not be
+    /// inherited from the inner service, or the layer would advertise options
+    /// it cannot honor.
+    #[tokio::test]
+    async fn test_capability_does_not_inherit_inner_list_options() -> Result<()> {
+        let mut iil = ImmutableIndexLayer::default();
+        iil.insert("file".to_string());
+
+        let op = build_operator(iil);
+        let capability = op.info().capability();
+
+        assert!(capability.list);
+        assert!(capability.list_with_recursive);
+        assert!(capability.list_with_start_after);
+        assert!(!capability.list_with_limit);
+        assert!(!capability.list_with_versions);
+        assert!(!capability.list_with_deleted);
+        assert!(!capability.list_with_glob);
+
+        // `versions`, `deleted`, and `glob` must fail fast instead of
+        // returning the current entries as if they were versioned, deleted,
+        // or filtered data.
+        let err = op
+            .list_with("/")
+            .versions(true)
+            .await
+            .expect_err("versions must not be silently ignored");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let err = op
+            .list_with("/")
+            .deleted(true)
+            .await
+            .expect_err("deleted must not be silently ignored");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let err = op
+            .list_with("/")
+            .glob("*.txt")
+            .await
+            .expect_err("glob must not be silently ignored");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        Ok(())
+    }
+
+    /// `start_after` resumes after the given key in lexicographical order, on
+    /// the entries emitted by the list operation.
+    #[tokio::test]
+    async fn test_list_start_after() -> Result<()> {
+        // (name, path, recursive, start_after, expected)
+        let cases: &[(&str, &str, bool, &str, &[&str])] = &[
+            ("before prefix", "a/d/", true, "0", &["a/d/x", "a/d/y"]),
+            ("at key", "a/", true, "a/2", &["a/d/x", "a/d/y", "a/z"]),
+            ("between keys", "a/d/", true, "a/d/w", &["a/d/x", "a/d/y"]),
+            ("key in folder", "a/", true, "a/d/x", &["a/d/y", "a/z"]),
+            ("after prefix", "a/", true, "a0", &[]),
+            ("folds folders", "a/", false, "a/1", &["a/2", "a/d/", "a/z"]),
+            ("before folder", "a/", false, "a/c", &["a/d/", "a/z"]),
+            ("at folder skips it", "a/", false, "a/d/", &["a/z"]),
+            ("in folder skips it", "a/", false, "a/d/x", &["a/z"]),
+            ("prefix without slash", "a/d", false, "a/d/x", &[]),
+            ("list root", "/", false, "a/2", &["a0", "b/"]),
+            ("list root recursively", "/", true, "a0", &["b/1"]),
+        ];
+
+        let mut iil = ImmutableIndexLayer::default();
+        for i in ["a/1", "a/2", "a/d/x", "a/d/y", "a/z", "a0", "b/1"] {
+            iil.insert(i.to_string())
+        }
+
+        let op = build_operator(iil);
+
+        for &(name, path, recursive, start_after, expected) in cases {
+            let actual: Vec<String> = op
+                .lister_with(path)
+                .recursive(recursive)
+                .start_after(start_after)
+                .await?
+                .map_ok(|entry| entry.path().to_string())
+                .try_collect()
+                .await?;
+            assert_eq!(actual, expected, "{name}");
+        }
+        Ok(())
+    }
+
+    /// Listing emits entries in lexicographical order so `start_after` marks
+    /// a resumable position.
+    #[tokio::test]
+    async fn test_list_emits_sorted_order() -> Result<()> {
+        let mut iil = ImmutableIndexLayer::default();
+        for i in ["b/2", "a/c", "b/1", "a/b", "a/d/1", "f.txt"] {
+            iil.insert(i.to_string())
+        }
+
+        let op = build_operator(iil);
+
+        let recursive: Vec<String> = op
+            .lister_with("/")
+            .recursive(true)
+            .await?
+            .map_ok(|entry| entry.path().to_string())
+            .try_collect()
+            .await?;
+        assert_eq!(recursive, ["a/b", "a/c", "a/d/1", "b/1", "b/2", "f.txt"]);
+
+        let hierarchy: Vec<String> = op
+            .lister("/")
+            .await?
+            .map_ok(|entry| entry.path().to_string())
+            .try_collect()
+            .await?;
+        assert_eq!(hierarchy, ["a/", "b/", "f.txt"]);
+        Ok(())
+    }
+
+    /// Wrapping a backend that advertises `list_with_start_after` must honor
+    /// the option instead of silently returning earlier entries.
+    #[tokio::test]
+    async fn test_start_after_with_memory_backend() -> Result<()> {
+        let mut iil = ImmutableIndexLayer::default();
+        for i in ["a", "b"] {
+            iil.insert(i.to_string())
+        }
+
+        let op = Operator::from_iter::<services::Memory>(HashMap::<_, _>::default())?.layer(iil);
+
+        let actual: Vec<String> = op
+            .lister_with("/")
+            .start_after("a")
+            .await?
+            .map_ok(|entry| entry.path().to_string())
+            .try_collect()
+            .await?;
+        assert_eq!(actual, ["b"]);
+        Ok(())
+    }
+
+    /// `start_after` on an empty index or a prefix that has no entries returns
+    /// nothing instead of leaking entries outside the prefix.
+    #[tokio::test]
+    async fn test_list_start_after_empty() -> Result<()> {
+        let op = build_operator(ImmutableIndexLayer::default());
+
+        for recursive in [false, true] {
+            let actual: Vec<String> = op
+                .lister_with("/")
+                .recursive(recursive)
+                .start_after("a")
+                .await?
+                .map_ok(|entry| entry.path().to_string())
+                .try_collect()
+                .await?;
+            assert!(actual.is_empty(), "recursive={recursive}");
+        }
+
+        let mut iil = ImmutableIndexLayer::default();
+        for i in ["a/1", "a/2"] {
+            iil.insert(i.to_string())
+        }
+
+        let op = build_operator(iil);
+
+        // `start_after` beyond every key under the prefix.
+        for recursive in [false, true] {
+            let actual: Vec<String> = op
+                .lister_with("a/")
+                .recursive(recursive)
+                .start_after("a/9")
+                .await?
+                .map_ok(|entry| entry.path().to_string())
+                .try_collect()
+                .await?;
+            assert!(actual.is_empty(), "recursive={recursive}");
+        }
+
+        // A prefix with no entries must not leak entries from other prefixes,
+        // even when `start_after` would admit them.
+        let actual: Vec<String> = op
+            .lister_with("missing/")
+            .start_after("0")
+            .await?
+            .map_ok(|entry| entry.path().to_string())
+            .try_collect()
+            .await?;
+        assert!(actual.is_empty());
+        Ok(())
+    }
+
+    /// Direct `Service` callers validate against `ImmutableIndexService::capability()`
+    /// via `OpList::check`, matching the `raw::Service` capability contract.
+    #[test]
+    fn test_list_capability_rejects_unsupported_options_at_service_level() {
+        let mut iil = ImmutableIndexLayer::default();
+        iil.insert("file".to_string());
+
+        let service = iil.apply_service(Arc::new(MockService));
+        let cap = service.capability();
+
+        for args in [
+            OpList::from(options::ListOptions {
+                versions: true,
+                ..Default::default()
+            }),
+            OpList::from(options::ListOptions {
+                deleted: true,
+                ..Default::default()
+            }),
+            OpList::new().with_glob("*.txt"),
+        ] {
+            let err = args
+                .check(&cap)
+                .expect_err("unsupported options must be rejected by service capability");
+            assert_eq!(err.kind(), ErrorKind::Unsupported);
+        }
+    }
+
+    /// Duplicate keys inserted into `ImmutableIndexLayer` must be emitted
+    /// once in both non-recursive and recursive listings, including when
+    /// validated by `SanityCheckLayer`.
+    #[tokio::test]
+    async fn test_list_deduplicates_duplicate_keys() -> Result<()> {
+        let mut iil = ImmutableIndexLayer::default();
+        iil.insert("dir/a".to_string());
+        iil.insert("dir/a".to_string());
+        iil.insert("dir/".to_string());
+        iil.extend_iter([
+            "dir/".to_string(),
+            "file".to_string(),
+            "file".to_string(),
+            "dir/b".to_string(),
+            "dir/b".to_string(),
+        ]);
+
+        let op = build_operator(iil).layer(opendal_layer_sanity_check::SanityCheckLayer);
+
+        let hierarchy: Vec<(String, EntryMode)> = op
+            .lister("/")
+            .await?
+            .map_ok(|entry| (entry.path().to_string(), entry.metadata().mode()))
+            .try_collect()
+            .await?;
+        assert_eq!(
+            hierarchy,
+            [
+                ("dir/".to_string(), EntryMode::DIR),
+                ("file".to_string(), EntryMode::Unknown),
+            ]
+        );
+
+        let recursive: Vec<(String, EntryMode)> = op
+            .lister_with("/")
+            .recursive(true)
+            .await?
+            .map_ok(|entry| (entry.path().to_string(), entry.metadata().mode()))
+            .try_collect()
+            .await?;
+        assert_eq!(
+            recursive,
+            [
+                ("dir/".to_string(), EntryMode::DIR),
+                ("dir/a".to_string(), EntryMode::Unknown),
+                ("dir/b".to_string(), EntryMode::Unknown),
+                ("file".to_string(), EntryMode::Unknown),
+            ]
+        );
+
+        let sub_recursive: Vec<String> = op
+            .lister_with("dir/")
+            .recursive(true)
+            .await?
+            .map_ok(|entry| entry.path().to_string())
+            .try_collect()
+            .await?;
+        assert_eq!(sub_recursive, ["dir/", "dir/a", "dir/b"]);
+
         Ok(())
     }
 }

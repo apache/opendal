@@ -25,6 +25,7 @@ use http::HeaderValue;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
+use http::header::CONTENT_LANGUAGE;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
@@ -37,6 +38,7 @@ use crate::EntryMode;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Metadata;
+use crate::MetadataBuilder;
 use crate::Result;
 use crate::raw::*;
 
@@ -62,8 +64,9 @@ pub fn parse_cache_control(headers: &HeaderMap) -> Result<Option<&str>> {
 pub fn parse_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
     parse_header_to_str(headers, CONTENT_LENGTH)?
         .map(|v| {
-            v.parse::<u64>().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "header value is not valid integer").set_source(e)
+            v.parse::<u64>().map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "header value is not valid integer")
+                    .set_source(err)
             })
         })
         .transpose()
@@ -157,45 +160,57 @@ pub fn parse_into_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> 
     } else {
         EntryMode::FILE
     };
-    let mut m = Metadata::new(mode);
+    let content_range = parse_content_range(headers)?;
+    let content_length = match content_range {
+        Some(range) => range.size(),
+        None => parse_content_length(headers)?,
+    };
+    let mut m = if mode == EntryMode::FILE {
+        MetadataBuilder::file(content_length.ok_or_else(|| {
+            let message = if content_range.is_some() {
+                "HTTP Content-Range header does not specify total file content length"
+            } else {
+                "HTTP response does not contain file content length"
+            };
+            Error::new(ErrorKind::Unexpected, message)
+        })?)
+    } else {
+        MetadataBuilder::dir()
+    };
 
     if let Some(v) = parse_cache_control(headers)? {
-        m.set_cache_control(v);
-    }
-
-    if let Some(v) = parse_content_length(headers)? {
-        m.set_content_length(v);
+        m.cache_control(v);
     }
 
     if let Some(v) = parse_content_type(headers)? {
-        m.set_content_type(v);
+        m.content_type(v);
     }
 
     if let Some(v) = parse_content_encoding(headers)? {
-        m.set_content_encoding(v);
+        m.content_encoding(v);
     }
 
-    if let Some(v) = parse_content_range(headers)?.and_then(|v| v.size()) {
-        m.set_content_length(v);
+    if let Some(v) = parse_header_to_str(headers, CONTENT_LANGUAGE)? {
+        m.content_language(v);
     }
 
     if let Some(v) = parse_etag(headers)? {
-        m.set_etag(v);
+        m.etag(v);
     }
 
     if let Some(v) = parse_content_md5(headers)? {
-        m.set_content_md5(v);
+        m.content_md5(v);
     }
 
     if let Some(v) = parse_last_modified(headers)? {
-        m.set_last_modified(v);
+        m.last_modified(v);
     }
 
     if let Some(v) = parse_content_disposition(headers)? {
-        m.set_content_disposition(v);
+        m.content_disposition(v);
     }
 
-    Ok(m)
+    Ok(m.build())
 }
 
 /// Parse prefixed headers and return a map with the prefix of each header removed.
@@ -349,12 +364,17 @@ mod tests {
 
     #[test]
     fn test_parse_multipart_boundary() {
-        let cases = vec![
+        let cases = [
             (
                 "multipart/mixed; boundary=gc0p4Jq0M2Yt08jU534c0p",
                 Some("gc0p4Jq0M2Yt08jU534c0p"),
             ),
             ("multipart/mixed", None),
+            // GCS returns unquoted boundaries that contain `=`.
+            (
+                "multipart/mixed; boundary=batch_pK7JBAk73-E=_AA5eFwv4m2Q=",
+                Some("batch_pK7JBAk73-E=_AA5eFwv4m2Q="),
+            ),
         ];
 
         for (input, expected) in cases {
@@ -365,5 +385,83 @@ mod tests {
 
             assert_eq!(actual, expected)
         }
+    }
+
+    #[test]
+    fn test_parse_multipart_boundary_missing_content_type() {
+        let headers = HeaderMap::new();
+
+        let actual = parse_multipart_boundary(&headers).expect("parse must success");
+
+        assert_eq!(actual, None)
+    }
+
+    #[test]
+    fn test_parse_multipart_boundary_non_utf8_content_type() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            CONTENT_TYPE,
+            HeaderValue::from_bytes(b"multipart/mixed; boundary=\xff").unwrap(),
+        );
+
+        parse_multipart_boundary(&headers).expect_err("non-utf8 header value must fail");
+    }
+
+    #[test]
+    fn test_parse_content_length_missing() {
+        let headers = HeaderMap::new();
+
+        assert_eq!(parse_content_length(&headers).unwrap(), None);
+    }
+
+    #[test]
+    fn test_parse_content_length_accepts_identical_duplicates() {
+        let mut headers = HeaderMap::new();
+        headers.append(CONTENT_LENGTH, HeaderValue::from_static("10"));
+        headers.append(CONTENT_LENGTH, HeaderValue::from_static("10"));
+
+        assert_eq!(parse_content_length(&headers).unwrap(), Some(10));
+    }
+
+    #[test]
+    fn test_parse_content_length_rejects_invalid_values() {
+        for value in ["-1", " 10", "10 ", "", "10, 10", "10abc"] {
+            let mut headers = HeaderMap::new();
+            headers.insert(CONTENT_LENGTH, HeaderValue::from_str(value).unwrap());
+
+            let err = parse_content_length(&headers).expect_err("invalid content length must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected, "value: {value:?}");
+        }
+    }
+
+    #[test]
+    fn test_parse_into_metadata_content_range_unknown_size_does_not_use_content_length() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_RANGE, HeaderValue::from_static("bytes 0-3/*"));
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("4"));
+
+        let err = parse_into_metadata("file.txt", &headers)
+            .expect_err("unknown total size in Content-Range must not fall back to Content-Length");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.to_string().contains("Content-Range"));
+    }
+
+    #[test]
+    fn test_parse_into_metadata_content_range_known_size() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_RANGE, HeaderValue::from_static("bytes 0-3/10"));
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("4"));
+
+        let meta = parse_into_metadata("file.txt", &headers).expect("parse must succeed");
+        assert_eq!(meta.content_length(), 10);
+    }
+
+    #[test]
+    fn test_parse_into_metadata_content_length() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("10"));
+
+        let meta = parse_into_metadata("file.txt", &headers).expect("parse must succeed");
+        assert_eq!(meta.content_length(), 10);
     }
 }

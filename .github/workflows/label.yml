@@ -1,0 +1,116 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Label
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+  workflow_run:
+    workflows: [Label PR Signal]
+    types: [completed]
+  push:
+    branches: [main]
+    paths:
+      - scripts/label.py
+      - website/data/services.json
+      - bindings/**
+      - integrations/**
+      - .github/workflows/label.yml
+
+permissions: {}
+
+jobs:
+  catalog:
+    if: github.event_name == 'push'
+    concurrency:
+      group: label-catalog
+      cancel-in-progress: false
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Create missing repository labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/label.py sync
+
+  resolve:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.repository.id == github.repository_id &&
+      github.event.workflow_run.path == '.github/workflows/label_pr_signal.yml'
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+    steps:
+      # The receiver's SHA identifies the default-branch checkout.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Resolve the PR from the completed workflow run
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/label.py resolve
+
+  classify:
+    needs: resolve
+    if: >-
+      !cancelled() &&
+      (github.event_name == 'issues' ||
+      (github.event_name == 'workflow_run' && needs.resolve.result == 'success' &&
+      needs.resolve.outputs.pr_number > 0))
+    concurrency:
+      group: label-${{ needs.resolve.outputs.pr_number || github.event.issue.number }}
+      cancel-in-progress: false
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+      # Labeling a pull request requires pull-requests: write.
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Classify the current issue or PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ]; then
+            python3 scripts/label.py pr "$PR_NUMBER" --apply
+          else
+            python3 scripts/label.py event --apply
+          fi

@@ -19,23 +19,21 @@ name: Bindings PHP CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
-    paths: &paths
-      - "bindings/php/**"
-      - ".github/actions/setup/**"
-      - ".github/workflows/ci_bindings_php.yml"
   pull_request:
     branches:
       - main
-    paths: *paths
+    paths:
+      - "bindings/php/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_php.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-php-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -54,7 +52,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: ${{ matrix.php }}
           ini-values: error_reporting=E_ALL
@@ -63,6 +61,16 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+
+      - name: Use matching Clang and libclang for bindgen
+        run: |
+          # The runner ships multiple LLVM versions. Bindgen discovers Clang and libclang separately.
+          clang_path="$(realpath -e /usr/bin/clang)"
+          llvm_dir="$(dirname "$(dirname "$clang_path")")"
+          {
+            echo "CLANG_PATH=$clang_path"
+            echo "LIBCLANG_PATH=$llvm_dir/lib"
+          } >> "$GITHUB_ENV"
 
       # Useful for debugging
       - name: Print Clippy version

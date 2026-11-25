@@ -43,17 +43,24 @@ pub struct WebdavConfig {
         note = "WebDAV copy capability is enabled by default and this option is no longer needed."
     )]
     pub disable_copy: bool,
-    /// Disable automatic parent directory creation before write operations.
+    /// Disable automatic parent directory creation before writing files.
     ///
-    /// By default, OpenDAL creates parent directories using MKCOL before writing files.
-    /// This requires PROPFIND support to check directory existence.
+    /// By default, OpenDAL checks for parent directories using `PROPFIND` and creates
+    /// missing directories using `MKCOL` before writing files. Enable this option to
+    /// skip those checks and `MKCOL` calls for servers such as `bazel-remote`.
     ///
-    /// Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND
-    /// or don't require explicit directory creation. Enable this option to skip
-    /// the MKCOL calls and write files directly.
+    /// Explicit `create_dir` calls are unaffected.
     ///
-    /// Default: false
+    /// Default: `false`
     pub disable_create_dir: bool,
+    /// Disable native recursive listing with WebDAV's `Depth: infinity`.
+    ///
+    /// Set this to `true` for servers that reject or ignore infinity depth.
+    /// With capability simulation enabled, OpenDAL walks the directory tree
+    /// using `Depth: 1` requests instead.
+    ///
+    /// The default is `false`.
+    pub disable_depth_infinity: bool,
     /// Deprecated: WebDAV user metadata capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
@@ -75,19 +82,11 @@ pub struct WebdavConfig {
     ///
     /// Default: `https://opendal.apache.org/ns`
     pub user_metadata_uri: Option<String>,
-    /// Enable conditional read support.
-    ///
-    /// When enabled (the default), OpenDAL forwards the RFC 7232 headers
-    /// `If-Match`, `If-None-Match`, `If-Modified-Since` and
-    /// `If-Unmodified-Since` to the server when callers provide them.
-    ///
-    /// Some WebDAV-compatible servers (e.g., nginx-dav) don't return ETags
-    /// in PROPFIND or don't honor these headers on GET. Setting this to
-    /// `false` drops the four `read_with_if_*` capabilities, so calls like
-    /// `reader_with(path).if_match(...)` return `ErrorKind::Unsupported`
-    /// locally instead of being silently ignored by the server.
-    ///
-    /// Default: true
+    /// Deprecated: WebDAV conditional read capabilities are enabled by default.
+    #[deprecated(
+        since = "0.60.0",
+        note = "WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support."
+    )]
     pub enable_conditional_read: bool,
 }
 
@@ -102,6 +101,7 @@ impl Default for WebdavConfig {
             root: None,
             disable_copy: false,
             disable_create_dir: false,
+            disable_depth_infinity: false,
             enable_user_metadata: false,
             user_metadata_prefix: None,
             user_metadata_uri: None,
@@ -117,9 +117,9 @@ impl Debug for WebdavConfig {
             .field("username", &self.username)
             .field("root", &self.root)
             .field("disable_create_dir", &self.disable_create_dir)
+            .field("disable_depth_infinity", &self.disable_depth_infinity)
             .field("user_metadata_prefix", &self.user_metadata_prefix)
             .field("user_metadata_uri", &self.user_metadata_uri)
-            .field("enable_conditional_read", &self.enable_conditional_read)
             .finish_non_exhaustive()
     }
 }

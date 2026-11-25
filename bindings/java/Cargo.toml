@@ -30,18 +30,32 @@ rust-version = "1.91"
 crate-type = ["cdylib", "staticlib"]
 doc = false
 
+[features]
+test-native-panics = []
+
 [dependencies]
 jni = { version = "0.22.4" }
 # opendal-java won't be published to crates.io, we always use the local version
 opendal = { version = ">=0", path = "../../core", default-features = false, features = [
+  "auto-simulate",
   "blocking",
-  "http-transport-reqwest-rustls",
+  "http-transport-reqwest",
   "executors-tokio",
 
   # enabled layers
+  "layers-cache",
+  "layers-capability-check",
+  "layers-chaos",
   "layers-concurrent-limit",
+  "layers-hedge",
+  "layers-immutable-index",
   "layers-logging",
+  "layers-mime-guess",
   "layers-retry",
+  "layers-route",
+  "layers-sanity-check",
+  "layers-tail-cut",
+  "layers-throttle",
   "layers-timeout",
 
   # enabled services
@@ -50,12 +64,25 @@ opendal = { version = ">=0", path = "../../core", default-features = false, feat
   "services-cos",
   "services-fs",
   "services-gcs",
+  "services-gcs-grpc",
   "services-ghac",
   "services-http",
   "services-ipmfs",
   "services-memory",
+  "services-minio",
   "services-obs",
   "services-oss",
+  "services-r2",
+  "services-exoscale",
+  "services-hetzner",
+  "services-oci",
+  "services-ovhcloud",
+  "services-qingstor",
+  "services-scaleway",
+  "services-spaces",
+  "services-supabase",
+  "services-tigris",
+  "services-wasabi",
   "services-s3",
   "services-tos",
   "services-webdav",
@@ -107,6 +134,7 @@ tokio = { version = "1.49.0", features = ["full"] }
 # This is not optimal. See also the Cargo issue:
 # https://github.com/rust-lang/cargo/issues/1197#issuecomment-1641086954
 [target.'cfg(unix)'.dependencies.opendal]
+default-features = false
 features = [
   # Depend on "openssh" which depends on "tokio-pipe" that is unavailable on Windows.
   "services-sftp",

@@ -30,7 +30,7 @@ runs:
       run: |
         cat << EOF >> $GITHUB_ENV
         OPENDAL_WEBDAV_ENDPOINT=http://127.0.0.1:8080
+        OPENDAL_WEBDAV_DISABLE_DEPTH_INFINITY=true
         OPENDAL_WEBDAV_USERNAME=foo
-        OPENDAL_WEBDAV_ENABLE_CONDITIONAL_READ=false
-        OPENDAL_TEST_CAPABILITY_OVERRIDES=write_with_user_metadata=false
+        OPENDAL_TEST_CAPABILITY_OVERRIDES=write_with_user_metadata=false,read_with_if_match=false,read_with_if_none_match=false,read_with_if_modified_since=false,read_with_if_unmodified_since=false,write_with_if_match=false,write_with_if_none_match=false,write_with_if_not_exists=false,delete_with_if_match=false
         EOF

@@ -92,6 +92,8 @@ pub struct Capability {
     pub write_with_content_disposition: bool,
     /// Indicates if Content-Encoding can be specified during write operations.
     pub write_with_content_encoding: bool,
+    /// Indicates if a write can store Content-Language and a subsequent stat can retrieve it.
+    pub write_with_content_language: bool,
     /// Indicates if Cache-Control can be specified during write operations.
     pub write_with_cache_control: bool,
     /// Indicates if conditional write operations using If-Match are supported.
@@ -106,6 +108,8 @@ pub struct Capability {
     pub write_with_if_not_exists: bool,
     /// Indicates if custom user metadata can be attached during write operations.
     pub write_with_user_metadata: bool,
+    /// Indicates if writes can set a lifetime for the new file.
+    pub write_with_expires: bool,
     /// Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads.
     pub write_multi_max_size: usize,
     /// Minimum size required for multipart uploads (except for the last part). For example, AWS S3 requires at least 5MiB per part.
@@ -144,12 +148,44 @@ pub struct Capability {
     pub copy_with_if_version_not_match: bool,
     /// Indicates if copy operations from a specific source version are supported.
     pub copy_with_source_version: bool,
+    /// Indicates if copy operations can replace the destination's user metadata.
+    pub copy_with_user_metadata: bool,
+    /// Indicates if copy operations can replace the destination's Content-Type.
+    pub copy_with_content_type: bool,
+    /// Indicates if copy operations can replace the destination's Content-Language.
+    pub copy_with_content_language: bool,
     /// Indicates if copy operations can be split into multiple server-side tasks.
     pub copy_can_multi: bool,
     /// Maximum size supported for segmented copy tasks.
     pub copy_multi_max_size: usize,
     /// Minimum size required for segmented copy tasks.
     pub copy_multi_min_size: usize,
+    /// Indicates if the operator supports composing complete source objects.
+    pub compose: bool,
+    /// Indicates if Content-Type can be specified during composition.
+    pub compose_with_content_type: bool,
+    /// Indicates if Content-Disposition can be specified during composition.
+    pub compose_with_content_disposition: bool,
+    /// Indicates if Content-Encoding can be specified during composition.
+    pub compose_with_content_encoding: bool,
+    /// Indicates if Cache-Control can be specified during composition.
+    pub compose_with_cache_control: bool,
+    /// Indicates if custom user metadata can be attached during composition.
+    pub compose_with_user_metadata: bool,
+    /// Indicates if composition supports a destination ETag match condition.
+    pub compose_with_if_match: bool,
+    /// Indicates if composition supports a destination ETag non-match condition.
+    pub compose_with_if_none_match: bool,
+    /// Indicates if composition supports a destination version match condition.
+    pub compose_with_if_version_match: bool,
+    /// Indicates if composition supports a destination version non-match condition.
+    pub compose_with_if_version_not_match: bool,
+    /// Indicates if composition can require a missing destination.
+    pub compose_with_if_not_exists: bool,
+    /// Indicates if composition can select a specific source version.
+    pub compose_with_source_version: bool,
+    /// Indicates if composition supports a source ETag match condition.
+    pub compose_with_source_if_match: bool,
     /// Indicates if restore operations are supported.
     pub restore: bool,
     /// Indicates if restoring a specific version is supported.
@@ -172,6 +208,8 @@ pub struct Capability {
     pub list_with_versions: bool,
     /// Indicates if listing with deleted files included is supported.
     pub list_with_deleted: bool,
+    /// Indicates if listing with a glob pattern is supported by this service stack.
+    pub list_with_glob: bool,
     /// Indicates if presigned URL generation is supported.
     pub presign: bool,
     /// Indicates if presigned URLs for read operations are supported.
@@ -221,6 +259,7 @@ impl Capability {
             write_with_content_type: cap.write_with_content_type,
             write_with_content_disposition: cap.write_with_content_disposition,
             write_with_content_encoding: cap.write_with_content_encoding,
+            write_with_content_language: cap.write_with_content_language,
             write_with_cache_control: cap.write_with_cache_control,
             write_with_if_match: cap.write_with_if_match,
             write_with_if_none_match: cap.write_with_if_none_match,
@@ -228,6 +267,7 @@ impl Capability {
             write_with_if_version_not_match: cap.write_with_if_version_not_match,
             write_with_if_not_exists: cap.write_with_if_not_exists,
             write_with_user_metadata: cap.write_with_user_metadata,
+            write_with_expires: cap.write_with_expires,
             write_multi_max_size: cap.write_multi_max_size.unwrap_or(usize::MAX),
             write_multi_min_size: cap.write_multi_min_size.unwrap_or(usize::MAX),
             write_total_max_size: cap.write_total_max_size.unwrap_or(usize::MAX),
@@ -247,9 +287,25 @@ impl Capability {
             copy_with_if_version_match: cap.copy_with_if_version_match,
             copy_with_if_version_not_match: cap.copy_with_if_version_not_match,
             copy_with_source_version: cap.copy_with_source_version,
+            copy_with_user_metadata: cap.copy_with_user_metadata,
+            copy_with_content_type: cap.copy_with_content_type,
+            copy_with_content_language: cap.copy_with_content_language,
             copy_can_multi: cap.copy_can_multi,
             copy_multi_max_size: cap.copy_multi_max_size.unwrap_or(usize::MAX),
             copy_multi_min_size: cap.copy_multi_min_size.unwrap_or(usize::MAX),
+            compose: cap.compose,
+            compose_with_content_type: cap.compose_with_content_type,
+            compose_with_content_disposition: cap.compose_with_content_disposition,
+            compose_with_content_encoding: cap.compose_with_content_encoding,
+            compose_with_cache_control: cap.compose_with_cache_control,
+            compose_with_user_metadata: cap.compose_with_user_metadata,
+            compose_with_if_match: cap.compose_with_if_match,
+            compose_with_if_none_match: cap.compose_with_if_none_match,
+            compose_with_if_version_match: cap.compose_with_if_version_match,
+            compose_with_if_version_not_match: cap.compose_with_if_version_not_match,
+            compose_with_if_not_exists: cap.compose_with_if_not_exists,
+            compose_with_source_version: cap.compose_with_source_version,
+            compose_with_source_if_match: cap.compose_with_source_if_match,
             restore: cap.restore,
             restore_with_version: cap.restore_with_version,
             restore_with_if_not_exists: cap.restore_with_if_not_exists,
@@ -261,6 +317,7 @@ impl Capability {
             list_with_recursive: cap.list_with_recursive,
             list_with_versions: cap.list_with_versions,
             list_with_deleted: cap.list_with_deleted,
+            list_with_glob: cap.list_with_glob,
             presign: cap.presign,
             presign_read: cap.presign_read,
             presign_stat: cap.presign_stat,

@@ -67,15 +67,17 @@ internal static class AsyncStateRegistry
 
 internal sealed class AsyncState<T>
 {
+    private readonly object cancellationSync = new();
+    private CancellationTokenRegistration cancellationRegistration;
+    private bool cancellationDisposed;
+
     internal long Context { get; set; }
 
     public TaskCompletionSource<T> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    public CancellationTokenRegistration CancellationRegistration { get; private set; }
-
     public void BindCancellation(CancellationToken cancellationToken)
     {
-        if (!cancellationToken.CanBeCanceled)
+        if (!cancellationToken.CanBeCanceled || Volatile.Read(ref cancellationDisposed))
         {
             return;
         }
@@ -87,17 +89,40 @@ internal sealed class AsyncState<T>
             current.Completion.TrySetCanceled();
         }, this);
 
-        if (Completion.Task.IsCompleted)
+        var disposeNow = false;
+        lock (cancellationSync)
+        {
+            if (cancellationDisposed)
+            {
+                disposeNow = true;
+            }
+            else
+            {
+                cancellationRegistration = registration;
+            }
+        }
+
+        if (disposeNow)
         {
             registration.Dispose();
-            return;
         }
+    }
 
-        CancellationRegistration = registration;
-
-        if (Completion.Task.IsCompleted)
+    public void DisposeCancellation()
+    {
+        CancellationTokenRegistration registration;
+        lock (cancellationSync)
         {
-            CancellationRegistration.Dispose();
+            if (cancellationDisposed)
+            {
+                return;
+            }
+
+            cancellationDisposed = true;
+            registration = cancellationRegistration;
+            cancellationRegistration = default;
         }
+
+        registration.Dispose();
     }
 }

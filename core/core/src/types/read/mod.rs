@@ -22,6 +22,9 @@ pub use reader::Reader;
 mod buffer_stream;
 pub use buffer_stream::BufferStream;
 
+#[cfg(test)]
+pub(crate) mod test_utils;
+
 mod futures_async_reader;
 pub use futures_async_reader::FuturesAsyncReader;
 

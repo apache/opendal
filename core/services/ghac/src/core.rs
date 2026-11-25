@@ -99,7 +99,7 @@ impl Debug for GhacCore {
 
 impl GhacCore {
     async fn ghac_get_download_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         match self.service_version {
             GhacVersion::V1 => {
@@ -230,7 +230,7 @@ impl GhacCore {
     }
 
     pub async fn ghac_get_upload_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         match self.service_version {
             GhacVersion::V1 => {
@@ -327,6 +327,11 @@ impl GhacCore {
         offset: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
+        let end = size
+            .checked_sub(1)
+            .and_then(|last| offset.checked_add(last))
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "invalid ghac v1 upload range"))?;
+
         let mut req = Request::patch(upload_url);
         req = req.header(AUTHORIZATION, format!("Bearer {}", self.catch_token));
         req = req.header(ACCEPT, CACHE_HEADER_ACCEPT);
@@ -335,7 +340,7 @@ impl GhacCore {
         req = req.header(
             CONTENT_RANGE,
             BytesContentRange::default()
-                .with_range(offset, offset + size - 1)
+                .with_range(offset, end)
                 .to_header(),
         );
         let req = req
@@ -354,7 +359,7 @@ impl GhacCore {
         url: &str,
         size: u64,
     ) -> Result<()> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         match self.service_version {
             GhacVersion::V1 => {
@@ -409,7 +414,20 @@ impl GhacCore {
                         ErrorContext::new(ServiceOperation("FinalizeCacheEntryUpload")),
                         resp,
                     ));
-                };
+                }
+                let (parts, slc) = resp.into_parts();
+                let finalize_resp = ghac_types::FinalizeCacheEntryUploadResponse::decode(slc)
+                    .map_err(new_prost_decode_error)?;
+                if !finalize_resp.ok {
+                    return Err(with_error_response_context(
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "finalize cache entry upload returns non-ok",
+                        )
+                        .with_context("service_operation", "FinalizeCacheEntryUpload"),
+                        parts,
+                    ));
+                }
                 Ok(())
             }
         }
@@ -533,6 +551,17 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let response = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::new())
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("Download")), response);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
     fn test_build_cache_url_handles_leading_slash() {
         assert_eq!(
             build_cache_url(
@@ -541,6 +570,159 @@ mod tests {
             ),
             "https://results.actions.githubusercontent.com/twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry"
         );
+    }
+
+    struct FixedResponseTransport {
+        status: StatusCode,
+        body: Bytes,
+        requests: std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    }
+
+    impl HttpTransport for FixedResponseTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.requests.lock().unwrap().push(req.uri().to_string());
+            let buf = Buffer::from(self.body.clone());
+            let len = buf.len() as u64;
+            Response::builder()
+                .status(self.status)
+                .body(HttpBody::new(futures::stream::iter([Ok(buf)]), Some(len)))
+                .map_err(new_request_build_error)
+        }
+    }
+
+    fn test_core(service_version: GhacVersion) -> GhacCore {
+        GhacCore {
+            info: ServiceInfo::new("ghac", "/", "test-version"),
+            capability: Capability {
+                stat: true,
+                read: true,
+                write: true,
+                write_can_multi: true,
+                shared: true,
+                ..Default::default()
+            },
+            root: "/".to_string(),
+            cache_url: "https://results.actions.githubusercontent.com".to_string(),
+            catch_token: "test-token".to_string(),
+            version: "test-version".to_string(),
+            service_version,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_ghac_v1_write_rejects_empty_chunk_and_range_overflow() {
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            let requests = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+            let transport = FixedResponseTransport {
+                status: StatusCode::NO_CONTENT,
+                body: Bytes::new(),
+                requests: requests.clone(),
+            };
+            let ctx = OperationContext::from_parts(
+                HttpTransporter::new(transport),
+                Executor::default(),
+            );
+            let core = test_core(GhacVersion::V1);
+
+            for offset in [0, 10] {
+                let err = core
+                    .ghac_v1_write(
+                        &ctx,
+                        "https://artifactcache.actions.githubusercontent.com/1/_apis/artifactcache/caches/1",
+                        0,
+                        offset,
+                        Buffer::new(),
+                    )
+                    .await
+                    .unwrap_err();
+                assert_eq!(err.kind(), ErrorKind::Unexpected);
+            }
+
+            let err = core
+                .ghac_v1_write(
+                    &ctx,
+                    "https://artifactcache.actions.githubusercontent.com/1/_apis/artifactcache/caches/1",
+                    2,
+                    u64::MAX,
+                    Buffer::from("ab"),
+                )
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(requests.lock().unwrap().is_empty());
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    #[tokio::test]
+    async fn test_ghac_v2_finalize_upload_checks_ok_flag() {
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            let core = test_core(GhacVersion::V2);
+
+            let non_ok_body = Bytes::from(
+                ghac_types::FinalizeCacheEntryUploadResponse {
+                    ok: false,
+                    entry_id: 0,
+                }
+                .encode_to_vec(),
+            );
+            let non_ok_requests = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+            let non_ok_ctx = OperationContext::from_parts(
+                HttpTransporter::new(FixedResponseTransport {
+                    status: StatusCode::OK,
+                    body: non_ok_body,
+                    requests: non_ok_requests.clone(),
+                }),
+                Executor::default(),
+            );
+            let err = core
+                .ghac_finalize_upload(&non_ok_ctx, "key", "", 16)
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.message().contains("non-ok"));
+            assert_eq!(non_ok_requests.lock().unwrap().len(), 1);
+
+            let ok_body = Bytes::from(
+                ghac_types::FinalizeCacheEntryUploadResponse {
+                    ok: true,
+                    entry_id: 42,
+                }
+                .encode_to_vec(),
+            );
+            let ok_requests = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+            let ok_ctx = OperationContext::from_parts(
+                HttpTransporter::new(FixedResponseTransport {
+                    status: StatusCode::OK,
+                    body: ok_body,
+                    requests: ok_requests.clone(),
+                }),
+                Executor::default(),
+            );
+            core.ghac_finalize_upload(&ok_ctx, "key", "", 16)
+                .await
+                .unwrap();
+            assert_eq!(ok_requests.lock().unwrap().len(), 1);
+
+            let invalid_requests = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+            let invalid_ctx = OperationContext::from_parts(
+                HttpTransporter::new(FixedResponseTransport {
+                    status: StatusCode::OK,
+                    body: Bytes::from_static(&[0xff, 0xff, 0xff]),
+                    requests: invalid_requests,
+                }),
+                Executor::default(),
+            );
+            let err = core
+                .ghac_finalize_upload(&invalid_ctx, "key", "", 16)
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.message().contains("deserialize protobuf"));
+        })
+        .await
+        .expect("test timed out");
     }
 }
 
@@ -564,6 +746,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         StatusCode::NOT_FOUND | StatusCode::NO_CONTENT => (ErrorKind::NotFound, false),
         StatusCode::CONFLICT => (ErrorKind::AlreadyExists, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY

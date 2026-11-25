@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import asyncio
 import io
 import os
 from datetime import timedelta
@@ -24,7 +25,8 @@ from uuid import uuid4
 
 import pytest
 
-from opendal.exceptions import ConditionNotMatch, NotFound
+import opendal
+from opendal.exceptions import ConditionNotMatch, NotFound, RangeNotSatisfied
 
 
 @pytest.mark.need_capability("read", "write", "delete")
@@ -107,7 +109,29 @@ def test_sync_reader_read_sizes(operator):
         reader.seek(2)
         assert reader.read() == b"llo, world"
 
+    with pytest.raises(ValueError, match="closed file"):
+        reader.tell()
     operator.delete(filename)
+
+
+@pytest.mark.need_capability("read", "write", "delete")
+def test_sync_reader_rejects_negative_seek_set(operator):
+    filename = f"random_file_{str(uuid4())}"
+    operator.write(filename, b"0123456789")
+
+    try:
+        with operator.open(filename, "rb") as reader:
+            assert reader.seek(3) == 3
+            with pytest.raises(ValueError, match="negative seek value -1"):
+                reader.seek(-1, 0)
+            assert reader.tell() == 3
+            with pytest.raises(ValueError, match="negative seek value -1"):
+                reader.seek(-1)
+            assert reader.tell() == 3
+
+            assert reader.read() == b"3456789"
+    finally:
+        operator.delete(filename)
 
 
 @pytest.mark.need_capability("read", "write", "delete")
@@ -244,7 +268,71 @@ async def test_async_reader_read_sizes(async_operator):
         await reader.seek(2)
         assert await reader.read() == b"llo, world"
 
+    with pytest.raises(ValueError, match="closed file"):
+        await reader.tell()
     await async_operator.delete(filename)
+
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("read", "write", "delete")
+async def test_async_reader_rejects_negative_seek_set(async_operator):
+    filename = f"random_file_{str(uuid4())}"
+    await async_operator.write(filename, b"0123456789")
+
+    try:
+        async with await async_operator.open(filename, "rb") as reader:
+            assert await reader.seek(3) == 3
+            with pytest.raises(ValueError, match="negative seek value -1"):
+                await reader.seek(-1, 0)
+            assert await reader.tell() == 3
+            with pytest.raises(ValueError, match="negative seek value -1"):
+                await reader.seek(-1)
+            assert await reader.tell() == 3
+
+            assert await reader.read() == b"3456789"
+    finally:
+        await async_operator.delete(filename)
+
+
+@pytest.mark.asyncio
+async def test_async_reader_read_buffered_coalesces_chunks():
+    operator = opendal.AsyncOperator("memory")
+    await operator.write("object", b"0123456789")
+
+    async with await operator.open("object", "rb", chunk=2) as reader:
+        assert await reader.read(5) == b"01"
+        assert await reader.read_buffered(5) == b"23456"
+        assert await reader.tell() == 7
+        assert await reader.read_buffered(5) == b"789"
+        assert await reader.read_buffered(5) == b""
+
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("read", "write", "delete")
+async def test_async_reader_read_buffered_range(async_operator):
+    filename = f"read_buffered_{uuid4()}"
+    await async_operator.write(filename, b"0123456789")
+    try:
+        async with await async_operator.open(
+            filename, "rb", offset=2, size=5
+        ) as reader:
+            with pytest.raises(OverflowError):
+                reader.read_buffered(-1)
+            assert await reader.read_buffered(0) == b""
+            assert await reader.tell() == 0
+            assert await reader.read_buffered(2) == b"23"
+            assert await reader.tell() == 2
+            assert await reader.seek(-1, 1) == 1
+            assert await reader.seek(-2, 2) == 3
+            assert await reader.read_buffered(32) == b"56"
+            assert await reader.tell() == 5
+            assert await reader.read_buffered(32) == b""
+            assert await reader.tell() == 5
+
+        with pytest.raises(OSError, match="closed file"):
+            await reader.read_buffered(1)
+    finally:
+        await async_operator.delete(filename)
 
 
 @pytest.mark.asyncio
@@ -338,3 +426,162 @@ def test_sync_conditional_reads(service_name, operator):
     # Should fail: file was modified after `before`
     with pytest.raises(ConditionNotMatch):
         operator.read(path, if_unmodified_since=before)
+
+
+@pytest.mark.need_capability("read", "write", "delete")
+def test_sync_readinto_buffer_boundaries(operator):
+    filename = f"readinto_{uuid4()}"
+    operator.write(filename, b"abcdef")
+    try:
+        with operator.open(filename, "rb") as reader:
+            with pytest.raises(OSError, match="not writable"):
+                reader.readinto(b"readonly")
+            with pytest.raises(OSError, match="not C contiguous"):
+                reader.readinto(memoryview(bytearray(8))[::2])
+            assert reader.tell() == 0
+            assert reader.readinto(bytearray()) == 0
+            assert reader.tell() == 0
+            target = bytearray(b"??????????")
+            assert reader.readinto(memoryview(target)[2:5]) == 3
+            assert target == b"??abc?????"
+            assert reader.tell() == 3
+            assert reader.readinto(memoryview(target)[5:]) == 3
+            assert target == b"??abcdef??"
+            assert reader.tell() == 6
+            assert reader.readinto(target) == 0
+            assert target == b"??abcdef??"
+    finally:
+        operator.delete(filename)
+
+
+@pytest.mark.need_capability("read", "write", "delete")
+def test_sync_readinto_empty_buffers(operator):
+    filename = f"readinto_empty_{uuid4()}"
+    operator.write(filename, b"abcdef")
+    try:
+        with operator.open(filename, "rb") as reader:
+            # Zero-length buffers may carry a NULL data pointer; `readinto`
+            # must return 0 instead of panicking.
+            assert reader.readinto(bytearray()) == 0
+            assert reader.readinto(memoryview(bytearray(0))) == 0
+            assert reader.tell() == 0
+
+        with operator.open(filename, "rb") as reader:
+            # A zero-length read at EOF also returns 0 without touching the
+            # buffer pointer.
+            reader.read()
+            assert reader.readinto(bytearray(4)) == 0
+    finally:
+        operator.delete(filename)
+
+
+@pytest.mark.need_capability("read", "write", "delete")
+def test_sync_readinto_readonly_empty_buffer(operator):
+    filename = f"readinto_empty_readonly_{uuid4()}"
+    operator.write(filename, b"abcdef")
+    try:
+        with (
+            operator.open(filename, "rb") as reader,
+            pytest.raises(OSError, match="not writable"),
+        ):
+            # A zero-length but readonly buffer is still rejected.
+            reader.readinto(memoryview(b""))
+    finally:
+        operator.delete(filename)
+
+
+def test_sync_open_range_overflow_raises_range_not_satisfied():
+    op = opendal.Operator("memory")
+    op.write("test", b"hello")
+
+    large_offset = (1 << 32) + 1024
+    with op.open("test", "rb", offset=0, size=large_offset) as reader:
+        assert reader.read(5) == b"hello"
+
+    with (
+        op.open("test", "rb", offset=large_offset, size=1024) as reader,
+        pytest.raises(OSError, match="RangeNotSatisfied"),
+    ):
+        reader.read()
+
+    with pytest.raises(RangeNotSatisfied):
+        op.read("test", offset=large_offset, size=1024)
+
+    with pytest.raises(RangeNotSatisfied):
+        op.open("test", "rb", offset=(1 << 64) - 1, size=1)
+
+    with pytest.raises(RangeNotSatisfied):
+        op.open("test", "rb", offset=1, size=(1 << 64) - 1)
+
+    with pytest.raises(RangeNotSatisfied):
+        op.read("test", offset=(1 << 64) - 1, size=1)
+
+
+@pytest.mark.asyncio
+async def test_async_open_range_overflow_raises_range_not_satisfied():
+    aop = opendal.AsyncOperator("memory")
+    await aop.write("test", b"hello")
+
+    large_offset = (1 << 32) + 1024
+    async with await aop.open("test", "rb", offset=0, size=large_offset) as reader:
+        assert await reader.read(5) == b"hello"
+
+    async with await aop.open("test", "rb", offset=large_offset, size=1024) as reader:
+        with pytest.raises(OSError, match="RangeNotSatisfied"):
+            await reader.read()
+
+    with pytest.raises(RangeNotSatisfied):
+        await aop.read("test", offset=large_offset, size=1024)
+
+    with pytest.raises(RangeNotSatisfied):
+        await aop.open("test", "rb", offset=(1 << 64) - 1, size=1)
+
+    with pytest.raises(RangeNotSatisfied):
+        await aop.open("test", "rb", offset=1, size=(1 << 64) - 1)
+
+    with pytest.raises(RangeNotSatisfied):
+        await aop.read("test", offset=(1 << 64) - 1, size=1)
+
+
+@pytest.mark.asyncio
+async def test_async_file_reentrant_calls_do_not_raise_already_borrowed():
+    aop = opendal.AsyncOperator("memory")
+    await aop.write("test", b"abcdef")
+
+    async with await aop.open("test", "rb") as reader:
+        reentrant_tasks: list[asyncio.Future[int]] = []
+
+        class ReentrantInt:
+            def __index__(self) -> int:
+                reentrant_tasks.append(asyncio.ensure_future(reader.tell()))
+                return 3
+
+        assert await reader.seek(ReentrantInt()) == 3
+        assert await reentrant_tasks[0] in (0, 3)
+        assert await reader.read() == b"def"
+
+    loop = asyncio.get_running_loop()
+    original_create_future = loop.create_future
+    writer = await aop.open("reentrant_write", "wb")
+    nested_calls: list[asyncio.Future[object]] = []
+    entered = False
+
+    def reentrant_create_future() -> asyncio.Future[object]:
+        nonlocal entered
+        if not entered:
+            entered = True
+            nested_calls.append(asyncio.ensure_future(writer.tell()))
+            nested_calls.append(asyncio.ensure_future(writer.writable()))
+        return original_create_future()
+
+    loop.create_future = reentrant_create_future
+    try:
+        assert await writer.write(b"hello") == 5
+        await asyncio.gather(*nested_calls)
+        entered = False
+        await writer.close()
+    finally:
+        loop.create_future = original_create_future
+        await asyncio.gather(*nested_calls, return_exceptions=True)
+
+    assert await aop.read("reentrant_write") == b"hello"

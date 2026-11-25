@@ -33,10 +33,10 @@ use crate::writer::TosWriter;
 use http::StatusCode;
 use opendal_core::OperationContext;
 use opendal_core::raw::*;
-use opendal_core::{Buffer, Builder, Capability, EntryMode, Error, ErrorKind, Result};
-use reqsign_core::{Context, OsEnv, ProvideCredentialChain, Signer};
+use opendal_core::{Buffer, Builder, Capability, Error, ErrorKind, Result};
+use reqsign_core::{Context, OsEnv};
 use reqsign_file_read_tokio::TokioFileRead;
-use reqsign_volcengine_tos::{EnvCredentialProvider, RequestSigner, StaticCredentialProvider};
+use reqsign_volcengine_tos::{DefaultCredentialProvider, RequestSigner, StaticCredentialProvider};
 
 const TOS_SCHEME: &str = "tos";
 
@@ -126,6 +126,17 @@ impl TosBuilder {
         self
     }
 
+    /// Disable config load so that opendal will not load config from
+    /// environment.
+    ///
+    /// For examples:
+    ///
+    /// - envs like `VOLCENGINE_ACCESS_KEY_ID`
+    pub fn disable_config_load(mut self) -> Self {
+        self.config.disable_config_load = true;
+        self
+    }
+
     /// Skip signature will skip loading credentials and signing requests.
     pub fn skip_signature(mut self) -> Self {
         self.config.skip_signature = true;
@@ -153,7 +164,11 @@ impl Builder for TosBuilder {
 
         let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
-        let mut provider = ProvideCredentialChain::new().push(EnvCredentialProvider::new());
+        let mut provider = DefaultCredentialProvider::builder();
+        if config.disable_config_load {
+            provider = provider.no_env();
+        }
+        let mut provider = provider.build();
 
         if let (Some(ak), Some(sk)) = (&config.access_key_id, &config.secret_access_key) {
             let static_provider = if let Some(token) = config.security_token.as_deref() {
@@ -164,8 +179,8 @@ impl Builder for TosBuilder {
             provider = provider.push_front(static_provider);
         }
 
-        let request_signer = RequestSigner::new(&region);
-        let signer = Signer::new(ctx, provider, request_signer);
+        let credential_provider = Arc::new(provider);
+        let request_signer = Arc::new(RequestSigner::new(&region));
 
         let info = ServiceInfo::new(TOS_SCHEME, &root, &bucket);
         let capability = Capability {
@@ -250,7 +265,10 @@ impl Builder for TosBuilder {
             root,
             default_storage_class: None,
             skip_signature: config.skip_signature,
-            signer,
+            sign_ctx: ctx,
+            credential_provider,
+            request_signer,
+            signers: HttpTransportCache::new(),
         };
 
         Ok(TosBackend {
@@ -270,6 +288,7 @@ impl Service for TosBackend {
     type Lister = TosListers;
     type Deleter = oio::BatchDeleter<TosDeleter>;
     type Copier = TosCopiers;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -299,18 +318,18 @@ impl Service for TosBackend {
         match status {
             StatusCode::OK => {
                 let headers = resp.headers();
-                let mut meta = tos_parse_into_metadata(path, headers)?;
+                let mut meta = tos_parse_into_metadata(path, headers)?.into_builder();
 
                 let user_meta = parse_prefixed_headers(headers, X_TOS_META_PREFIX);
                 if !user_meta.is_empty() {
-                    meta = meta.with_user_metadata(user_meta);
+                    meta.user_metadata(user_meta);
                 }
 
                 if let Some(v) = parse_header_to_str(headers, X_TOS_VERSION_ID)? {
-                    meta.set_version(v);
+                    meta.version(v);
                 }
 
-                if let Some(is_dir) = parse_header_to_str(headers, X_TOS_DIRECTORY)?
+                if parse_header_to_str(headers, X_TOS_DIRECTORY)?
                     .map(|v| {
                         v.parse::<bool>().map_err(|e| {
                             Error::new(ErrorKind::Unexpected, "header value is not valid integer")
@@ -318,15 +337,12 @@ impl Service for TosBackend {
                         })
                     })
                     .transpose()?
+                    == Some(true)
                 {
-                    meta = meta.with_mode(if is_dir {
-                        EntryMode::DIR
-                    } else {
-                        EntryMode::FILE
-                    });
+                    meta.set_dir();
                 }
 
-                Ok(RpStat::new(meta))
+                Ok(RpStat::new(meta.build()))
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("HeadObject")),
@@ -400,10 +416,9 @@ impl Service for TosBackend {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         let output: TosCopiers = {
-            let copier = new_tos_copier(self.core.clone(), ctx, from, to, args, opts)?;
+            let copier = new_tos_copier(self.core.clone(), ctx, from, to, args)?;
             Ok(copier)
         }?;
 
@@ -451,5 +466,108 @@ impl Service for TosBackend {
             parts.uri,
             parts.headers,
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::future::Future;
+    use std::task::Context as TaskContext;
+    use std::task::Poll;
+    use std::task::Waker;
+
+    use reqsign_core::StaticEnv;
+
+    use super::*;
+
+    /// Poll a future once; these futures resolve without an external runtime.
+    fn poll_once<F: Future>(future: F) -> F::Output {
+        let mut future = std::pin::pin!(future);
+        let mut cx = TaskContext::from_waker(Waker::noop());
+        match future.as_mut().poll(&mut cx) {
+            Poll::Ready(output) => output,
+            Poll::Pending => panic!("future requires an external async runtime"),
+        }
+    }
+
+    fn build_core(builder: TosBuilder) -> Arc<TosCore> {
+        let backend = builder.build().expect("build must succeed");
+        let backend = (&backend as &dyn std::any::Any)
+            .downcast_ref::<TosBackend>()
+            .expect("build must return TosBackend");
+        backend.core.clone()
+    }
+
+    /// Sign a request with a static environment so tests never read the process env.
+    fn sign_with_env(
+        core: &TosCore,
+        envs: HashMap<String, String>,
+    ) -> reqsign_core::Result<http::request::Parts> {
+        let signer = core.signer_with_context(Context::new().with_env(StaticEnv {
+            home_dir: None,
+            envs,
+        }));
+
+        let req = core
+            .tos_put_object_request("test", None, &OpWrite::default(), Buffer::new())
+            .expect("request must be valid");
+        let (mut parts, _) = req.into_parts();
+        poll_once(signer.sign(&mut parts, None))?;
+        Ok(parts)
+    }
+
+    fn env_credentials() -> HashMap<String, String> {
+        HashMap::from([
+            ("VOLCENGINE_ACCESS_KEY_ID".to_string(), "env-ak".to_string()),
+            (
+                "VOLCENGINE_SECRET_ACCESS_KEY".to_string(),
+                "env-sk".to_string(),
+            ),
+        ])
+    }
+
+    fn authorization(parts: &http::request::Parts) -> &str {
+        parts.headers[http::header::AUTHORIZATION]
+            .to_str()
+            .expect("authorization must be valid header value")
+    }
+
+    #[test]
+    fn test_disable_config_load_controls_env_credentials() {
+        let core = build_core(
+            TosBuilder::default()
+                .bucket("test-bucket")
+                .disable_config_load(),
+        );
+        assert!(
+            sign_with_env(&core, env_credentials()).is_err(),
+            "environment credentials must be ignored when config load is disabled"
+        );
+
+        let core = build_core(TosBuilder::default().bucket("test-bucket"));
+        let parts = sign_with_env(&core, env_credentials())
+            .expect("environment credentials must be loaded by default");
+        assert!(authorization(&parts).contains("Credential=env-ak/"));
+    }
+
+    #[test]
+    fn test_disable_config_load_keeps_static_credentials() {
+        let core = build_core(
+            TosBuilder::default()
+                .bucket("test-bucket")
+                .access_key_id("static-ak")
+                .secret_access_key("static-sk")
+                .security_token("static-token")
+                .disable_config_load(),
+        );
+
+        let parts = sign_with_env(&core, env_credentials())
+            .expect("explicit static credentials must still be used");
+        assert!(authorization(&parts).contains("Credential=static-ak/"));
+        assert_eq!(
+            parts.headers["x-tos-security-token"], "static-token",
+            "security token must be applied"
+        );
     }
 }

@@ -45,6 +45,8 @@ use serde::Serialize;
 /// - Blocking operations are provided through the BlockingLayer
 ///
 /// Developers should use `capability` to determine available operations.
+/// Conditional capability fields follow the
+/// [conditional operation specification][crate::docs::specs::conditional_operations].
 ///
 /// # Field Naming Conventions
 ///
@@ -126,6 +128,8 @@ pub struct Capability {
     pub write_with_content_disposition: bool,
     /// Indicates if Content-Encoding can be specified during write operations.
     pub write_with_content_encoding: bool,
+    /// Indicates if a write can store Content-Language and a subsequent stat can retrieve it.
+    pub write_with_content_language: bool,
     /// Indicates if Cache-Control can be specified during write operations.
     pub write_with_cache_control: bool,
     /// Indicates if conditional write operations using If-Match are supported.
@@ -140,6 +144,9 @@ pub struct Capability {
     pub write_with_if_not_exists: bool,
     /// Indicates if custom user metadata can be attached during write operations.
     pub write_with_user_metadata: bool,
+    /// Indicates if writes can set a lifetime for the new file.
+    #[serde(default)]
+    pub write_with_expires: bool,
     /// Maximum size supported for multipart uploads.
     /// For example, AWS S3 supports up to 5GiB per part in multipart uploads.
     pub write_multi_max_size: Option<usize>,
@@ -184,12 +191,45 @@ pub struct Capability {
     pub copy_with_if_version_not_match: bool,
     /// Indicates if copy operations from a specific source version are supported.
     pub copy_with_source_version: bool,
+    /// Indicates if copy operations can replace the destination's user metadata.
+    pub copy_with_user_metadata: bool,
+    /// Indicates if copy operations can replace the destination's Content-Type.
+    pub copy_with_content_type: bool,
+    /// Indicates if copy operations can replace the destination's Content-Language.
+    pub copy_with_content_language: bool,
     /// Indicates if copy operations can be split into multiple server-side tasks.
     pub copy_can_multi: bool,
     /// Maximum size supported for segmented copy tasks.
     pub copy_multi_max_size: Option<usize>,
     /// Minimum size required for segmented copy tasks.
     pub copy_multi_min_size: Option<usize>,
+
+    /// Indicates if the operator supports composing complete source objects.
+    pub compose: bool,
+    /// Indicates if Content-Type can be specified during composition.
+    pub compose_with_content_type: bool,
+    /// Indicates if Content-Disposition can be specified during composition.
+    pub compose_with_content_disposition: bool,
+    /// Indicates if Content-Encoding can be specified during composition.
+    pub compose_with_content_encoding: bool,
+    /// Indicates if Cache-Control can be specified during composition.
+    pub compose_with_cache_control: bool,
+    /// Indicates if custom user metadata can be attached during composition.
+    pub compose_with_user_metadata: bool,
+    /// Indicates if composition supports a destination ETag match condition.
+    pub compose_with_if_match: bool,
+    /// Indicates if composition supports a destination ETag non-match condition.
+    pub compose_with_if_none_match: bool,
+    /// Indicates if composition supports a destination version match condition.
+    pub compose_with_if_version_match: bool,
+    /// Indicates if composition supports a destination version non-match condition.
+    pub compose_with_if_version_not_match: bool,
+    /// Indicates if composition can require a missing destination.
+    pub compose_with_if_not_exists: bool,
+    /// Indicates if composition can select a specific source version.
+    pub compose_with_source_version: bool,
+    /// Indicates if composition supports a source ETag match condition.
+    pub compose_with_source_if_match: bool,
 
     /// Indicates if restore operations are supported.
     pub restore: bool,
@@ -215,6 +255,8 @@ pub struct Capability {
     pub list_with_versions: bool,
     /// Indicates if listing with deleted files included is supported.
     pub list_with_deleted: bool,
+    /// Indicates if listing with a glob pattern is supported by this service stack.
+    pub list_with_glob: bool,
 
     /// Indicates if presigned URL generation is supported.
     pub presign: bool,

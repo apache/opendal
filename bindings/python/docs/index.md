@@ -37,8 +37,22 @@ Review the typed configuration accepted by each storage service.
 
 ## Installation
 
+Install from PyPI:
+
 ```bash
 pip install opendal
+```
+
+Or install from [Anaconda main](https://anaconda.org/main/opendal):
+
+```bash
+conda install opendal
+```
+
+Or install from [conda-forge](https://anaconda.org/conda-forge/opendal):
+
+```bash
+conda install conda-forge::opendal
 ```
 
 ## Local Usage
@@ -132,7 +146,7 @@ This again yields
 b'baz'
 ```
 
-Again, note that all reads with OpenDAL return bytes, so specifying a mode of `"r"` will raise an exception.
+Again, note that all reads with OpenDAL return bytes. `"r"` and `"rb"` are both binary; wrap the synchronous file with `io.TextIOWrapper` if you need text.
 
 
 ### Writing
@@ -174,7 +188,9 @@ This again yields:
 my amazing data
 ```
 
-Again, note that all writing happens in bytes and a mode of `"w"` will raise an exception.
+Again, note that all writing happens in bytes. `"w"` and `"wb"` are both binary; wrap the synchronous file with `io.TextIOWrapper` if you need text.
+
+`open` supports the binary modes `"r"`, `"w"`, `"a"`, and `"x"`, each with an optional `b` before or after the letter. It rejects text modes such as `"rt"` and update modes such as `"r+"`.
 
 ## Async
 OpenDAL supports async operation on all operator methods. One can simply replace the `Operator` with an `AsyncOperator` and await on method calls. The below example illustrates this behavior:
@@ -195,13 +211,17 @@ Async API equivalent:
 ```python
 import asyncio
 
+
 async def main():
     op = opendal.AsyncOperator("fs", root="/tmp")
     await op.write("test.txt", b"Hello World")
     print(await op.read("test.txt"))
 
+
 asyncio.run(main())
 ```
+
+`AsyncFile` reads and writes bytes. Encode text with `str.encode()` and decode reads with `bytes.decode()`; `io.TextIOWrapper` only works with the blocking `File`.
 
 ```{toctree}
 :hidden:

@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use bytes::Bytes;
 use constants::X_OSS_META_PREFIX;
@@ -34,8 +35,8 @@ use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use http::header::RANGE;
-use reqsign_aliyun_oss::Credential;
-use reqsign_core::{Context, Signer};
+use reqsign_aliyun_oss::{Credential, RequestSigner};
+use reqsign_core::{Context, ProvideCredentialDyn, Signer};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -76,8 +77,10 @@ pub struct OssCore {
     pub server_side_encryption: Option<HeaderValue>,
     pub server_side_encryption_key_id: Option<HeaderValue>,
 
-    pub signer: Signer<Credential>,
     pub sign_ctx: Context,
+    pub credential_provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
+    pub request_signer: Arc<RequestSigner>,
+    pub signers: HttpTransportCache<Signer<Credential>>,
 }
 
 impl Debug for OssCore {
@@ -92,11 +95,22 @@ impl Debug for OssCore {
 }
 
 impl OssCore {
-    fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
-        self.signer.clone().with_context(
-            self.sign_ctx
-                .clone()
-                .with_http_send(ctx.http_transport().clone()),
+    pub(crate) fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
+        self.signers.get_or_init(ctx.http_transport(), |transport| {
+            Signer::new(
+                self.sign_ctx.clone().with_http_send(transport),
+                self.credential_provider.clone(),
+                self.request_signer.clone(),
+            )
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn signer_with_context(&self, ctx: Context) -> Signer<Credential> {
+        Signer::new(
+            ctx,
+            self.credential_provider.clone(),
+            self.request_signer.clone(),
         )
     }
 
@@ -175,7 +189,9 @@ impl OssCore {
         size: Option<u64>,
         args: &OpWrite,
     ) -> Result<http::request::Builder> {
-        req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
+        if let Some(size) = size {
+            req = req.header(CONTENT_LENGTH, size);
+        }
 
         if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime);
@@ -229,24 +245,19 @@ impl OssCore {
         key.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
     }
 
-    /// parse_metadata will parse http headers(including standards http headers
-    /// and user defined metadata header) into Metadata.
-    ///
-    /// # Arguments
-    ///
-    /// * `user_metadata_prefix` is the prefix of user defined metadata key
-    ///
-    /// # Notes
-    ///
-    /// before return the user defined metadata, we'll strip the user_metadata_prefix from the key
+    /// Parse HTTP response headers, including `x-oss-meta-*` user metadata
+    /// and `x-oss-version-id`, into [`Metadata`].
     pub fn parse_metadata(&self, path: &str, headers: &HeaderMap) -> Result<Metadata> {
-        let mut m = parse_into_metadata(path, headers)?;
+        let mut m = parse_into_metadata(path, headers)?.into_builder();
         let user_meta = parse_prefixed_headers(headers, X_OSS_META_PREFIX);
         if !user_meta.is_empty() {
-            m = m.with_user_metadata(user_meta);
+            m.user_metadata(user_meta);
+        }
+        if let Some(v) = parse_header_to_str(headers, constants::X_OSS_VERSION_ID)? {
+            m.version(v);
         }
 
-        Ok(m)
+        Ok(m.build())
     }
 }
 
@@ -260,7 +271,7 @@ impl OssCore {
         body: Buffer,
         is_presign: bool,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
@@ -287,7 +298,7 @@ impl OssCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let endpoint = self.get_endpoint(false);
         let url = format!(
             "{}/{}?append&position={}",
@@ -318,7 +329,7 @@ impl OssCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let mut url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
@@ -377,7 +388,7 @@ impl OssCore {
     }
 
     fn oss_delete_object_request(&self, path: &str, args: &OpDelete) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let endpoint = self.get_endpoint(false);
         let mut url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
@@ -412,7 +423,7 @@ impl OssCore {
         is_presign: bool,
         args: &OpStat,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let mut url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
@@ -455,7 +466,7 @@ impl OssCore {
         limit: Option<usize>,
         start_after: Option<String>,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let endpoint = self.get_endpoint(false);
         let mut url = QueryPairsWriter::new(endpoint);
@@ -480,7 +491,7 @@ impl OssCore {
 
         // start-after
         if let Some(start_after) = start_after {
-            let start_after = build_abs_path(&self.root, &start_after);
+            let start_after = build_absolute_path(&self.root, &start_after);
             url = url.push("start-after", &percent_encode_path(&start_after));
         }
 
@@ -521,8 +532,8 @@ impl OssCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let source = build_abs_path(&self.root, from);
-        let target = build_abs_path(&self.root, to);
+        let source = build_absolute_path(&self.root, from);
+        let target = build_absolute_path(&self.root, to);
 
         let url = format!(
             "{}/{}",
@@ -569,7 +580,7 @@ impl OssCore {
         key_marker: &str,
         version_id_marker: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, prefix);
+        let p = build_absolute_path(&self.root, prefix);
 
         let mut url = QueryPairsWriter::new(&self.endpoint);
         url = url.push("versions", "");
@@ -624,7 +635,7 @@ impl OssCore {
             object: paths
                 .into_iter()
                 .map(|(path, op)| DeleteObjectsRequestObject {
-                    key: build_abs_path(&self.root, &path),
+                    key: build_absolute_path(&self.root, &path),
                     version_id: op.version().map(|v| v.to_owned()),
                 })
                 .collect(),
@@ -664,7 +675,7 @@ impl OssCore {
         args: &OpWrite,
         is_presign: bool,
     ) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let url = format!("{}/{}?uploads", endpoint, percent_encode_path(&path));
         let mut req = Request::post(&url);
@@ -710,7 +721,7 @@ impl OssCore {
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
 
         let url = format!(
@@ -742,7 +753,7 @@ impl OssCore {
         parts: Vec<MultipartUploadPart>,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let url = format!(
             "{}/{}?uploadId={}",
@@ -788,7 +799,7 @@ impl OssCore {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",
@@ -1199,11 +1210,28 @@ struct OssError {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ErrorContext {
     service_operation: ServiceOperation,
+    caller_condition: bool,
+    if_not_exists: bool,
 }
 
 impl ErrorContext {
     pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
-        Self { service_operation }
+        Self {
+            service_operation,
+            caller_condition: false,
+            if_not_exists: false,
+        }
+    }
+
+    pub(crate) const fn with_caller_condition(mut self, caller_condition: bool) -> Self {
+        self.caller_condition = caller_condition;
+        self
+    }
+
+    pub(crate) const fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.caller_condition = self.caller_condition || if_not_exists;
+        self.if_not_exists = if_not_exists;
+        self
     }
 }
 
@@ -1212,10 +1240,13 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (parts, body) = resp.into_parts();
     let bs = body.to_bytes();
 
-    let (kind, retryable) = match parts.status {
+    let oss_error = de::from_reader::<_, OssError>(bs.clone().reader()).ok();
+
+    let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
+        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
@@ -1226,9 +1257,35 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let message = match de::from_reader::<_, OssError>(bs.clone().reader()) {
-        Ok(oss_err) => format!("{oss_err:?}"),
-        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+    if let Some(oss_error) = &oss_error {
+        match oss_error.code.as_str() {
+            // Although the status code is 404, NoSuchBucket indicates a misconfigured bucket.
+            "NoSuchBucket" => {
+                (kind, retryable) = (ErrorKind::ConfigInvalid, false);
+            }
+            "PreconditionFailed" if ctx.caller_condition => {
+                (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
+            }
+            "FileAlreadyExists" if ctx.if_not_exists => {
+                (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
+            }
+            "FileAlreadyExists" | "FileImmutable" => {
+                (kind, retryable) = (ErrorKind::Conflict, false);
+            }
+            _ if matches!(
+                parts.status,
+                StatusCode::CONFLICT | StatusCode::PRECONDITION_FAILED
+            ) =>
+            {
+                (kind, retryable) = (ErrorKind::Unexpected, false);
+            }
+            _ => {}
+        }
+    }
+
+    let message = match oss_error {
+        Some(oss_err) => format!("{oss_err:?}"),
+        None => String::from_utf8_lossy(&bs).into_owned(),
     };
 
     let mut err = Error::new(kind, message);
@@ -1241,4 +1298,82 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     }
 
     err
+}
+
+#[cfg(test)]
+mod error_tests {
+    use super::*;
+
+    fn parse_oss_error(ctx: ErrorContext, status: StatusCode, code: &str) -> Error {
+        let body = Buffer::from(format!(
+            "<Error><Code>{code}</Code><Message>test</Message></Error>"
+        ));
+        let resp = Response::builder()
+            .status(status)
+            .body(body)
+            .expect("response must build");
+        parse_error(ctx, resp)
+    }
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let err = parse_oss_error(
+            ErrorContext::new(ServiceOperation("GetObject")),
+            StatusCode::RANGE_NOT_SATISFIABLE,
+            "InvalidRange",
+        );
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
+    fn conflict_classification_uses_native_code_and_condition() {
+        let conditional = ErrorContext::new(ServiceOperation("PutObject")).with_if_not_exists(true);
+        assert_eq!(
+            parse_oss_error(conditional, StatusCode::CONFLICT, "FileAlreadyExists").kind(),
+            ErrorKind::ConditionNotMatch
+        );
+        assert_eq!(
+            parse_oss_error(
+                conditional,
+                StatusCode::PRECONDITION_FAILED,
+                "PreconditionFailed"
+            )
+            .kind(),
+            ErrorKind::ConditionNotMatch
+        );
+
+        let unconditional = ErrorContext::new(ServiceOperation("PutObject"));
+        assert_eq!(
+            parse_oss_error(unconditional, StatusCode::CONFLICT, "FileAlreadyExists").kind(),
+            ErrorKind::Conflict
+        );
+        assert_eq!(
+            parse_oss_error(unconditional, StatusCode::CONFLICT, "FileImmutable").kind(),
+            ErrorKind::Conflict
+        );
+        assert_eq!(
+            parse_oss_error(unconditional, StatusCode::CONFLICT, "UnknownConflict").kind(),
+            ErrorKind::Unexpected
+        );
+    }
+
+    #[test]
+    fn test_parse_error_no_such_bucket() {
+        let no_such_bucket = parse_oss_error(
+            ErrorContext::new(ServiceOperation("DeleteObject")),
+            StatusCode::NOT_FOUND,
+            "NoSuchBucket",
+        );
+        assert_eq!(no_such_bucket.kind(), ErrorKind::ConfigInvalid);
+        assert!(!no_such_bucket.is_temporary());
+
+        let no_such_key = parse_oss_error(
+            ErrorContext::new(ServiceOperation("DeleteObject")),
+            StatusCode::NOT_FOUND,
+            "NoSuchKey",
+        );
+        assert_eq!(no_such_key.kind(), ErrorKind::NotFound);
+        assert!(!no_such_key.is_temporary());
+    }
 }

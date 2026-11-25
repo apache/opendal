@@ -21,6 +21,14 @@
 #[doc = include_str!("0000_example.md")]
 pub mod rfc_0000_example {}
 
+/// Copy with metadata
+#[doc = include_str!("8431_copy_with_metadata.md")]
+pub mod rfc_8431_copy_with_metadata {}
+
+/// Compact metadata and operation arguments
+#[doc = include_str!("8194_compact_metadata_and_operation_args.md")]
+pub mod rfc_8194_compact_metadata_and_operation_args {}
+
 /// Write if not changed
 #[doc = include_str!("8147_write_if_not_changed.md")]
 pub mod rfc_8147_write_if_not_changed {}
@@ -348,3 +356,7 @@ pub mod rfc_8109_writer_copy_from {}
 /// Conflict Error Kind
 #[doc = include_str!("8145_conflict_error_kind.md")]
 pub mod rfc_8145_conflict_error_kind {}
+
+/// Chunked Cache Layer
+#[doc = include_str!("8569_chunked_cache_layer.md")]
+pub mod rfc_8569_chunked_cache_layer {}

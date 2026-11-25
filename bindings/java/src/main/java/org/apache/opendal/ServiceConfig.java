@@ -173,11 +173,24 @@ public interface ServiceConfig {
          */
         public final String accountName;
         /**
+         * <p>The authority host of the service principal for Microsoft Entra ID authentication.</p>
+         * <p>Defaults to <code>https://login.microsoftonline.com</code>.</p>
+         */
+        public final String authorityHost;
+        /**
          * <p>Deprecated: Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit.</p>
          *
          * @deprecated Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints.
          */
         public final Long batchMaxOperations;
+        /**
+         * <p>The client id of the service principal for Microsoft Entra ID authentication.</p>
+         */
+        public final String clientId;
+        /**
+         * <p>The client secret of the service principal for Microsoft Entra ID authentication.</p>
+         */
+        public final String clientSecret;
         /**
          * <p>The container name of Azblob service backend.</p>
          */
@@ -187,7 +200,9 @@ public interface ServiceConfig {
          */
         public final String encryptionAlgorithm;
         /**
-         * <p>The encryption key of Azblob service backend.</p>
+         * <p>The Base64-encoded AES-256 customer-provided encryption key.</p>
+         * <p>The key must decode to exactly 32 bytes. Building an operator returns
+         * <code>ConfigInvalid</code> for invalid Base64 or a different decoded length.</p>
          */
         public final String encryptionKey;
         /**
@@ -216,6 +231,10 @@ public interface ServiceConfig {
          * <p>Skip signature will skip loading credentials and signing requests.</p>
          */
         public final Boolean skipSignature;
+        /**
+         * <p>The tenant id of the service principal for Microsoft Entra ID authentication.</p>
+         */
+        public final String tenantId;
 
         @Override
         public String scheme() {
@@ -231,8 +250,17 @@ public interface ServiceConfig {
             if (accountName != null) {
                 map.put("account_name", accountName);
             }
+            if (authorityHost != null) {
+                map.put("authority_host", authorityHost);
+            }
             if (batchMaxOperations != null) {
                 map.put("batch_max_operations", String.valueOf(batchMaxOperations));
+            }
+            if (clientId != null) {
+                map.put("client_id", clientId);
+            }
+            if (clientSecret != null) {
+                map.put("client_secret", clientSecret);
             }
             map.put("container", container);
             if (encryptionAlgorithm != null) {
@@ -255,6 +283,9 @@ public interface ServiceConfig {
             }
             if (skipSignature != null) {
                 map.put("skip_signature", String.valueOf(skipSignature));
+            }
+            if (tenantId != null) {
+                map.put("tenant_id", tenantId);
             }
             return map;
         }
@@ -399,6 +430,19 @@ public interface ServiceConfig {
          */
         public final String accountName;
         /**
+         * <p>The authority host of the service principal for Microsoft Entra ID authentication.</p>
+         * <p>Defaults to <code>https://login.microsoftonline.com</code>.</p>
+         */
+        public final String authorityHost;
+        /**
+         * <p>The client id of the service principal for Microsoft Entra ID authentication.</p>
+         */
+        public final String clientId;
+        /**
+         * <p>The client secret of the service principal for Microsoft Entra ID authentication.</p>
+         */
+        public final String clientSecret;
+        /**
          * <p>The endpoint for azfile.</p>
          */
         public final String endpoint;
@@ -414,6 +458,14 @@ public interface ServiceConfig {
          * <p>The share name for azfile.</p>
          */
         public final @NonNull String shareName;
+        /**
+         * <p>Skip signature will skip loading credentials and signing requests.</p>
+         */
+        public final Boolean skipSignature;
+        /**
+         * <p>The tenant id of the service principal for Microsoft Entra ID authentication.</p>
+         */
+        public final String tenantId;
 
         @Override
         public String scheme() {
@@ -429,6 +481,15 @@ public interface ServiceConfig {
             if (accountName != null) {
                 map.put("account_name", accountName);
             }
+            if (authorityHost != null) {
+                map.put("authority_host", authorityHost);
+            }
+            if (clientId != null) {
+                map.put("client_id", clientId);
+            }
+            if (clientSecret != null) {
+                map.put("client_secret", clientSecret);
+            }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
             }
@@ -439,6 +500,12 @@ public interface ServiceConfig {
                 map.put("sas_token", sasToken);
             }
             map.put("share_name", shareName);
+            if (skipSignature != null) {
+                map.put("skip_signature", String.valueOf(skipSignature));
+            }
+            if (tenantId != null) {
+                map.put("tenant_id", tenantId);
+            }
             return map;
         }
     }
@@ -902,27 +969,39 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Etcd implements ServiceConfig {
         /**
-         * <p>certificate authority file path</p>
+         * <p>PEM certificate authority file used to verify the server.
+         * Enables TLS independently of <code>cert_path</code> and <code>key_path</code>.</p>
          * <p>default is None</p>
          */
         public final String caPath;
         /**
-         * <p>cert path</p>
+         * <p>PEM client certificate file used for mutual TLS.
+         * Must be configured together with <code>key_path</code>.</p>
          * <p>default is None</p>
          */
         public final String certPath;
         /**
          * <p>network address of the Etcd services.
-         * If use https, must set TLS options: <code>ca_path</code>, <code>cert_path</code>, <code>key_path</code>.
+         * Use HTTPS endpoints for TLS. Set <code>ca_path</code> to trust a custom certificate authority.
+         * Client authentication additionally requires both <code>cert_path</code> and <code>key_path</code>.
          * e.g. &quot;127.0.0.1:23790,127.0.0.1:23791,127.0.0.1:23792&quot; or &quot;http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792&quot; or &quot;https://127.0.0.1:23790,https://127.0.0.1:23791,https://127.0.0.1:23792&quot;</p>
          * <p>default is &quot;http://127.0.0.1:2379&quot;</p>
          */
         public final String endpoints;
         /**
-         * <p>key path</p>
+         * <p>PEM client private key file used for mutual TLS.
+         * Must be configured together with <code>cert_path</code>.</p>
          * <p>default is None</p>
          */
         public final String keyPath;
+        /**
+         * <p>the maximum size in bytes of a gRPC response that the etcd client decodes.</p>
+         * <p>Set this to read values larger than the etcd client's own limit. The etcd
+         * server must also allow responses of that size.</p>
+         * <p>Refer to <a href="https://docs.rs/etcd-client/latest/etcd_client/struct.KvClient.html#method.max_decoding_message_size"><code>etcd_client::KvClient::max_decoding_message_size</code></a></p>
+         * <p>default is None, which keeps the etcd client default of 4 MiB</p>
+         */
+        public final Long maxDecodingMessageSize;
         /**
          * <p>the password for authentication</p>
          * <p>default is None</p>
@@ -959,6 +1038,9 @@ public interface ServiceConfig {
             if (keyPath != null) {
                 map.put("key_path", keyPath);
             }
+            if (maxDecodingMessageSize != null) {
+                map.put("max_decoding_message_size", String.valueOf(maxDecodingMessageSize));
+            }
             if (password != null) {
                 map.put("password", password);
             }
@@ -968,6 +1050,71 @@ public interface ServiceConfig {
             if (username != null) {
                 map.put("username", username);
             }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service exoscale.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Exoscale implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style bucket addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is <code>https://sos-&lt;zone&gt;.exo.io</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>Bucket zone, used as the signing region.</p>
+         */
+        public final @NonNull String zone;
+
+        @Override
+        public String scheme() {
+            return "exoscale";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            map.put("zone", zone);
             return map;
         }
     }
@@ -1072,6 +1219,10 @@ public interface ServiceConfig {
          */
         public final String atomicWriteDir;
         /**
+         * <p>Bypass the page cache for file reads and writes on Linux. Defaults to <code>false</code>.</p>
+         */
+        public final Boolean directIo;
+        /**
          * <p>root dir for backend</p>
          */
         public final String root;
@@ -1086,6 +1237,9 @@ public interface ServiceConfig {
             final HashMap<String, String> map = new HashMap<>();
             if (atomicWriteDir != null) {
                 map.put("atomic_write_dir", atomicWriteDir);
+            }
+            if (directIo != null) {
+                map.put("direct_io", String.valueOf(directIo));
             }
             if (root != null) {
                 map.put("root", root);
@@ -1331,6 +1485,12 @@ public interface ServiceConfig {
          */
         public final String clientSecret;
         /**
+         * <p>Shared drive (formerly Team Drive) id for gdrive.</p>
+         * <p>When set, gdrive resolves <code>root</code> inside this shared drive instead of
+         * the user's My Drive.</p>
+         */
+        public final String driveId;
+        /**
          * <p>Refresh token for gdrive.</p>
          */
         public final String refreshToken;
@@ -1355,6 +1515,9 @@ public interface ServiceConfig {
             }
             if (clientSecret != null) {
                 map.put("client_secret", clientSecret);
+            }
+            if (driveId != null) {
+                map.put("drive_id", driveId);
             }
             if (refreshToken != null) {
                 map.put("refresh_token", refreshToken);
@@ -1501,12 +1664,17 @@ public interface ServiceConfig {
          * <p>Resolution precedence at <code>build()</code> time (highest → lowest), following
          * <a href="https://github.com/Tencent/tencent-goosefs-rust-sdk/blob/main/docs/CLIENT_CONFIGURATION.md">goosefs-sdk <code>docs/CLIENT_CONFIGURATION.md</code></a> §1:</p>
          * <ol>
-         * <li>This field (when set on the builder / OpenDAL config map)</li>
          * <li><code>GOOSEFS_MASTER_ADDR</code> environment variable</li>
          * <li><code>goosefs.master.rpc.addresses</code> / <code>goosefs.master.hostname</code> in
          * <code>goosefs-site.properties</code></li>
+         * <li>This field (from the builder, the OpenDAL config map, or the URI
+         * authority of <code>goosefs://host:port/path</code>)</li>
          * </ol>
-         * <p><code>build()</code> fails with <code>ConfigInvalid</code> only when <strong>none</strong> of the above
+         * <p>A site file that declares masters therefore outranks this field: the
+         * file carries the deployment's whole HA master list, which a single URI
+         * authority cannot express. Set <code>GOOSEFS_MASTER_ADDR</code> to override a
+         * deployed site file for one process.</p>
+         * <p><code>build()</code> fails with <code>ConfigInvalid</code> when <strong>none</strong> of the above
          * supplies a master address.</p>
          */
         public final String masterAddr;
@@ -1518,7 +1686,10 @@ public interface ServiceConfig {
         public final String root;
         /**
          * <p>Default write type for new files.</p>
-         * <p>Supported values: <code>&quot;must_cache&quot;</code>, <code>&quot;cache_through&quot;</code>, <code>&quot;through&quot;</code>, <code>&quot;async_through&quot;</code>.
+         * <p>Supported values: <code>&quot;must_cache&quot;</code>, <code>&quot;try_cache&quot;</code>, <code>&quot;cache_through&quot;</code>,
+         * <code>&quot;through&quot;</code>, <code>&quot;async_through&quot;</code>. Matching is case-insensitive.
+         * <code>build()</code> fails with <code>ConfigInvalid</code> when the value is not one of
+         * these.
          * Default: <code>&quot;must_cache&quot;</code>.</p>
          */
         public final String writeType;
@@ -1662,12 +1833,93 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service hetzner.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Hetzner implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style bucket addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is <code>https://&lt;location&gt;.your-objectstorage.com</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Bucket location. Required unless <code>endpoint</code> is set.</p>
+         */
+        public final String location;
+        /**
+         * <p>Signing region. Defaults to <code>location</code>.</p>
+         */
+        public final String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "hetzner";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (location != null) {
+                map.put("location", location);
+            }
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service hf.
      */
     @Builder
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Hf implements ServiceConfig {
+        /**
+         * <p>Disable loading config from the environment.</p>
+         * <p>When set, the service ignores <code>HF_ENDPOINT</code>, <code>HF_HUB_DISABLE_XET</code>,
+         * <code>HF_TOKEN</code>, <code>HF_TOKEN_PATH</code>, and the <code>token</code> file under <code>HF_HOME</code>,
+         * <code>$XDG_CACHE_HOME/huggingface</code> or <code>~/.cache/huggingface</code>.</p>
+         */
+        public final Boolean disableConfigLoad;
         /**
          * <p>Download mode. Either <code>xet</code> (default) or <code>http</code>.</p>
          * <p>When unset, the mode is resolved from the <code>HF_HUB_DISABLE_XET</code>
@@ -1676,6 +1928,16 @@ public interface ServiceConfig {
          * <p>See <a href="https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet">https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet</a>.</p>
          */
         public final String downloadMode;
+        /**
+         * <p>Enable caching of resolved HTTP download addresses and XET file metadata.</p>
+         * <p>Defaults to <code>false</code>. Set to <code>true</code> to share resolve results across readers
+         * on the same backend. Changed files may remain invisible while cached
+         * results are reused. A reader retains XET metadata from its first read for
+         * its lifetime. Create a new reader to resolve the path again when this
+         * option is disabled.
+         * See [<code>HfBuilder::enable_resolve_cache</code>] for freshness semantics.</p>
+         */
+        public final Boolean enableResolveCache;
         /**
          * <p>Endpoint of the Hugging Face Hub.</p>
          * <p>The default is <code>https://huggingface.co</code>.</p>
@@ -1714,8 +1976,14 @@ public interface ServiceConfig {
         @Override
         public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (downloadMode != null) {
                 map.put("download_mode", downloadMode);
+            }
+            if (enableResolveCache != null) {
+                map.put("enable_resolve_cache", String.valueOf(enableResolveCache));
             }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
@@ -1992,6 +2260,11 @@ public interface ServiceConfig {
          */
         public final Duration defaultTtl;
         /**
+         * <p>Enable TLS for TCP connections. Defaults to false.</p>
+         * <p>The server certificate must match the endpoint host and a native trust root.</p>
+         */
+        public final Boolean enableTls;
+        /**
          * <p>network address of the memcached service.</p>
          * <p>For example: &quot;tcp://localhost:11211&quot;</p>
          */
@@ -2023,6 +2296,9 @@ public interface ServiceConfig {
             }
             if (defaultTtl != null) {
                 map.put("default_ttl", defaultTtl.toString());
+            }
+            if (enableTls != null) {
+                map.put("enable_tls", String.valueOf(enableTls));
             }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
@@ -2087,12 +2363,12 @@ public interface ServiceConfig {
          * <p>Sets the time to idle of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle"><code>mini-moka::sync::CacheBuilder::time_to_idle</code></a></p>
          */
-        public final String timeToIdle;
+        public final Duration timeToIdle;
         /**
          * <p>Sets the time to live of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live"><code>mini-moka::sync::CacheBuilder::time_to_live</code></a></p>
          */
-        public final String timeToLive;
+        public final Duration timeToLive;
 
         @Override
         public String scheme() {
@@ -2109,10 +2385,92 @@ public interface ServiceConfig {
                 map.put("root", root);
             }
             if (timeToIdle != null) {
-                map.put("time_to_idle", timeToIdle);
+                map.put("time_to_idle", timeToIdle.toString());
             }
             if (timeToLive != null) {
-                map.put("time_to_live", timeToLive);
+                map.put("time_to_live", timeToLive.toString());
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service minio.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Minio implements ServiceConfig {
+        /**
+         * <p>Access key ID.</p>
+         * <p>Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         * <p>This field is required.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>MinIO endpoint.</p>
+         * <p>This field is required because MinIO deployments do not share a
+         * universal endpoint.</p>
+         */
+        public final @NonNull String endpoint;
+        /**
+         * <p>Signing region.</p>
+         * <p>The default is <code>auto</code>. Set this field when the deployment requires a
+         * configured region.</p>
+         */
+        public final String region;
+        /**
+         * <p>Root within the bucket.</p>
+         * <p>All operations happen under this root. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key.</p>
+         * <p>Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>Session token for temporary credentials.</p>
+         * <p>This field requires <code>access_key_id</code> and <code>secret_access_key</code>.</p>
+         */
+        public final String sessionToken;
+        /**
+         * <p>Send requests without signing them.</p>
+         * <p>This option cannot be combined with direct credentials.</p>
+         */
+        public final Boolean skipSignature;
+
+        @Override
+        public String scheme() {
+            return "minio";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            map.put("endpoint", endpoint);
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            if (sessionToken != null) {
+                map.put("session_token", sessionToken);
+            }
+            if (skipSignature != null) {
+                map.put("skip_signature", String.valueOf(skipSignature));
             }
             return map;
         }
@@ -2142,12 +2500,12 @@ public interface ServiceConfig {
          * <p>Sets the time to idle of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle"><code>moka::future::CacheBuilder::time_to_idle</code></a></p>
          */
-        public final String timeToIdle;
+        public final Duration timeToIdle;
         /**
          * <p>Sets the time to live of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live"><code>moka::future::CacheBuilder::time_to_live</code></a></p>
          */
-        public final String timeToLive;
+        public final Duration timeToLive;
 
         @Override
         public String scheme() {
@@ -2167,10 +2525,10 @@ public interface ServiceConfig {
                 map.put("root", root);
             }
             if (timeToIdle != null) {
-                map.put("time_to_idle", timeToIdle);
+                map.put("time_to_idle", timeToIdle.toString());
             }
             if (timeToLive != null) {
-                map.put("time_to_live", timeToLive);
+                map.put("time_to_live", timeToLive.toString());
             }
             return map;
         }
@@ -2347,6 +2705,15 @@ public interface ServiceConfig {
          */
         public final String bucket;
         /**
+         * <p>Disable config load so that opendal will not load config from
+         * environment.</p>
+         * <p>For examples:</p>
+         * <ul>
+         * <li>envs like <code>HUAWEI_CLOUD_ACCESS_KEY_ID</code></li>
+         * </ul>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Deprecated: OBS versioning capability is not controlled by service config.</p>
          *
          * @deprecated OBS versioning capability is not controlled by this option and this option is no longer needed.
@@ -2364,6 +2731,20 @@ public interface ServiceConfig {
          * <p>Secret access key for obs.</p>
          */
         public final String secretAccessKey;
+        /**
+         * <p>Security token (a.k.a. session token) for obs.</p>
+         * <p>Temporary credentials sign with <code>access_key_id</code>, <code>secret_access_key</code> and
+         * this token, and the signer attaches the token as the
+         * <code>x-obs-security-token</code> header.</p>
+         * <p>If this field is not set, OpenDAL reads the token from the environment
+         * variable <code>HUAWEI_CLOUD_SECURITY_TOKEN</code> (unless <code>disable_config_load</code> is
+         * enabled).</p>
+         */
+        public final String securityToken;
+        /**
+         * <p>Skip signature will skip loading credentials and signing requests.</p>
+         */
+        public final Boolean skipSignature;
 
         @Override
         public String scheme() {
@@ -2379,12 +2760,87 @@ public interface ServiceConfig {
             if (bucket != null) {
                 map.put("bucket", bucket);
             }
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVersioning != null) {
                 map.put("enable_versioning", String.valueOf(enableVersioning));
             }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
             }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            if (securityToken != null) {
+                map.put("security_token", securityToken);
+            }
+            if (skipSignature != null) {
+                map.put("skip_signature", String.valueOf(skipSignature));
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service oci.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Oci implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is
+         * <code>https://&lt;namespace&gt;.compat.objectstorage.&lt;region&gt;.oci.customer-oci.com</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Object Storage namespace. Required unless <code>endpoint</code> is set.</p>
+         */
+        public final String namespace;
+        /**
+         * <p>Bucket region, used as the signing region.</p>
+         */
+        public final @NonNull String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "oci";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (namespace != null) {
+                map.put("namespace", namespace);
+            }
+            map.put("region", region);
             if (root != null) {
                 map.put("root", root);
             }
@@ -2536,6 +2992,16 @@ public interface ServiceConfig {
          */
         public final Long deleteMaxSize;
         /**
+         * <p>Disable loading credentials from ambient sources.</p>
+         * <p>This removes the environment provider and the OSS profile, Alibaba
+         * Cloud shared credentials, Alibaba Cloud CLI config, and
+         * <code>ALIBABA_CLOUD_CREDENTIALS_URI</code> sources. Explicit access keys, OIDC
+         * options that are all set on the builder, and the <code>role_arn</code> AssumeRole
+         * flow remain enabled, and ECS instance RAM role credentials keep loading
+         * from instance metadata.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Deprecated: OSS versioning capability is enabled by default.</p>
          *
          * @deprecated OSS versioning capability is enabled by default and this option is no longer needed.
@@ -2646,6 +3112,9 @@ public interface ServiceConfig {
             if (deleteMaxSize != null) {
                 map.put("delete_max_size", String.valueOf(deleteMaxSize));
             }
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVersioning != null) {
                 map.put("enable_versioning", String.valueOf(enableVersioning));
             }
@@ -2690,6 +3159,71 @@ public interface ServiceConfig {
             }
             if (stsEndpoint != null) {
                 map.put("sts_endpoint", stsEndpoint);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service ovhcloud.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Ovhcloud implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style bucket addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is <code>https://s3.&lt;region&gt;.io.cloud.ovh.net</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Bucket region, used as the signing region.</p>
+         */
+        public final @NonNull String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "ovhcloud";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            map.put("region", region);
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
             }
             return map;
         }
@@ -2848,6 +3382,155 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service qingstor.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Qingstor implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style bucket addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is <code>https://s3.&lt;zone&gt;.qsstor.com</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>Bucket zone, used as the signing region.</p>
+         */
+        public final @NonNull String zone;
+
+        @Override
+        public String scheme() {
+            return "qingstor";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            map.put("zone", zone);
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service r2.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class R2 implements ServiceConfig {
+        /**
+         * <p>Access key ID.</p>
+         * <p>Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Cloudflare account ID used to derive the R2 endpoint.</p>
+         * <p>Set exactly one of <code>account_id</code> and <code>endpoint</code>.</p>
+         */
+        public final String accountId;
+        /**
+         * <p>Bucket name.</p>
+         * <p>This field is required.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Explicit R2-compatible endpoint.</p>
+         * <p>Use this field for a proxy, gateway, or test server. Set exactly one of
+         * <code>endpoint</code> and <code>account_id</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>R2 jurisdiction.</p>
+         * <p>Supported values are <code>eu</code> and <code>fedramp</code>. This field requires
+         * <code>account_id</code> and cannot be used with <code>endpoint</code>.</p>
+         */
+        public final String jurisdiction;
+        /**
+         * <p>Root within the bucket.</p>
+         * <p>All operations happen under this root. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key.</p>
+         * <p>Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>Session token for temporary credentials.</p>
+         * <p>This field requires <code>access_key_id</code> and <code>secret_access_key</code>.</p>
+         */
+        public final String sessionToken;
+
+        @Override
+        public String scheme() {
+            return "r2";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            if (accountId != null) {
+                map.put("account_id", accountId);
+            }
+            map.put("bucket", bucket);
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (jurisdiction != null) {
+                map.put("jurisdiction", jurisdiction);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            if (sessionToken != null) {
+                map.put("session_token", sessionToken);
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service redb.
      */
     @Builder
@@ -2925,6 +3608,14 @@ public interface ServiceConfig {
          */
         public final String password;
         /**
+         * <p>Route read-only commands for <code>read</code> and <code>stat</code> to Redis Cluster replicas when available.</p>
+         * <p>Defaults to <code>false</code>. Enabling this option requires <code>cluster_endpoints</code>.
+         * Replication lag can cause stale results. For example, <code>read</code> or <code>stat</code> can
+         * briefly return <code>ErrorKind::NotFound</code> for a just-written key. OpenDAL returns
+         * a replica miss without retrying on the primary.</p>
+         */
+        public final Boolean readFromReplicas;
+        /**
          * <p>the working directory of the Redis service. Can be &quot;/path/to/dir&quot;</p>
          * <p>default is &quot;/&quot;</p>
          */
@@ -2958,6 +3649,9 @@ public interface ServiceConfig {
             }
             if (password != null) {
                 map.put("password", password);
+            }
+            if (readFromReplicas != null) {
+                map.put("read_from_replicas", String.valueOf(readFromReplicas));
             }
             if (root != null) {
                 map.put("root", root);
@@ -3021,10 +3715,52 @@ public interface ServiceConfig {
          */
         public final String checksumAlgorithm;
         /**
+         * <p>Authorization token sent to the AWS container credential endpoint.</p>
+         * <p>This token takes precedence over the configured token file and the
+         * ambient direct and file token forms.</p>
+         */
+        public final String containerAuthorizationToken;
+        /**
+         * <p>File containing the authorization token sent to the AWS container
+         * credential endpoint.</p>
+         * <p>This file takes precedence over both ambient token forms. The credential
+         * provider trims surrounding whitespace after reading the file.</p>
+         */
+        public final String containerAuthorizationTokenFile;
+        /**
+         * <p>Full URI for AWS container credential metadata.</p>
+         * <p>This endpoint takes precedence over the relative container credential
+         * URI and both ambient container credential URI forms. It does not change
+         * the position or priority of the default ECS credential provider.</p>
+         */
+        public final String containerCredentialsEndpoint;
+        /**
+         * <p>Relative URI for AWS container credential metadata.</p>
+         * <p>An explicit full endpoint takes precedence over this value. This value
+         * takes precedence over the ambient full and relative container credential
+         * URIs. OpenDAL joins it to <code>container_metadata_uri_override</code> when set,
+         * otherwise to <code>http://169.254.170.2</code>.</p>
+         * <p>Setting any container credential field replaces the ECS slot in the
+         * default credential chain. It does not move that slot ahead of earlier
+         * default providers.</p>
+         */
+        public final String containerCredentialsRelativeUri;
+        /**
+         * <p>Base URI used to resolve a relative AWS container credential URI.</p>
+         * <p>This override affects relative URIs only. It does not alter a configured
+         * or ambient full URI. The override alone does not select an endpoint.</p>
+         */
+        public final String containerMetadataUriOverride;
+        /**
          * <p>Default ACL for new objects.
          * Note that some s3 services like minio do not support this option.</p>
          */
         public final String defaultAcl;
+        /**
+         * <p>Fallback signing region when neither <code>region</code>, <code>AWS_REGION</code>, nor
+         * <code>AWS_DEFAULT_REGION</code> supplies one.</p>
+         */
+        public final String defaultRegion;
         /**
          * <p>default storage_class for this backend.</p>
          * <p>Available values:</p>
@@ -3050,13 +3786,13 @@ public interface ServiceConfig {
          */
         public final Long deleteMaxSize;
         /**
-         * <p>Disable config load so that opendal will not load config from
-         * environment.</p>
-         * <p>For examples:</p>
-         * <ul>
-         * <li>envs like <code>AWS_ACCESS_KEY_ID</code></li>
-         * <li>files like <code>~/.aws/config</code></li>
-         * </ul>
+         * <p>Disable automatic endpoint loading and ambient environment/profile
+         * credential providers.</p>
+         * <p>This skips endpoint environment variables and removes the static
+         * environment, shared-profile, SSO, web-identity, and external process
+         * credential slots. Region environment lookup and compute metadata
+         * credential providers, including AWS container credentials and EC2
+         * instance metadata, remain enabled.</p>
          */
         public final Boolean disableConfigLoad;
         /**
@@ -3196,6 +3932,12 @@ public interface ServiceConfig {
          */
         public final String serverSideEncryptionAwsKmsKeyId;
         /**
+         * <p>Control S3 Bucket Keys for SSE-KMS writes and copies.</p>
+         * <p>Omit this option to inherit the bucket setting. <code>false</code> disables Bucket
+         * Keys for destination objects, and <code>true</code> enables them.</p>
+         */
+        public final Boolean serverSideEncryptionBucketKeyEnabled;
+        /**
          * <p>server_side_encryption_customer_algorithm for this backend.</p>
          * <p>Available values: <code>AES256</code>.</p>
          */
@@ -3249,8 +3991,26 @@ public interface ServiceConfig {
             if (checksumAlgorithm != null) {
                 map.put("checksum_algorithm", checksumAlgorithm);
             }
+            if (containerAuthorizationToken != null) {
+                map.put("container_authorization_token", containerAuthorizationToken);
+            }
+            if (containerAuthorizationTokenFile != null) {
+                map.put("container_authorization_token_file", containerAuthorizationTokenFile);
+            }
+            if (containerCredentialsEndpoint != null) {
+                map.put("container_credentials_endpoint", containerCredentialsEndpoint);
+            }
+            if (containerCredentialsRelativeUri != null) {
+                map.put("container_credentials_relative_uri", containerCredentialsRelativeUri);
+            }
+            if (containerMetadataUriOverride != null) {
+                map.put("container_metadata_uri_override", containerMetadataUriOverride);
+            }
             if (defaultAcl != null) {
                 map.put("default_acl", defaultAcl);
+            }
+            if (defaultRegion != null) {
+                map.put("default_region", defaultRegion);
             }
             if (defaultStorageClass != null) {
                 map.put("default_storage_class", defaultStorageClass);
@@ -3315,6 +4075,11 @@ public interface ServiceConfig {
             if (serverSideEncryptionAwsKmsKeyId != null) {
                 map.put("server_side_encryption_aws_kms_key_id", serverSideEncryptionAwsKmsKeyId);
             }
+            if (serverSideEncryptionBucketKeyEnabled != null) {
+                map.put(
+                        "server_side_encryption_bucket_key_enabled",
+                        String.valueOf(serverSideEncryptionBucketKeyEnabled));
+            }
             if (serverSideEncryptionCustomerAlgorithm != null) {
                 map.put("server_side_encryption_customer_algorithm", serverSideEncryptionCustomerAlgorithm);
             }
@@ -3329,6 +4094,71 @@ public interface ServiceConfig {
             }
             if (skipSignature != null) {
                 map.put("skip_signature", String.valueOf(skipSignature));
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service scaleway.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Scaleway implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style bucket addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is <code>https://s3.&lt;region&gt;.scw.cloud</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Bucket region, used as the signing region.</p>
+         */
+        public final @NonNull String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "scaleway";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            map.put("region", region);
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
             }
             return map;
         }
@@ -3397,6 +4227,20 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Sftp implements ServiceConfig {
         /**
+         * <p>Time limit for waiting for an SFTP connection pool slot. Defaults to 10 seconds. Zero disables the limit.</p>
+         */
+        public final Duration acquireTimeout;
+        /**
+         * <p>Time limit for each SFTP connection setup stage and each pooled connection health check. Defaults to 10 seconds. Zero disables the limit.</p>
+         */
+        public final Duration connectTimeout;
+        /**
+         * <p>Directory for the SSH control socket.</p>
+         * <p>The SSH client creates a temporary directory holding the control socket here.
+         * Defaults to <code>$XDG_STATE_HOME</code> or <code>$HOME/.local/state</code>, falling back to the current directory.</p>
+         */
+        public final String controlDirectory;
+        /**
          * <p>Deprecated: SFTP copy capability is enabled by default.</p>
          *
          * @deprecated SFTP copy capability is enabled by default and this option is no longer needed.
@@ -3431,6 +4275,15 @@ public interface ServiceConfig {
         @Override
         public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
+            if (acquireTimeout != null) {
+                map.put("acquire_timeout", acquireTimeout.toString());
+            }
+            if (connectTimeout != null) {
+                map.put("connect_timeout", connectTimeout.toString());
+            }
+            if (controlDirectory != null) {
+                map.put("control_directory", controlDirectory);
+            }
             if (enableCopy != null) {
                 map.put("enable_copy", String.valueOf(enableCopy));
             }
@@ -3489,6 +4342,81 @@ public interface ServiceConfig {
             }
             if (tree != null) {
                 map.put("tree", tree);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service spaces.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Spaces implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Spaces datacenter slug. Required unless <code>endpoint</code> is set.</p>
+         */
+        public final String datacenter;
+        /**
+         * <p>Use virtual-hosted-style bucket addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is
+         * <code>https://&lt;datacenter&gt;.digitaloceanspaces.com</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Signing region, independent of the Spaces datacenter.</p>
+         */
+        public final String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+
+        @Override
+        public String scheme() {
+            return "spaces";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (datacenter != null) {
+                map.put("datacenter", datacenter);
+            }
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
             }
             return map;
         }
@@ -3555,6 +4483,80 @@ public interface ServiceConfig {
             }
             if (valueField != null) {
                 map.put("value_field", valueField);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service supabase.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Supabase implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is
+         * <code>https://&lt;project_ref&gt;.storage.supabase.co/storage/v1/s3</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Supabase project reference. Required unless <code>endpoint</code> is set.</p>
+         */
+        public final String projectRef;
+        /**
+         * <p>Region from the project’s S3 settings, used for signing.</p>
+         */
+        public final @NonNull String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>User JWT for Supabase session authentication. Requires <code>access_key_id</code>
+         * and <code>secret_access_key</code>.</p>
+         */
+        public final String sessionToken;
+
+        @Override
+        public String scheme() {
+            return "supabase";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (projectRef != null) {
+                map.put("project_ref", projectRef);
+            }
+            map.put("region", region);
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            if (sessionToken != null) {
+                map.put("session_token", sessionToken);
             }
             return map;
         }
@@ -3712,6 +4714,80 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service tigris.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Tigris implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style bucket addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is <code>https://t3.storage.dev</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Signing region.</p>
+         */
+        public final String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>Session token for temporary credentials. Requires both access keys.</p>
+         */
+        public final String sessionToken;
+
+        @Override
+        public String scheme() {
+            return "tigris";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            if (sessionToken != null) {
+                map.put("session_token", sessionToken);
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service tos.
      */
     @Builder
@@ -3736,7 +4812,7 @@ public interface ServiceConfig {
          * environment.</p>
          * <p>For examples:</p>
          * <ul>
-         * <li>envs like <code>TOS_ACCESS_KEY_ID</code></li>
+         * <li>envs like <code>VOLCENGINE_ACCESS_KEY_ID</code></li>
          * </ul>
          */
         public final Boolean disableConfigLoad;
@@ -3957,6 +5033,79 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service wasabi.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Wasabi implements ServiceConfig {
+        /**
+         * <p>Access key ID. Set this field together with <code>secret_access_key</code>.</p>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Use virtual-hosted-style bucket addressing.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
+         * <p>Explicit HTTP(S) base endpoint. The default is
+         * the published service URL for the bucket region.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Bucket region, used as the signing region.</p>
+         */
+        public final @NonNull String region;
+        /**
+         * <p>Root within the bucket. The default is <code>/</code>.</p>
+         */
+        public final String root;
+        /**
+         * <p>Secret access key. Set this field together with <code>access_key_id</code>.</p>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>Session token for temporary credentials. Requires both access keys.</p>
+         */
+        public final String sessionToken;
+
+        @Override
+        public String scheme() {
+            return "wasabi";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            map.put("bucket", bucket);
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            map.put("region", region);
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            if (sessionToken != null) {
+                map.put("session_token", sessionToken);
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service webdav.
      */
     @Builder
@@ -3970,26 +5119,26 @@ public interface ServiceConfig {
          */
         public final Boolean disableCopy;
         /**
-         * <p>Disable automatic parent directory creation before write operations.</p>
-         * <p>By default, OpenDAL creates parent directories using MKCOL before writing files.
-         * This requires PROPFIND support to check directory existence.</p>
-         * <p>Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND
-         * or don't require explicit directory creation. Enable this option to skip
-         * the MKCOL calls and write files directly.</p>
-         * <p>Default: false</p>
+         * <p>Disable automatic parent directory creation before writing files.</p>
+         * <p>By default, OpenDAL checks for parent directories using <code>PROPFIND</code> and creates
+         * missing directories using <code>MKCOL</code> before writing files. Enable this option to
+         * skip those checks and <code>MKCOL</code> calls for servers such as <code>bazel-remote</code>.</p>
+         * <p>Explicit <code>create_dir</code> calls are unaffected.</p>
+         * <p>Default: <code>false</code></p>
          */
         public final Boolean disableCreateDir;
         /**
-         * <p>Enable conditional read support.</p>
-         * <p>When enabled (the default), OpenDAL forwards the RFC 7232 headers
-         * <code>If-Match</code>, <code>If-None-Match</code>, <code>If-Modified-Since</code> and
-         * <code>If-Unmodified-Since</code> to the server when callers provide them.</p>
-         * <p>Some WebDAV-compatible servers (e.g., nginx-dav) don't return ETags
-         * in PROPFIND or don't honor these headers on GET. Setting this to
-         * <code>false</code> drops the four <code>read_with_if_*</code> capabilities, so calls like
-         * <code>reader_with(path).if_match(...)</code> return <code>ErrorKind::Unsupported</code>
-         * locally instead of being silently ignored by the server.</p>
-         * <p>Default: true</p>
+         * <p>Disable native recursive listing with WebDAV's <code>Depth: infinity</code>.</p>
+         * <p>Set this to <code>true</code> for servers that reject or ignore infinity depth.
+         * With capability simulation enabled, OpenDAL walks the directory tree
+         * using <code>Depth: 1</code> requests instead.</p>
+         * <p>The default is <code>false</code>.</p>
+         */
+        public final Boolean disableDepthInfinity;
+        /**
+         * <p>Deprecated: WebDAV conditional read capabilities are enabled by default.</p>
+         *
+         * @deprecated WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support.
          */
         public final Boolean enableConditionalRead;
         /**
@@ -4047,6 +5196,9 @@ public interface ServiceConfig {
             }
             if (disableCreateDir != null) {
                 map.put("disable_create_dir", String.valueOf(disableCreateDir));
+            }
+            if (disableDepthInfinity != null) {
+                map.put("disable_depth_infinity", String.valueOf(disableDepthInfinity));
             }
             if (enableConditionalRead != null) {
                 map.put("enable_conditional_read", String.valueOf(enableConditionalRead));

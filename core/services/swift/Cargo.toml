@@ -37,7 +37,7 @@ bytes = { workspace = true }
 hmac = "0.13.0"
 http = { workspace = true }
 log = { workspace = true }
-opendal-core = { path = "../../core", version = "0.58.2", default-features = false }
+opendal-core = { path = "../../core", version = "0.59.5", default-features = false }
 percent-encoding = "2"
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
 serde = { workspace = true, features = ["derive"] }
@@ -47,4 +47,5 @@ sha2 = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }
 
 [dev-dependencies]
+futures = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

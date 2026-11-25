@@ -1,5 +1,4 @@
 --[[
-
     Licensed to the Apache Software Foundation (ASF) under one
     or more contributor license agreements.  See the NOTICE file
     distributed with this work for additional information
@@ -16,7 +15,6 @@
     KIND, either express or implied.  See the License for the
     specific language governing permissions and limitations
     under the License.
-
 ]]
 
 local opendal = require("opendal")
@@ -84,6 +82,48 @@ describe("opendal unit test", function()
       local res, err = meta:is_dir()
       assert.is_nil(err)
       assert.are.equal(res, false)
+    end)
+  end)
+  describe("opendal binary payload", function()
+    -- Lua strings are raw byte sequences, so write must accept bytes that are
+    -- not valid UTF-8, including embedded NUL bytes.
+    it("writes and reads binary bytes", function()
+      local op, err = opendal.operator.new("memory",{root="/tmp"})
+      assert.is_nil(err)
+
+      local payload = "\0\255\128bin"
+      assert.is_nil(op:write("binary.bin", payload))
+
+      local data, read_err = op:read("binary.bin")
+      assert.is_nil(read_err)
+      assert.are.equal(#data, #payload)
+      assert.are.equal(data, payload)
+    end)
+    it("writes bytes returned by read", function()
+      local op, err = opendal.operator.new("memory",{root="/tmp"})
+      assert.is_nil(err)
+
+      local payload = "\0\255\128\0\1\2\253\254"
+      assert.is_nil(op:write("source.bin", payload))
+
+      local copied, read_err = op:read("source.bin")
+      assert.is_nil(read_err)
+      assert.is_nil(op:write("copy.bin", copied))
+
+      local data, copy_err = op:read("copy.bin")
+      assert.is_nil(copy_err)
+      assert.are.equal(data, payload)
+    end)
+    it("writes utf-8 text unchanged", function()
+      local op, err = opendal.operator.new("memory",{root="/tmp"})
+      assert.is_nil(err)
+
+      local text = "hello world, \228\189\160\229\165\189"
+      assert.is_nil(op:write("text.txt", text))
+
+      local data, read_err = op:read("text.txt")
+      assert.is_nil(read_err)
+      assert.are.equal(data, text)
     end)
   end)
 end)

@@ -17,6 +17,7 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
@@ -32,8 +33,8 @@ use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
-use reqsign_azure_storage::Credential;
-use reqsign_core::{Context, Signer};
+use reqsign_azure_storage::{Credential, RequestSigner};
+use reqsign_core::{Context, ProvideCredentialDyn, Signer};
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -56,8 +57,10 @@ pub struct AzdlsCore {
     pub endpoint: String,
     pub enable_hns: bool,
 
-    pub signer: Signer<Credential>,
     pub sign_ctx: Context,
+    pub credential_provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
+    pub request_signer: Arc<RequestSigner>,
+    pub signers: HttpTransportCache<Signer<Credential>>,
 }
 
 impl Debug for AzdlsCore {
@@ -73,10 +76,21 @@ impl Debug for AzdlsCore {
 
 impl AzdlsCore {
     fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
-        self.signer.clone().with_context(
-            self.sign_ctx
-                .clone()
-                .with_http_send(ctx.http_transport().clone()),
+        self.signers.get_or_init(ctx.http_transport(), |transport| {
+            Signer::new(
+                self.sign_ctx.clone().with_http_send(transport),
+                self.credential_provider.clone(),
+                self.request_signer.clone(),
+            )
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn signer_with_context(&self, ctx: Context) -> Signer<Credential> {
+        Signer::new(
+            ctx,
+            self.credential_provider.clone(),
+            self.request_signer.clone(),
         )
     }
 
@@ -120,7 +134,7 @@ impl AzdlsCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}",
@@ -168,7 +182,7 @@ impl AzdlsCore {
         resource: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -193,17 +207,19 @@ impl AzdlsCore {
         }
 
         if args.if_not_exists() {
-            req = req.header(IF_NONE_MATCH, "*")
-        }
-
-        if let Some(v) = args.if_none_match() {
-            req = req.header(IF_NONE_MATCH, v)
+            req = req.header(IF_NONE_MATCH, "*");
+        } else if let Some(v) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, v);
         }
 
         if let Some(user_metadata) = args.user_metadata()
             && !user_metadata.is_empty()
         {
-            req = req.header(X_MS_PROPERTIES, encode_user_metadata(user_metadata));
+            let user_metadata = user_metadata
+                .into_iter()
+                .map(|(key, value)| (key.to_owned(), value.to_owned()))
+                .collect();
+            req = req.header(X_MS_PROPERTIES, encode_user_metadata(&user_metadata));
         }
 
         let operation = if resource == DIRECTORY {
@@ -233,8 +249,8 @@ impl AzdlsCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let source = build_abs_path(&self.root, from);
-        let target = build_abs_path(&self.root, to);
+        let source = build_absolute_path(&self.root, from);
+        let target = build_absolute_path(&self.root, to);
 
         let url = format!(
             "{}/{}/{}",
@@ -269,7 +285,7 @@ impl AzdlsCore {
         close: bool,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "{}/{}/{}?action=append&position={}",
@@ -310,7 +326,7 @@ impl AzdlsCore {
         position: u64,
         close: bool,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "{}/{}/{}?action=flush&position={}",
@@ -341,7 +357,7 @@ impl AzdlsCore {
         path: &str,
         args: &OpStat,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -387,22 +403,23 @@ impl AzdlsCore {
 
         if resp.status() != StatusCode::OK {
             return Err(parse_error(
-                ErrorContext::new(ServiceOperation("GetPathProperties")),
+                ErrorContext::new(ServiceOperation("GetPathProperties"))
+                    .with_caller_condition(args.is_conditional()),
                 resp,
             ));
         }
 
         let headers = resp.headers();
-        let mut meta = parse_into_metadata(path, headers)?;
+        let mut meta = parse_into_metadata(path, headers)?.into_builder();
 
         if let Some(version_id) = parse_header_to_str(headers, X_MS_VERSION_ID)? {
-            meta.set_version(version_id);
+            meta.version(version_id);
         }
 
         if let Some(value) = parse_header_to_str(headers, X_MS_PROPERTIES)? {
             let user_meta = decode_user_metadata(value);
             if !user_meta.is_empty() {
-                meta = meta.with_user_metadata(user_meta);
+                meta.user_metadata(user_meta);
             }
         }
 
@@ -425,8 +442,20 @@ impl AzdlsCore {
             })?;
 
         match resource {
-            FILE => Ok(meta.with_mode(EntryMode::FILE)),
-            DIRECTORY => Ok(meta.with_mode(EntryMode::DIR)),
+            FILE => {
+                let content_length = parse_content_length(headers)?.ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "azdls file response does not contain content length",
+                    )
+                })?;
+                meta.set_file(content_length);
+                Ok(meta.build())
+            }
+            DIRECTORY => {
+                meta.set_dir();
+                Ok(meta.build())
+            }
             v => Err(Error::new(
                 ErrorKind::Unexpected,
                 "azdls returns an unknown x-ms-resource-type",
@@ -441,7 +470,7 @@ impl AzdlsCore {
         path: &str,
         args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -474,7 +503,7 @@ impl AzdlsCore {
         path: &str,
         args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -518,7 +547,8 @@ impl AzdlsCore {
                 StatusCode::OK | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {}
                 _ => {
                     return Err(parse_error(
-                        ErrorContext::new(ServiceOperation("RecursiveDeletePath")),
+                        ErrorContext::new(ServiceOperation("RecursiveDeletePath"))
+                            .with_delete_match_condition(args.if_match().is_some()),
                         resp,
                     ));
                 }
@@ -546,7 +576,7 @@ impl AzdlsCore {
         continuation: &str,
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -627,6 +657,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .header("x-ms-error-code", "InvalidRange")
+            .body(Buffer::new())
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("ReadFile")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
     fn encode_then_decode_roundtrips() {
         let mut input = HashMap::new();
         input.insert("location".to_string(), "everywhere".to_string());
@@ -675,13 +717,171 @@ mod tests {
             parse_error(ctx, resp).kind()
         };
 
-        let read_ctx = ErrorContext::new(ServiceOperation("ReadFile")).with_if_match(true);
+        let read_ctx = ErrorContext::new(ServiceOperation("ReadFile")).with_caller_condition(true);
         assert_eq!(parse_missing(read_ctx), ErrorKind::NotFound);
 
-        let delete_ctx = ErrorContext::new(ServiceOperation("DeletePath"))
-            .with_if_match(true)
-            .with_delete();
+        let delete_ctx =
+            ErrorContext::new(ServiceOperation("DeletePath")).with_delete_match_condition(true);
         assert_eq!(parse_missing(delete_ctx), ErrorKind::ConditionNotMatch);
+    }
+
+    #[test]
+    fn test_parse_conflict_uses_native_code_and_operation_context() {
+        let parse_conflict = |ctx, code: &str| {
+            let body = Buffer::from(format!(
+                "<Error><Code>{code}</Code><Message>test</Message></Error>"
+            ));
+            let resp = Response::builder()
+                .status(StatusCode::CONFLICT)
+                .body(body)
+                .expect("response must build");
+            parse_error(ctx, resp)
+        };
+
+        let conditional =
+            ErrorContext::new(ServiceOperation("CreateFile")).with_if_not_exists(true);
+        assert_eq!(
+            parse_conflict(conditional, "PathAlreadyExists").kind(),
+            ErrorKind::ConditionNotMatch
+        );
+
+        let unconditional = ErrorContext::new(ServiceOperation("CreateFile"));
+        assert_eq!(
+            parse_conflict(unconditional, "PathAlreadyExists").kind(),
+            ErrorKind::AlreadyExists
+        );
+        for code in [
+            "DestinationPathIsBeingDeleted",
+            "PathConflict",
+            "ResourceTypeMismatch",
+        ] {
+            assert_eq!(
+                parse_conflict(unconditional, code).kind(),
+                ErrorKind::Conflict,
+                "native code {code}"
+            );
+        }
+        assert_eq!(
+            parse_conflict(unconditional, "UnknownConflict").kind(),
+            ErrorKind::Unexpected
+        );
+    }
+
+    #[test]
+    fn test_parse_error_json_dfs_payload_and_fallbacks() {
+        let json_body = r#"{"error":{"code":"PathNotFound","message":"The specified path does not exist.\nRequestId:abc"}}"#;
+
+        // JSON payload with x-ms-error-code header preserves message.
+        let resp = Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .header("x-ms-error-code", "PathNotFound")
+            .body(Buffer::from(json_body))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("ReadFile")), resp);
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+        assert!(err.to_string().contains("PathNotFound"));
+        assert!(
+            err.to_string()
+                .contains("The specified path does not exist.")
+        );
+
+        // JSON payload without x-ms-error-code header still extracts code and message.
+        let resp = Response::builder()
+            .status(StatusCode::CONFLICT)
+            .body(Buffer::from(
+                r#"{"error":{"code":"DirectoryNotEmpty","message":"The directory is not empty."}}"#,
+            ))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("DeletePath")), resp);
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(err.to_string().contains("DirectoryNotEmpty"));
+        assert!(err.to_string().contains("The directory is not empty."));
+
+        // JSON payload without code falls back to x-ms-error-code without dropping message.
+        let resp = Response::builder()
+            .status(StatusCode::CONFLICT)
+            .header("x-ms-error-code", "PathConflict")
+            .body(Buffer::from(
+                r#"{"error":{"message":"Conflicting path update."}}"#,
+            ))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("CreateFile")), resp);
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(err.to_string().contains("PathConflict"));
+        assert!(err.to_string().contains("Conflicting path update."));
+
+        // Unstructured body with x-ms-error-code preserves raw body message.
+        let resp = Response::builder()
+            .status(StatusCode::CONFLICT)
+            .header("x-ms-error-code", "PathConflict")
+            .body(Buffer::from("plain conflict message"))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("CreateFile")), resp);
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(err.to_string().contains("PathConflict"));
+        assert!(err.to_string().contains("plain conflict message"));
+
+        // XML fallback still parses code and message.
+        let resp = Response::builder()
+            .status(StatusCode::CONFLICT)
+            .body(Buffer::from(
+                "<Error><Code>PathAlreadyExists</Code><Message>xml exists detail</Message></Error>",
+            ))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("CreateFile")), resp);
+        assert_eq!(err.kind(), ErrorKind::AlreadyExists);
+        assert!(err.to_string().contains("xml exists detail"));
+    }
+
+    #[test]
+    fn test_parse_error_precondition_failed() {
+        let conditional_ctx =
+            ErrorContext::new(ServiceOperation("ReadFile")).with_caller_condition(true);
+        for code in [
+            "ConditionNotMet",
+            "SourceConditionNotMet",
+            "TargetConditionNotMet",
+            "AppendPositionConditionNotMet",
+            "UnsatisfiableCondition",
+        ] {
+            let body =
+                format!(r#"{{"error":{{"code":"{code}","message":"precondition failed"}}}}"#);
+            let resp = Response::builder()
+                .status(StatusCode::PRECONDITION_FAILED)
+                .header("x-ms-error-code", code)
+                .body(Buffer::from(body))
+                .unwrap();
+            let err = parse_error(conditional_ctx, resp);
+            assert_eq!(
+                err.kind(),
+                ErrorKind::ConditionNotMatch,
+                "412 with caller condition and code {code} must stay ConditionNotMatch"
+            );
+            assert!(!err.is_temporary());
+        }
+
+        // Known lease conflict codes still classify as Conflict on 412.
+        let resp = Response::builder()
+            .status(StatusCode::PRECONDITION_FAILED)
+            .header("x-ms-error-code", "LeaseIdMismatchWithPathOperation")
+            .body(Buffer::from(
+                r#"{"error":{"code":"LeaseIdMismatchWithPathOperation","message":"lease mismatch"}}"#,
+            ))
+            .unwrap();
+        let err = parse_error(conditional_ctx, resp);
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+
+        // Without caller condition, 412 ConditionNotMet / SourceConditionNotMet maps to Unexpected.
+        let unconditional_ctx = ErrorContext::new(ServiceOperation("ReadFile"));
+        for code in ["ConditionNotMet", "SourceConditionNotMet"] {
+            let resp = Response::builder()
+                .status(StatusCode::PRECONDITION_FAILED)
+                .header("x-ms-error-code", code)
+                .body(Buffer::new())
+                .unwrap();
+            let err = parse_error(unconditional_ctx, resp);
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+        }
     }
 }
 
@@ -690,6 +890,19 @@ use opendal_core::raw::ServiceOperation;
 use opendal_service_azure_common::with_azure_error_response_context;
 use quick_xml::de;
 use serde::Deserialize;
+
+/// AzdlsJsonErrorWrapper parses JSON error responses returned by the ADLS Gen2 DFS API.
+#[derive(Deserialize)]
+struct AzdlsJsonErrorWrapper {
+    error: AzdlsJsonError,
+}
+
+#[derive(Default, Deserialize)]
+#[serde(default)]
+struct AzdlsJsonError {
+    code: String,
+    message: String,
+}
 
 /// AzdlsError is the error returned by azure dfs service.
 #[derive(Default, Deserialize)]
@@ -727,26 +940,41 @@ impl Debug for AzdlsError {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ErrorContext {
     service_operation: ServiceOperation,
-    if_match: bool,
-    is_delete: bool,
+    caller_condition: bool,
+    if_not_exists: bool,
+    delete_match_condition: bool,
 }
 
 impl ErrorContext {
     pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
         Self {
             service_operation,
-            if_match: false,
-            is_delete: false,
+            caller_condition: false,
+            if_not_exists: false,
+            delete_match_condition: false,
         }
     }
 
-    pub(crate) const fn with_if_match(mut self, if_match: bool) -> Self {
-        self.if_match = if_match;
+    pub(crate) const fn with_caller_condition(mut self, caller_condition: bool) -> Self {
+        self.caller_condition = caller_condition;
         self
     }
 
-    pub(crate) const fn with_delete(mut self) -> Self {
-        self.is_delete = true;
+    /// Marks a create request that carries an `If-None-Match` precondition
+    /// (`*` or a specific ETag), where ADLS may report precondition failure
+    /// as `409 PathAlreadyExists`.
+    pub(crate) const fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.caller_condition = self.caller_condition || if_not_exists;
+        self.if_not_exists = if_not_exists;
+        self
+    }
+
+    pub(crate) const fn with_delete_match_condition(
+        mut self,
+        delete_match_condition: bool,
+    ) -> Self {
+        self.caller_condition = self.caller_condition || delete_match_condition;
+        self.delete_match_condition = delete_match_condition;
         self
     }
 }
@@ -756,15 +984,46 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (parts, body) = resp.into_parts();
     let bs = body.to_bytes();
 
-    let (kind, retryable) = match parts.status {
-        StatusCode::NOT_FOUND if ctx.is_delete && ctx.if_match => {
+    let mut azdls_error = serde_json::from_slice::<AzdlsJsonErrorWrapper>(&bs)
+        .ok()
+        .map(|wrapper| AzdlsError {
+            code: wrapper.error.code,
+            message: wrapper.error.message,
+            ..Default::default()
+        })
+        .filter(|err| !err.code.is_empty() || !err.message.is_empty())
+        .or_else(|| {
+            de::from_reader::<_, AzdlsError>(bs.clone().reader())
+                .ok()
+                .filter(|err| {
+                    !err.code.is_empty() || !err.message.is_empty() || !err.reason.is_empty()
+                })
+        });
+    if azdls_error.as_ref().is_none_or(|err| err.code.is_empty())
+        && let Some(code) = parts
+            .headers
+            .get("x-ms-error-code")
+            .and_then(|value| value.to_str().ok())
+            .map(str::trim)
+            .filter(|code| !code.is_empty())
+    {
+        let err = azdls_error.get_or_insert_with(|| AzdlsError {
+            message: String::from_utf8_lossy(&bs).into_owned(),
+            ..Default::default()
+        });
+        err.code = code.to_string();
+    }
+
+    let (mut kind, mut retryable) = match parts.status {
+        StatusCode::NOT_FOUND if ctx.delete_match_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {
+        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
@@ -773,23 +1032,50 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let mut message = match de::from_reader::<_, AzdlsError>(bs.clone().reader()) {
-        Ok(azdls_err) => format!("{azdls_err:?}"),
-        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
-    };
-    // If there is no body here, fill with error code.
-    if message.is_empty()
-        && let Some(v) = parts.headers.get("x-ms-error-code")
-        && let Ok(code) = v.to_str()
+    if let Some(azdls_error) = &azdls_error
+        && !azdls_error.code.is_empty()
     {
-        message = format!(
-            "{:?}",
-            AzdlsError {
-                code: code.to_string(),
-                ..Default::default()
+        match azdls_error.code.as_str() {
+            "ConditionNotMet" if ctx.caller_condition => {
+                (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
             }
-        )
+            "PathAlreadyExists" if ctx.if_not_exists => {
+                (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
+            }
+            "PathAlreadyExists" => {
+                (kind, retryable) = (ErrorKind::AlreadyExists, false);
+            }
+            "DestinationPathIsBeingDeleted"
+            | "DirectoryNotEmpty"
+            | "FilesystemBeingDeleted"
+            | "InvalidDestinationPath"
+            | "InvalidFlushOperation"
+            | "LeaseAlreadyPresent"
+            | "LeaseIdMismatchWithLeaseOperation"
+            | "LeaseIdMismatchWithPathOperation"
+            | "LeaseIdMissing"
+            | "LeaseIsAlreadyBroken"
+            | "LeaseIsBreakingAndCannotBeAcquired"
+            | "LeaseIsBreakingAndCannotBeChanged"
+            | "LeaseIsBrokenAndCannotBeRenewed"
+            | "LeaseNotPresentWithLeaseOperation"
+            | "PathConflict"
+            | "ResourceTypeMismatch"
+            | "SourcePathIsBeingDeleted" => {
+                (kind, retryable) = (ErrorKind::Conflict, false);
+            }
+            _ if parts.status == StatusCode::CONFLICT
+                || (parts.status == StatusCode::PRECONDITION_FAILED && !ctx.caller_condition) =>
+            {
+                (kind, retryable) = (ErrorKind::Unexpected, false);
+            }
+            _ => {}
+        }
     }
+
+    let message = azdls_error
+        .map(|err| format!("{err:?}"))
+        .unwrap_or_else(|| String::from_utf8_lossy(&bs).into_owned());
 
     let mut err = Error::new(kind, &message);
 

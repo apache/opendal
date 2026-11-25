@@ -35,12 +35,17 @@ pub type MokaCache<K, V> = moka::future::Cache<K, V>;
 /// Type alias of [`moka::future::CacheBuilder`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html)
 pub type MokaCacheBuilder<K, V> = moka::future::CacheBuilder<K, V, MokaCache<K, V>>;
 
+/// Maximum TTL/TTI accepted by `moka::future::CacheBuilder::build` (1000 years).
+const MAX_CACHE_DURATION: Duration = Duration::from_secs(1_000 * 365 * 24 * 3600);
+
 /// [moka](https://github.com/moka-rs/moka) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct MokaBuilder {
     pub(super) config: MokaConfig,
     pub(super) builder: MokaCacheBuilder<String, MokaValue>,
+    pub(super) time_to_live: Option<Duration>,
+    pub(super) time_to_idle: Option<Duration>,
 }
 
 impl Debug for MokaBuilder {
@@ -113,7 +118,7 @@ impl MokaBuilder {
     /// Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)
     pub fn time_to_live(mut self, v: Duration) -> Self {
         if !v.is_zero() {
-            self.config.time_to_live = Some(format!("{}s", v.as_secs()));
+            self.time_to_live = Some(v);
         }
         self
     }
@@ -123,7 +128,7 @@ impl MokaBuilder {
     /// Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_idle)
     pub fn time_to_idle(mut self, v: Duration) -> Self {
         if !v.is_zero() {
-            self.config.time_to_idle = Some(format!("{}s", v.as_secs()));
+            self.time_to_idle = Some(v);
         }
         self
     }
@@ -155,18 +160,46 @@ impl Builder for MokaBuilder {
 
         let mut builder = self.builder;
 
-        if let Some(v) = &self.config.name {
+        if let Some(v) = self.config.name.as_deref() {
             builder = builder.name(v);
         }
         if let Some(v) = self.config.max_capacity {
             builder = builder.max_capacity(v);
         }
-        if let Some(value) = self.config.time_to_live.as_deref() {
-            let duration = signed_to_duration(value)?;
+        let time_to_live = match self.time_to_live {
+            Some(value) => Some(value),
+            None => self
+                .config
+                .time_to_live
+                .map(signed_duration_to_duration)
+                .transpose()?,
+        };
+        if let Some(duration) = time_to_live {
+            if duration > MAX_CACHE_DURATION {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "time_to_live must not exceed 1000 years",
+                )
+                .with_context("service", MOKA_SCHEME));
+            }
             builder = builder.time_to_live(duration);
         }
-        if let Some(value) = self.config.time_to_idle.as_deref() {
-            let duration = signed_to_duration(value)?;
+        let time_to_idle = match self.time_to_idle {
+            Some(value) => Some(value),
+            None => self
+                .config
+                .time_to_idle
+                .map(signed_duration_to_duration)
+                .transpose()?,
+        };
+        if let Some(duration) = time_to_idle {
+            if duration > MAX_CACHE_DURATION {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "time_to_idle must not exceed 1000 years",
+                )
+                .with_context("service", MOKA_SCHEME));
+            }
             builder = builder.time_to_idle(duration);
         }
 
@@ -226,6 +259,7 @@ impl Service for MokaBackend {
     type Lister = oio::HierarchyLister<MokaLister>;
     type Deleter = oio::OneShotDeleter<MokaDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()
@@ -248,22 +282,22 @@ impl Service for MokaBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
-            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        if p == build_absolute_path(&self.root, "") {
+            Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             // Check the exact path first
             match self.core.get(&p).await? {
                 Some(value) => {
                     // Use the stored metadata but override mode if necessary
-                    let mut metadata = value.metadata.clone();
+                    let mut metadata = value.metadata.clone().into_builder();
                     // If path ends with '/' but we found a file, return DIR
                     // This is because CompleteLayer's create_dir creates empty files with '/' suffix
-                    if p.ends_with('/') && metadata.mode() != EntryMode::DIR {
-                        metadata.set_mode(EntryMode::DIR);
+                    if p.ends_with('/') && value.metadata.mode() != EntryMode::DIR {
+                        metadata.set_dir();
                     }
-                    Ok(RpStat::new(metadata))
+                    Ok(RpStat::new(metadata.build()))
                 }
                 None => {
                     // If path ends with '/', check if there are any children
@@ -275,7 +309,7 @@ impl Service for MokaBackend {
                             .any(|kv| kv.0.starts_with(&p) && kv.0.len() > p.len());
 
                         if has_children {
-                            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+                            Ok(RpStat::new(MetadataBuilder::dir().build()))
                         } else {
                             Err(Error::new(ErrorKind::NotFound, "key not found in moka"))
                         }
@@ -300,7 +334,7 @@ impl Service for MokaBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let output: MokaWriter = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             Ok(MokaWriter::new(self.core.clone(), p, args))
         }?;
 
@@ -322,7 +356,8 @@ impl Service for MokaBackend {
         let output: oio::HierarchyLister<MokaLister> = {
             // For moka, we don't distinguish between files and directories
             // Just return the lister to iterate through all matching keys
-            let lister = MokaLister::new(self.core.clone(), self.root.clone(), path.to_string());
+            let p = build_absolute_path(&self.root, path);
+            let lister = MokaLister::new(self.core.clone(), self.root.clone(), p);
             let lister = oio::HierarchyLister::new(lister, path, args.recursive());
             Ok(lister)
         }?;
@@ -336,7 +371,6 @@ impl Service for MokaBackend {
         _from: &str,
         _to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
@@ -367,5 +401,233 @@ impl Service for MokaBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opendal_core::raw::oio::{List as _, Write as _};
+
+    #[test]
+    fn builder_preserves_subsecond_durations() {
+        let time_to_live = Duration::new(1, 500_000_001);
+        let time_to_idle = Duration::from_millis(750);
+        let builder = MokaBuilder::default()
+            .time_to_live(time_to_live)
+            .time_to_idle(time_to_idle);
+
+        assert_eq!(builder.time_to_live, Some(time_to_live));
+        assert_eq!(builder.time_to_idle, Some(time_to_idle));
+    }
+
+    /// Write a file through the raw service so tests exercise `Service::list`
+    /// directly instead of `Operator` (which composes `SimulateLayer` under
+    /// `--all-features` and would mask prefix filtering regressions).
+    async fn write_file<S>(service: &S, ctx: &OperationContext, path: &str) -> Result<()>
+    where
+        S: Service,
+        S::Writer: oio::Write,
+    {
+        let mut writer = service.write(ctx, path, OpWrite::default())?;
+        writer.write(Buffer::from("x")).await?;
+        writer.close().await?;
+        Ok(())
+    }
+
+    async fn list_paths<S>(
+        service: &S,
+        ctx: &OperationContext,
+        path: &str,
+        recursive: bool,
+    ) -> Result<Vec<String>>
+    where
+        S: Service,
+        S::Lister: oio::List,
+    {
+        let args: OpList = options::ListOptions {
+            recursive,
+            ..Default::default()
+        }
+        .into();
+        let mut lister = service.list(ctx, path, args)?;
+
+        let mut paths = Vec::new();
+        while let Some(entry) = lister.next().await? {
+            paths.push(entry.path().to_string());
+        }
+        paths.sort_unstable();
+        Ok(paths)
+    }
+
+    #[tokio::test]
+    async fn recursive_list_only_returns_entries_under_prefix() -> Result<()> {
+        let service = MokaBuilder::default().build()?;
+        let ctx = OperationContext::default();
+        for path in ["a/1", "a/nested/2", "ab/1", "b/1"] {
+            write_file(&service, &ctx, path).await?;
+        }
+
+        assert_eq!(
+            list_paths(&service, &ctx, "a/", true).await?,
+            ["a/1", "a/nested/2"]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn recursive_list_only_returns_entries_under_prefix_with_root() -> Result<()> {
+        let service = MokaBuilder::default().root("/sub").build()?;
+        let ctx = OperationContext::default();
+        for path in ["a/1", "a/nested/2", "ab/1", "b/1"] {
+            write_file(&service, &ctx, path).await?;
+        }
+
+        assert_eq!(
+            list_paths(&service, &ctx, "a/", true).await?,
+            ["a/1", "a/nested/2"]
+        );
+        assert_eq!(
+            list_paths(&service, &ctx, "/", true).await?,
+            ["a/1", "a/nested/2", "ab/1", "b/1"]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn non_recursive_list_and_root_list_still_work() -> Result<()> {
+        let core = MokaCore {
+            cache: moka::future::Cache::builder().max_capacity(10_000).build(),
+        };
+        let service = MokaBackend::new(core);
+        let ctx = OperationContext::default();
+        for path in ["a/1", "a/nested/2", "ab/1", "b/1"] {
+            write_file(&service, &ctx, path).await?;
+        }
+        // A stored root marker key "" must be reported as the "/" entry.
+        service
+            .core
+            .cache
+            .insert(
+                String::new(),
+                MokaValue {
+                    metadata: MetadataBuilder::dir().build(),
+                    content: Buffer::new(),
+                },
+            )
+            .await;
+
+        assert_eq!(
+            list_paths(&service, &ctx, "a/", false).await?,
+            ["a/1", "a/nested/"]
+        );
+        assert_eq!(
+            list_paths(&service, &ctx, "/", false).await?,
+            ["/", "a/", "ab/", "b/"]
+        );
+        assert_eq!(
+            list_paths(&service, &ctx, "/", true).await?,
+            ["/", "a/1", "a/nested/2", "ab/1", "b/1"]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_dir_root_and_list() -> Result<()> {
+        for root in ["/", "/sub/"] {
+            let builder = if root == "/" {
+                MokaBuilder::default()
+            } else {
+                MokaBuilder::default().root(root)
+            };
+            let op = Operator::new(builder)?.layer(layers::SimulateLayer::default());
+
+            op.create_dir("/").await?;
+
+            for entries in [
+                op.list("/").await?,
+                op.list_with("/").recursive(true).await?,
+            ] {
+                let actual: Vec<_> = entries
+                    .iter()
+                    .map(|e| (e.path(), e.metadata().mode()))
+                    .collect();
+                assert_eq!(actual, vec![("/", EntryMode::DIR)], "root {root}");
+            }
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_root_stat_and_writer_metadata() -> Result<()> {
+        let ctx = OperationContext::default();
+        for root in ["/", "/sub/"] {
+            let builder = if root == "/" {
+                MokaBuilder::default()
+            } else {
+                MokaBuilder::default().root(root)
+            };
+            let service = builder.build()?;
+
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR,
+                "root {root}"
+            );
+
+            let mut writer = service.write(&ctx, "/", OpWrite::default())?;
+            let meta = writer.close().await?;
+            assert_eq!(meta.mode(), EntryMode::DIR, "root {root}");
+
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR,
+                "root {root}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_expiration_duration_upper_bound() -> Result<()> {
+        // Exact 1000-year boundary succeeds without panicking.
+        let _ = MokaBuilder::default()
+            .time_to_live(MAX_CACHE_DURATION)
+            .time_to_idle(MAX_CACHE_DURATION)
+            .build()?;
+
+        let over_limit = MAX_CACHE_DURATION + Duration::from_nanos(1);
+        for duration in [over_limit, Duration::MAX] {
+            let err = MokaBuilder::default()
+                .time_to_live(duration)
+                .build()
+                .expect_err("time_to_live > 1000 years must fail");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+            let err = MokaBuilder::default()
+                .time_to_idle(duration)
+                .build()
+                .expect_err("time_to_idle > 1000 years must fail");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+
+        let over_secs = format!("{}s", MAX_CACHE_DURATION.as_secs() + 1);
+        for key in ["time_to_live", "time_to_idle"] {
+            let err = MokaConfig::from_iter([(key.to_string(), over_secs.clone())])?
+                .into_builder()
+                .build()
+                .expect_err("config duration > 1000 years must fail");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+
+        Ok(())
     }
 }

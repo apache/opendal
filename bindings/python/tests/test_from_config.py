@@ -16,12 +16,15 @@
 # under the License.
 
 import pickle
+from collections import UserDict
+from datetime import timedelta
 from pathlib import PurePosixPath
+from types import MappingProxyType
 
 import pytest
 
 import opendal
-from opendal.config import FsConfig, S3Config
+from opendal.config import FsConfig, MiniMokaConfig, MokaConfig, S3Config
 from opendal.exceptions import Unsupported
 
 
@@ -71,3 +74,110 @@ def test_from_config_stringifies_native_values():
     _, args = op.__reduce__()
     assert args[1]["probe_flag"] == "true"
     assert args[1]["probe_path"] == "/x"
+
+
+@pytest.mark.parametrize("scheme", ["moka", "mini-moka"])
+@pytest.mark.parametrize(
+    "duration", ["2s", timedelta(days=1, seconds=2, microseconds=3)]
+)
+def test_from_config_cache_durations(service_name, scheme, duration):
+    if service_name.replace("_", "-") != scheme:
+        pytest.skip("requires the matching cache service")
+    config_type = MokaConfig if scheme == "moka" else MiniMokaConfig
+    config = config_type(scheme=scheme, time_to_live=duration, time_to_idle=duration)
+    operator = opendal.Operator.from_config(config)
+    operator.write("test", b"hello")
+    assert operator.read("test") == b"hello"
+    _, args = operator.__reduce__()
+    expected = "2s" if isinstance(duration, str) else "86402000003us"
+    assert args[1]["time_to_live"] == expected
+    assert args[1]["time_to_idle"] == expected
+
+
+class TimedeltaSubclass(timedelta):
+    microseconds = 0
+
+
+@pytest.mark.parametrize("operator_type", [opendal.Operator, opendal.AsyncOperator])
+@pytest.mark.parametrize(
+    ("duration", "expected"),
+    [
+        (timedelta(0), "0us"),
+        (timedelta(microseconds=-1), "-1us"),
+        (timedelta(days=2, seconds=3, microseconds=4), "172803000004us"),
+        (timedelta.min, "-86399999913600000000us"),
+        (timedelta.max, "86399999999999999999us"),
+        (TimedeltaSubclass(microseconds=1), "1us"),
+    ],
+)
+def test_from_config_timedelta_precision(operator_type, duration, expected):
+    operator = operator_type.from_config(
+        {"scheme": "memory", "probe_duration": duration}  # type: ignore[arg-type]
+    )
+    _, args = operator.__reduce__()
+    assert args[1]["probe_duration"] == expected
+
+
+def test_from_config_stringifies_flat_list_and_tuple():
+    op = opendal.Operator.from_config(
+        {
+            "scheme": "memory",
+            "probe_list": ["a", "b"],
+            "probe_tuple": (
+                "x",
+                1,
+                True,
+                PurePosixPath("/p"),
+                timedelta(seconds=1),
+            ),
+        }  # type: ignore[arg-type]
+    )
+    _, args = op.__reduce__()
+    assert args[1]["probe_list"] == "a,b"
+    assert args[1]["probe_tuple"] == "x,1,true,/p,1000000us"
+
+
+class BytesPathLike:
+    def __fspath__(self) -> bytes:
+        """Return a bytes path."""
+        return b"/tmp/bytes-path"
+
+
+def _make_cyclic_list() -> list[object]:
+    cyclic: list[object] = []
+    cyclic.append(cyclic)
+    return cyclic
+
+
+@pytest.mark.parametrize("operator_type", [opendal.Operator, opendal.AsyncOperator])
+@pytest.mark.parametrize(
+    "bad_value",
+    [
+        b"/tmp/foo",
+        bytearray(b"/tmp/foo"),
+        memoryview(b"/tmp/foo"),
+        BytesPathLike(),
+        {"a": "1"},
+        MappingProxyType({"a": "1", "b": "2"}),
+        UserDict({"a": "1"}),
+        {"a", "b"},
+        frozenset({"a", "b"}),
+        [["nested"]],
+        (("nested",),),
+        _make_cyclic_list(),
+        [b"/tmp/foo"],
+        [MappingProxyType({"a": "1"})],
+    ],
+)
+def test_from_config_rejects_unsupported_values(operator_type, bad_value):
+    with pytest.raises(Unsupported):
+        operator_type.from_config(
+            {"scheme": "memory", "probe": bad_value}  # type: ignore[arg-type]
+        )
+
+
+def test_from_config_rejects_bytes_root_for_fs():
+    with pytest.raises(Unsupported):
+        opendal.Operator.from_config(
+            {"scheme": "fs", "root": b"/tmp/foo"}  # type: ignore[arg-type]
+        )

@@ -20,16 +20,16 @@ use std::sync::Arc;
 
 use http::StatusCode;
 use log::debug;
+use reqsign_azure_storage::ClientSecretCredentialProvider;
 use reqsign_azure_storage::Credential;
 use reqsign_azure_storage::DefaultCredentialProvider;
 use reqsign_azure_storage::RequestSigner;
 use reqsign_azure_storage::StaticCredentialProvider;
+#[cfg(not(target_arch = "wasm32"))]
+use reqsign_command_execute_tokio::TokioCommandExecute;
 use reqsign_core::Context;
-use reqsign_core::Env as _;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
-use reqsign_core::Signer;
-use reqsign_core::StaticEnv;
 use reqsign_file_read_tokio::TokioFileRead;
 
 use super::AZDLS_SCHEME;
@@ -191,6 +191,10 @@ impl AzdlsBuilder {
     }
 
     /// Replace the credential providers with a custom chain.
+    ///
+    /// Build the chain from [`opendal_core::reqsign_core`] and
+    /// [`crate::reqsign_azure_storage`] so that its types match the ones this
+    /// service is built with.
     pub fn credential_provider_chain(mut self, chain: ProvideCredentialChain<Credential>) -> Self {
         self.credential_providers = Some(chain);
         self
@@ -247,6 +251,12 @@ impl Builder for AzdlsBuilder {
     type Config = AzdlsConfig;
 
     fn build(self) -> Result<impl Service> {
+        self.build_backend()
+    }
+}
+
+impl AzdlsBuilder {
+    fn build_backend(self) -> Result<AzdlsBackend> {
         debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
@@ -275,42 +285,52 @@ impl Builder for AzdlsBuilder {
             .clone()
             .or_else(|| azure_account_name_from_endpoint(endpoint.as_str()));
 
-        let mut envs = std::collections::HashMap::new();
+        let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
+        #[cfg(not(target_arch = "wasm32"))]
+        let ctx = ctx.with_command_execute(TokioCommandExecute);
 
-        if let Some(v) = &account_name {
-            envs.insert("AZBLOB_ACCOUNT_NAME".to_string(), v.clone());
-            envs.insert("AZURE_STORAGE_ACCOUNT_NAME".to_string(), v.clone());
+        let tenant_id = self.config.tenant_id.as_deref().filter(|v| !v.is_empty());
+        let client_id = self.config.client_id.as_deref().filter(|v| !v.is_empty());
+        let client_secret_value = self
+            .config
+            .client_secret
+            .as_deref()
+            .filter(|v| !v.is_empty());
+        let authority_host = self
+            .config
+            .authority_host
+            .as_deref()
+            .filter(|v| !v.is_empty());
+
+        let mut client_secret = ClientSecretCredentialProvider::new();
+        if let Some(v) = tenant_id {
+            client_secret = client_secret.with_tenant_id(v);
         }
-        if let Some(v) = &self.config.account_key {
-            envs.insert("AZBLOB_ACCOUNT_KEY".to_string(), v.clone());
-            envs.insert("AZURE_STORAGE_ACCOUNT_KEY".to_string(), v.clone());
+        if let Some(v) = client_id {
+            client_secret = client_secret.with_client_id(v);
         }
-        if let Some(v) = &self.config.sas_token {
-            envs.insert("AZURE_STORAGE_SAS_TOKEN".to_string(), v.clone());
+        if let Some(v) = client_secret_value {
+            client_secret = client_secret.with_client_secret(v);
         }
-        if let Some(v) = &self.config.client_id {
-            envs.insert("AZURE_CLIENT_ID".to_string(), v.clone());
-        }
-        if let Some(v) = &self.config.client_secret {
-            envs.insert("AZURE_CLIENT_SECRET".to_string(), v.clone());
-        }
-        if let Some(v) = &self.config.tenant_id {
-            envs.insert("AZURE_TENANT_ID".to_string(), v.clone());
-        }
-        if let Some(v) = &self.config.authority_host {
-            envs.insert("AZURE_AUTHORITY_HOST".to_string(), v.clone());
+        if let Some(v) = authority_host {
+            client_secret = client_secret.with_authority_host(v);
         }
 
-        let os_env = OsEnv;
-        let ctx = Context::new()
-            .with_file_read(TokioFileRead)
-            .with_env(StaticEnv {
-                home_dir: os_env.home_dir(),
-                envs,
-            });
-
-        let mut credential_providers =
-            ProvideCredentialChain::new().push(DefaultCredentialProvider::new());
+        let has_explicit_client_secret =
+            tenant_id.is_some() && client_id.is_some() && client_secret_value.is_some();
+        let mut credential_providers = if has_explicit_client_secret {
+            ProvideCredentialChain::new().push(client_secret).push(
+                DefaultCredentialProvider::builder()
+                    .no_client_secret()
+                    .build(),
+            )
+        } else {
+            ProvideCredentialChain::new().push(
+                DefaultCredentialProvider::builder()
+                    .client_secret(client_secret)
+                    .build(),
+            )
+        };
 
         if let (Some(account_name), Some(account_key)) =
             (account_name.as_deref(), self.config.account_key.as_deref())
@@ -329,7 +349,8 @@ impl Builder for AzdlsBuilder {
         }
 
         let sign_ctx = ctx;
-        let signer = Signer::new(sign_ctx.clone(), credential_providers, RequestSigner::new());
+        let credential_provider = Arc::new(credential_providers);
+        let request_signer = Arc::new(RequestSigner::new());
 
         let info = ServiceInfo::new(AZDLS_SCHEME, &root, filesystem);
         let capability = Capability {
@@ -375,8 +396,10 @@ impl Builder for AzdlsBuilder {
                 root,
                 endpoint,
                 enable_hns: self.config.enable_hns,
-                signer,
                 sign_ctx,
+                credential_provider,
+                request_signer,
+                signers: HttpTransportCache::new(),
             }),
         })
     }
@@ -394,6 +417,7 @@ impl Service for AzdlsBackend {
     type Lister = oio::PageLister<AzdlsLister>;
     type Deleter = oio::OneShotDeleter<AzdlsDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -428,7 +452,7 @@ impl Service for AzdlsBackend {
         // Stat root always returns a DIR.
         // TODO: include metadata for the root (#4746)
         if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(RpStat::new(MetadataBuilder::dir().build()));
         }
 
         let metadata = self.core.azdls_stat_metadata(ctx, path, &args).await?;
@@ -508,7 +532,6 @@ impl Service for AzdlsBackend {
         _from: &str,
         _to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
@@ -559,5 +582,234 @@ impl Service for AzdlsBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+pub(crate) mod test_util {
+    use std::collections::VecDeque;
+    use std::sync::{Arc, Mutex};
+
+    use bytes::Bytes;
+    use http::{HeaderMap, Method, Request, Response};
+    use opendal_core::*;
+
+    use super::AzdlsBuilder;
+
+    #[derive(Debug, Clone)]
+    pub(crate) struct RecordedRequest {
+        pub(crate) method: Method,
+        pub(crate) uri: String,
+        pub(crate) headers: HeaderMap,
+    }
+
+    #[derive(Clone)]
+    pub(crate) struct ScriptedTransport {
+        responses: Arc<Mutex<VecDeque<Response<Bytes>>>>,
+        requests: Arc<Mutex<Vec<RecordedRequest>>>,
+    }
+
+    impl ScriptedTransport {
+        pub(crate) fn new(responses: Vec<Response<Bytes>>) -> Self {
+            Self {
+                responses: Arc::new(Mutex::new(VecDeque::from(responses))),
+                requests: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+
+        pub(crate) fn requests(&self) -> Vec<RecordedRequest> {
+            self.requests.lock().unwrap().clone()
+        }
+    }
+
+    impl HttpTransport for ScriptedTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.requests.lock().unwrap().push(RecordedRequest {
+                method: req.method().clone(),
+                uri: req.uri().to_string(),
+                headers: req.headers().clone(),
+            });
+
+            let resp = self
+                .responses
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("unexpected HTTP request");
+            let (parts, body) = resp.into_parts();
+            let size = body.len() as u64;
+            let stream_body = if body.is_empty() {
+                HttpBody::new(futures::stream::iter(std::iter::empty()), Some(0))
+            } else {
+                HttpBody::new(
+                    futures::stream::iter(vec![Ok(Buffer::from(body))]),
+                    Some(size),
+                )
+            };
+            Ok(Response::from_parts(parts, stream_body))
+        }
+    }
+
+    pub(crate) fn test_operator(transport: ScriptedTransport) -> Operator {
+        test_operator_with_builder(AzdlsBuilder::default(), transport)
+    }
+
+    pub(crate) fn test_operator_with_builder(
+        builder: AzdlsBuilder,
+        transport: ScriptedTransport,
+    ) -> Operator {
+        Operator::new(
+            builder
+                .filesystem("test")
+                .endpoint("https://myaccount.dfs.core.windows.net")
+                .account_name("test")
+                .account_key("dGVzdGtleQ=="),
+        )
+        .expect("azdls operator must build")
+        .with_context(OperationContext::new().with_http_transport(HttpTransporter::new(transport)))
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+
+    #[derive(Clone, Default, Debug)]
+    struct MockTokenHttpSend {
+        captured: Arc<std::sync::Mutex<Vec<(String, String)>>>,
+    }
+
+    impl reqsign_core::HttpSend for MockTokenHttpSend {
+        async fn http_send(
+            &self,
+            req: http::Request<bytes::Bytes>,
+        ) -> reqsign_core::Result<http::Response<bytes::Bytes>> {
+            let uri = req.uri().to_string();
+            let body = String::from_utf8_lossy(req.body()).into_owned();
+            self.captured.lock().unwrap().push((uri, body));
+            Ok(http::Response::builder()
+                .status(StatusCode::OK)
+                .body(bytes::Bytes::from_static(
+                    br#"{"access_token":"azdls-bearer-token","expires_in":3600}"#,
+                ))
+                .unwrap())
+        }
+    }
+
+    #[derive(Clone, Default, Debug)]
+    struct MockAzCli {
+        calls: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl reqsign_core::CommandExecute for MockAzCli {
+        async fn command_execute(
+            &self,
+            program: &str,
+            args: &[&str],
+        ) -> reqsign_core::Result<reqsign_core::CommandOutput> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            assert_eq!(program, "az");
+            assert_eq!(
+                args,
+                [
+                    "account",
+                    "get-access-token",
+                    "--resource",
+                    "https://storage.azure.com/",
+                    "--output",
+                    "json",
+                ]
+            );
+            Ok(reqsign_core::CommandOutput {
+                status: 0,
+                stdout: br#"{"accessToken":"az-cli-token","expires_on":4102444800,"tokenType":"Bearer"}"#
+                    .to_vec(),
+                stderr: Vec::new(),
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn sign_ctx_wires_tokio_command_execute() {
+        let backend = AzdlsBuilder::default()
+            .filesystem("test")
+            .endpoint("https://myaccount.dfs.core.windows.net")
+            .build_backend()
+            .unwrap();
+
+        #[cfg(unix)]
+        let (program, args) = ("/bin/sh", &["-c", "printf ok"][..]);
+        #[cfg(windows)]
+        let (program, args) = ("cmd", &["/C", "echo ok"][..]);
+
+        let output = backend
+            .core
+            .sign_ctx
+            .command_execute(program, args)
+            .await
+            .unwrap();
+        assert!(output.success());
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "ok");
+    }
+
+    #[tokio::test]
+    async fn azure_cli_credential_signs_requests() {
+        let backend = AzdlsBuilder::default()
+            .filesystem("test")
+            .endpoint("https://myaccount.dfs.core.windows.net")
+            .build_backend()
+            .unwrap();
+
+        let az_cli = MockAzCli::default();
+        let ctx = Context::new()
+            .with_env(reqsign_core::StaticEnv::default())
+            .with_command_execute(az_cli.clone());
+        let signer = backend.core.signer_with_context(ctx);
+
+        let (mut parts, _) = http::Request::get("https://myaccount.dfs.core.windows.net/test/a")
+            .body(())
+            .unwrap()
+            .into_parts();
+        signer.sign(&mut parts, None).await.unwrap();
+
+        assert_eq!(
+            parts.headers[http::header::AUTHORIZATION],
+            "Bearer az-cli-token"
+        );
+        assert_eq!(az_cli.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn explicit_client_secret_precedes_azure_cli() {
+        let backend = AzdlsBuilder::default()
+            .filesystem("test")
+            .endpoint("https://myaccount.dfs.core.windows.net")
+            .client_id("client-123")
+            .client_secret("secret-123")
+            .tenant_id("tenant-123")
+            .authority_host("https://custom.authority.example")
+            .build_backend()
+            .unwrap();
+
+        let http = MockTokenHttpSend::default();
+        let az_cli = MockAzCli::default();
+        let ctx = Context::new()
+            .with_env(reqsign_core::StaticEnv::default())
+            .with_http_send(http.clone())
+            .with_command_execute(az_cli.clone());
+        let signer = backend.core.signer_with_context(ctx);
+
+        let (mut parts, _) = http::Request::get("https://myaccount.dfs.core.windows.net/test/a")
+            .body(())
+            .unwrap()
+            .into_parts();
+        signer.sign(&mut parts, None).await.unwrap();
+
+        assert_eq!(
+            parts.headers[http::header::AUTHORIZATION],
+            "Bearer azdls-bearer-token"
+        );
+        assert_eq!(az_cli.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+        assert_eq!(http.captured.lock().unwrap().len(), 1);
     }
 }

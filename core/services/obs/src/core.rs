@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use bytes::Bytes;
 use http::Request;
@@ -30,8 +31,8 @@ use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use opendal_core::raw::*;
 use opendal_core::*;
-use reqsign_core::{Context, Signer};
-use reqsign_huaweicloud_obs::Credential;
+use reqsign_core::{Context, ProvideCredentialDyn, Signer};
+use reqsign_huaweicloud_obs::{Credential, RequestSigner};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -46,8 +47,12 @@ pub struct ObsCore {
     pub bucket: String,
     pub root: String,
     pub endpoint: String,
+    pub skip_signature: bool,
 
-    pub signer: Signer<Credential>,
+    pub sign_ctx: Context,
+    pub credential_provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
+    pub request_signer: Arc<RequestSigner>,
+    pub signers: HttpTransportCache<Signer<Credential>>,
 }
 
 impl Debug for ObsCore {
@@ -62,15 +67,20 @@ impl Debug for ObsCore {
 
 impl ObsCore {
     fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
-        self.signer.clone().with_context(
-            Context::new()
-                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                .with_http_send(ctx.http_transport().clone())
-                .with_env(reqsign_core::OsEnv),
-        )
+        self.signers.get_or_init(ctx.http_transport(), |transport| {
+            Signer::new(
+                self.sign_ctx.clone().with_http_send(transport),
+                self.credential_provider.clone(),
+                self.request_signer.clone(),
+            )
+        })
     }
 
     pub async fn sign<T>(&self, ctx: &OperationContext, req: Request<T>) -> Result<Request<T>> {
+        if self.skip_signature {
+            return Ok(req);
+        }
+
         let (mut parts, body) = req.into_parts();
 
         self.signer(ctx)
@@ -87,6 +97,10 @@ impl ObsCore {
         req: Request<T>,
         duration: Duration,
     ) -> Result<Request<T>> {
+        if self.skip_signature {
+            return Ok(req);
+        }
+
         let (mut parts, body) = req.into_parts();
 
         self.signer(ctx)
@@ -128,7 +142,7 @@ impl ObsCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -170,7 +184,7 @@ impl ObsCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -217,7 +231,7 @@ impl ObsCore {
     }
 
     pub fn obs_head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -248,7 +262,7 @@ impl ObsCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -273,7 +287,7 @@ impl ObsCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let url = format!(
             "{}/{}?append&position={}",
             self.endpoint,
@@ -312,8 +326,8 @@ impl ObsCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let source = build_abs_path(&self.root, from);
-        let target = build_abs_path(&self.root, to);
+        let source = build_absolute_path(&self.root, from);
+        let target = build_absolute_path(&self.root, to);
 
         let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&target));
@@ -338,7 +352,7 @@ impl ObsCore {
         delimiter: &str,
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let mut url = QueryPairsWriter::new(&self.endpoint);
 
         if !path.is_empty() {
@@ -370,7 +384,7 @@ impl ObsCore {
         path: &str,
         content_type: Option<&str>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
         let mut req = Request::post(&url);
@@ -398,7 +412,7 @@ impl ObsCore {
         size: Option<u64>,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?partNumber={}&uploadId={}",
@@ -433,7 +447,7 @@ impl ObsCore {
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let url = format!(
             "{}/{}?uploadId={}",
             self.endpoint,
@@ -469,7 +483,7 @@ impl ObsCore {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",
@@ -577,9 +591,117 @@ pub struct ListObjectsOutputContent {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use bytes::Buf;
+    use http::header::AUTHORIZATION;
+    use reqsign_core::Context;
+    use reqsign_core::StaticEnv;
+    use reqsign_huaweicloud_obs::DefaultCredentialProvider;
+    use reqsign_huaweicloud_obs::StaticCredentialProvider;
 
     use super::*;
+
+    /// Build a core whose signer only sees the given provider, so tests never
+    /// depend on the ambient process environment.
+    fn test_core(skip_signature: bool, provider: DefaultCredentialProvider) -> ObsCore {
+        let sign_ctx = Context::new().with_env(StaticEnv {
+            home_dir: None,
+            envs: HashMap::new(),
+        });
+
+        ObsCore {
+            info: ServiceInfo::new(crate::OBS_SCHEME, "/", "example-bucket"),
+            capability: Capability::default(),
+            bucket: "example-bucket".to_string(),
+            root: "/".to_string(),
+            endpoint: "https://example-bucket.obs.cn-north-4.myhuaweicloud.com".to_string(),
+            skip_signature,
+            sign_ctx,
+            credential_provider: Arc::new(provider),
+            request_signer: Arc::new(RequestSigner::new("example-bucket")),
+            signers: HttpTransportCache::new(),
+        }
+    }
+
+    fn static_credential_provider() -> DefaultCredentialProvider {
+        DefaultCredentialProvider::builder()
+            .no_env()
+            .build()
+            .push_front(StaticCredentialProvider::with_security_token(
+                "access-key-id",
+                "secret-access-key",
+                "security-token",
+            ))
+    }
+
+    fn empty_credential_provider() -> DefaultCredentialProvider {
+        DefaultCredentialProvider::builder().no_env().build()
+    }
+
+    fn head_request(core: &ObsCore) -> Request<Buffer> {
+        core.obs_head_object_request("test.txt", &OpStat::default())
+            .expect("head object request must build")
+    }
+
+    #[tokio::test]
+    async fn signing_attaches_static_credentials() {
+        let core = test_core(false, static_credential_provider());
+
+        let req = core
+            .sign(&OperationContext::new(), head_request(&core))
+            .await
+            .unwrap();
+
+        assert!(
+            req.headers()[AUTHORIZATION]
+                .to_str()
+                .unwrap()
+                .starts_with("OBS access-key-id:")
+        );
+        assert_eq!(req.headers()["x-obs-security-token"], "security-token");
+    }
+
+    #[tokio::test]
+    async fn skip_signature_leaves_request_headers_unsigned() {
+        let core = test_core(true, static_credential_provider());
+
+        let req = core
+            .sign(&OperationContext::new(), head_request(&core))
+            .await
+            .unwrap();
+
+        assert!(req.headers().get(AUTHORIZATION).is_none());
+        assert!(req.headers().get("x-obs-security-token").is_none());
+    }
+
+    #[tokio::test]
+    async fn skip_signature_leaves_presigned_query_unsigned() {
+        let core = test_core(true, static_credential_provider());
+
+        let req = core
+            .sign_query(
+                &OperationContext::new(),
+                head_request(&core),
+                Duration::from_secs(3600),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(req.uri().query(), None);
+    }
+
+    #[tokio::test]
+    async fn skip_signature_accepts_requests_without_credentials() {
+        let core = test_core(true, empty_credential_provider());
+
+        let req = core
+            .sign(&OperationContext::new(), head_request(&core))
+            .await
+            .unwrap();
+
+        assert!(req.headers().get(AUTHORIZATION).is_none());
+    }
 
     #[test]
     fn test_parse_xml() {

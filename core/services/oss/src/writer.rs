@@ -47,18 +47,18 @@ impl OssWriter {
     }
 
     fn parse_metadata(headers: &HeaderMap<HeaderValue>) -> Result<Metadata> {
-        let mut meta = Metadata::default();
+        let mut meta = MetadataBuilder::unknown();
         if let Some(etag) = parse_etag(headers)? {
-            meta.set_etag(etag);
+            meta.etag(etag);
         }
         if let Some(md5) = parse_content_md5(headers)? {
-            meta.set_content_md5(md5);
+            meta.content_md5(md5);
         }
         if let Some(version) = parse_header_to_str(headers, constants::X_OSS_VERSION_ID)? {
-            meta.set_version(version);
+            meta.version(version);
         }
 
-        Ok(meta)
+        Ok(meta.build())
     }
 }
 
@@ -77,7 +77,8 @@ impl oio::MultipartWrite for OssWriter {
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("PutObject")),
+                ErrorContext::new(ServiceOperation("PutObject"))
+                    .with_if_not_exists(self.op.if_not_exists()),
                 resp,
             )),
         }
@@ -102,7 +103,8 @@ impl oio::MultipartWrite for OssWriter {
                 Ok(result.upload_id)
             }
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("InitiateMultipartUpload")),
+                ErrorContext::new(ServiceOperation("InitiateMultipartUpload"))
+                    .with_if_not_exists(self.op.if_not_exists()),
                 resp,
             )),
         }
@@ -184,7 +186,8 @@ impl oio::MultipartWrite for OssWriter {
         match status {
             StatusCode::OK => Ok(meta),
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                ErrorContext::new(ServiceOperation("CompleteMultipartUpload"))
+                    .with_if_not_exists(self.op.if_not_exists()),
                 resp,
             )),
         }

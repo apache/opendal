@@ -266,11 +266,11 @@ impl Operator {
     ///
     /// # Behavior
     ///
-    /// ## Services that support `create_dir`
+    /// When checking for a directory, pass a path with a trailing slash, such as `"dir/"`.
+    /// Without the trailing slash, the backend may return metadata with mode
+    /// [`EntryMode::DIR`] or an error with kind [`ErrorKind::NotFound`] for an existing directory.
     ///
-    /// `test` and `test/` may vary in some services such as S3. However, on a local file system,
-    /// they're identical. Therefore, the behavior of `stat("test")` and `stat("test/")` might differ
-    /// in certain edge cases. Always use `stat("test/")` when you need to access a directory if possible.
+    /// ## Services that support `create_dir`
     ///
     /// Here are the behavior list:
     ///
@@ -319,11 +319,11 @@ impl Operator {
     ///
     /// # Behavior
     ///
-    /// ## Services that support `create_dir`
+    /// When checking for a directory, pass a path with a trailing slash, such as `"dir/"`.
+    /// Without the trailing slash, the backend may return metadata with mode
+    /// [`EntryMode::DIR`] or an error with kind [`ErrorKind::NotFound`] for an existing directory.
     ///
-    /// `test` and `test/` may vary in some services such as S3. However, on a local file system,
-    /// they're identical. Therefore, the behavior of `stat("test")` and `stat("test/")` might differ
-    /// in certain edge cases. Always use `stat("test/")` when you need to access a directory if possible.
+    /// ## Services that support `create_dir`
     ///
     /// Here are the behavior list:
     ///
@@ -426,10 +426,10 @@ impl Operator {
         self.read_options(path, options::ReadOptions::default())
     }
 
-    /// Read the whole path into a bytes with extra options.
+    /// Read the selected bytes from a file with extra options.
     ///
-    /// This function will allocate a new bytes internally. For more precise memory control or
-    /// reading data lazily, please use [`blocking::Operator::reader`]
+    /// See [`options::ReadOptions::limit`] to cap the returned bytes and accept EOF
+    /// after a valid starting byte. Use [`blocking::Operator::reader`] to read lazily.
     pub fn read_options(&self, path: &str, opts: options::ReadOptions) -> Result<Buffer> {
         let op = self.op.clone();
         let path = path.to_string();
@@ -671,6 +671,8 @@ impl Operator {
     /// # Notes
     ///
     /// - Delete not existing error won't return errors.
+    /// - See [`crate::Operator::delete`] for the `fs` service's symbolic link
+    ///   behavior.
     ///
     /// # Examples
     ///
@@ -688,11 +690,15 @@ impl Operator {
         self.delete_options(path, options::DeleteOptions::default())
     }
 
-    /// Delete given path with options.
+    /// Delete the given path with additional options.
     ///
     /// # Notes
     ///
-    /// - Delete not existing error won't return errors.
+    /// - Deleting a file that does not exist is a successful no-op, unless a
+    ///   condition such as `if_match` fails first.
+    /// - With [`options::DeleteOptions::recursive`] enabled, include the trailing
+    ///   slash in directory paths (for example, `"a/"`). On prefix-based
+    ///   services, `"a"` can also match entries under `"ab/"`.
     pub fn delete_options(&self, path: &str, opts: options::DeleteOptions) -> Result<()> {
         let op = self.op.clone();
         let path = path.to_string();
@@ -709,7 +715,9 @@ impl Operator {
         I: IntoIterator<Item = D>,
         D: IntoDeleteInput,
     {
-        self.handle.block_on(self.op.delete_iter(iter))
+        let mut deleter = self.deleter()?;
+        deleter.delete_iter(iter)?;
+        deleter.close()
     }
 
     /// Delete a fallible iterator of paths.
@@ -722,7 +730,9 @@ impl Operator {
         I: IntoIterator<Item = Result<D>>,
         D: IntoDeleteInput,
     {
-        self.handle.block_on(self.op.delete_try_iter(try_iter))
+        let mut deleter = self.deleter()?;
+        deleter.delete_try_iter(try_iter)?;
+        deleter.close()
     }
 
     /// Create a [`blocking::Deleter`] to continuously remove content from
@@ -739,7 +749,13 @@ impl Operator {
         )
     }
 
-    /// Remove the path and all nested dirs and files recursively.
+    /// Recursively delete entries at the given path.
+    ///
+    /// A path ending in `/`, such as `"a/"`, is the only portable way to
+    /// scope deletion to a directory and its descendants. Prefix matching for
+    /// paths without a trailing slash is service-specific. For example, `"a"`
+    /// can also match entries under `"ab/"` on prefix-based services such as
+    /// `memory`.
     ///
     /// # Deprecated
     ///
@@ -750,13 +766,13 @@ impl Operator {
     ///
     /// Instead of:
     /// ```ignore
-    /// op.remove_all("path/to/dir")?;
+    /// op.remove_all("a/")?;
     /// ```
     ///
     /// Use:
     /// ```ignore
     /// use opendal_core::options::DeleteOptions;
-    /// op.delete_options("path/to/dir", DeleteOptions {
+    /// op.delete_options("a/", DeleteOptions {
     ///     recursive: true,
     ///     ..Default::default()
     /// })?;
@@ -775,7 +791,7 @@ impl Operator {
     /// use opendal_core::blocking;
     /// # use opendal_core::blocking::Operator;
     /// # fn test(op: blocking::Operator) -> Result<()> {
-    /// op.remove_all("path/to/dir")?;
+    /// op.remove_all("a/")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -941,5 +957,56 @@ impl Operator {
 impl From<Operator> for AsyncOperator {
     fn from(val: Operator) -> Self {
         val.op
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services;
+
+    fn new_runtime() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+    }
+
+    fn new_blocking_operator(rt: &tokio::runtime::Runtime) -> Operator {
+        // The guard must not outlive construction, or calls on the operator
+        // would nest a `block_on` inside the entered runtime.
+        let _guard = rt.enter();
+        let op = AsyncOperator::new(services::Memory::default()).unwrap();
+        Operator::new(op).unwrap()
+    }
+
+    #[test]
+    fn test_delete_try_iter_accepts_blocking_lister() {
+        let rt = new_runtime();
+        let op = new_blocking_operator(&rt);
+        op.write("dir/a", "a").unwrap();
+        op.write("dir/b", "b").unwrap();
+
+        op.delete_try_iter(op.lister("dir/").unwrap()).unwrap();
+
+        assert!(op.list("dir/").unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_delete_iter_can_call_blocking_operator() {
+        let rt = new_runtime();
+        let op = new_blocking_operator(&rt);
+        op.write("dir/a", "a").unwrap();
+        op.write("dir/b", "b").unwrap();
+
+        let paths = ["dir/a", "dir/b"];
+        op.delete_iter(paths.iter().map(|path| {
+            assert!(op.exists(path).unwrap(), "{path} must exist before delete");
+            path.to_string()
+        }))
+        .unwrap();
+
+        assert!(!op.exists("dir/a").unwrap());
+        assert!(!op.exists("dir/b").unwrap());
     }
 }

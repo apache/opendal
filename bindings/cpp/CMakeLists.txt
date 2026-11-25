@@ -53,6 +53,11 @@ else()
 endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+if(MSVC)
+    # Cargo and the cxx runtime use /MD in both Debug and Release.
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+endif()
+
 if (OPENDAL_DEV)
     set(OPENDAL_ENABLE_ADDRESS_SANITIZER ON)
     set(OPENDAL_ENABLE_DOCUMENTATION ON)
@@ -61,9 +66,9 @@ endif()
 
 if (OPENDAL_ENABLE_TESTING)
     if (OPENDAL_FEATURES)
-        set(OPENDAL_FEATURES "${OPENDAL_FEATURES},testing")
+        set(OPENDAL_FEATURES "${OPENDAL_FEATURES},testing,opendal/services-dashmap,opendal/services-fs")
     else()
-        set(OPENDAL_FEATURES "testing")
+        set(OPENDAL_FEATURES "testing,opendal/services-dashmap,opendal/services-fs")
     endif()
 endif()
 
@@ -87,19 +92,30 @@ if (OPENDAL_ENABLE_DOCUMENTATION OR OPENDAL_DOCS_ONLY)
     endif()
 endif()
 
-# get cargo target dir using cargo locate-project
-# we should this because the target dir is different for development and release
+# Locate the Cargo workspace before resolving its default target directory.
 execute_process(COMMAND cargo locate-project --workspace --message-format plain
-    OUTPUT_VARIABLE CARGO_TARGET_DIR
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
-string(REGEX REPLACE "/Cargo.toml\n$" "/target" CARGO_TARGET_DIR "${CARGO_TARGET_DIR}")
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    OUTPUT_VARIABLE CARGO_WORKSPACE_MANIFEST
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    COMMAND_ERROR_IS_FATAL ANY)
+file(TO_CMAKE_PATH "${CARGO_WORKSPACE_MANIFEST}" CARGO_WORKSPACE_MANIFEST)
+cmake_path(SET CARGO_WORKSPACE_MANIFEST NORMALIZE "${CARGO_WORKSPACE_MANIFEST}")
+cmake_path(GET CARGO_WORKSPACE_MANIFEST PARENT_PATH CARGO_TARGET_DIR)
+cmake_path(APPEND CARGO_TARGET_DIR "target")
+if (DEFINED ENV{CARGO_TARGET_DIR} AND NOT "$ENV{CARGO_TARGET_DIR}" STREQUAL "")
+    file(TO_CMAKE_PATH "$ENV{CARGO_TARGET_DIR}" CARGO_TARGET_DIR)
+    cmake_path(ABSOLUTE_PATH CARGO_TARGET_DIR BASE_DIRECTORY "${PROJECT_SOURCE_DIR}" NORMALIZE)
+    set(CARGO_BUILD_ENV "CARGO_TARGET_DIR=${CARGO_TARGET_DIR}")
+endif()
 set(CARGO_MANIFEST ${PROJECT_SOURCE_DIR}/Cargo.toml)
-set(RUST_SOURCE_FILE ${PROJECT_SOURCE_DIR}/src/lib.rs)
-list(APPEND RUST_BRIDGE_CPP ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src/lib.rs.cc)
-list(APPEND RUST_HEADER_FILE ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src/lib.rs.h)
+
+# Keep bridge files with the CMake build that selected their Cargo features.
+set(CXX_BRIDGE_DIR ${CMAKE_CURRENT_BINARY_DIR}/cxxbridge)
+set(RUST_BRIDGE_CPP ${CXX_BRIDGE_DIR}/opendal-cpp/src/lib.rs.cc)
+set(RUST_HEADER_FILE ${CXX_BRIDGE_DIR}/opendal-cpp/src/lib.rs.h ${CXX_BRIDGE_DIR}/rust/cxx.h)
 if (OPENDAL_ENABLE_ASYNC)
-    list(APPEND RUST_BRIDGE_CPP ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src/async.rs.cc)
-    list(APPEND RUST_HEADER_FILE ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src/async.rs.h)
+    list(APPEND RUST_BRIDGE_CPP ${CXX_BRIDGE_DIR}/opendal-cpp/src/async.rs.cc)
+    list(APPEND RUST_HEADER_FILE ${CXX_BRIDGE_DIR}/opendal-cpp/src/async.rs.h ${CXX_BRIDGE_DIR}/rust/cxx_async.h)
 endif()
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(RUST_LIB ${CARGO_TARGET_DIR}/debug/${CMAKE_STATIC_LIBRARY_PREFIX}opendal_cpp${CMAKE_STATIC_LIBRARY_SUFFIX})
@@ -109,8 +125,8 @@ endif()
 
 set(CPP_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include
                     ${PROJECT_SOURCE_DIR}/src
-                    ${CARGO_TARGET_DIR}/cxxbridge
-                    ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src)
+                    ${CXX_BRIDGE_DIR}
+                    ${CXX_BRIDGE_DIR}/opendal-cpp/src)
 file(GLOB CPP_SOURCE_FILE
     "src/*.cpp"
     "src/utils/*.cpp"
@@ -145,10 +161,12 @@ if (OPENDAL_FEATURES)
 endif ()
 
 add_custom_target(cargo_build
-        COMMAND cargo build --manifest-path ${CARGO_MANIFEST} ${CARGO_BUILD_FLAGS}
+        COMMAND ${CMAKE_COMMAND} -E env ${CARGO_BUILD_ENV} "OPENDAL_CPP_BRIDGE_DIR=${CXX_BRIDGE_DIR}"
+                cargo build --manifest-path ${CARGO_MANIFEST} ${CARGO_BUILD_FLAGS}
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
         BYPRODUCTS ${RUST_BRIDGE_CPP} ${RUST_LIB} ${RUST_HEADER_FILE}
-        DEPENDS ${RUST_SOURCE_FILE}
         USES_TERMINAL
+        VERBATIM
         COMMENT "Running cargo..."
 )
 
@@ -157,15 +175,11 @@ target_sources(opendal_cpp PUBLIC ${CPP_HEADER_FILE})
 target_sources(opendal_cpp PRIVATE ${RUST_HEADER_FILE})
 target_include_directories(opendal_cpp PUBLIC ${CPP_INCLUDE_DIR})
 if (OPENDAL_ENABLE_ASYNC)
-    target_include_directories(opendal_cpp PUBLIC ${CARGO_TARGET_DIR}/cxxbridge)
     target_compile_options(opendal_cpp PUBLIC -include ${PROJECT_SOURCE_DIR}/include/async_defs.hpp)
 endif()
 target_link_libraries(opendal_cpp PUBLIC ${RUST_LIB})
 target_link_libraries(opendal_cpp PRIVATE ${CMAKE_DL_LIBS})
 
-set_target_properties(opendal_cpp
-        PROPERTIES ADDITIONAL_CLEAN_FILES ${CARGO_TARGET_DIR}
-)
 add_dependencies(opendal_cpp cargo_build)
 
 if (OPENDAL_ENABLE_ADDRESS_SANITIZER)
@@ -173,15 +187,10 @@ if (OPENDAL_ENABLE_ADDRESS_SANITIZER)
     target_link_options(opendal_cpp PRIVATE -fsanitize=leak,address,undefined)
 endif()
 
-# Platform-specific test configuration
 if(WIN32)
-    target_link_libraries(opendal_cpp userenv ws2_32 bcrypt)
-    set_target_properties(
-            opendal_cpp
-            PROPERTIES
-            MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
-            RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}
-            RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}
+    target_link_libraries(opendal_cpp
+        PUBLIC userenv ws2_32 bcrypt
+        PRIVATE ntdll dbghelp
     )
 endif()
 
@@ -213,7 +222,7 @@ if (OPENDAL_ENABLE_TESTING)
         )
     endif()
 
-    list(APPEND TEST_SOURCE_FILE tests/basic_test.cpp tests/layer_test.cpp tests/metadata_test.cpp tests/test_main.cpp)
+    list(APPEND TEST_SOURCE_FILE tests/basic_test.cpp tests/layer_test.cpp tests/metadata_test.cpp tests/timestamp_test.cpp tests/test_main.cpp)
     if (OPENDAL_ENABLE_ASYNC)
         list(APPEND TEST_SOURCE_FILE tests/async_test.cpp)
     endif()
@@ -245,10 +254,6 @@ if (OPENDAL_ENABLE_TESTING)
         target_link_options(opendal_cpp_test PRIVATE -fsanitize=leak,address,undefined)
     endif()
 
-    # Platform-specific test configuration
-    if(WIN32)
-        target_link_libraries(opendal_cpp_test userenv ws2_32 bcrypt)
-    endif()
     if(APPLE)
         target_link_libraries(opendal_cpp_test "-framework CoreFoundation -framework Security")
     endif()

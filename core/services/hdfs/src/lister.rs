@@ -15,8 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal_core::EntryMode;
-use opendal_core::Metadata;
+use opendal_core::MetadataBuilder;
 use opendal_core::Result;
 use opendal_core::raw::*;
 
@@ -28,6 +27,16 @@ pub struct HdfsLister {
     current_path: Option<String>,
 }
 
+fn normalize_dir_entry_path(path: &str) -> String {
+    if path.is_empty() || path == "/" {
+        "/".to_string()
+    } else if path.ends_with('/') {
+        path.to_string()
+    } else {
+        format!("{path}/")
+    }
+}
+
 impl HdfsLister {
     pub fn new(root: &str, rd: hdrs::Readdir, path: &str) -> Self {
         Self {
@@ -35,7 +44,7 @@ impl HdfsLister {
 
             rd,
 
-            current_path: Some(path.to_string()),
+            current_path: Some(normalize_dir_entry_path(path)),
         }
     }
 }
@@ -43,7 +52,7 @@ impl HdfsLister {
 impl oio::List for HdfsLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         if let Some(path) = self.current_path.take() {
-            return Ok(Some(oio::Entry::new(&path, Metadata::new(EntryMode::DIR))));
+            return Ok(Some(oio::Entry::new(&path, MetadataBuilder::dir().build())));
         }
 
         let de = match self.rd.next() {
@@ -51,20 +60,39 @@ impl oio::List for HdfsLister {
             None => return Ok(None),
         };
 
-        let path = build_rel_path(&self.root, de.path());
+        let path = build_relative_path(&self.root, de.path());
 
         let entry = if de.is_file() {
-            let meta = Metadata::new(EntryMode::FILE)
-                .with_content_length(de.len())
-                .with_last_modified(Timestamp::try_from(de.modified())?);
-            oio::Entry::new(&path, meta)
+            let mut meta = MetadataBuilder::file(de.len());
+            meta.last_modified(Timestamp::try_from(de.modified())?);
+            oio::Entry::new(&path, meta.build())
         } else if de.is_dir() {
             // Make sure we are returning the correct path.
-            oio::Entry::new(&format!("{path}/"), Metadata::new(EntryMode::DIR))
+            oio::Entry::new(&format!("{path}/"), MetadataBuilder::dir().build())
         } else {
-            oio::Entry::new(&path, Metadata::new(EntryMode::Unknown))
+            oio::Entry::new(&path, MetadataBuilder::unknown().build())
         };
 
         Ok(Some(entry))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_dir_entry_path_ensures_trailing_slash() {
+        assert_eq!(normalize_dir_entry_path(""), "/");
+        assert_eq!(normalize_dir_entry_path("/"), "/");
+        assert_eq!(normalize_dir_entry_path("sub/"), "sub/");
+        assert_eq!(normalize_dir_entry_path("sub"), "sub/");
+        assert_eq!(normalize_dir_entry_path("a/b"), "a/b/");
+
+        let entry = oio::Entry::new(
+            &normalize_dir_entry_path("sub"),
+            MetadataBuilder::dir().build(),
+        );
+        assert_eq!(entry.path(), "sub/");
     }
 }

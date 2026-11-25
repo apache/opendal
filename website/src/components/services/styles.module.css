@@ -18,7 +18,10 @@
  */
 
 .page {
+  width: 100%;
   max-width: 960px;
+  min-width: 0;
+  box-sizing: border-box;
   margin: 0 auto;
   padding: 2.5rem 1rem 4rem;
   overflow-wrap: anywhere;
@@ -373,7 +376,7 @@
     color: var(--ifm-color-emphasis-600);
   }
 
-  .tableKeyCell::before {
+  .tableKeyCell:not([data-label])::before {
     content: "Key";
   }
 
@@ -383,5 +386,518 @@
     margin-left: 0;
     margin-right: 0.3rem;
     white-space: normal;
+  }
+}
+
+/* ==========================================================================
+   Capability matrix & per-service capability sections
+   ========================================================================== */
+
+.matrixPage {
+  width: 100%;
+  max-width: var(--odl-container);
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 2.5rem 1rem 4rem;
+  overflow-wrap: anywhere;
+}
+
+.matrixBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1.15rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--odl-border);
+  border-radius: var(--odl-radius-md);
+  background: var(--odl-bg-subtle);
+  color: var(--odl-fg);
+  text-decoration: none;
+  transition:
+    border-color var(--odl-dur-fast) var(--odl-ease),
+    background-color var(--odl-dur-fast) var(--odl-ease);
+}
+
+.matrixBanner:hover {
+  text-decoration: none;
+  border-color: var(--odl-accent);
+  color: var(--odl-fg);
+}
+
+.matrixBanner:focus-visible {
+  outline: 2px solid var(--odl-accent);
+  outline-offset: 2px;
+}
+
+.matrixBannerText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.matrixBannerTitle {
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-sm);
+  font-weight: 600;
+  color: var(--odl-fg-strong);
+}
+
+.matrixBannerDesc {
+  font-size: var(--odl-text-sm);
+  color: var(--odl-fg-muted);
+}
+
+.matrixBannerCta {
+  flex: 0 0 auto;
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-sm);
+  font-weight: 600;
+  color: var(--odl-accent);
+  white-space: nowrap;
+}
+
+.matrixControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.875rem 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.matrixSearch {
+  flex: 1 1 260px;
+  max-width: 420px;
+  padding: 0.6rem 0.9rem;
+  font-size: var(--odl-text-sm);
+  border: 1px solid var(--odl-border-strong);
+  border-radius: var(--odl-radius-md);
+  background: var(--odl-bg);
+  color: var(--odl-fg);
+}
+
+.matrixSearch:focus-visible {
+  outline: 2px solid var(--odl-accent);
+  outline-offset: -1px;
+  border-color: var(--odl-accent);
+}
+
+.layerToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--odl-text-sm);
+  color: var(--odl-fg);
+  cursor: pointer;
+  user-select: none;
+}
+
+.layerToggle input {
+  accent-color: var(--odl-action-bg);
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  cursor: pointer;
+}
+
+.layerToggle input:focus-visible {
+  outline: 2px solid var(--odl-accent);
+  outline-offset: 2px;
+}
+
+.legendBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1.25rem;
+  padding: 0.55rem 0.85rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--odl-border);
+  border-radius: var(--odl-radius-md);
+  background: var(--odl-bg-subtle);
+  font-size: var(--odl-text-xs);
+  color: var(--odl-fg-muted);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.activeFilters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 1rem;
+}
+
+.activeFiltersLabel {
+  font-size: var(--odl-text-xs);
+  font-weight: 600;
+  color: var(--odl-fg-muted);
+  margin-right: 0.15rem;
+}
+
+.filterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--odl-accent-border);
+  border-radius: var(--odl-radius-sm);
+  background: var(--odl-accent-subtle);
+  color: var(--odl-fg-strong);
+  font-size: var(--odl-text-xs);
+  cursor: pointer;
+}
+
+.filterChip code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: inherit;
+}
+
+.filterChip:hover {
+  border-color: var(--odl-accent);
+}
+
+.filterChip:focus-visible,
+.clearFiltersButton:focus-visible {
+  outline: 2px solid var(--odl-accent);
+  outline-offset: 2px;
+}
+
+.clearFiltersButton {
+  appearance: none;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--odl-border-strong);
+  border-radius: var(--odl-radius-sm);
+  background: var(--odl-bg);
+  color: var(--odl-fg-muted);
+  font-size: var(--odl-text-xs);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.clearFiltersButton:hover {
+  border-color: var(--odl-accent);
+  color: var(--odl-accent);
+}
+
+.matrixMetaRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.matrixGroupDesc {
+  margin: 0;
+  font-size: var(--odl-text-sm);
+  color: var(--odl-fg-muted);
+}
+
+.matrixRowCount {
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-xs);
+  color: var(--odl-fg-muted);
+  white-space: nowrap;
+}
+
+.emptyState {
+  padding: 2rem 1rem;
+  margin-bottom: 1.25rem;
+  text-align: center;
+  border: 1px solid var(--odl-border);
+  border-radius: var(--odl-radius-md);
+  background: var(--odl-bg-subtle);
+  color: var(--odl-fg-muted);
+}
+
+.matrixWrap {
+  max-width: 100%;
+  margin-bottom: 1.25rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--odl-code-border);
+  border-radius: var(--odl-radius-md);
+  background: var(--odl-bg);
+}
+
+.matrixTable {
+  width: 100%;
+  margin: 0;
+  display: table;
+  border: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--odl-bg);
+}
+
+.matrixStickyColHeader,
+.matrixColHeader,
+.matrixStickyCol,
+.matrixCell {
+  border: 0;
+  padding: 0;
+  vertical-align: middle;
+}
+
+.matrixStickyColHeader,
+.matrixColHeader {
+  background: var(--odl-code-bg);
+  border-bottom: 1px solid var(--odl-border-strong);
+}
+
+.matrixStickyColHeader {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  min-width: 8.5rem;
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--odl-fg-muted);
+  border-right: 1px solid var(--odl-border-strong);
+}
+
+.matrixColHeader:not(:last-child) {
+  border-right: 1px solid var(--odl-code-border);
+}
+
+.colFilterButton,
+.colStaticHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  width: 100%;
+  min-width: 4.5rem;
+  padding: 0.45rem 0.5rem;
+  text-align: center;
+}
+
+.colFilterButton {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--odl-fg);
+  cursor: pointer;
+  transition:
+    background-color var(--odl-dur-fast) var(--odl-ease),
+    color var(--odl-dur-fast) var(--odl-ease);
+}
+
+.colFilterButton:hover {
+  background: var(--odl-bg-inset);
+  color: var(--odl-accent);
+}
+
+.colFilterButton:focus-visible {
+  outline: 2px solid var(--odl-accent);
+  outline-offset: -2px;
+}
+
+.colFilterButtonActive {
+  background: var(--odl-accent-subtle);
+  color: var(--odl-accent);
+  box-shadow: inset 0 -2px 0 var(--odl-accent);
+}
+
+.colName {
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  color: inherit;
+}
+
+.colCoverage {
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-2xs);
+  font-weight: 500;
+  color: var(--odl-fg-muted);
+  white-space: nowrap;
+}
+
+.matrixRow:nth-child(2n) .matrixStickyCol,
+.matrixRow:nth-child(2n) .matrixCell {
+  background: var(--odl-bg-subtle);
+}
+
+.matrixRow:nth-child(2n + 1) .matrixStickyCol,
+.matrixRow:nth-child(2n + 1) .matrixCell {
+  background: var(--odl-bg);
+}
+
+.matrixRow:not(:last-child) .matrixStickyCol,
+.matrixRow:not(:last-child) .matrixCell {
+  border-bottom: 1px solid var(--odl-code-border);
+}
+
+.matrixStickyCol {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  padding: 0.45rem 0.75rem;
+  text-align: left;
+  font-weight: 500;
+  white-space: nowrap;
+  border-right: 1px solid var(--odl-border-strong);
+}
+
+.serviceLink {
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-sm);
+  font-weight: 600;
+}
+
+.matrixCell {
+  padding: 0.4rem 0.5rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.matrixCell:not(:last-child) {
+  border-right: 1px solid var(--odl-code-border);
+}
+
+.capNative {
+  display: inline-block;
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-sm);
+  font-weight: 700;
+  color: var(--odl-fg-strong);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.capCondBadge {
+  display: inline-block;
+  padding: 0.08rem 0.38rem;
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-2xs);
+  font-weight: 600;
+  line-height: 1.35;
+  border-radius: var(--odl-radius-xs);
+  white-space: nowrap;
+  border: 1px solid var(--odl-accent-border);
+  background: var(--odl-accent-subtle);
+  color: var(--odl-accent);
+}
+
+.capLimit {
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-xs);
+  font-weight: 500;
+  color: var(--odl-fg);
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.capUnsup {
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-xs);
+  color: var(--odl-fg-subtle);
+}
+
+.sectionHeaderRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.sectionHeading {
+  margin: 0;
+}
+
+.sectionActionLink {
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-sm);
+  font-weight: 500;
+}
+
+.serviceCapControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.supportInline {
+  font-size: var(--odl-text-sm);
+  font-weight: 500;
+  color: var(--odl-fg-strong);
+}
+
+.supportCondWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+
+.supportCondNote {
+  font-size: var(--odl-text-xs);
+  color: var(--odl-fg-muted);
+  white-space: normal;
+}
+
+.notesIntro {
+  color: var(--odl-fg);
+  margin-bottom: 0.75rem;
+}
+
+.notesList {
+  color: var(--odl-fg);
+  padding-left: 1.25rem;
+}
+
+.notesList li {
+  margin-bottom: 0.55rem;
+}
+
+@media (max-width: 996px) {
+  .matrixPage {
+    padding: 1.75rem 0.875rem 3rem;
+  }
+
+  .matrixBanner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.45rem;
+  }
+
+  .matrixSearch {
+    max-width: none;
+    width: 100%;
   }
 }

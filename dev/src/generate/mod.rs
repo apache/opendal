@@ -15,11 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+mod capabilities_docs;
 mod capability;
+mod core_options;
 mod docs;
 mod dotnet;
 mod gcs_grpc;
 mod java;
+mod metadata;
 mod options;
 mod parser;
 mod python;
@@ -52,7 +55,10 @@ pub fn run(language: &str) -> Result<()> {
         "java" => java::generate(workspace_dir, services),
         "python" | "py" => python::generate(workspace_dir, services),
         "dotnet" | "cs" => dotnet::generate(workspace_dir, services),
-        "docs" => docs::generate(workspace_dir, services),
+        "docs" => {
+            capabilities_docs::generate(&workspace_dir, &services)?;
+            docs::generate(workspace_dir, services)
+        }
         _ => anyhow::bail!("unsupported language: {}", language),
     }
 }

@@ -72,7 +72,7 @@ impl oio::PageList for B2Lister {
                 if ctx.token.is_empty() {
                     self.start_after
                         .as_ref()
-                        .map(|v| build_abs_path(&self.core.root, v))
+                        .map(|v| build_absolute_path(&self.core.root, v))
                 } else {
                     Some(ctx.token.clone())
                 },
@@ -91,27 +91,164 @@ impl oio::PageList for B2Lister {
         let output: ListFileNamesResponse =
             serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
-        if let Some(token) = output.next_file_name {
-            ctx.token = token;
-        } else {
-            ctx.done = true;
+        match output.next_file_name {
+            Some(token) if !token.is_empty() => {
+                ctx.token = token;
+            }
+            _ => {
+                ctx.done = true;
+                ctx.token.clear();
+            }
         }
 
         for file in output.files {
             if let Some(start_after) = self.start_after.clone()
-                && build_abs_path(&self.core.root, &start_after) == file.file_name
+                && build_absolute_path(&self.core.root, &start_after) == file.file_name
             {
                 continue;
             }
-            let file_name = file.file_name.clone();
             let metadata = parse_file_info(&file);
+            let path = if file.file_name == self.core.root {
+                "/".to_string()
+            } else {
+                build_relative_path(&self.core.root, &file.file_name)
+            };
 
-            ctx.entries.push_back(oio::Entry::new(
-                &build_rel_path(&self.core.root, &file_name),
-                metadata,
-            ))
+            ctx.entries.push_back(oio::Entry::new(&path, metadata));
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+
+    use futures::stream;
+    use http::Request;
+    use http::Response;
+    use http::StatusCode;
+    use opendal_core::raw::oio::List as _;
+
+    use super::*;
+    use crate::core::tests::test_core;
+
+    struct ScriptedListTransport {
+        pages: Mutex<Vec<String>>,
+        requests: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl HttpTransport for ScriptedListTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.requests.lock().unwrap().push(req.uri().to_string());
+            let mut pages = self.pages.lock().unwrap();
+            assert!(!pages.is_empty(), "unexpected extra list page request");
+            let body = pages.remove(0);
+            let buf = Buffer::from(body);
+            let len = buf.len() as u64;
+            Response::builder()
+                .status(StatusCode::OK)
+                .body(HttpBody::new(stream::iter([Ok(buf)]), Some(len)))
+                .map_err(new_request_build_error)
+        }
+    }
+
+    #[tokio::test]
+    async fn test_lister_stops_on_empty_next_file_name() {
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let transport = ScriptedListTransport {
+            pages: Mutex::new(vec![
+                r#"{
+                    "files": [
+                        {"fileId": "4_z1", "fileName": "a.txt", "contentLength": 1}
+                    ],
+                    "nextFileName": ""
+                }"#
+                .to_string(),
+            ]),
+            requests: requests.clone(),
+        };
+        let core = test_core("/");
+        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
+        let mut lister = oio::PageLister::new(B2Lister::new(core, ctx, "", false, None, None));
+
+        let mut entries = Vec::new();
+        while let Some(entry) = lister.next().await.unwrap() {
+            entries.push(entry);
+        }
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].path(), "a.txt");
+        assert_eq!(requests.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_lister_normalizes_root_entry_to_slash() {
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let transport = ScriptedListTransport {
+            pages: Mutex::new(vec![
+                r#"{
+                    "files": [
+                        {"fileId": "4_z0", "fileName": "sub/", "contentLength": 0},
+                        {"fileId": "4_z1", "fileName": "sub/a.txt", "contentLength": 5},
+                        {"fileId": null, "fileName": "sub/dir/", "contentLength": 0}
+                    ],
+                    "nextFileName": null
+                }"#
+                .to_string(),
+            ]),
+            requests,
+        };
+        let core = test_core("/sub/");
+        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
+        let mut lister = oio::PageLister::new(B2Lister::new(core, ctx, "", false, None, None));
+
+        let mut entries = Vec::new();
+        while let Some(entry) = lister.next().await.unwrap() {
+            entries.push((entry.path().to_string(), entry.metadata().mode()));
+        }
+
+        assert_eq!(
+            entries,
+            vec![
+                ("/".to_string(), EntryMode::DIR),
+                ("a.txt".to_string(), EntryMode::FILE),
+                ("dir/".to_string(), EntryMode::DIR),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_lister_paginates_non_empty_next_file_name() {
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let transport = ScriptedListTransport {
+            pages: Mutex::new(vec![
+                r#"{
+                    "files": [{"fileId": "4_z1", "fileName": "a.txt", "contentLength": 1}],
+                    "nextFileName": "b.txt"
+                }"#
+                .to_string(),
+                r#"{
+                    "files": [{"fileId": "4_z2", "fileName": "b.txt", "contentLength": 2}],
+                    "nextFileName": ""
+                }"#
+                .to_string(),
+            ]),
+            requests: requests.clone(),
+        };
+        let core = test_core("/");
+        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
+        let mut lister = oio::PageLister::new(B2Lister::new(core, ctx, "", false, None, None));
+
+        let mut paths = Vec::new();
+        while let Some(entry) = lister.next().await.unwrap() {
+            paths.push(entry.path().to_string());
+        }
+
+        assert_eq!(paths, vec!["a.txt", "b.txt"]);
+        let recorded = requests.lock().unwrap();
+        assert_eq!(recorded.len(), 2);
+        assert!(recorded[1].contains("startFileName=b.txt"));
     }
 }

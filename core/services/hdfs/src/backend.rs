@@ -142,7 +142,10 @@ impl Builder for HdfsBuilder {
             client.create_dir(&root).map_err(new_std_io_error)?
         }
 
-        let atomic_write_dir = self.config.atomic_write_dir;
+        let mut atomic_write_dir = self.config.atomic_write_dir;
+        if let Some(dir) = atomic_write_dir.as_mut().filter(|dir| !dir.is_empty()) {
+            *dir = normalize_root(dir);
+        }
 
         // If atomic write dir is not exist, we must create it.
         if let Some(d) = &atomic_write_dir
@@ -168,6 +171,8 @@ impl Builder for HdfsBuilder {
                     delete_with_recursive: true,
 
                     list: true,
+
+                    copy: true,
 
                     rename: true,
                     rename_with_if_not_exists: true,
@@ -195,7 +200,8 @@ impl Service for HdfsBackend {
     type Writer = HdfsLazyWriter;
     type Lister = Option<HdfsLister>;
     type Deleter = oio::OneShotDeleter<HdfsDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -257,15 +263,20 @@ impl Service for HdfsBackend {
     fn copy(
         &self,
         _ctx: &OperationContext,
-        _from: &str,
-        _to: &str,
+        from: &str,
+        to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
+        let core = self.core.clone();
+        let from = from.to_string();
+        let to = to.to_string();
+        // Recreate the future so retry layers can rerun the copy after a temporary error.
+        Ok(oio::OneShotCopier::new_with(move || {
+            let core = core.clone();
+            let from = from.clone();
+            let to = to.clone();
+            async move { core.hdfs_copy(&from, &to).await }
+        }))
     }
 
     async fn rename(

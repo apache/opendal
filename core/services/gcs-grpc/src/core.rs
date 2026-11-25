@@ -16,12 +16,12 @@
 // under the License.
 
 use std::fmt::{Debug, Formatter};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use http::header::AUTHORIZATION;
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
-use reqsign_core::{Context, Signer};
-use reqsign_google::Credential;
+use reqsign_core::{Context, ProvideCredentialDyn, Signer};
+use reqsign_google::{Credential, RequestSigner};
 use tonic::metadata::MetadataValue;
 use tonic::transport::{Channel, Endpoint};
 
@@ -41,8 +41,10 @@ pub(crate) struct GcsGrpcCore {
     pub root: String,
     pub channel_endpoint: Endpoint,
     pub channel: OnceLock<Channel>,
-    pub signer: Signer<Credential>,
     pub sign_ctx: Context,
+    pub credential_provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
+    pub request_signer: Arc<RequestSigner>,
+    pub signers: HttpTransportCache<Signer<Credential>>,
     pub skip_signature: bool,
 }
 
@@ -57,12 +59,31 @@ impl Debug for GcsGrpcCore {
 }
 
 impl GcsGrpcCore {
+    fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
+        self.signers.get_or_init(ctx.http_transport(), |transport| {
+            Signer::new(
+                self.sign_ctx.clone().with_http_send(transport),
+                self.credential_provider.clone(),
+                self.request_signer.clone(),
+            )
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn signer_with_context(&self, ctx: Context) -> Signer<Credential> {
+        Signer::new(
+            ctx,
+            self.credential_provider.clone(),
+            self.request_signer.clone(),
+        )
+    }
+
     pub fn bucket_resource(&self) -> String {
         format!("projects/_/buckets/{}", self.bucket)
     }
 
     pub fn object_name(&self, path: &str) -> String {
-        build_abs_path(&self.root, path)
+        build_absolute_path(&self.root, path)
     }
 
     pub fn client(&self) -> StorageClient<Channel> {
@@ -98,12 +119,7 @@ impl GcsGrpcCore {
             .body(())
             .map_err(new_request_build_error)?;
         let (mut parts, _) = req.into_parts();
-        let signer = self.signer.clone().with_context(
-            self.sign_ctx
-                .clone()
-                .with_http_send(ctx.http_transport().clone()),
-        );
-        signer
+        self.signer(ctx)
             .sign(&mut parts, None)
             .await
             .map_err(|err| new_request_sign_error(err.into()))?;
@@ -147,22 +163,43 @@ fn build_routing_header(parameters: &[(&str, &str)]) -> Option<String> {
     })
 }
 
-pub(crate) fn parse_status(status: tonic::Status) -> Error {
+#[derive(Clone, Copy)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+    if_not_exists: bool,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self {
+            service_operation,
+            if_not_exists: false,
+        }
+    }
+
+    pub(crate) const fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.if_not_exists = if_not_exists;
+        self
+    }
+}
+
+pub(crate) fn parse_status(ctx: ErrorContext, status: tonic::Status) -> Error {
     use tonic::Code;
 
     let kind = match status.code() {
         Code::NotFound => ErrorKind::NotFound,
+        Code::AlreadyExists if ctx.if_not_exists => ErrorKind::ConditionNotMatch,
         Code::AlreadyExists => ErrorKind::AlreadyExists,
         Code::PermissionDenied | Code::Unauthenticated => ErrorKind::PermissionDenied,
-        Code::FailedPrecondition => ErrorKind::ConditionNotMatch,
+        Code::FailedPrecondition if ctx.if_not_exists => ErrorKind::ConditionNotMatch,
+        Code::FailedPrecondition | Code::Aborted => ErrorKind::Conflict,
         Code::OutOfRange => ErrorKind::RangeNotSatisfied,
         Code::ResourceExhausted => ErrorKind::RateLimited,
         _ => ErrorKind::Unexpected,
     };
     let temporary = matches!(
         status.code(),
-        Code::Aborted
-            | Code::Cancelled
+        Code::Cancelled
             | Code::DeadlineExceeded
             | Code::Internal
             | Code::ResourceExhausted
@@ -170,7 +207,8 @@ pub(crate) fn parse_status(status: tonic::Status) -> Error {
             | Code::Unknown
     );
     let mut err = Error::new(kind, status.message().to_string())
-        .with_context("grpc_code", status.code().description());
+        .with_context("grpc_code", status.code().description())
+        .with_context("service_operation", ctx.service_operation.0);
     if temporary {
         err = err.set_temporary();
     }
@@ -178,16 +216,25 @@ pub(crate) fn parse_status(status: tonic::Status) -> Error {
 }
 
 pub(crate) fn parse_generation(value: Option<&str>) -> Result<i64> {
-    value
-        .map(|v| {
-            v.parse::<i64>().map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "GCS generation must be an integer")
-                    .with_context("generation", v)
-                    .set_source(err)
-            })
-        })
-        .transpose()
-        .map(|v| v.unwrap_or_default())
+    let Some(v) = value else {
+        return Ok(0);
+    };
+    let generation = v.parse::<i64>().map_err(|err| {
+        Error::new(
+            ErrorKind::Unexpected,
+            "GCS generation must be a nonzero integer",
+        )
+        .with_context("generation", v)
+        .set_source(err)
+    })?;
+    if generation == 0 {
+        return Err(Error::new(
+            ErrorKind::Unexpected,
+            "GCS generation must be a nonzero integer",
+        )
+        .with_context("generation", v));
+    }
+    Ok(generation)
 }
 
 pub(crate) fn parse_object(object: &Object) -> Metadata {
@@ -196,35 +243,38 @@ pub(crate) fn parse_object(object: &Object) -> Metadata {
     } else {
         EntryMode::FILE
     };
-    let mut metadata = Metadata::new(mode);
-    metadata.set_content_length(object.size.max(0) as u64);
+    let mut metadata = if mode == EntryMode::FILE {
+        MetadataBuilder::file(object.size.max(0) as u64)
+    } else {
+        MetadataBuilder::dir()
+    };
     if !object.cache_control.is_empty() {
-        metadata.set_cache_control(&object.cache_control);
+        metadata.cache_control(&object.cache_control);
     }
     if !object.content_type.is_empty() {
-        metadata.set_content_type(&object.content_type);
+        metadata.content_type(&object.content_type);
     }
     if !object.content_encoding.is_empty() {
-        metadata.set_content_encoding(&object.content_encoding);
+        metadata.content_encoding(&object.content_encoding);
     }
     if !object.content_disposition.is_empty() {
-        metadata.set_content_disposition(&object.content_disposition);
+        metadata.content_disposition(&object.content_disposition);
     }
     if !object.etag.is_empty() {
-        metadata.set_etag(&object.etag);
+        metadata.etag(&object.etag);
     }
     if object.generation != 0 {
-        metadata.set_version(&object.generation.to_string());
+        metadata.version(object.generation.to_string());
     }
     if !object.metadata.is_empty() {
-        metadata = metadata.with_user_metadata(object.metadata.clone());
+        metadata.user_metadata(object.metadata.clone());
     }
     if let Some(ts) = object.update_time.as_ref().or(object.create_time.as_ref())
         && let Ok(ts) = Timestamp::new(ts.seconds, ts.nanos)
     {
-        metadata.set_last_modified(ts);
+        metadata.last_modified(ts);
     }
-    metadata
+    metadata.build()
 }
 
 #[cfg(test)]
@@ -245,5 +295,49 @@ mod tests {
                 "source_bucket=projects%2F%5F%2Fbuckets%2Fexample%2Dbucket&bucket=projects%2F%5F%2Fbuckets%2Fexample%2Dbucket"
             )
         );
+    }
+
+    #[test]
+    fn status_classification_uses_operation_context() {
+        let caller = ErrorContext::new(ServiceOperation("WriteObject")).with_if_not_exists(true);
+        let err = parse_status(
+            caller,
+            tonic::Status::failed_precondition("generation mismatch"),
+        );
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert!(!err.is_temporary());
+
+        let state_conflict = ErrorContext::new(ServiceOperation("QueryWriteStatus"));
+        let err = parse_status(
+            state_conflict,
+            tonic::Status::failed_precondition("upload is not active"),
+        );
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(!err.is_temporary());
+
+        let concurrent = ErrorContext::new(ServiceOperation("RewriteObject"));
+        let err = parse_status(concurrent, tonic::Status::aborted("concurrent update"));
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
+    fn parse_generation_rejects_zero() {
+        assert_eq!(parse_generation(None).unwrap(), 0);
+        assert_eq!(parse_generation(Some("1")).unwrap(), 1);
+        assert_eq!(parse_generation(Some("123")).unwrap(), 123);
+        assert_eq!(
+            parse_generation(Some("9223372036854775807")).unwrap(),
+            i64::MAX
+        );
+
+        for invalid in ["0", "-0", "", "abc", "9223372036854775808"] {
+            let err = parse_generation(Some(invalid)).unwrap_err();
+            assert_eq!(
+                err.kind(),
+                ErrorKind::Unexpected,
+                "generation {invalid:?} should fail with Unexpected"
+            );
+        }
     }
 }

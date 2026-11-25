@@ -15,6 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::future::{Future, poll_fn};
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::pin::pin;
+use std::task::Poll;
 use std::time::Duration;
 
 use jni::Env;
@@ -34,17 +38,17 @@ use opendal::Operator;
 use opendal::blocking;
 
 use crate::Result;
-use crate::convert::{
-    bytes_to_jbytearray, jmap_to_hashmap, jstring_to_string, offset_length_to_range,
-    read_int64_field,
-};
-use crate::error::ThrowException;
+use crate::convert::{bytes_to_jbytearray, jmap_to_hashmap, jstring_to_string};
+use crate::error::{ThrowException, panic_exception};
 use crate::executor::Executor;
 use crate::executor::executor_or_default;
 use crate::make_metadata;
 use crate::make_operator_info;
 use crate::make_presigned_request;
-use crate::{make_entry, make_list_options, make_stat_options, make_write_options};
+use crate::{
+    make_delete_options, make_entry, make_list_options, make_read_options, make_stat_options,
+    make_write_options,
+};
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_apache_opendal_AsyncOperator_constructor<'local>(
@@ -52,16 +56,26 @@ pub extern "system" fn Java_org_apache_opendal_AsyncOperator_constructor<'local>
     _: JClass<'local>,
     scheme: JString<'local>,
     map: JObject<'local>,
+    executor: *const Executor,
 ) -> jlong {
-    env.with_env(|env| intern_constructor(env, scheme, map))
+    env.with_env(|env| intern_constructor(env, scheme, map, executor))
         .resolve::<ThrowException>()
 }
 
-fn intern_constructor(env: &mut Env, scheme: JString, map: JObject) -> Result<jlong> {
+fn intern_constructor(
+    env: &mut Env,
+    scheme: JString,
+    map: JObject,
+    executor: *const Executor,
+) -> Result<jlong> {
     let scheme = jstring_to_string(env, &scheme)?;
     let map = jmap_to_hashmap(env, &map)?;
     let op = Operator::via_iter(scheme, map)?;
-    Ok(Box::into_raw(Box::new(op)) as jlong)
+    let executor = executor_or_default(env, executor)?;
+    let ctx = op
+        .context()
+        .with_executor(opendal::Executor::with(executor));
+    Ok(Box::into_raw(Box::new(op.with_context(ctx))) as jlong)
 }
 
 /// # Safety
@@ -69,12 +83,15 @@ fn intern_constructor(env: &mut Env, scheme: JString, map: JObject) -> Result<jl
 /// This function should not be called before the Operator is ready.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_duplicate<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
 ) -> jlong {
-    let op = unsafe { &mut *op };
-    Box::into_raw(Box::new(op.clone())) as jlong
+    env.with_env(|_| -> Result<_> {
+        let op = unsafe { &*op };
+        Ok(Box::into_raw(Box::new(op.clone())) as jlong)
+    })
+    .resolve::<ThrowException>()
 }
 
 /// # Safety
@@ -82,13 +99,15 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_duplicate<'l
 /// This function should not be called before the Operator is ready.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_disposeInternal<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JObject<'local>,
     op: *mut Operator,
 ) {
-    unsafe {
-        drop(Box::from_raw(op));
-    }
+    env.with_env(|_| -> Result<()> {
+        unsafe { drop(Box::from_raw(op)) };
+        Ok(())
+    })
+    .resolve::<ThrowException>()
 }
 
 /// # Safety
@@ -98,7 +117,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_disposeInter
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_write<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
     content: JByteArray<'local>,
@@ -110,28 +129,24 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_write<'local
 
 fn intern_write(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
     content: JByteArray,
     options: JObject,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
-    let id = request_id(env)?;
+    let op = unsafe { &*op }.clone();
 
     let write_opts = make_write_options(env, &options)?;
     let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
 
-    executor_or_default(executor)?.spawn(async move {
-        let result = op.write_options(&path, content, write_opts).await;
-        complete_future(id, move |_env| {
-            result?;
-            Ok(JObject::null())
-        });
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.write_options(&path, content, write_opts).await },
+        |_, _| Ok(JObject::null()),
+    )
 }
 
 /// # Safety
@@ -141,7 +156,7 @@ fn intern_write(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_stat<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
     stat_options: JObject<'local>,
@@ -152,23 +167,22 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_stat<'local>
 
 fn intern_stat(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
     options: JObject,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
-    let id = request_id(env)?;
+    let op = unsafe { &*op }.clone();
 
     let path = jstring_to_string(env, &path)?;
     let stat_opts = make_stat_options(env, &options)?;
 
-    executor_or_default(executor)?.spawn(async move {
-        let result = op.stat_options(&path, stat_opts).await;
-        complete_future(id, move |env| make_metadata(env, result?));
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.stat_options(&path, stat_opts).await },
+        make_metadata,
+    )
 }
 
 /// # Safety
@@ -178,7 +192,7 @@ fn intern_stat(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_read<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
     read_options: JObject<'local>,
@@ -189,32 +203,21 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_read<'local>
 
 fn intern_read(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
     options: JObject,
 ) -> Result<jlong> {
-    // Prepare inputs before spawning
-    let id = request_id(env)?;
-    let path_str = jstring_to_string(env, &path)?;
-    let offset = read_int64_field(env, &options, "offset")?;
-    let length = read_int64_field(env, &options, "length")?;
-    let range = offset_length_to_range(offset, length)?;
+    let path = jstring_to_string(env, &path)?;
+    let read_opts = make_read_options(env, &options)?;
+    let op = unsafe { &*op }.clone();
 
-    // Clone operator handle to move into the task
-    let op_cloned = unsafe { &*op }.clone();
-
-    executor_or_default(executor)?.spawn(async move {
-        let mut read_op = op_cloned.read_with(&path_str);
-        read_op = read_op.range(range);
-        let result = read_op.await;
-        complete_future(id, move |env| {
-            let buffer = result?;
-            Ok(bytes_to_jbytearray(env, buffer.to_bytes())?.into())
-        });
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.read_options(&path, read_opts).await },
+        |env, buffer| Ok(bytes_to_jbytearray(env, buffer.to_bytes())?.into()),
+    )
 }
 
 /// # Safety
@@ -224,34 +227,32 @@ fn intern_read(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_delete<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
+    options: JObject<'local>,
 ) -> jlong {
-    env.with_env(|env| intern_delete(env, op, executor, path))
+    env.with_env(|env| intern_delete(env, op, executor, path, options))
         .resolve::<ThrowException>()
 }
 
 fn intern_delete(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
+    options: JObject,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
-    let id = request_id(env)?;
-
     let path = jstring_to_string(env, &path)?;
+    let options = make_delete_options(env, &options)?;
+    let op = unsafe { &*op }.clone();
 
-    executor_or_default(executor)?.spawn(async move {
-        let result = op.delete(&path).await;
-        complete_future(id, move |_env| {
-            result?;
-            Ok(JObject::null())
-        });
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.delete_options(&path, options).await },
+        |_, _| Ok(JObject::null()),
+    )
 }
 
 /// # Safety
@@ -261,7 +262,7 @@ fn intern_delete(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_makeBlockingOp<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
 ) -> jlong {
     env.with_env(|env| intern_make_blocking_op(env, op, executor))
@@ -269,13 +270,13 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_makeBlocking
 }
 
 fn intern_make_blocking_op(
-    _env: &mut Env,
-    op: *mut Operator,
+    env: &mut Env,
+    op: *const Operator,
     executor: *const Executor,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
-    let op =
-        executor_or_default(executor)?.enter_with(move || blocking::Operator::new(op.clone()))?;
+    let op = unsafe { &*op };
+    let op = executor_or_default(env, executor)?
+        .enter_with(move || blocking::Operator::new(op.clone()))?;
     Ok(Box::into_raw(Box::new(op)) as jlong)
 }
 
@@ -286,7 +287,7 @@ fn intern_make_blocking_op(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_makeOperatorInfo<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
 ) -> JObject<'local> {
     env.with_env(|env| intern_make_operator_info(env, op))
         .resolve::<ThrowException>()
@@ -294,9 +295,9 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_makeOperator
 
 fn intern_make_operator_info<'local>(
     env: &mut Env<'local>,
-    op: *mut Operator,
+    op: *const Operator,
 ) -> Result<JObject<'local>> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op };
     make_operator_info(env, op.info())
 }
 
@@ -307,7 +308,7 @@ fn intern_make_operator_info<'local>(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_createDir<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
 ) -> jlong {
@@ -317,24 +318,20 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_createDir<'l
 
 fn intern_create_dir(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
-    let id = request_id(env)?;
+    let op = unsafe { &*op }.clone();
 
     let path = jstring_to_string(env, &path)?;
 
-    executor_or_default(executor)?.spawn(async move {
-        let result = op.create_dir(&path).await;
-        complete_future(id, move |_env| {
-            result?;
-            Ok(JObject::null())
-        });
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.create_dir(&path).await },
+        |_, _| Ok(JObject::null()),
+    )
 }
 
 /// # Safety
@@ -344,7 +341,7 @@ fn intern_create_dir(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_copy<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     source_path: JString<'local>,
     target_path: JString<'local>,
@@ -355,26 +352,22 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_copy<'local>
 
 fn intern_copy(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     source_path: JString,
     target_path: JString,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
-    let id = request_id(env)?;
+    let op = unsafe { &*op }.clone();
 
     let source_path = jstring_to_string(env, &source_path)?;
     let target_path = jstring_to_string(env, &target_path)?;
 
-    executor_or_default(executor)?.spawn(async move {
-        let result = op.copy(&source_path, &target_path).await;
-        complete_future(id, move |_env| {
-            result?;
-            Ok(JObject::null())
-        });
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.copy(&source_path, &target_path).await },
+        |_, _| Ok(JObject::null()),
+    )
 }
 
 /// # Safety
@@ -384,7 +377,7 @@ fn intern_copy(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_rename<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     source_path: JString<'local>,
     target_path: JString<'local>,
@@ -395,26 +388,22 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_rename<'loca
 
 fn intern_rename(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     source_path: JString,
     target_path: JString,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
-    let id = request_id(env)?;
+    let op = unsafe { &*op }.clone();
 
     let source_path = jstring_to_string(env, &source_path)?;
     let target_path = jstring_to_string(env, &target_path)?;
 
-    executor_or_default(executor)?.spawn(async move {
-        let result = op.rename(&source_path, &target_path).await;
-        complete_future(id, move |_env| {
-            result?;
-            Ok(JObject::null())
-        });
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.rename(&source_path, &target_path).await },
+        |_, _| Ok(JObject::null()),
+    )
 }
 
 /// # Safety
@@ -424,7 +413,7 @@ fn intern_rename(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_removeAll<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
 ) -> jlong {
@@ -434,24 +423,20 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_removeAll<'l
 
 fn intern_remove_all(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
-    let id = request_id(env)?;
+    let op = unsafe { &*op }.clone();
 
     let path = jstring_to_string(env, &path)?;
 
-    executor_or_default(executor)?.spawn(async move {
-        let result = op.delete_with(&path).recursive(true).await;
-        complete_future(id, move |_env| {
-            result?;
-            Ok(JObject::null())
-        });
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.delete_with(&path).recursive(true).await },
+        |_, _| Ok(JObject::null()),
+    )
 }
 
 /// # Safety
@@ -461,7 +446,7 @@ fn intern_remove_all(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_list<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
     options: JObject<'local>,
@@ -472,22 +457,21 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_list<'local>
 
 fn intern_list(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
     options: JObject,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
-    let id = request_id(env)?;
+    let op = unsafe { &*op }.clone();
 
     let path = jstring_to_string(env, &path)?;
     let list_opts = make_list_options(env, &options)?;
-    executor_or_default(executor)?.spawn(async move {
-        let result = op.list_options(&path, list_opts).await;
-        complete_future(id, move |env| make_entries(env, result?));
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.list_options(&path, list_opts).await },
+        make_entries,
+    )
 }
 
 fn make_entries<'local>(env: &mut Env<'local>, entries: Vec<Entry>) -> Result<JObject<'local>> {
@@ -498,8 +482,14 @@ fn make_entries<'local>(env: &mut Env<'local>, entries: Vec<Entry>) -> Result<JO
     )?;
 
     for (idx, entry) in entries.into_iter().enumerate() {
-        let entry = make_entry(env, entry)?;
-        jarray.set_element(env, idx, &entry)?;
+        // `make_entry` creates a dozen or more local references. Release them at
+        // the end of each iteration so a large listing cannot exhaust the JNI
+        // local reference table.
+        env.with_local_frame(16, |env| -> Result<()> {
+            let entry = make_entry(env, entry)?;
+            jarray.set_element(env, idx, &entry)?;
+            Ok(())
+        })?;
     }
 
     Ok(jarray.into())
@@ -512,34 +502,36 @@ fn make_entries<'local>(env: &mut Env<'local>, entries: Vec<Entry>) -> Result<JO
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_presignRead<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
     expire: jlong,
+    options: JObject<'local>,
 ) -> jlong {
-    env.with_env(|env| intern_presign_read(env, op, executor, path, expire))
+    env.with_env(|env| intern_presign_read(env, op, executor, path, expire, options))
         .resolve::<ThrowException>()
 }
 
 fn intern_presign_read(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
     expire: jlong,
+    options: JObject,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
-    let id = request_id(env)?;
+    let op = unsafe { &*op }.clone();
+    let expire = Duration::from_nanos(expire as u64);
+    let read_opts = make_read_options(env, &options)?;
 
     let path = jstring_to_string(env, &path)?;
-    let expire = Duration::from_nanos(expire as u64);
 
-    executor_or_default(executor)?.spawn(async move {
-        let result = op.presign_read(&path, expire).await;
-        complete_future(id, move |env| make_presigned_request(env, result?));
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.presign_read_options(&path, expire, read_opts).await },
+        make_presigned_request,
+    )
 }
 /// # Safety
 ///
@@ -548,34 +540,36 @@ fn intern_presign_read(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_presignWrite<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
     expire: jlong,
+    options: JObject<'local>,
 ) -> jlong {
-    env.with_env(|env| intern_presign_write(env, op, executor, path, expire))
+    env.with_env(|env| intern_presign_write(env, op, executor, path, expire, options))
         .resolve::<ThrowException>()
 }
 
 fn intern_presign_write(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
     expire: jlong,
+    options: JObject,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
-    let id = request_id(env)?;
+    let op = unsafe { &*op }.clone();
+    let expire = Duration::from_nanos(expire as u64);
+    let write_opts = make_write_options(env, &options)?;
 
     let path = jstring_to_string(env, &path)?;
-    let expire = Duration::from_nanos(expire as u64);
 
-    executor_or_default(executor)?.spawn(async move {
-        let result = op.presign_write(&path, expire).await;
-        complete_future(id, move |env| make_presigned_request(env, result?));
-    });
-
-    Ok(id)
+    spawn_operation(
+        env,
+        executor,
+        async move { op.presign_write_options(&path, expire, write_opts).await },
+        make_presigned_request,
+    )
 }
 
 /// # Safety
@@ -585,75 +579,124 @@ fn intern_presign_write(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_presignStat<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
     expire: jlong,
+    options: JObject<'local>,
 ) -> jlong {
-    env.with_env(|env| intern_presign_stat(env, op, executor, path, expire))
+    env.with_env(|env| intern_presign_stat(env, op, executor, path, expire, options))
         .resolve::<ThrowException>()
 }
 
 fn intern_presign_stat(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
     expire: jlong,
+    options: JObject,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
-    let id = request_id(env)?;
+    let op = unsafe { &*op }.clone();
+    let expire = Duration::from_nanos(expire as u64);
+    let stat_opts = make_stat_options(env, &options)?;
 
     let path = jstring_to_string(env, &path)?;
-    let expire = Duration::from_nanos(expire as u64);
 
-    executor_or_default(executor)?.spawn(async move {
-        let result = op.presign_stat(&path, expire).await;
-        complete_future(id, move |env| make_presigned_request(env, result?));
+    spawn_operation(
+        env,
+        executor,
+        async move { op.presign_stat_options(&path, expire, stat_opts).await },
+        make_presigned_request,
+    )
+}
+
+/// Run a storage operation and complete the Java future with its result.
+fn spawn_operation<T, F, B>(
+    env: &mut Env,
+    executor: *const Executor,
+    operation: F,
+    build: B,
+) -> Result<jlong>
+where
+    T: Send + 'static,
+    F: Future<Output = opendal::Result<T>> + Send + 'static,
+    B: for<'a> FnOnce(&mut Env<'a>, T) -> Result<JObject<'a>> + Send + 'static,
+{
+    let executor = executor_or_default(env, executor)?;
+    let id = request_id(env)?;
+    executor.spawn(async move {
+        let mut operation = pin!(operation);
+        let result =
+            poll_fn(
+                |cx| match catch_unwind(AssertUnwindSafe(|| operation.as_mut().poll(cx))) {
+                    Ok(poll) => poll.map(Ok),
+                    Err(payload) => Poll::Ready(Err(payload)),
+                },
+            )
+            .await;
+        complete_future(id, result, build);
     });
-
     Ok(id)
 }
 
-/// Complete the Java `CompletableFuture` identified by `id`.
-///
-/// This runs on a `tokio` worker thread that was permanently attached to the
-/// JVM in `on_thread_start`, so `attach_current_thread` only pushes a scoped
-/// JNI frame here. The `build` closure turns the awaited operation result into a
-/// Java object within that frame; on error the future is completed
-/// exceptionally. All local references created during completion live and die
-/// within the frame.
-fn complete_future<F>(id: jlong, build: F)
-where
-    F: for<'a> FnOnce(&mut Env<'a>) -> Result<JObject<'a>>,
-{
+/// Complete the future in a scoped JNI frame on a JVM-attached worker thread.
+fn complete_future<T>(
+    id: jlong,
+    result: std::thread::Result<opendal::Result<T>>,
+    build: impl for<'a> FnOnce(&mut Env<'a>, T) -> Result<JObject<'a>>,
+) {
     let vm = JavaVM::singleton().expect("JavaVM singleton must be initialized");
-    vm.attach_current_thread(|env| -> Result<()> {
+    vm.attach_current_thread(|env| -> jni::errors::Result<()> {
         let future = get_future(env, id)?;
-        match build(env) {
-            Ok(object) => {
-                env.call_method(
-                    &future,
-                    jni_str!("complete"),
-                    jni_sig!("(Ljava/lang/Object;)Z"),
-                    &[JValue::Object(&object)],
-                )?;
-            }
-            Err(err) => {
-                let exception = err.to_exception(env)?;
-                env.call_method(
-                    &future,
-                    jni_str!("completeExceptionally"),
-                    jni_sig!("(Ljava/lang/Throwable;)Z"),
-                    &[JValue::Object(&exception)],
-                )?;
-            }
+        if future.is_null() {
+            // The Java future was cancelled or completed before the native
+            // operation finished, so the registry no longer holds an entry.
+            return Ok(());
         }
+        let result =
+            result.and_then(|result| catch_unwind(AssertUnwindSafe(|| build(env, result?))));
+        let exception = if env.exception_check() {
+            Err(jni::errors::Error::JavaException)
+        } else {
+            match result {
+                Ok(Ok(object)) => {
+                    env.call_method(
+                        &future,
+                        jni_str!("complete"),
+                        jni_sig!("(Ljava/lang/Object;)Z"),
+                        &[JValue::Object(&object)],
+                    )?;
+                    return Ok(());
+                }
+                Ok(Err(err)) => err.to_exception(env),
+                Err(payload) => panic_exception(env, payload.as_ref()),
+            }
+        };
+        // JNI requires clearing a pending Java exception before calling completeExceptionally.
+        let exception = match env.exception_occurred() {
+            Some(pending) => {
+                env.exception_clear();
+                pending
+            }
+            None => exception?,
+        };
+        env.call_method(
+            &future,
+            jni_str!("completeExceptionally"),
+            jni_sig!("(Ljava/lang/Throwable;)Z"),
+            &[JValue::Object(&exception)],
+        )?;
         Ok(())
     })
     .expect("complete future must succeed");
 }
 
+/// Allocate the Java future that will receive the native operation result.
+///
+/// Call this only after every fallible argument conversion and executor lookup
+/// has succeeded. The registry owns the new entry until the operation finishes,
+/// so allocating it earlier would leak the entry when a conversion fails.
 fn request_id(env: &mut Env) -> Result<jlong> {
     Ok(env
         .call_static_method(
@@ -665,13 +708,12 @@ fn request_id(env: &mut Env) -> Result<jlong> {
         .j()?)
 }
 
-fn get_future<'local>(env: &mut Env<'local>, id: jlong) -> Result<JObject<'local>> {
-    Ok(env
-        .call_static_method(
-            jni_str!("org/apache/opendal/AsyncOperator$AsyncRegistry"),
-            jni_str!("get"),
-            jni_sig!("(J)Ljava/util/concurrent/CompletableFuture;"),
-            &[JValue::Long(id)],
-        )?
-        .l()?)
+fn get_future<'local>(env: &mut Env<'local>, id: jlong) -> jni::errors::Result<JObject<'local>> {
+    env.call_static_method(
+        jni_str!("org/apache/opendal/AsyncOperator$AsyncRegistry"),
+        jni_str!("get"),
+        jni_sig!("(J)Ljava/util/concurrent/CompletableFuture;"),
+        &[JValue::Long(id)],
+    )?
+    .l()
 }

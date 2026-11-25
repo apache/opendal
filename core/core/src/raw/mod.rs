@@ -26,8 +26,8 @@
 //! - Raw APIs are far less stable than public API, please don't rely on
 //!   them whenever possible.
 
-mod accessor;
-pub use accessor::*;
+mod service;
+pub use service::*;
 
 mod layer;
 pub use layer::*;
@@ -46,6 +46,13 @@ pub use rps::*;
 
 mod ops;
 pub use ops::*;
+
+mod glob_matcher;
+pub use glob_matcher::GlobPattern;
+
+mod http_transport_cache;
+pub use http_transport_cache::HttpTransportCache;
+pub use http_transport_cache::WeakHttpTransporter;
 
 mod http_util;
 pub use http_util::*;

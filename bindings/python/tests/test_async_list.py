@@ -16,6 +16,9 @@
 # under the License.
 
 import asyncio
+import threading
+from collections.abc import Callable
+from contextvars import Context
 from uuid import uuid4
 
 import pytest
@@ -34,6 +37,40 @@ async def test_async_list_batching_preserves_order():
 
 
 @pytest.mark.asyncio
+async def test_async_list_batches_cross_thread_wakeups():
+    op = opendal.AsyncOperator("memory")
+    expected = [f"items/{idx:04d}" for idx in range(2000)]
+    for path in expected:
+        await op.write(path, b"test")
+
+    loop = asyncio.get_running_loop()
+    loop_thread_id = threading.get_ident()
+    original_call_soon_threadsafe = loop.call_soon_threadsafe
+    cross_thread_wakeups = 0
+
+    def count_cross_thread_wakeup(
+        callback: Callable[..., object], *args: object, context: Context | None = None
+    ) -> asyncio.Handle:
+        nonlocal cross_thread_wakeups
+        if threading.get_ident() != loop_thread_id:
+            cross_thread_wakeups += 1
+        return original_call_soon_threadsafe(callback, *args, context=context)
+
+    loop.call_soon_threadsafe = count_cross_thread_wakeup
+    try:
+        actual = [entry.path async for entry in await op.list("items/", recursive=True)]
+    finally:
+        loop.call_soon_threadsafe = original_call_soon_threadsafe
+
+    assert set(actual) == set(expected)
+    assert len(actual) == len(expected)
+    # Batches of 64 need about 32 wakeups for 2,000 entries, plus lister creation.
+    assert cross_thread_wakeups < 256, (
+        f"Got {cross_thread_wakeups} cross-thread wakeups for {len(actual)} entries"
+    )
+
+
+@pytest.mark.asyncio
 async def test_async_list_cancelled_next_preserves_entry():
     op = opendal.AsyncOperator("memory")
     expected = [f"items/{idx:03d}" for idx in range(3)]
@@ -47,6 +84,42 @@ async def test_async_list_cancelled_next_preserves_entry():
 
     actual = [entry.path async for entry in lister]
     assert actual == expected
+
+
+@pytest.mark.asyncio
+async def test_async_list_reentrant_anext_does_not_raise_already_borrowed():
+    op = opendal.AsyncOperator("memory")
+    expected = [f"items/{idx:03d}" for idx in range(5)]
+    await asyncio.gather(*(op.write(path, b"test") for path in expected))
+
+    lister = await op.list("items/", recursive=True)
+    # Prime the internal batch buffer so the next `anext` takes the fast path.
+    first = await anext(lister)
+    seen = [first.path]
+
+    loop = asyncio.get_running_loop()
+    original_create_future = loop.create_future
+    nested_future: list[asyncio.Future[opendal.Entry]] = []
+    triggered = False
+
+    def reentrant_create_future() -> asyncio.Future[object]:
+        nonlocal triggered
+        if not triggered:
+            triggered = True
+            nested_future.append(asyncio.ensure_future(anext(lister)))
+        return original_create_future()
+
+    loop.create_future = reentrant_create_future
+    try:
+        second = await anext(lister)
+        seen.append(second.path)
+        assert len(nested_future) == 1
+        seen.append((await nested_future[0]).path)
+    finally:
+        loop.create_future = original_create_future
+
+    seen.extend([entry.path async for entry in lister])
+    assert sorted(seen) == expected
 
 
 @pytest.mark.asyncio

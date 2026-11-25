@@ -18,20 +18,19 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { test } from 'vitest'
-import { generateFixedBytes } from '../utils.mjs'
+import { once } from 'node:events'
 import { Readable } from 'node:stream'
+import { finished, pipeline } from 'node:stream/promises'
+import { test } from 'vitest'
+import { Operator } from '../../index.mjs'
+import { generateFixedBytes } from '../utils.mjs'
 
 export function run(op) {
-  describe.runIf(op.capability().blocking)('sync tests', () => {
+  describe('sync tests', () => {
     test('sync stat not exist files', () => {
       const filename = `random_file_${randomUUID()}`
 
-      try {
-        op.statSync(filename)
-      } catch (error) {
-        assert.include(error.message, 'NotFound')
-      }
+      assert.throws(() => op.statSync(filename), /NotFound/)
     })
 
     test.runIf(op.capability().read && op.capability().write && op.capability().writeCanMulti)(
@@ -44,40 +43,88 @@ export function run(op) {
         })
         const w = op.writerSync(filename)
         const ws = w.createWriteStream()
-        rs.pipe(ws)
+        await pipeline(rs, ws)
+        await finished(ws)
 
-        ws.on('finish', () => {
-          const t = op.statSync(filename)
-          assert.equal(t.contentLength, buf.length)
+        const t = op.statSync(filename)
+        assert.equal(t.contentLength, BigInt(buf.length))
 
-          const content = op.readSync(filename)
-          assert.equal(Buffer.compare(content, buf), 0) // 0 means equal
+        const content = op.readSync(filename)
+        assert.equal(Buffer.compare(content, buf), 0) // 0 means equal
 
-          op.deleteSync(filename)
-        })
+        op.deleteSync(filename)
       },
     )
 
-    test.runIf(op.capability().read && op.capability().write)('blocking read stream', async () => {
-      let c = generateFixedBytes(3 * 1024 * 1024)
-      const filename = `random_file_${randomUUID()}`
+    test('a blocking read error destroys the stream', async () => {
+      const memory = new Operator('memory')
+      const reader = memory.readerSync('missing')
+      const originalRead = reader.read.bind(reader)
+      let readCalls = 0
+      reader.read = (buf) => {
+        readCalls += 1
+        return originalRead(buf)
+      }
 
-      await op.write(filename, c)
-
-      const r = op.readerSync(filename)
-      const rs = r.createReadStream()
-
-      let chunks = []
-      rs.on('data', (chunk) => {
-        chunks.push(chunk)
+      const stream = reader.createReadStream()
+      let closed = false
+      stream.on('close', () => {
+        closed = true
       })
 
-      rs.on('end', () => {
-        const buf = Buffer.concat(chunks)
-        assert.equal(Buffer.compare(buf, c), 0)
+      const ended = finished(stream)
+      stream.resume()
+      await expect(ended).rejects.toThrow('NotFound')
+      expect(stream.destroyed).toBe(true)
+      expect(stream.errored?.message).toContain('NotFound')
+      expect(closed).toBe(true)
+      expect(stream.reader).toBeNull()
+      expect(stream.read()).toBeNull()
+      expect(readCalls).toBe(1)
+    })
 
-        op.deleteSync(filename)
-      })
+    test('blocking write stream respects string encodings with decodeStrings: false', async () => {
+      const memory = new Operator('memory')
+      const ws = memory.writerSync('encoded.bin').createWriteStream({ decodeStrings: false })
+      ws.write('68656c6c6f', 'hex')
+      ws.write('aGVsbG8=', 'base64')
+      ws.write('hi', 'utf16le')
+      ws.write('\xff', 'latin1')
+      ws.write('utf8', 'utf8')
+      ws.write(Buffer.from('!'))
+      ws.end(new Uint8Array([63]))
+
+      await finished(ws)
+
+      const expected = Buffer.concat([
+        Buffer.from('hello'),
+        Buffer.from('hello'),
+        Buffer.from('hi', 'utf16le'),
+        Buffer.from([0xff]),
+        Buffer.from('utf8'),
+        Buffer.from('!?'),
+      ])
+      expect(memory.readSync('encoded.bin')).toEqual(expected)
+    })
+
+    test('blocking write stream destroy releases writer without closing', async () => {
+      const memory = new Operator('memory')
+      const writer = memory.writerSync('aborted.bin')
+      let closeCalled = false
+      const originalClose = writer.close.bind(writer)
+      writer.close = () => {
+        closeCalled = true
+        return originalClose()
+      }
+
+      const ws = writer.createWriteStream()
+      const closed = once(ws, 'close')
+      ws.destroy()
+      await closed
+
+      expect(ws.destroyed).toBe(true)
+      expect(closeCalled).toBe(false)
+      expect(memory.existsSync('aborted.bin')).toBe(false)
     })
 
     test.runIf(op.capability().read && op.capability().write)('blocking write with behavior', () => {
@@ -114,5 +161,32 @@ export function run(op) {
     test.runIf(op.capability().list)('blocking check', () => {
       op.checkSync()
     })
+  })
+
+  const capability = op.capability()
+  describe.runIf(capability.read && capability.write && capability.delete)('blocking read streams', () => {
+    for (const [name, size, highWaterMark] of [
+      ['read with a positive high water mark', 3 * 1024 * 1024, 64 * 1024],
+      ['read with a zero high water mark', 11, 0],
+      ['read an empty object with a zero high water mark', 0, 0],
+    ]) {
+      test.runIf(size > 0 || capability.writeCanEmpty)(name, async ({ onTestFinished }) => {
+        const content = Buffer.alloc(size, 'hello world')
+        const filename = `random_file_${randomUUID()}`
+        await op.write(filename, content)
+        onTestFinished(() => op.deleteSync(filename))
+
+        const stream = op.readerSync(filename).createReadStream({ highWaterMark })
+        const chunks = []
+        for await (const chunk of stream) {
+          chunks.push(chunk)
+        }
+
+        const output = Buffer.concat(chunks)
+        expect(output.length).toBe(content.length)
+        expect(output.equals(content)).toBe(true)
+        expect(stream.readableEnded).toBe(true)
+      })
+    }
   })
 }

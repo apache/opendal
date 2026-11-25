@@ -91,7 +91,10 @@ impl B2Core {
 
         {
             let mut signer = self.signer.write().await;
-            let req = Request::get("https://api.backblazeb2.com/b2api/v2/b2_authorize_account")
+            // Use API v4 so that Multi-Bucket Application Keys can authenticate.
+            // Such keys are rejected by the v1/v2/v3 endpoints with
+            // "This request is not currently supported on API version number N".
+            let req = Request::get("https://api.backblazeb2.com/b2api/v4/b2_authorize_account")
                 .header(
                     header::AUTHORIZATION,
                     format_authorization_by_basic(
@@ -113,8 +116,8 @@ impl B2Core {
                             .map_err(new_json_deserialize_error)?;
                     signer.auth_info = AuthInfo {
                         authorization_token: token.authorization_token.clone(),
-                        api_url: token.api_url.clone(),
-                        download_url: token.download_url.clone(),
+                        api_url: token.api_info.storage_api.api_url.clone(),
+                        download_url: token.api_info.storage_api.download_url.clone(),
                         // This authorization token is valid for at most 24 hours.
                         expires_in: Timestamp::now() + Duration::from_secs(20 * 60 * 60),
                     };
@@ -139,7 +142,7 @@ impl B2Core {
         range: BytesRange,
         _args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let auth_info = self.get_auth_info(ctx).await?;
 
@@ -212,7 +215,7 @@ impl B2Core {
         path: &str,
         expire: Duration,
     ) -> Result<GetDownloadAuthorizationResponse> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let auth_info = self.get_auth_info(ctx).await?;
 
@@ -264,7 +267,7 @@ impl B2Core {
     ) -> Result<Response<Buffer>> {
         let resp = self.get_upload_url(ctx).await?;
 
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut req = Request::post(resp.upload_url);
 
@@ -315,7 +318,7 @@ impl B2Core {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let auth_info = self.get_auth_info(ctx).await?;
 
@@ -340,7 +343,7 @@ impl B2Core {
         // B2 uses fileInfo field for custom file info in start_large_file API.
         if let Some(user_metadata) = args.user_metadata() {
             let file_info: HashMap<String, String> = user_metadata
-                .iter()
+                .into_iter()
                 .map(|(k, v)| (k.to_string(), percent_encode_path(v)))
                 .collect();
             start_large_file_request.file_info = Some(file_info);
@@ -501,6 +504,7 @@ impl B2Core {
         path: &str,
         delimiter: Option<&str>,
     ) -> Result<File> {
+        let abs_path = build_absolute_path(&self.root, path);
         let resp = self
             .list_file_names_raw(ctx, Some(path), delimiter, None, None, Operation::Stat)
             .await?;
@@ -515,7 +519,13 @@ impl B2Core {
                 if resp.files.is_empty() {
                     return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
                 }
-                Ok(resp.files.swap_remove(0))
+
+                let file = resp.files.swap_remove(0);
+                if file.file_name != abs_path {
+                    return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
+                }
+
+                Ok(file)
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("ListFileNames")),
@@ -553,7 +563,7 @@ impl B2Core {
         url = url.push("bucketId", &self.bucket_id);
 
         if let Some(prefix) = prefix {
-            let prefix = build_abs_path(&self.root, prefix);
+            let prefix = build_absolute_path(&self.root, prefix);
             if !prefix.is_empty() {
                 url = url.push("prefix", &percent_encode_path(&prefix));
             }
@@ -591,7 +601,7 @@ impl B2Core {
         source_file_id: String,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let to = build_abs_path(&self.root, to);
+        let to = build_absolute_path(&self.root, to);
 
         let auth_info = self.get_auth_info(ctx).await?;
 
@@ -622,7 +632,7 @@ impl B2Core {
     }
 
     pub async fn hide_file(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let auth_info = self.get_auth_info(ctx).await?;
 
@@ -718,7 +728,25 @@ pub struct AuthorizeAccountResponse {
     /// An authorization token to use with all calls, other than b2_authorize_account, that need an Authorization header. This authorization token is valid for at most 24 hours.
     /// So we should call b2_authorize_account every 24 hours.
     pub authorization_token: String,
+    /// The information needed for each API suite, as returned by API v3 and later.
+    pub api_info: ApiInfo,
+}
+
+/// API information returned by `b2_authorize_account`.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiInfo {
+    /// The information needed for the B2 Native API.
+    pub storage_api: StorageApiInfo,
+}
+
+/// B2 Native API information returned by `b2_authorize_account`.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageApiInfo {
+    /// The base URL to use for all API calls except for uploading and downloading files.
     pub api_url: String,
+    /// The base URL to use for downloading files.
     pub download_url: String,
 }
 
@@ -798,19 +826,17 @@ pub struct File {
 
 pub(super) fn parse_file_info(file: &File) -> Metadata {
     if file.file_name.ends_with('/') {
-        return Metadata::new(EntryMode::DIR);
+        return MetadataBuilder::dir().build();
     }
 
-    let mut metadata = Metadata::new(EntryMode::FILE);
-
-    metadata.set_content_length(file.content_length);
+    let mut metadata = MetadataBuilder::file(file.content_length);
 
     if let Some(content_md5) = &file.content_md5 {
-        metadata.set_content_md5(content_md5);
+        metadata.content_md5(content_md5);
     }
 
     if let Some(content_type) = &file.content_type {
-        metadata.set_content_type(content_type);
+        metadata.content_type(content_type);
     }
 
     // Parse user metadata from file_info
@@ -823,11 +849,11 @@ pub(super) fn parse_file_info(file: &File) -> Metadata {
             .map(|(k, v)| (k.to_lowercase(), percent_decode_path(v)))
             .collect();
         if !user_metadata.is_empty() {
-            metadata = metadata.with_user_metadata(user_metadata);
+            metadata.user_metadata(user_metadata);
         }
     }
 
-    metadata
+    metadata.build()
 }
 
 #[derive(Debug, Serialize)]
@@ -887,6 +913,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (mut kind, mut retryable) = match parts.status.as_u16() {
         403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
+        416 => (ErrorKind::RangeNotSatisfied, false),
         304 | 412 => (ErrorKind::ConditionNotMatch, false),
         // Service b2 could return 403, show the authorization error
         401 => (ErrorKind::PermissionDenied, true),
@@ -925,10 +952,24 @@ pub(crate) fn parse_b2_error_code(code: &str) -> Option<(ErrorKind, bool)> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use http::StatusCode;
 
     use super::*;
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::from(r#"{"status":416,"code":"range_not_satisfiable","message":"byte range bytes=6-7 for a file of length 6"}"#))
+            .unwrap();
+        let err = parse_error(
+            ErrorContext::new(ServiceOperation("DownloadFileByName")),
+            resp,
+        );
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
 
     #[test]
     fn test_parse_b2_error_code() {
@@ -946,6 +987,42 @@ mod tests {
 
         let code = "not_found";
         assert_eq!(parse_b2_error_code(code), None);
+    }
+
+    #[test]
+    fn test_authorize_account_v4_response() {
+        // v4 response shape, including a Multi-Bucket Application Key scope.
+        let resp: AuthorizeAccountResponse = serde_json::from_str(
+            r#"{
+                "accountId": "account-id",
+                "authorizationToken": "auth-token",
+                "apiInfo": {
+                    "storageApi": {
+                        "apiUrl": "https://api001.backblazeb2.com",
+                        "downloadUrl": "https://f001.backblazeb2.com",
+                        "allowed": {
+                            "buckets": [
+                                {"id": "bucket-id-1", "name": "bucket-1"},
+                                {"id": "bucket-id-2", "name": "bucket-2"}
+                            ],
+                            "capabilities": ["listFiles", "readFiles", "writeFiles"],
+                            "namePrefix": null
+                        }
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(resp.authorization_token, "auth-token");
+        assert_eq!(
+            resp.api_info.storage_api.api_url,
+            "https://api001.backblazeb2.com"
+        );
+        assert_eq!(
+            resp.api_info.storage_api.download_url,
+            "https://f001.backblazeb2.com"
+        );
     }
 
     #[tokio::test]
@@ -976,6 +1053,99 @@ mod tests {
             let err = parse_error(ErrorContext::new(ServiceOperation("Test")), resp);
 
             assert_eq!(err.kind(), res.1);
+        }
+    }
+
+    pub(crate) fn test_core(root: &str) -> Arc<B2Core> {
+        let root = normalize_root(root);
+        let bucket = "test-bucket".to_string();
+        Arc::new(B2Core {
+            info: ServiceInfo::new(crate::B2_SCHEME, &root, &bucket),
+            capability: Capability::default(),
+            signer: Arc::new(RwLock::new(B2Signer {
+                application_key_id: "key-id".to_string(),
+                application_key: "key-secret".to_string(),
+                auth_info: AuthInfo {
+                    authorization_token: "test-token".to_string(),
+                    api_url: "https://api001.backblazeb2.com".to_string(),
+                    download_url: "https://f001.backblazeb2.com".to_string(),
+                    expires_in: Timestamp::now() + Duration::from_secs(3600),
+                },
+            })),
+            root,
+            bucket,
+            bucket_id: "bucket-id-1".to_string(),
+        })
+    }
+
+    struct ListResponseTransport {
+        body: String,
+        requests: Arc<std::sync::Mutex<Vec<String>>>,
+    }
+
+    impl HttpTransport for ListResponseTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.requests.lock().unwrap().push(req.uri().to_string());
+            let buf = Buffer::from(self.body.clone());
+            let len = buf.len() as u64;
+            Response::builder()
+                .status(StatusCode::OK)
+                .body(HttpBody::new(futures::stream::iter([Ok(buf)]), Some(len)))
+                .map_err(new_request_build_error)
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_file_info_exact_match_and_max_file_count() {
+        let requests = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let transport = ListResponseTransport {
+            body: r#"{
+                "files": [{
+                    "fileId": "4_z123",
+                    "fileName": "sub/foo",
+                    "contentLength": 42,
+                    "contentType": "text/plain",
+                    "contentMd5": "abc123",
+                    "fileInfo": {"author": "Alice%20Smith"}
+                }],
+                "nextFileName": null
+            }"#
+            .to_string(),
+            requests: requests.clone(),
+        };
+        let core = test_core("/sub/");
+        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
+
+        let file = core.get_file_info(&ctx, "foo", None).await.unwrap();
+        assert_eq!(file.file_name, "sub/foo");
+        assert_eq!(file.file_id.as_deref(), Some("4_z123"));
+        assert_eq!(file.content_length, 42);
+
+        let recorded = requests.lock().unwrap();
+        assert_eq!(recorded.len(), 1);
+        assert!(recorded[0].contains("prefix=sub/foo"));
+    }
+
+    #[tokio::test]
+    async fn test_get_file_info_rejects_prefix_mismatch_for_file() {
+        for returned_name in ["foobar", "foo/bar.txt"] {
+            let requests = Arc::new(std::sync::Mutex::new(Vec::new()));
+            let transport = ListResponseTransport {
+                body: format!(
+                    r#"{{"files":[{{"fileId":"4_z999","fileName":"{returned_name}","contentLength":10}}],"nextFileName":null}}"#
+                ),
+                requests,
+            };
+            let core = test_core("/");
+            let ctx =
+                OperationContext::default().with_http_transport(HttpTransporter::new(transport));
+
+            let err = core.get_file_info(&ctx, "foo", None).await.unwrap_err();
+            assert_eq!(
+                err.kind(),
+                ErrorKind::NotFound,
+                "returned {returned_name} must not match stat(\"foo\")"
+            );
         }
     }
 }

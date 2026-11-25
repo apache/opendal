@@ -31,7 +31,6 @@ import org.apache.opendal.Layer;
  */
 @Builder
 public class RetryLayer extends Layer {
-
     private final boolean jitter;
 
     @Builder.Default
@@ -45,6 +44,30 @@ public class RetryLayer extends Layer {
 
     @Builder.Default
     private final long maxTimes = 3;
+
+    /**
+     * Creates a retry layer.
+     *
+     * @param jitter whether each delay is randomized
+     * @param factor the multiplier applied to the delay after each failure
+     * @param minDelay the delay before the first retry
+     * @param maxDelay the upper bound of the delay between retries
+     * @param maxTimes the maximum number of retries
+     * @throws IllegalArgumentException if a delay is negative
+     */
+    RetryLayer(boolean jitter, float factor, Duration minDelay, Duration maxDelay, long maxTimes) {
+        if (minDelay.isNegative()) {
+            throw new IllegalArgumentException("minDelay must be non-negative");
+        }
+        if (maxDelay.isNegative()) {
+            throw new IllegalArgumentException("maxDelay must be non-negative");
+        }
+        this.jitter = jitter;
+        this.factor = factor;
+        this.minDelay = minDelay;
+        this.maxDelay = maxDelay;
+        this.maxTimes = maxTimes;
+    }
 
     @Override
     protected long layer(long nativeOp) {

@@ -7,12 +7,12 @@ description: The OpenDAL Java binding — install it, see what it supports, and 
 
 # Apache OpenDAL™ Java Binding
 
-A native Java binding for OpenDAL: access S3, GCS, Azure Blob, HDFS, the local
-filesystem, and [50+ more services](/services) through one API, with the
-performance of the Rust core underneath.
+A native Java binding for OpenDAL with one API for S3, GCS, Azure Blob,
+the local filesystem, and other [storage services](/services).
 
 New to the model behind the API? Read [Concepts](../../03-concepts.mdx) first —
-service, operator, layer, operation are the same four ideas in every language.
+the shared storage semantics and path and operation concepts every binding
+expresses through its own native API.
 
 :::note
 This binding has its own version number, independent of the Rust core. Check
@@ -31,15 +31,27 @@ the `org.apache.opendal` group.
   for `CompletableFuture`-based calls, with the same verbs.
 - **Typed or map-based config** — build from a typed `ServiceConfig` builder or
   a plain `Map<String, String>`.
-- **All services included** — the native library bundles every backend; there
-  are no build flags to enable.
+- **Services** — the native JAR includes the [services selected at build time](./02-getting-started.md#build-with-additional-services).
 - **Presigned URLs** for services that support them (async API).
 
 ## Installation
 
-The binding ships a platform-specific native library, so you depend on the main
-artifact plus a classifier for your platform. The simplest setup uses an OS
-detector plugin to fill in the classifier automatically.
+The `all` classifier bundles the Java API and the JNI libraries for all seven
+published platforms. Declare a single Maven dependency to compile and run
+without an OS detector plugin or a separate platform JAR.
+
+```xml
+<dependency>
+  <groupId>org.apache.opendal</groupId>
+  <artifactId>opendal</artifactId>
+  <version>${opendal.version}</version>
+  <classifier>all</classifier>
+</dependency>
+```
+
+For Gradle, use `implementation "org.apache.opendal:opendal:$opendalVersion:all"`.
+The `all` JAR is about 200 MB. To download only the native library for your
+target platform, use the default JAR and a platform classifier as shown below.
 
 ### Maven
 

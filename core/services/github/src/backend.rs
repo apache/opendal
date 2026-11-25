@@ -132,6 +132,7 @@ impl Builder for GithubBuilder {
                     write_can_empty: true,
 
                     delete: true,
+                    delete_with_if_match: true,
 
                     list: true,
                     list_with_recursive: true,
@@ -161,6 +162,7 @@ impl Service for GithubBackend {
     type Lister = oio::PageLister<GithubLister>;
     type Deleter = oio::OneShotDeleter<GithubDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -206,11 +208,13 @@ impl Service for GithubBackend {
                     serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
                 let m = if resp.type_field == "dir" {
-                    Metadata::new(EntryMode::DIR)
+                    MetadataBuilder::dir().build()
                 } else {
-                    Metadata::new(EntryMode::FILE)
-                        .with_content_length(resp.size)
-                        .with_etag(resp.sha)
+                    {
+                        let mut metadata = MetadataBuilder::file(resp.size);
+                        metadata.etag(resp.sha);
+                        metadata.build()
+                    }
                 };
 
                 Ok(RpStat::new(m))
@@ -272,7 +276,6 @@ impl Service for GithubBackend {
         _from: &str,
         _to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,

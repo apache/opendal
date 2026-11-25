@@ -66,6 +66,7 @@ public struct Capability
         WriteWithContentType = native.writeWithContentType != 0;
         WriteWithContentDisposition = native.writeWithContentDisposition != 0;
         WriteWithContentEncoding = native.writeWithContentEncoding != 0;
+        WriteWithContentLanguage = native.writeWithContentLanguage != 0;
         WriteWithCacheControl = native.writeWithCacheControl != 0;
         WriteWithIfMatch = native.writeWithIfMatch != 0;
         WriteWithIfNoneMatch = native.writeWithIfNoneMatch != 0;
@@ -73,6 +74,7 @@ public struct Capability
         WriteWithIfVersionNotMatch = native.writeWithIfVersionNotMatch != 0;
         WriteWithIfNotExists = native.writeWithIfNotExists != 0;
         WriteWithUserMetadata = native.writeWithUserMetadata != 0;
+        WriteWithExpires = native.writeWithExpires != 0;
         WriteMultiMaxSize = native.writeMultiMaxSize == nuint.MaxValue ? null : native.writeMultiMaxSize;
         WriteMultiMinSize = native.writeMultiMinSize == nuint.MaxValue ? null : native.writeMultiMinSize;
         WriteTotalMaxSize = native.writeTotalMaxSize == nuint.MaxValue ? null : native.writeTotalMaxSize;
@@ -92,9 +94,25 @@ public struct Capability
         CopyWithIfVersionMatch = native.copyWithIfVersionMatch != 0;
         CopyWithIfVersionNotMatch = native.copyWithIfVersionNotMatch != 0;
         CopyWithSourceVersion = native.copyWithSourceVersion != 0;
+        CopyWithUserMetadata = native.copyWithUserMetadata != 0;
+        CopyWithContentType = native.copyWithContentType != 0;
+        CopyWithContentLanguage = native.copyWithContentLanguage != 0;
         CopyCanMulti = native.copyCanMulti != 0;
         CopyMultiMaxSize = native.copyMultiMaxSize == nuint.MaxValue ? null : native.copyMultiMaxSize;
         CopyMultiMinSize = native.copyMultiMinSize == nuint.MaxValue ? null : native.copyMultiMinSize;
+        Compose = native.compose != 0;
+        ComposeWithContentType = native.composeWithContentType != 0;
+        ComposeWithContentDisposition = native.composeWithContentDisposition != 0;
+        ComposeWithContentEncoding = native.composeWithContentEncoding != 0;
+        ComposeWithCacheControl = native.composeWithCacheControl != 0;
+        ComposeWithUserMetadata = native.composeWithUserMetadata != 0;
+        ComposeWithIfMatch = native.composeWithIfMatch != 0;
+        ComposeWithIfNoneMatch = native.composeWithIfNoneMatch != 0;
+        ComposeWithIfVersionMatch = native.composeWithIfVersionMatch != 0;
+        ComposeWithIfVersionNotMatch = native.composeWithIfVersionNotMatch != 0;
+        ComposeWithIfNotExists = native.composeWithIfNotExists != 0;
+        ComposeWithSourceVersion = native.composeWithSourceVersion != 0;
+        ComposeWithSourceIfMatch = native.composeWithSourceIfMatch != 0;
         Restore = native.restore != 0;
         RestoreWithVersion = native.restoreWithVersion != 0;
         RestoreWithIfNotExists = native.restoreWithIfNotExists != 0;
@@ -106,6 +124,7 @@ public struct Capability
         ListWithRecursive = native.listWithRecursive != 0;
         ListWithVersions = native.listWithVersions != 0;
         ListWithDeleted = native.listWithDeleted != 0;
+        ListWithGlob = native.listWithGlob != 0;
         Presign = native.presign != 0;
         PresignRead = native.presignRead != 0;
         PresignStat = native.presignStat != 0;
@@ -270,6 +289,11 @@ public struct Capability
     public bool WriteWithContentEncoding { get; private set; }
 
     /// <summary>
+    /// Indicates if a write can store Content-Language and a subsequent stat can retrieve it.
+    /// </summary>
+    public bool WriteWithContentLanguage { get; private set; }
+
+    /// <summary>
     /// Indicates if Cache-Control can be specified during write operations.
     /// </summary>
     public bool WriteWithCacheControl { get; private set; }
@@ -303,6 +327,11 @@ public struct Capability
     /// Indicates if custom user metadata can be attached during write operations.
     /// </summary>
     public bool WriteWithUserMetadata { get; private set; }
+
+    /// <summary>
+    /// Indicates if writes can set a lifetime for the new file.
+    /// </summary>
+    public bool WriteWithExpires { get; private set; }
 
     /// <summary>
     /// Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads.
@@ -400,6 +429,21 @@ public struct Capability
     public bool CopyWithSourceVersion { get; private set; }
 
     /// <summary>
+    /// Indicates if copy operations can replace the destination's user metadata.
+    /// </summary>
+    public bool CopyWithUserMetadata { get; private set; }
+
+    /// <summary>
+    /// Indicates if copy operations can replace the destination's Content-Type.
+    /// </summary>
+    public bool CopyWithContentType { get; private set; }
+
+    /// <summary>
+    /// Indicates if copy operations can replace the destination's Content-Language.
+    /// </summary>
+    public bool CopyWithContentLanguage { get; private set; }
+
+    /// <summary>
     /// Indicates if copy operations can be split into multiple server-side tasks.
     /// </summary>
     public bool CopyCanMulti { get; private set; }
@@ -413,6 +457,71 @@ public struct Capability
     /// Minimum size required for segmented copy tasks.
     /// </summary>
     public ulong? CopyMultiMinSize { get; private set; }
+
+    /// <summary>
+    /// Indicates if the operator supports composing complete source objects.
+    /// </summary>
+    public bool Compose { get; private set; }
+
+    /// <summary>
+    /// Indicates if Content-Type can be specified during composition.
+    /// </summary>
+    public bool ComposeWithContentType { get; private set; }
+
+    /// <summary>
+    /// Indicates if Content-Disposition can be specified during composition.
+    /// </summary>
+    public bool ComposeWithContentDisposition { get; private set; }
+
+    /// <summary>
+    /// Indicates if Content-Encoding can be specified during composition.
+    /// </summary>
+    public bool ComposeWithContentEncoding { get; private set; }
+
+    /// <summary>
+    /// Indicates if Cache-Control can be specified during composition.
+    /// </summary>
+    public bool ComposeWithCacheControl { get; private set; }
+
+    /// <summary>
+    /// Indicates if custom user metadata can be attached during composition.
+    /// </summary>
+    public bool ComposeWithUserMetadata { get; private set; }
+
+    /// <summary>
+    /// Indicates if composition supports a destination ETag match condition.
+    /// </summary>
+    public bool ComposeWithIfMatch { get; private set; }
+
+    /// <summary>
+    /// Indicates if composition supports a destination ETag non-match condition.
+    /// </summary>
+    public bool ComposeWithIfNoneMatch { get; private set; }
+
+    /// <summary>
+    /// Indicates if composition supports a destination version match condition.
+    /// </summary>
+    public bool ComposeWithIfVersionMatch { get; private set; }
+
+    /// <summary>
+    /// Indicates if composition supports a destination version non-match condition.
+    /// </summary>
+    public bool ComposeWithIfVersionNotMatch { get; private set; }
+
+    /// <summary>
+    /// Indicates if composition can require a missing destination.
+    /// </summary>
+    public bool ComposeWithIfNotExists { get; private set; }
+
+    /// <summary>
+    /// Indicates if composition can select a specific source version.
+    /// </summary>
+    public bool ComposeWithSourceVersion { get; private set; }
+
+    /// <summary>
+    /// Indicates if composition supports a source ETag match condition.
+    /// </summary>
+    public bool ComposeWithSourceIfMatch { get; private set; }
 
     /// <summary>
     /// Indicates if restore operations are supported.
@@ -468,6 +577,11 @@ public struct Capability
     /// Indicates if listing with deleted files included is supported.
     /// </summary>
     public bool ListWithDeleted { get; private set; }
+
+    /// <summary>
+    /// Indicates if listing with a glob pattern is supported by this service stack.
+    /// </summary>
+    public bool ListWithGlob { get; private set; }
 
     /// <summary>
     /// Indicates if presigned URL generation is supported.

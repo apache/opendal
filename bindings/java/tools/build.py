@@ -16,7 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from pathlib import Path
 import glob
@@ -64,6 +63,7 @@ if __name__ == "__main__":
     parser.add_argument("--target", type=str, default="")
     parser.add_argument("--profile", type=str, default="dev")
     parser.add_argument("--enable-zigbuild", type=str, default="false")
+    parser.add_argument("--test-native-panics", choices=["true", "false"], default="false")
     args = parser.parse_args()
 
     if args.target:
@@ -94,6 +94,9 @@ if __name__ == "__main__":
         cmd += ["--target", f"{target}.2.17"]
     else:
         cmd += ["--target", target]
+
+    if args.test_native_panics == "true":
+        cmd += ["--features=test-native-panics"]
 
     output = basedir / "target" / "bindings"
     Path(output).mkdir(exist_ok=True, parents=True)

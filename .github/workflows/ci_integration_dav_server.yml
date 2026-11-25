@@ -18,20 +18,17 @@
 name: Integration Dav Server CI
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
     paths:
       - "integrations/dav-server/**"
-      - "core/**"
       - ".github/workflows/ci_integration_dav_server.yml"
+  workflow_call:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-integration-dav-server-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check_clippy:
@@ -50,3 +47,7 @@ jobs:
       - name: Cargo clippy
         working-directory: integrations/dav-server
         run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Cargo test
+        working-directory: integrations/dav-server
+        run: cargo test

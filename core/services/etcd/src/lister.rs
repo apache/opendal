@@ -20,7 +20,7 @@ use std::vec::IntoIter;
 
 use super::core::EtcdCore;
 use opendal_core::raw::oio::Entry;
-use opendal_core::raw::{build_abs_path, build_rel_path, oio};
+use opendal_core::raw::{build_absolute_path, build_relative_path, oio};
 use opendal_core::*;
 
 pub struct EtcdLister {
@@ -31,16 +31,17 @@ pub struct EtcdLister {
 
 impl EtcdLister {
     pub async fn new(core: Arc<EtcdCore>, root: String, path: String) -> Result<Self> {
-        let abs_path = build_abs_path(&root, &path);
+        let abs_path = build_absolute_path(&root, &path);
 
         // Get all keys with the specified prefix
-        let mut client = core.conn().await?;
+        let client = core.conn().await?;
         let get_options = Some(
             etcd_client::GetOptions::new()
                 .with_prefix()
                 .with_keys_only(),
         );
-        let resp = client
+        let resp = core
+            .kv_client(&client)
             .get(abs_path.as_str(), get_options)
             .await
             .map_err(super::core::format_etcd_error)?;
@@ -67,9 +68,18 @@ impl oio::List for EtcdLister {
     async fn next(&mut self) -> Result<Option<Entry>> {
         for key in self.iter.by_ref() {
             if key.starts_with(&self.path) {
-                let path = build_rel_path(&self.root, &key);
+                let path = if key == self.root {
+                    "/".to_string()
+                } else {
+                    build_relative_path(&self.root, &key)
+                };
 
-                let entry = Entry::new(&path, Metadata::new(EntryMode::from_path(&key)));
+                let metadata = if key.ends_with('/') {
+                    MetadataBuilder::dir()
+                } else {
+                    MetadataBuilder::unknown()
+                };
+                let entry = Entry::new(&path, metadata.build());
                 return Ok(Some(entry));
             }
         }
@@ -109,5 +119,27 @@ impl oio::List for EtcdLazyLister {
             .expect("lister must be initialized")
             .next()
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opendal_core::raw::oio::List as _;
+
+    #[tokio::test]
+    async fn lister_handles_default_root_marker() -> Result<()> {
+        let mut lister = EtcdLister {
+            root: "/".to_string(),
+            path: String::new(),
+            iter: vec!["/".to_string(), "file".to_string()].into_iter(),
+        };
+
+        let marker = lister.next().await?.expect("root marker");
+        assert_eq!(marker.path(), "/");
+        assert_eq!(marker.mode(), EntryMode::DIR);
+        assert_eq!(lister.next().await?.expect("file entry").path(), "file");
+        assert!(lister.next().await?.is_none());
+        Ok(())
     }
 }

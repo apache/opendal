@@ -18,9 +18,6 @@
 name: Edge Test
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
@@ -33,11 +30,23 @@ on:
       - "core/testkit/**"
       - "!core/core/src/docs/**"
       - "core/edge/file_write_on_full_disk/**"
-      - "core/edge/s3_aws_assume_role_with_web_identity/**"
+      - "core/edge/opfs_wasm32/**"
       - "core/edge/s3_read_on_wasm/**"
       - "core/services/fs/**"
+      - "core/services/opfs/**"
       - "core/services/s3/**"
+      - "core/src/**"
+      - "rust-toolchain.toml"
+      - ".github/actions/setup/**"
       - ".github/workflows/test_edge.yml"
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-edge-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test_file_write_on_full_disk:
@@ -66,40 +75,67 @@ jobs:
         env:
           OPENDAL_FS_ROOT: /tmp/test_dir
 
-  test_s3_read_on_wasm:
+  test_opfs_on_wasm:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: core/edge/opfs_wasm32
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
-      - name: Setup for wasm32
+      - name: Install WASM target and wasm-pack
+        shell: bash
         run: |
           rustup target add wasm32-unknown-unknown
+          wasm_pack_version=v0.15.1
+          archive="wasm-pack-${wasm_pack_version}-x86_64-unknown-linux-musl.tar.gz"
+          curl -fsSL --retry 3 "https://github.com/wasm-bindgen/wasm-pack/releases/download/${wasm_pack_version}/${archive}" \
+            | tar -xz -C "$RUNNER_TEMP" --strip-components=1 --wildcards '*/wasm-pack'
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
-      - name: Install Chrome Environment
-        run: |
-          mkdir -p /tmp/chrome
-          wget $(curl https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json | jq -r '.versions | sort_by(.version) | reverse | .[0] | .downloads.chrome | .[] | select(.platform == "linux64") | .url')
-          wget $(curl https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json | jq -r '.versions | sort_by(.version) | reverse | .[0] | .downloads.chromedriver | .[] | select(.platform == "linux64") | .url')
-          unzip chromedriver-linux64.zip
-          unzip chrome-linux64.zip
-          cp -r chrome-linux64/ /tmp/chrome/
-          cp -r chromedriver-linux64 /tmp/chrome/chromedriver
+      - name: Test on the browser main thread
+        run: wasm-pack test --headless --chrome --chromedriver "$CHROMEWEBDRIVER/chromedriver" -- --locked
 
-      - name: Setup wasm-pack
+      - name: Test in a dedicated worker
+        run: wasm-pack test --headless --chrome --chromedriver "$CHROMEWEBDRIVER/chromedriver" -- --locked --features worker
+
+  test_s3_read_on_wasm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: core/edge/s3_read_on_wasm
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Install WASM target and wasm-pack
         shell: bash
         run: |
-          set -euo pipefail
-          curl -fsSL https://wasm-bindgen.github.io/wasm-pack/installer/init.sh | bash
-          wasm-pack --version
+          rustup target add wasm32-unknown-unknown
+          wasm_pack_version=v0.15.1
+          archive="wasm-pack-${wasm_pack_version}-x86_64-unknown-linux-musl.tar.gz"
+          curl -fsSL --retry 3 "https://github.com/wasm-bindgen/wasm-pack/releases/download/${wasm_pack_version}/${archive}" \
+            | tar -xz -C "$RUNNER_TEMP" --strip-components=1 --wildcards '*/wasm-pack'
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
-      - name: Setup MinIO Server
+      - name: Setup Silo Server
         shell: bash
         working-directory: fixtures/s3
-        run: docker compose -f docker-compose-minio.yml up -d --wait
+        run: docker compose -f docker-compose-silo.yml up -d --wait
 
       - name: Setup test bucket
         shell: bash
@@ -109,42 +145,8 @@ jobs:
           AWS_EC2_METADATA_DISABLED: "true"
         run: aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
 
-      - name: Test wasm
-        working-directory: core/edge/s3_read_on_wasm
-        run: |
-          export PATH=$PATH:/tmp/chrome/chrome-linux64/:/tmp/chrome/chromedriver-linux64/
-          wasm-pack test --chrome --headless
+      - name: Test in Node.js
+        run: wasm-pack test --node -- --locked --test node
 
-  test_s3_aws_assume_role_with_web_identity:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-      - uses: actions/github-script@v9
-        id: id-token
-        with:
-          script: return await core.getIDToken("sts.amazonaws.com")
-          result-encoding: string
-      - name: Write ID token to file
-        working-directory: core/edge/s3_aws_assume_role_with_web_identity
-        run: echo "${{ steps.id-token.outputs.result }}" > web_identity_token
-
-      - name: Test
-        working-directory: core/edge/s3_aws_assume_role_with_web_identity
-        run: cargo run
-        env:
-          AWS_WEB_IDENTITY_TOKEN_FILE: web_identity_token
-          AWS_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing-assume
-          OPENDAL_TEST: s3
-          OPENDAL_S3_ROOT: CI/
-          OPENDAL_S3_BUCKET: opendal-testing
-          OPENDAL_S3_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing
-          OPENDAL_S3_REGION: ap-northeast-1
-          RUST_LOG: debug
+      - name: Test in headless Chrome
+        run: wasm-pack test --headless --chrome --chromedriver "$CHROMEWEBDRIVER/chromedriver" -- --locked --test browser

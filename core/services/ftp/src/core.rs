@@ -16,20 +16,96 @@
 // under the License.
 
 use std::sync::Arc;
+use std::time::Duration;
 
-use fastpool::{ManageObject, ObjectStatus, bounded};
-use futures_rustls::TlsConnector;
-use futures_rustls::rustls::ClientConfig;
-use futures_rustls::rustls::RootCertStore;
+use asyncband::pool::{ManageObject, ObjectStatus, bounded};
+use log::warn;
 use suppaftp::FtpError;
 use suppaftp::Status;
-use suppaftp::async_std::AsyncRustlsConnector;
-use suppaftp::async_std::AsyncRustlsFtpStream;
-use suppaftp::async_std::ImplAsyncFtpStream;
-use suppaftp::types::FileType;
+use suppaftp::tokio::AsyncRustlsConnector;
+use suppaftp::tokio::AsyncRustlsFtpStream;
+use suppaftp::tokio::ImplAsyncFtpStream;
+use suppaftp::tokio_rustls::TlsConnector;
+use suppaftp::tokio_rustls::rustls::ClientConfig;
+use suppaftp::tokio_rustls::rustls::RootCertStore;
+use suppaftp::tokio_rustls::rustls::crypto::{CryptoProvider, ring};
+use suppaftp::tokio_rustls::rustls::pki_types::CertificateDer;
+use suppaftp::types::{FileType, Response};
 
 use opendal_core::raw::*;
 use opendal_core::*;
+
+pub(crate) fn build_tls_config(
+    native: rustls_native_certs::CertificateResult,
+) -> Result<Arc<ClientConfig>> {
+    build_tls_config_from_parts(native.certs, native.errors)
+}
+
+fn build_tls_config_from_parts(
+    certs: Vec<CertificateDer<'static>>,
+    errors: Vec<rustls_native_certs::Error>,
+) -> Result<Arc<ClientConfig>> {
+    for err in &errors {
+        warn!("failed to load native certificate: {err}");
+    }
+
+    let mut root_store = RootCertStore::empty();
+    let (added, ignored) = root_store.add_parsable_certificates(certs);
+    if ignored > 0 {
+        warn!("ignored {ignored} unparsable native certificate(s)");
+    }
+
+    if added == 0 {
+        let mut err = Error::new(
+            ErrorKind::Unexpected,
+            "no usable native root certificates were loaded",
+        );
+        if let Some(source) = errors.into_iter().next() {
+            err = err.set_source(source);
+        }
+        return Err(err);
+    }
+
+    let provider = CryptoProvider::get_default()
+        .cloned()
+        .unwrap_or_else(|| Arc::new(ring::default_provider()));
+
+    let cfg = ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "TLS protocols are unavailable").set_source(e)
+        })?
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
+
+    Ok(Arc::new(cfg))
+}
+
+async fn create_root_dirs(
+    ftp_stream: &mut AsyncRustlsFtpStream,
+    root: &str,
+) -> std::result::Result<(), FtpError> {
+    let mut curr_path = if root.starts_with('/') {
+        String::from("/")
+    } else {
+        String::new()
+    };
+
+    for segment in root.split('/').filter(|s| !s.is_empty()) {
+        curr_path.push_str(segment);
+        curr_path.push('/');
+        match ftp_stream.mkdir(&curr_path).await {
+            Ok(()) => (),
+            Err(FtpError::UnexpectedResponse(Response {
+                status: Status::FileUnavailable,
+                ..
+            })) => (),
+            Err(e) => return Err(e),
+        }
+    }
+
+    Ok(())
+}
 
 pub struct FtpCore {
     info: ServiceInfo,
@@ -73,10 +149,11 @@ impl FtpCore {
 #[derive(Clone)]
 pub struct Manager {
     pub endpoint: String,
+    pub host: String,
     pub root: String,
     pub user: String,
     pub password: String,
-    pub enable_secure: bool,
+    pub tls_config: Option<Arc<ClientConfig>>,
 }
 
 impl ManageObject for Manager {
@@ -86,21 +163,11 @@ impl ManageObject for Manager {
     async fn create(&self) -> Result<Self::Object, Self::Error> {
         let stream = ImplAsyncFtpStream::connect(&self.endpoint).await?;
         // switch to secure mode if ssl/tls is on.
-        let mut ftp_stream = if self.enable_secure {
-            let mut root_store = RootCertStore::empty();
-            for cert in
-                rustls_native_certs::load_native_certs().expect("could not load platform certs")
-            {
-                root_store.add(cert).unwrap();
-            }
-
-            let cfg = ClientConfig::builder()
-                .with_root_certificates(root_store)
-                .with_no_client_auth();
+        let mut ftp_stream = if let Some(cfg) = &self.tls_config {
             stream
                 .into_secure(
-                    AsyncRustlsConnector::from(TlsConnector::from(Arc::new(cfg))),
-                    &self.endpoint,
+                    AsyncRustlsConnector::from(TlsConnector::from(cfg.clone())),
+                    &self.host,
                 )
                 .await?
         } else {
@@ -115,7 +182,7 @@ impl ManageObject for Manager {
         // change to the root path
         match ftp_stream.cwd(&self.root).await {
             Err(FtpError::UnexpectedResponse(e)) if e.status == Status::FileUnavailable => {
-                ftp_stream.mkdir(&self.root).await?;
+                create_root_dirs(&mut ftp_stream, &self.root).await?;
                 // Then change to root path
                 ftp_stream.cwd(&self.root).await?;
             }
@@ -147,17 +214,13 @@ mod err {
     use opendal_core::ErrorKind;
 
     pub(crate) fn format_ftp_error(err: FtpError) -> Error {
-        let (kind, retryable) = match err {
-            // Allow retry for error
-            //
-            // `{ status: NotAvailable, body: "421 There are too many connections from your internet address." }`
-            FtpError::UnexpectedResponse(ref resp) if resp.status == Status::NotAvailable => {
-                (ErrorKind::Unexpected, true)
-            }
-            FtpError::UnexpectedResponse(ref resp) if resp.status == Status::FileUnavailable => {
-                (ErrorKind::NotFound, false)
-            }
-            // Allow retry bad response.
+        let (kind, retryable) = match &err {
+            FtpError::UnexpectedResponse(resp) => match resp.status {
+                Status::NotAvailable => (ErrorKind::Unexpected, true),
+                Status::NotLoggedIn => (ErrorKind::PermissionDenied, false),
+                Status::FileUnavailable => (ErrorKind::NotFound, false),
+                _ => (ErrorKind::Unexpected, false),
+            },
             FtpError::BadResponse => (ErrorKind::Unexpected, true),
             _ => (ErrorKind::Unexpected, false),
         };
@@ -173,3 +236,33 @@ mod err {
 }
 
 pub(super) use err::*;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_tls_config_handles_empty_and_unparsable_certs_without_panicking() {
+        let err = build_tls_config_from_parts(Vec::new(), Vec::new())
+            .expect_err("empty cert store must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        let err = build_tls_config_from_parts(
+            vec![CertificateDer::from(vec![0xff, 0x00, 0xde, 0xad])],
+            Vec::new(),
+        )
+        .expect_err("unparsable-only store must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        let mut native = rustls_native_certs::load_native_certs();
+        if !native.certs.is_empty() {
+            native
+                .certs
+                .insert(0, CertificateDer::from(vec![0xff, 0x00, 0xde, 0xad]));
+            assert!(
+                build_tls_config(native).is_ok(),
+                "unparsable cert alongside valid native certs must be ignored"
+            );
+        }
+    }
+}

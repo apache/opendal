@@ -19,24 +19,25 @@ name: Bindings Ruby CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
-    paths: &paths
-      - "bindings/ruby/**"
-      - "core/**"
-      - ".github/actions/setup/**"
-      - ".github/workflows/ci_bindings_ruby.yml"
   pull_request:
     branches:
       - main
-    paths: *paths
+    paths:
+      - "core/layers/concurrent-limit/**"
+      - "core/layers/retry/**"
+      - "core/layers/throttle/**"
+      - "core/layers/timeout/**"
+      - "bindings/ruby/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_ruby.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-ruby-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -51,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
           bundler-cache: true # runs 'bundle install' and caches installed gems automatically
           working-directory: bindings/ruby
@@ -82,7 +83,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
           bundler-cache: true # runs 'bundle install' and caches installed gems automatically
           working-directory: bindings/ruby

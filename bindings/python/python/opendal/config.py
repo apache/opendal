@@ -44,10 +44,11 @@ accepts it, so a single signature type-checks every service.
 from __future__ import annotations
 
 import os
+from datetime import timedelta
 from typing import TYPE_CHECKING, Literal, TypedDict
 
 if TYPE_CHECKING:
-    from typing_extensions import NotRequired, Required
+    from typing import NotRequired, Required
 
 
 class AliyunDriveConfig(TypedDict):
@@ -89,14 +90,20 @@ class AzblobConfig(TypedDict):
     """The account key of Azblob service backend."""
     account_name: NotRequired[str]
     """The account name of Azblob service backend."""
+    authority_host: NotRequired[str]
+    """The authority host of the service principal for Microsoft Entra ID authentication.  Defaults to `https://login.microsoftonline.com`."""
     batch_max_operations: NotRequired[int]
     """Deprecated: Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit. [Deprecated since 0.57.0] Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints."""
+    client_id: NotRequired[str]
+    """The client id of the service principal for Microsoft Entra ID authentication."""
+    client_secret: NotRequired[str]
+    """The client secret of the service principal for Microsoft Entra ID authentication."""
     container: Required[str]
     """The container name of Azblob service backend."""
     encryption_algorithm: NotRequired[str]
     """The encryption algorithm of Azblob service backend."""
     encryption_key: NotRequired[str]
-    """The encryption key of Azblob service backend."""
+    """The Base64-encoded AES-256 customer-provided encryption key.  The key must decode to exactly 32 bytes. Building an operator returns `ConfigInvalid` for invalid Base64 or a different decoded length."""
     encryption_key_sha256: NotRequired[str]
     """The encryption key sha256 of Azblob service backend."""
     endpoint: NotRequired[str]
@@ -107,6 +114,8 @@ class AzblobConfig(TypedDict):
     """The sas token of Azblob service backend."""
     skip_signature: NotRequired[bool]
     """Skip signature will skip loading credentials and signing requests."""
+    tenant_id: NotRequired[str]
+    """The tenant id of the service principal for Microsoft Entra ID authentication."""
 
 
 class AzdlsConfig(TypedDict):
@@ -147,6 +156,12 @@ class AzfileConfig(TypedDict):
     """The account key for azfile."""
     account_name: NotRequired[str]
     """The account name for azfile."""
+    authority_host: NotRequired[str]
+    """The authority host of the service principal for Microsoft Entra ID authentication.  Defaults to `https://login.microsoftonline.com`."""
+    client_id: NotRequired[str]
+    """The client id of the service principal for Microsoft Entra ID authentication."""
+    client_secret: NotRequired[str]
+    """The client secret of the service principal for Microsoft Entra ID authentication."""
     endpoint: NotRequired[str]
     """The endpoint for azfile."""
     root: NotRequired[str | os.PathLike[str]]
@@ -155,6 +170,10 @@ class AzfileConfig(TypedDict):
     """The sas token for azfile."""
     share_name: Required[str]
     """The share name for azfile."""
+    skip_signature: NotRequired[bool]
+    """Skip signature will skip loading credentials and signing requests."""
+    tenant_id: NotRequired[str]
+    """The tenant id of the service principal for Microsoft Entra ID authentication."""
 
 
 class B2Config(TypedDict):
@@ -181,23 +200,6 @@ class CacacheConfig(TypedDict):
     """The service scheme; fixed to `"cacache"`."""
     datadir: NotRequired[str]
     """That path to the cacache data directory."""
-
-
-class CloudflareKvConfig(TypedDict):
-    """Configuration for the `cloudflare-kv` service."""
-
-    scheme: Required[Literal["cloudflare-kv"]]
-    """The service scheme; fixed to `"cloudflare-kv"`."""
-    account_id: NotRequired[str]
-    """The account ID used to authenticate with CloudFlare. Used as URI path parameter."""
-    api_token: NotRequired[str]
-    """The token used to authenticate with CloudFlare."""
-    default_ttl: NotRequired[str]
-    """The default ttl for write operations. A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
-    namespace_id: NotRequired[str]
-    """The namespace ID. Used as URI path parameter."""
-    root: NotRequired[str | os.PathLike[str]]
-    """Root within this backend."""
 
 
 class CosConfig(TypedDict):
@@ -249,6 +251,50 @@ class DropboxConfig(TypedDict):
     """root path for dropbox."""
 
 
+class ExoscaleConfig(TypedDict):
+    """Configuration for the `exoscale` service."""
+
+    scheme: Required[Literal["exoscale"]]
+    """The service scheme; fixed to `"exoscale"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style bucket addressing."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is `https://sos-<zone>.exo.io`."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+    zone: Required[str]
+    """Bucket zone, used as the signing region."""
+
+
+class FoyerConfig(TypedDict):
+    """Configuration for the `foyer` service."""
+
+    scheme: Required[Literal["foyer"]]
+    """The service scheme; fixed to `"foyer"`."""
+    disk_capacity: NotRequired[int]
+    """Disk cache total capacity in bytes. Only used when `disk_path` is set."""
+    disk_file_size: NotRequired[int]
+    """Individual cache file size in bytes.  Default is 1 MiB. Only used when `disk_path` is set."""
+    disk_path: NotRequired[str]
+    """Disk cache directory path.  If set, enables hybrid cache with disk storage. Data will be persisted to this directory when memory cache is full."""
+    memory: NotRequired[int]
+    """Memory capacity in bytes for the cache."""
+    name: NotRequired[str]
+    """Name for this cache instance."""
+    recover_mode: NotRequired[str]
+    """Recovery mode when starting the cache.  Valid values: "none" (default), "quiet", "strict". - "none": Don't recover from disk - "quiet": Recover and skip errors - "strict": Recover and panic on errors"""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root path of this backend."""
+    shards: NotRequired[int]
+    """Number of shards for concurrent access.  Default is 1. Higher values improve concurrency but increase overhead."""
+
+
 class FsConfig(TypedDict):
     """Configuration for the `fs` service."""
 
@@ -256,6 +302,8 @@ class FsConfig(TypedDict):
     """The service scheme; fixed to `"fs"`."""
     atomic_write_dir: NotRequired[str | os.PathLike[str]]
     """tmp dir for atomic write"""
+    direct_io: NotRequired[bool]
+    """Bypass the page cache for file reads and writes on Linux. Defaults to `false`."""
     root: NotRequired[str | os.PathLike[str]]
     """root dir for backend"""
 
@@ -350,6 +398,8 @@ class GdriveConfig(TypedDict):
     """Client id for gdrive."""
     client_secret: NotRequired[str]
     """Client secret for gdrive."""
+    drive_id: NotRequired[str]
+    """Shared drive (formerly Team Drive) id for gdrive.  When set, gdrive resolves `root` inside this shared drive instead of the user's My Drive."""
     refresh_token: NotRequired[str]
     """Refresh token for gdrive."""
     root: NotRequired[str | os.PathLike[str]]
@@ -369,6 +419,21 @@ class GhacConfig(TypedDict):
     """The runtime token for ghac service."""
     version: NotRequired[str]
     """The version that used by cache."""
+
+
+class GithubConfig(TypedDict):
+    """Configuration for the `github` service."""
+
+    scheme: Required[Literal["github"]]
+    """The service scheme; fixed to `"github"`."""
+    owner: Required[str]
+    """GitHub repo owner.  required."""
+    repo: Required[str]
+    """GitHub repo name.  required."""
+    root: NotRequired[str | os.PathLike[str]]
+    """root of this backend.  All operations will happen under this root."""
+    token: NotRequired[str]
+    """GitHub access_token.  optional. If not provided, the backend will only support read operations for public repositories. And rate limit will be limited to 60 requests per hour."""
 
 
 class GridfsConfig(TypedDict):
@@ -403,13 +468,40 @@ class HdfsNativeConfig(TypedDict):
     """work dir of this backend"""
 
 
+class HetznerConfig(TypedDict):
+    """Configuration for the `hetzner` service."""
+
+    scheme: Required[Literal["hetzner"]]
+    """The service scheme; fixed to `"hetzner"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style bucket addressing."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is `https://<location>.your-objectstorage.com`."""
+    location: NotRequired[str]
+    """Bucket location. Required unless `endpoint` is set."""
+    region: NotRequired[str]
+    """Signing region. Defaults to `location`."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+
+
 class HfConfig(TypedDict):
     """Configuration for the `hf` service."""
 
     scheme: Required[Literal["hf"]]
     """The service scheme; fixed to `"hf"`."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading config from the environment.  When set, the service ignores `HF_ENDPOINT`, `HF_HUB_DISABLE_XET`, `HF_TOKEN`, `HF_TOKEN_PATH`, and the `token` file under `HF_HOME`, `$XDG_CACHE_HOME/huggingface` or `~/.cache/huggingface`."""
     download_mode: NotRequired[str]
     """Download mode. Either `xet` (default) or `http`.  When unset, the mode is resolved from the `HF_HUB_DISABLE_XET` environment variable: a non-empty value forces `http`, otherwise it defaults to `xet`. An explicit value here takes precedence.  See <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet>."""
+    enable_resolve_cache: NotRequired[bool]
+    """Enable caching of resolved HTTP download addresses and XET file metadata.  Defaults to `false`. Set to `true` to share resolve results across readers on the same backend. Changed files may remain invisible while cached results are reused. A reader retains XET metadata from its first read for its lifetime. Create a new reader to resolve the path again when this option is disabled. See [`HfBuilder::enable_resolve_cache`] for freshness semantics."""
     endpoint: NotRequired[str]
     """Endpoint of the Hugging Face Hub.  The default is `https://huggingface.co`."""
     repo_id: NotRequired[str]
@@ -485,8 +577,10 @@ class MemcachedConfig(TypedDict):
     """The service scheme; fixed to `"memcached"`."""
     connection_pool_max_size: NotRequired[int]
     """The maximum number of connections allowed.  default is 10"""
-    default_ttl: NotRequired[str]
-    """The default ttl for put operations. A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    default_ttl: NotRequired[str | timedelta]
+    """The default ttl for put operations. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    enable_tls: NotRequired[bool]
+    """Enable TLS for TCP connections. Defaults to false.  The server certificate must match the endpoint host and a native trust root."""
     endpoint: NotRequired[str]
     """network address of the memcached service.  For example: "tcp://localhost:11211\""""
     password: NotRequired[str]
@@ -515,10 +609,33 @@ class MiniMokaConfig(TypedDict):
     """Sets the max capacity of the cache.  Refer to [`mini-moka::sync::CacheBuilder::max_capacity`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity)"""
     root: NotRequired[str | os.PathLike[str]]
     """root path of this backend"""
-    time_to_idle: NotRequired[str]
-    """Sets the time to idle of the cache.  Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)"""
-    time_to_live: NotRequired[str]
-    """Sets the time to live of the cache.  Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)"""
+    time_to_idle: NotRequired[str | timedelta]
+    """Sets the time to idle of the cache.  Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle) A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    time_to_live: NotRequired[str | timedelta]
+    """Sets the time to live of the cache.  Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live) A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+
+
+class MinioConfig(TypedDict):
+    """Configuration for the `minio` service."""
+
+    scheme: Required[Literal["minio"]]
+    """The service scheme; fixed to `"minio"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID.  Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name.  This field is required."""
+    endpoint: Required[str]
+    """MinIO endpoint.  This field is required because MinIO deployments do not share a universal endpoint."""
+    region: NotRequired[str]
+    """Signing region.  The default is `auto`. Set this field when the deployment requires a configured region."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket.  All operations happen under this root. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key.  Set this field together with `access_key_id`."""
+    session_token: NotRequired[str]
+    """Session token for temporary credentials.  This field requires `access_key_id` and `secret_access_key`."""
+    skip_signature: NotRequired[bool]
+    """Send requests without signing them.  This option cannot be combined with direct credentials."""
 
 
 class MokaConfig(TypedDict):
@@ -532,10 +649,10 @@ class MokaConfig(TypedDict):
     """Name for this cache instance."""
     root: NotRequired[str | os.PathLike[str]]
     """root path of this backend"""
-    time_to_idle: NotRequired[str]
-    """Sets the time to idle of the cache.  Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle)"""
-    time_to_live: NotRequired[str]
-    """Sets the time to live of the cache.  Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)"""
+    time_to_idle: NotRequired[str | timedelta]
+    """Sets the time to idle of the cache.  Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle) A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    time_to_live: NotRequired[str | timedelta]
+    """Sets the time to live of the cache.  Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live) A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
 
 
 class MongodbConfig(TypedDict):
@@ -583,6 +700,8 @@ class ObsConfig(TypedDict):
     """Access key id for obs."""
     bucket: NotRequired[str]
     """Bucket for obs."""
+    disable_config_load: NotRequired[bool]
+    """Disable config load so that opendal will not load config from environment.  For examples:  - envs like `HUAWEI_CLOUD_ACCESS_KEY_ID`"""
     enable_versioning: NotRequired[bool]
     """Deprecated: OBS versioning capability is not controlled by service config. [Deprecated since 0.57.0] OBS versioning capability is not controlled by this option and this option is no longer needed."""
     endpoint: NotRequired[str]
@@ -591,6 +710,31 @@ class ObsConfig(TypedDict):
     """Root for obs."""
     secret_access_key: NotRequired[str]
     """Secret access key for obs."""
+    security_token: NotRequired[str]
+    """Security token (a.k.a. session token) for obs.  Temporary credentials sign with `access_key_id`, `secret_access_key` and this token, and the signer attaches the token as the `x-obs-security-token` header.  If this field is not set, OpenDAL reads the token from the environment variable `HUAWEI_CLOUD_SECURITY_TOKEN` (unless `disable_config_load` is enabled)."""
+    skip_signature: NotRequired[bool]
+    """Skip signature will skip loading credentials and signing requests."""
+
+
+class OciConfig(TypedDict):
+    """Configuration for the `oci` service."""
+
+    scheme: Required[Literal["oci"]]
+    """The service scheme; fixed to `"oci"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is `https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com`."""
+    namespace: NotRequired[str]
+    """Object Storage namespace. Required unless `endpoint` is set."""
+    region: Required[str]
+    """Bucket region, used as the signing region."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
 
 
 class OnedriveConfig(TypedDict):
@@ -631,6 +775,8 @@ class OssConfig(TypedDict):
     """Bucket for oss."""
     delete_max_size: NotRequired[int]
     """Deprecated: OSS delete batch capability is enabled by default. [Deprecated since 0.57.0] OSS delete batch capability is enabled by default. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from ambient sources.  This removes the environment provider and the OSS profile, Alibaba Cloud shared credentials, Alibaba Cloud CLI config, and `ALIBABA_CLOUD_CREDENTIALS_URI` sources. Explicit access keys, OIDC options that are all set on the builder, and the `role_arn` AssumeRole flow remain enabled, and ECS instance RAM role credentials keep loading from instance metadata."""
     enable_versioning: NotRequired[bool]
     """Deprecated: OSS versioning capability is enabled by default. [Deprecated since 0.57.0] OSS versioning capability is enabled by default and this option is no longer needed."""
     endpoint: NotRequired[str]
@@ -663,6 +809,27 @@ class OssConfig(TypedDict):
     """`sts_endpoint` will be loaded from  - this field if it's `is_some` - env value: `ALIBABA_CLOUD_STS_ENDPOINT`"""
 
 
+class OvhcloudConfig(TypedDict):
+    """Configuration for the `ovhcloud` service."""
+
+    scheme: Required[Literal["ovhcloud"]]
+    """The service scheme; fixed to `"ovhcloud"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style bucket addressing."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is `https://s3.<region>.io.cloud.ovh.net`."""
+    region: Required[str]
+    """Bucket region, used as the signing region."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+
+
 class PersyConfig(TypedDict):
     """Configuration for the `persy` service."""
 
@@ -693,6 +860,50 @@ class PostgresqlConfig(TypedDict):
     """the value field of postgresql"""
 
 
+class QingstorConfig(TypedDict):
+    """Configuration for the `qingstor` service."""
+
+    scheme: Required[Literal["qingstor"]]
+    """The service scheme; fixed to `"qingstor"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style bucket addressing."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is `https://s3.<zone>.qsstor.com`."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+    zone: Required[str]
+    """Bucket zone, used as the signing region."""
+
+
+class R2Config(TypedDict):
+    """Configuration for the `r2` service."""
+
+    scheme: Required[Literal["r2"]]
+    """The service scheme; fixed to `"r2"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID.  Set this field together with `secret_access_key`."""
+    account_id: NotRequired[str]
+    """Cloudflare account ID used to derive the R2 endpoint.  Set exactly one of `account_id` and `endpoint`."""
+    bucket: Required[str]
+    """Bucket name.  This field is required."""
+    endpoint: NotRequired[str]
+    """Explicit R2-compatible endpoint.  Use this field for a proxy, gateway, or test server. Set exactly one of `endpoint` and `account_id`."""
+    jurisdiction: NotRequired[str]
+    """R2 jurisdiction.  Supported values are `eu` and `fedramp`. This field requires `account_id` and cannot be used with `endpoint`."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket.  All operations happen under this root. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key.  Set this field together with `access_key_id`."""
+    session_token: NotRequired[str]
+    """Session token for temporary credentials.  This field requires `access_key_id` and `secret_access_key`."""
+
+
 class RedbConfig(TypedDict):
     """Configuration for the `redb` service."""
 
@@ -717,12 +928,14 @@ class RedisConfig(TypedDict):
     """The maximum number of connections allowed.  default is 10"""
     db: Required[int]
     """the number of DBs redis can take is unlimited  default is db 0"""
-    default_ttl: NotRequired[str]
-    """The default ttl for put operations. A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    default_ttl: NotRequired[str | timedelta]
+    """The default ttl for put operations. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
     endpoint: NotRequired[str]
     """network address of the Redis service. Can be "tcp://127.0.0.1:6379", e.g.  default is "tcp://127.0.0.1:6379\""""
     password: NotRequired[str]
     """the password for authentication  default is None"""
+    read_from_replicas: NotRequired[bool]
+    """Route read-only commands for `read` and `stat` to Redis Cluster replicas when available.  Defaults to `false`. Enabling this option requires `cluster_endpoints`. Replication lag can cause stale results. For example, `read` or `stat` can briefly return `ErrorKind::NotFound` for a just-written key. OpenDAL returns a replica miss without retrying on the primary."""
     root: NotRequired[str | os.PathLike[str]]
     """the working directory of the Redis service. Can be "/path/to/dir"  default is "/\""""
     username: NotRequired[str]
@@ -748,14 +961,26 @@ class S3Config(TypedDict):
     """bucket name of this backend.  required."""
     checksum_algorithm: NotRequired[str]
     """Checksum Algorithm to use when sending checksums in HTTP headers. This is necessary when writing to AWS S3 Buckets with Object Lock enabled for example.  Available options: - "crc32c" - "md5\""""
+    container_authorization_token: NotRequired[str]
+    """Authorization token sent to the AWS container credential endpoint.  This token takes precedence over the configured token file and the ambient direct and file token forms."""
+    container_authorization_token_file: NotRequired[str]
+    """File containing the authorization token sent to the AWS container credential endpoint.  This file takes precedence over both ambient token forms. The credential provider trims surrounding whitespace after reading the file."""
+    container_credentials_endpoint: NotRequired[str]
+    """Full URI for AWS container credential metadata.  This endpoint takes precedence over the relative container credential URI and both ambient container credential URI forms. It does not change the position or priority of the default ECS credential provider."""
+    container_credentials_relative_uri: NotRequired[str]
+    """Relative URI for AWS container credential metadata.  An explicit full endpoint takes precedence over this value. This value takes precedence over the ambient full and relative container credential URIs. OpenDAL joins it to `container_metadata_uri_override` when set, otherwise to `http://169.254.170.2`.  Setting any container credential field replaces the ECS slot in the default credential chain. It does not move that slot ahead of earlier default providers."""
+    container_metadata_uri_override: NotRequired[str]
+    """Base URI used to resolve a relative AWS container credential URI.  This override affects relative URIs only. It does not alter a configured or ambient full URI. The override alone does not select an endpoint."""
     default_acl: NotRequired[str]
     """Default ACL for new objects. Note that some s3 services like minio do not support this option."""
+    default_region: NotRequired[str]
+    """Fallback signing region when neither `region`, `AWS_REGION`, nor `AWS_DEFAULT_REGION` supplies one."""
     default_storage_class: NotRequired[str]
     """default storage_class for this backend.  Available values: - `DEEP_ARCHIVE` - `GLACIER` - `GLACIER_IR` - `INTELLIGENT_TIERING` - `ONEZONE_IA` - `EXPRESS_ONEZONE` - `OUTPOSTS` - `REDUCED_REDUNDANCY` - `STANDARD` - `STANDARD_IA`  S3 compatible services don't support all of them"""
     delete_max_size: NotRequired[int]
     """Deprecated: S3 delete batch capability is enabled by default. [Deprecated since 0.57.0] S3 delete batch capability is enabled by default. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints."""
     disable_config_load: NotRequired[bool]
-    """Disable config load so that opendal will not load config from environment.  For examples:  - envs like `AWS_ACCESS_KEY_ID` - files like `~/.aws/config`"""
+    """Disable automatic endpoint loading and ambient environment/profile credential providers.  This skips endpoint environment variables and removes the static environment, shared-profile, SSO, web-identity, and external process credential slots. Region environment lookup and compute metadata credential providers, including AWS container credentials and EC2 instance metadata, remain enabled."""
     disable_ec2_metadata: NotRequired[bool]
     """Disable load credential from ec2 metadata.  This option is used to disable the default behavior of opendal to load credential from ec2 metadata, a.k.a., IMDSv2"""
     disable_list_objects_v2: NotRequired[bool]
@@ -792,6 +1017,8 @@ class S3Config(TypedDict):
     """server_side_encryption for this backend.  Available values: `AES256`, `aws:kms`."""
     server_side_encryption_aws_kms_key_id: NotRequired[str]
     """server_side_encryption_aws_kms_key_id for this backend  - If `server_side_encryption` set to `aws:kms`, and `server_side_encryption_aws_kms_key_id` is not set, S3 will use aws managed kms key to encrypt data. - If `server_side_encryption` set to `aws:kms`, and `server_side_encryption_aws_kms_key_id` is a valid kms key id, S3 will use the provided kms key to encrypt data. - If the `server_side_encryption_aws_kms_key_id` is invalid or not found, an error will be returned. - If `server_side_encryption` is not `aws:kms`, setting `server_side_encryption_aws_kms_key_id` is a noop."""
+    server_side_encryption_bucket_key_enabled: NotRequired[bool]
+    """Control S3 Bucket Keys for SSE-KMS writes and copies.  Omit this option to inherit the bucket setting. `false` disables Bucket Keys for destination objects, and `true` enables them."""
     server_side_encryption_customer_algorithm: NotRequired[str]
     """server_side_encryption_customer_algorithm for this backend.  Available values: `AES256`."""
     server_side_encryption_customer_key: NotRequired[str]
@@ -802,6 +1029,27 @@ class S3Config(TypedDict):
     """session_token (aka, security token) of this backend.  This token will expire after sometime, it's recommended to set session_token by hand."""
     skip_signature: NotRequired[bool]
     """Skip signature will skip loading credentials and signing requests."""
+
+
+class ScalewayConfig(TypedDict):
+    """Configuration for the `scaleway` service."""
+
+    scheme: Required[Literal["scaleway"]]
+    """The service scheme; fixed to `"scaleway"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style bucket addressing."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is `https://s3.<region>.scw.cloud`."""
+    region: Required[str]
+    """Bucket region, used as the signing region."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
 
 
 class SeafileConfig(TypedDict):
@@ -826,6 +1074,12 @@ class SftpConfig(TypedDict):
 
     scheme: Required[Literal["sftp"]]
     """The service scheme; fixed to `"sftp"`."""
+    acquire_timeout: NotRequired[str | timedelta]
+    """Time limit for waiting for an SFTP connection pool slot. Defaults to 10 seconds. Zero disables the limit. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    connect_timeout: NotRequired[str | timedelta]
+    """Time limit for each SFTP connection setup stage and each pooled connection health check. Defaults to 10 seconds. Zero disables the limit. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    control_directory: NotRequired[str]
+    """Directory for the SSH control socket.  The SSH client creates a temporary directory holding the control socket here. Defaults to `$XDG_STATE_HOME` or `$HOME/.local/state`, falling back to the current directory."""
     enable_copy: NotRequired[bool]
     """Deprecated: SFTP copy capability is enabled by default. [Deprecated since 0.57.0] SFTP copy capability is enabled by default and this option is no longer needed."""
     endpoint: NotRequired[str]
@@ -853,6 +1107,29 @@ class SledConfig(TypedDict):
     """The tree for sled."""
 
 
+class SpacesConfig(TypedDict):
+    """Configuration for the `spaces` service."""
+
+    scheme: Required[Literal["spaces"]]
+    """The service scheme; fixed to `"spaces"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    datacenter: NotRequired[str]
+    """Spaces datacenter slug. Required unless `endpoint` is set."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style bucket addressing."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is `https://<datacenter>.digitaloceanspaces.com`."""
+    region: NotRequired[str]
+    """Signing region, independent of the Spaces datacenter."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+
+
 class SqliteConfig(TypedDict):
     """Configuration for the `sqlite` service."""
 
@@ -868,6 +1145,29 @@ class SqliteConfig(TypedDict):
     """Set the table name of the sqlite service to read/write."""
     value_field: NotRequired[str]
     """Set the value field name of the sqlite service to read/write.  Default to `value` if not specified."""
+
+
+class SupabaseConfig(TypedDict):
+    """Configuration for the `supabase` service."""
+
+    scheme: Required[Literal["supabase"]]
+    """The service scheme; fixed to `"supabase"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is `https://<project_ref>.storage.supabase.co/storage/v1/s3`."""
+    project_ref: NotRequired[str]
+    """Supabase project reference. Required unless `endpoint` is set."""
+    region: Required[str]
+    """Region from the project’s S3 settings, used for signing."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+    session_token: NotRequired[str]
+    """User JWT for Supabase session authentication. Requires `access_key_id` and `secret_access_key`."""
 
 
 class SwiftConfig(TypedDict):
@@ -889,6 +1189,29 @@ class SwiftConfig(TypedDict):
     """The token for Swift."""
 
 
+class TigrisConfig(TypedDict):
+    """Configuration for the `tigris` service."""
+
+    scheme: Required[Literal["tigris"]]
+    """The service scheme; fixed to `"tigris"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style bucket addressing."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is `https://t3.storage.dev`."""
+    region: NotRequired[str]
+    """Signing region."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+    session_token: NotRequired[str]
+    """Session token for temporary credentials. Requires both access keys."""
+
+
 class TosConfig(TypedDict):
     """Configuration for the `tos` service."""
 
@@ -899,7 +1222,7 @@ class TosConfig(TypedDict):
     bucket: Required[str]
     """bucket name of this backend.  required."""
     disable_config_load: NotRequired[bool]
-    """Disable config load so that opendal will not load config from environment.  For examples: - envs like `TOS_ACCESS_KEY_ID`"""
+    """Disable config load so that opendal will not load config from environment.  For examples:  - envs like `VOLCENGINE_ACCESS_KEY_ID`"""
     endpoint: NotRequired[str]
     """endpoint of this backend.  Endpoint must be full uri, e.g. - TOS: `https://tos-cn-beijing.volces.com` - TOS with region: `https://tos-{region}.volces.com`  If user inputs endpoint without scheme like "tos-cn-beijing.volces.com", we will prepend "https://" before it."""
     region: NotRequired[str]
@@ -944,15 +1267,27 @@ class VercelArtifactsConfig(TypedDict):
     """The Vercel team slug. When set, the `slug` query parameter is appended to all API requests."""
 
 
-class VercelBlobConfig(TypedDict):
-    """Configuration for the `vercel-blob` service."""
+class WasabiConfig(TypedDict):
+    """Configuration for the `wasabi` service."""
 
-    scheme: Required[Literal["vercel-blob"]]
-    """The service scheme; fixed to `"vercel-blob"`."""
+    scheme: Required[Literal["wasabi"]]
+    """The service scheme; fixed to `"wasabi"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style bucket addressing."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is the published service URL for the bucket region."""
+    region: Required[str]
+    """Bucket region, used as the signing region."""
     root: NotRequired[str | os.PathLike[str]]
-    """root of this backend.  All operations will happen under this root."""
-    token: NotRequired[str]
-    """vercel blob token."""
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+    session_token: NotRequired[str]
+    """Session token for temporary credentials. Requires both access keys."""
 
 
 class WebdavConfig(TypedDict):
@@ -963,9 +1298,11 @@ class WebdavConfig(TypedDict):
     disable_copy: NotRequired[bool]
     """Deprecated: WebDAV copy capability is enabled by default. [Deprecated since 0.57.0] WebDAV copy capability is enabled by default and this option is no longer needed."""
     disable_create_dir: NotRequired[bool]
-    """Disable automatic parent directory creation before write operations.  By default, OpenDAL creates parent directories using MKCOL before writing files. This requires PROPFIND support to check directory existence.  Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND or don't require explicit directory creation. Enable this option to skip the MKCOL calls and write files directly.  Default: false"""
+    """Disable automatic parent directory creation before writing files.  By default, OpenDAL checks for parent directories using `PROPFIND` and creates missing directories using `MKCOL` before writing files. Enable this option to skip those checks and `MKCOL` calls for servers such as `bazel-remote`.  Explicit `create_dir` calls are unaffected.  Default: `false`"""
+    disable_depth_infinity: NotRequired[bool]
+    """Disable native recursive listing with WebDAV's `Depth: infinity`.  Set this to `true` for servers that reject or ignore infinity depth. With capability simulation enabled, OpenDAL walks the directory tree using `Depth: 1` requests instead.  The default is `false`."""
     enable_conditional_read: NotRequired[bool]
-    """Enable conditional read support.  When enabled (the default), OpenDAL forwards the RFC 7232 headers `If-Match`, `If-None-Match`, `If-Modified-Since` and `If-Unmodified-Since` to the server when callers provide them.  Some WebDAV-compatible servers (e.g., nginx-dav) don't return ETags in PROPFIND or don't honor these headers on GET. Setting this to `false` drops the four `read_with_if_*` capabilities, so calls like `reader_with(path).if_match(...)` return `ErrorKind::Unsupported` locally instead of being silently ignored by the server.  Default: true"""
+    """Deprecated: WebDAV conditional read capabilities are enabled by default. [Deprecated since 0.60.0] WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support."""
     enable_user_metadata: NotRequired[bool]
     """Deprecated: WebDAV user metadata capability is enabled by default. [Deprecated since 0.57.0] WebDAV user metadata capability is enabled by default. Use CapabilityOverrideLayer to override write_with_user_metadata for endpoints without PROPPATCH support."""
     endpoint: NotRequired[str]
@@ -1022,18 +1359,21 @@ ServiceConfig = (
     | AzfileConfig
     | B2Config
     | CacacheConfig
-    | CloudflareKvConfig
     | CosConfig
     | DashmapConfig
     | DropboxConfig
+    | ExoscaleConfig
+    | FoyerConfig
     | FsConfig
     | FtpConfig
     | GcsConfig
     | GcsGrpcConfig
     | GdriveConfig
     | GhacConfig
+    | GithubConfig
     | GridfsConfig
     | HdfsNativeConfig
+    | HetznerConfig
     | HfConfig
     | HttpConfig
     | IpfsConfig
@@ -1042,26 +1382,35 @@ ServiceConfig = (
     | MemcachedConfig
     | MemoryConfig
     | MiniMokaConfig
+    | MinioConfig
     | MokaConfig
     | MongodbConfig
     | MysqlConfig
     | ObsConfig
+    | OciConfig
     | OnedriveConfig
     | OssConfig
+    | OvhcloudConfig
     | PersyConfig
     | PostgresqlConfig
+    | QingstorConfig
+    | R2Config
     | RedbConfig
     | RedisConfig
     | S3Config
+    | ScalewayConfig
     | SeafileConfig
     | SftpConfig
     | SledConfig
+    | SpacesConfig
     | SqliteConfig
+    | SupabaseConfig
     | SwiftConfig
+    | TigrisConfig
     | TosConfig
     | UpyunConfig
     | VercelArtifactsConfig
-    | VercelBlobConfig
+    | WasabiConfig
     | WebdavConfig
     | WebhdfsConfig
     | YandexDiskConfig
@@ -1077,18 +1426,21 @@ __all__ = [
     "AzfileConfig",
     "B2Config",
     "CacacheConfig",
-    "CloudflareKvConfig",
     "CosConfig",
     "DashmapConfig",
     "DropboxConfig",
+    "ExoscaleConfig",
+    "FoyerConfig",
     "FsConfig",
     "FtpConfig",
     "GcsConfig",
     "GcsGrpcConfig",
     "GdriveConfig",
     "GhacConfig",
+    "GithubConfig",
     "GridfsConfig",
     "HdfsNativeConfig",
+    "HetznerConfig",
     "HfConfig",
     "HttpConfig",
     "IpfsConfig",
@@ -1097,26 +1449,35 @@ __all__ = [
     "MemcachedConfig",
     "MemoryConfig",
     "MiniMokaConfig",
+    "MinioConfig",
     "MokaConfig",
     "MongodbConfig",
     "MysqlConfig",
     "ObsConfig",
+    "OciConfig",
     "OnedriveConfig",
     "OssConfig",
+    "OvhcloudConfig",
     "PersyConfig",
     "PostgresqlConfig",
+    "QingstorConfig",
+    "R2Config",
     "RedbConfig",
     "RedisConfig",
     "S3Config",
+    "ScalewayConfig",
     "SeafileConfig",
     "SftpConfig",
     "SledConfig",
+    "SpacesConfig",
     "SqliteConfig",
+    "SupabaseConfig",
     "SwiftConfig",
+    "TigrisConfig",
     "TosConfig",
     "UpyunConfig",
     "VercelArtifactsConfig",
-    "VercelBlobConfig",
+    "WasabiConfig",
     "WebdavConfig",
     "WebhdfsConfig",
     "YandexDiskConfig",

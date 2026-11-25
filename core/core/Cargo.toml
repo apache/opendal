@@ -38,16 +38,16 @@ unused_async = "warn"
 all-features = true
 
 [features]
-default = ["executors-tokio"]
+default = ["auto-simulate"]
+
+# Automatically install SimulateLayer when constructing operators.
+auto-simulate = []
 
 # Enable opendal's blocking support.
 blocking = ["internal-tokio-rt"]
 
 # Enable tokio runtime.
 internal-tokio-rt = ["tokio/rt-multi-thread"]
-
-# Enable tokio executors support.
-executors-tokio = ["tokio/rt"]
 
 # Enable reqsign integration.
 #
@@ -66,17 +66,17 @@ bench = false
 [dependencies]
 # Required dependencies
 anyhow = { version = "1.0.100", features = ["std"] }
-asyncband = { workspace = true }
+asyncband = { workspace = true, features = ["mutex", "once-cell"] }
 base64 = { workspace = true }
 bytes = { workspace = true }
 futures = { workspace = true, features = ["std", "async-await"] }
 http = { workspace = true }
-jiff = { version = "0.2.28", features = ["serde"] }
+jiff = { version = "1.0.1", features = ["serde"] }
 log = { workspace = true }
 md-5 = "0.11.0"
 percent-encoding = "2"
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
-reqsign-core = { version = "3.2.0", default-features = false, optional = true }
+reqsign-core = { version = "3.3.4", default-features = false, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "io-util"] }
@@ -84,7 +84,7 @@ url = { workspace = true }
 uuid = { workspace = true, features = ["serde", "v4"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-jiff = { version = "0.2.28", features = ["serde", "js"] }
+jiff = { version = "1.0.1", features = ["serde", "js"] }
 tokio = { workspace = true, features = ["time"] }
 uuid = { workspace = true, features = ["serde", "v4", "js"] }
 

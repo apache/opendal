@@ -257,6 +257,10 @@ export declare class ConcurrentLimitLayer {
    * # Arguments
    *
    * * `permits` - The maximum number of concurrent operations allowed.
+   *
+   * # Errors
+   *
+   * Returns an error if the permit count is zero or outside the semaphore's range.
    */
   constructor(permits: number)
   /**
@@ -267,6 +271,10 @@ export declare class ConcurrentLimitLayer {
    * # Arguments
    *
    * * `v` - The maximum number of concurrent HTTP requests allowed.
+   *
+   * # Errors
+   *
+   * Returns an error if the permit count is zero or outside the semaphore's range.
    */
   set httpPermits(v: number)
   /**
@@ -298,12 +306,9 @@ export declare class Layer {
  */
 export declare class Lister {
   /**
-   * # Safety
+   * Return the next entry, or `null` when the lister is exhausted.
    *
-   * > &mut self in async napi methods should be marked as unsafe
-   *
-   * napi will make sure the function is safe, and we didn't do unsafe
-   * things internally.
+   * Concurrent calls are serialized, so each entry is returned exactly once.
    */
   next(): Promise<Entry | null>
 }
@@ -811,7 +816,8 @@ export declare class Operator {
   /**
    * Get a presigned request for read.
    *
-   * Unit of `expires` is seconds.
+   * Unit of `expires` is seconds. The value must be an integer between 1 and
+   * 4294967295.
    *
    * ### Example
    *
@@ -827,7 +833,8 @@ export declare class Operator {
   /**
    * Get a presigned request for `write`.
    *
-   * Unit of `expires` is seconds.
+   * Unit of `expires` is seconds. The value must be an integer between 1 and
+   * 4294967295.
    *
    * ### Example
    *
@@ -843,7 +850,8 @@ export declare class Operator {
   /**
    * Get a presigned request for stat.
    *
-   * Unit of `expires` is seconds.
+   * Unit of `expires` is seconds. The value must be an integer between 1 and
+   * 4294967295.
    *
    * ### Example
    *
@@ -859,7 +867,8 @@ export declare class Operator {
   /**
    * Get a presigned request for delete.
    *
-   * Unit of `expires` is seconds.
+   * Unit of `expires` is seconds. The value must be an integer between 1 and
+   * 4294967295.
    *
    * ### Example
    *
@@ -882,13 +891,18 @@ export declare class Operator {
  */
 export declare class Reader {
   /**
-   * # Safety
+   * Read bytes from this reader into the given buffer.
    *
-   * > &mut self in async napi methods should be marked as unsafe
-   *
-   * Read bytes from this reader into given buffer.
+   * Wait for the promise to settle before accessing the buffer again.
    */
   read(buf: Buffer): Promise<bigint>
+  /**
+   * Read up to `maxBytes` bytes from the same cursor as `read`.
+   *
+   * `maxBytes` must be an integer between 1 and 4294967295. The promise
+   * resolves to a writable Buffer, or `null` at the end of the input.
+   */
+  readChunk(maxBytes: number): Promise<Buffer | null>
 }
 
 /**
@@ -933,13 +947,7 @@ export declare class RetryLayer {
    * Backoff will return `None` if max times are reached.
    */
   set maxTimes(v: number)
-  /**
-   * Set factor of current backoff.
-   *
-   * # Panics
-   *
-   * This function will panic if the input factor is smaller than `1.0`.
-   */
+  /** Set the multiplier between retry delays. */
   set factor(v: number)
   /**
    * Set max_delay of current backoff.
@@ -1000,7 +1008,7 @@ export declare class ThrottleLayer {
    *
    * # Notes
    *
-   * Validation (bandwidth and burst must be greater than 0) is handled by the Rust core layer.
+   * Both converted arguments must be greater than zero.
    */
   constructor(bandwidth: number, burst: number)
   build(): ExternalObject<Layer>
@@ -1066,11 +1074,9 @@ export declare class TimeoutLayer {
  */
 export declare class Writer {
   /**
-   * # Safety
-   *
-   * > &mut self in async napi methods should be marked as unsafe
-   *
    * Write bytes into this writer.
+   *
+   * Concurrent calls are serialized in the order they acquire the lock.
    *
    * ### Example
    * ```javascript
@@ -1081,10 +1087,6 @@ export declare class Writer {
    */
   write(content: Buffer | string): Promise<void>
   /**
-   * # Safety
-   *
-   * > &mut self in async napi methods should be marked as unsafe
-   *
    * Close this writer.
    *
    * ### Example
@@ -1180,6 +1182,8 @@ export interface ReaderOptions {
    *
    * By setting `concurrent`, opendal will fetch chunks concurrently with
    * the give chunk size.
+   *
+   * The value must be an integer between 0 and 4294967295.
    */
   concurrent?: number
   /** * Sets the chunk size for this operation.
@@ -1250,6 +1254,8 @@ export interface ReadOptions {
    *
    * By setting `concurrent`, opendal will fetch chunks concurrently with
    * the give chunk size.
+   *
+   * The value must be an integer between 0 and 4294967295.
    */
   concurrent?: number
   /** * Sets the chunk size for this operation.
@@ -1427,6 +1433,8 @@ export interface WriteOptions {
    *   - Write operations return immediately without waiting if tasks space are available
    *   - Close operation ensures all writes complete in order
    *   - Memory usage increases with concurrency level
+   *
+   * The value must be an integer between 0 and 4294967295.
    */
   concurrent?: number
 }

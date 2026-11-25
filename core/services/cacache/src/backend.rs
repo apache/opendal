@@ -87,6 +87,7 @@ impl Service for CacacheBackend {
     type Lister = ();
     type Deleter = oio::OneShotDeleter<CacacheDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()
@@ -109,18 +110,24 @@ impl Service for CacacheBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
+        if path.is_empty() || path == "/" {
+            return Ok(RpStat::new(MetadataBuilder::dir().build()));
+        }
+
         let metadata = self.core.metadata(path).await?;
 
         match metadata {
             Some(meta) => {
-                let mut md = Metadata::new(EntryMode::FILE);
-                md.set_content_length(meta.size as u64);
+                let mut md = if path.ends_with('/') {
+                    MetadataBuilder::dir()
+                } else {
+                    MetadataBuilder::file(meta.size as u64)
+                };
                 // Convert u128 milliseconds to Timestamp
-                let millis = meta.time as i64;
-                if let Ok(dt) = Timestamp::from_millisecond(millis) {
-                    md.set_last_modified(dt);
+                if let Ok(dt) = Timestamp::from_millisecond(meta.time as i64) {
+                    md.last_modified(dt);
                 }
-                Ok(RpStat::new(md))
+                Ok(RpStat::new(md.build()))
             }
             None => Err(Error::new(ErrorKind::NotFound, "entry not found")),
         }
@@ -167,7 +174,6 @@ impl Service for CacacheBackend {
         _from: &str,
         _to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
@@ -198,5 +204,109 @@ impl Service for CacacheBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+    use std::path::PathBuf;
+    use std::sync::atomic::AtomicU64;
+    use std::sync::atomic::Ordering;
+
+    use super::*;
+    use opendal_core::raw::oio::Write as _;
+
+    struct TempDir {
+        path: PathBuf,
+    }
+
+    impl TempDir {
+        fn new() -> Self {
+            static NEXT: AtomicU64 = AtomicU64::new(0);
+
+            let path = std::env::temp_dir().join(format!(
+                "opendal-cacache-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::create_dir_all(&path).expect("create temporary directory");
+
+            Self { path }
+        }
+
+        fn path(&self) -> &Path {
+            &self.path
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_root_and_dir_marker_stat_and_writer_metadata() -> Result<()> {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let dir = TempDir::new();
+            let service = CacacheBuilder::default()
+                .datadir(dir.path().to_str().expect("valid utf-8 path"))
+                .build()?;
+            let ctx = OperationContext::default();
+
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR
+            );
+            assert_eq!(
+                service
+                    .stat(&ctx, "", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR
+            );
+
+            let mut dir_writer = service.write(&ctx, "a/", OpWrite::default())?;
+            let dir_meta = dir_writer.close().await?;
+            assert_eq!(dir_meta.mode(), EntryMode::DIR);
+            assert_eq!(
+                service
+                    .stat(&ctx, "a/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR
+            );
+
+            let mut file_writer = service.write(&ctx, "a/file.txt", OpWrite::default())?;
+            file_writer.write(Buffer::from("hello")).await?;
+            let file_meta = file_writer.close().await?;
+            assert_eq!(file_meta.mode(), EntryMode::FILE);
+            assert_eq!(file_meta.content_length(), 5);
+
+            let stat_meta = service
+                .stat(&ctx, "a/file.txt", OpStat::default())
+                .await?
+                .into_metadata();
+            assert_eq!(stat_meta.mode(), EntryMode::FILE);
+            assert_eq!(stat_meta.content_length(), 5);
+
+            // Verify Operator with SimulateLayer::with_stat_dir(false) also observes DIR.
+            let srv: Servicer = Arc::new(service);
+            let op = Operator::from_parts(OperationContext::default(), srv)
+                .layer(layers::SimulateLayer::default().with_stat_dir(false));
+            assert_eq!(op.stat("/").await?.mode(), EntryMode::DIR);
+            assert_eq!(op.stat("a/").await?.mode(), EntryMode::DIR);
+            assert_eq!(op.stat("a/file.txt").await?.mode(), EntryMode::FILE);
+            Ok::<_, Error>(())
+        })
+        .await
+        .expect("test timed out")
     }
 }

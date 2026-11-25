@@ -31,27 +31,69 @@ use crate::*;
 pub struct BufferSink {
     state: State,
     buf: Buffer,
+    position: u64,
 }
 
 enum State {
-    Idle(Option<WriteGenerator<oio::Writer>>),
-    Writing(BoxedStaticFuture<(WriteGenerator<oio::Writer>, Result<usize>)>),
-    Closing(BoxedStaticFuture<(WriteGenerator<oio::Writer>, Result<Metadata>)>),
+    /// The sink is idle and owns the writer.
+    Idle(WriteState),
+    /// A write request is in flight and owns the writer.
+    Writing(BoxedStaticFuture<(WriteState, Result<usize>)>),
+    /// A close request is in flight and owns the writer.
+    Closing(BoxedStaticFuture<(WriteState, Result<Metadata>)>),
+    /// The sink has been closed and accepts no more items.
+    Closed,
 }
 
 /// # Safety
 ///
-/// FuturesReader only exposes `&mut self` to the outside world, so it's safe to be `Sync`.
+/// `BufferSink` only accesses the writer or in-flight futures stored in `State`
+/// through `&mut self` (or `Pin<&mut Self>`). Methods taking `&self` only
+/// inspect the enum tag, so `State` is safe to be `Sync`.
 unsafe impl Sync for State {}
 
 impl BufferSink {
     /// Create a new sink from a [`oio::Writer`].
     #[inline]
-    pub(crate) fn new(w: WriteGenerator<oio::Writer>) -> Self {
+    pub(crate) fn new(w: WriteState) -> Self {
         BufferSink {
-            state: State::Idle(Some(w)),
+            state: State::Idle(w),
             buf: Buffer::new(),
+            position: 0,
         }
+    }
+
+    /// Take the writer out of an idle sink so a request can own it.
+    ///
+    /// Returns `None` and leaves the state unchanged when the sink is not idle.
+    /// The state has to move out for this hand-off; `State::Closed` only fills
+    /// the slot during that move, and no await point is crossed here.
+    fn take_idle_writer(&mut self) -> Option<WriteState> {
+        match std::mem::replace(&mut self.state, State::Closed) {
+            State::Idle(w) => Some(w),
+            state => {
+                self.state = state;
+                None
+            }
+        }
+    }
+
+    /// Return the number of bytes accepted by the underlying writer.
+    ///
+    /// This includes bytes buffered by the writer and any prefix it accepted
+    /// before returning an error. Bytes still pending in the sink do not count.
+    pub fn position(&self) -> u64 {
+        self.position
+    }
+
+    /// Return whether the sink has been closed.
+    pub(crate) fn is_closed(&self) -> bool {
+        matches!(self.state, State::Closed)
+    }
+
+    /// Return whether the sink is closing.
+    pub(crate) fn is_closing(&self) -> bool {
+        matches!(self.state, State::Closing(_))
     }
 }
 
@@ -63,70 +105,25 @@ impl futures::Sink<Buffer> for BufferSink {
     }
 
     fn start_send(mut self: Pin<&mut Self>, item: Buffer) -> Result<()> {
-        self.buf = item;
-        Ok(())
+        match &self.state {
+            State::Closed => Err(Error::new(
+                ErrorKind::Unexpected,
+                "state invalid: sink has been closed",
+            )),
+            State::Idle(_) | State::Writing(_) | State::Closing(_) => {
+                self.buf = item;
+                Ok(())
+            }
+        }
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         let this = self.get_mut();
         loop {
             match &mut this.state {
-                State::Idle(w) => {
-                    if this.buf.is_empty() {
-                        return Poll::Ready(Ok(()));
-                    }
-                    let Some(mut w) = w.take() else {
-                        return Poll::Ready(Err(Error::new(
-                            ErrorKind::Unexpected,
-                            "state invalid: sink has been closed",
-                        )));
-                    };
-                    let buf = this.buf.clone();
-                    let fut = async move {
-                        let res = w.write(buf).await;
-                        (w, res)
-                    };
-                    this.state = State::Writing(Box::pin(fut));
-                }
-                State::Writing(fut) => {
-                    let (w, res) = ready!(fut.as_mut().poll(cx));
-                    this.state = State::Idle(Some(w));
-                    match res {
-                        Ok(n) => {
-                            this.buf.advance(n);
-                        }
-                        Err(err) => return Poll::Ready(Err(err)),
-                    }
-                }
-                State::Closing(_) => {
-                    return Poll::Ready(Err(Error::new(
-                        ErrorKind::Unexpected,
-                        "state invalid: sink is closing",
-                    )));
-                }
-            }
-        }
-    }
-
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        let this = self.get_mut();
-        loop {
-            match &mut this.state {
-                State::Idle(w) => {
-                    let Some(mut w) = w.take() else {
-                        return Poll::Ready(Err(Error::new(
-                            ErrorKind::Unexpected,
-                            "state invalid: sink has been closed",
-                        )));
-                    };
-
-                    if this.buf.is_empty() {
-                        let fut = async move {
-                            let res = w.close().await;
-                            (w, res)
-                        };
-                        this.state = State::Closing(Box::pin(fut));
-                    } else {
+                State::Idle(_) if this.buf.is_empty() => return Poll::Ready(Ok(())),
+                State::Idle(_) => {
+                    if let Some(mut w) = this.take_idle_writer() {
                         let buf = this.buf.clone();
                         let fut = async move {
                             let res = w.write(buf).await;
@@ -137,25 +134,60 @@ impl futures::Sink<Buffer> for BufferSink {
                 }
                 State::Writing(fut) => {
                     let (w, res) = ready!(fut.as_mut().poll(cx));
-                    this.state = State::Idle(Some(w));
+                    this.state = State::Idle(w);
                     match res {
                         Ok(n) => {
                             this.buf.advance(n);
+                            this.position += n as u64;
                         }
                         Err(err) => return Poll::Ready(Err(err)),
                     }
                 }
-                State::Closing(fut) => {
-                    let (w, res) = ready!(fut.as_mut().poll(cx));
-                    this.state = State::Idle(Some(w));
-                    match res {
-                        Ok(_) => {
-                            this.state = State::Idle(None);
-                            return Poll::Ready(Ok(()));
-                        }
-                        Err(err) => return Poll::Ready(Err(err)),
-                    }
+                State::Closing(_) => {
+                    return Poll::Ready(Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "state invalid: sink is closing",
+                    )));
                 }
+                State::Closed => {
+                    return Poll::Ready(Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "state invalid: sink has been closed",
+                    )));
+                }
+            }
+        }
+    }
+
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
+        if !self.is_closing() {
+            ready!(self.as_mut().poll_flush(cx))?;
+        }
+
+        let this = self.get_mut();
+        if let Some(mut w) = this.take_idle_writer() {
+            let fut = async move {
+                let res = w.close().await;
+                (w, res)
+            };
+            this.state = State::Closing(Box::pin(fut));
+        }
+
+        let State::Closing(fut) = &mut this.state else {
+            return Poll::Ready(Err(Error::new(
+                ErrorKind::Unexpected,
+                "state invalid: sink has been closed",
+            )));
+        };
+        let (w, res) = ready!(fut.as_mut().poll(cx));
+        match res {
+            Ok(_) => {
+                this.state = State::Closed;
+                Poll::Ready(Ok(()))
+            }
+            Err(err) => {
+                this.state = State::Idle(w);
+                Poll::Ready(Err(err))
             }
         }
     }
@@ -163,10 +195,186 @@ impl futures::Sink<Buffer> for BufferSink {
 
 #[cfg(test)]
 mod tests {
+    use std::pin::Pin;
     use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
+    use std::task::Context;
+    use std::task::Poll;
+
+    use futures::Sink;
+    use futures::SinkExt;
 
     use crate::raw::*;
     use crate::*;
+
+    /// A writer whose close stays pending until the test opens the gate.
+    struct GatedWriter {
+        closed: Arc<AtomicBool>,
+        close_gate: Arc<AtomicBool>,
+        fail_next_close: Arc<AtomicBool>,
+        close_attempts: Arc<AtomicUsize>,
+    }
+
+    fn wait_for(gate: &AtomicBool) -> impl std::future::Future<Output = ()> + '_ {
+        futures::future::poll_fn(move |_| {
+            if gate.load(Ordering::SeqCst) {
+                Poll::Ready(())
+            } else {
+                Poll::Pending
+            }
+        })
+    }
+
+    impl oio::Write for GatedWriter {
+        async fn write(&mut self, _: Buffer) -> Result<()> {
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            self.close_attempts.fetch_add(1, Ordering::SeqCst);
+            wait_for(&self.close_gate).await;
+            if self.fail_next_close.swap(false, Ordering::SeqCst) {
+                return Err(Error::new(ErrorKind::Unexpected, "close failed").set_temporary());
+            }
+            self.closed.store(true, Ordering::SeqCst);
+            Ok(MetadataBuilder::unknown().build())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    /// Handles shared with a [`GatedWriter`] so tests can observe and drive it.
+    #[derive(Default)]
+    struct Gates {
+        closed: Arc<AtomicBool>,
+        close_gate: Arc<AtomicBool>,
+        fail_next_close: Arc<AtomicBool>,
+        close_attempts: Arc<AtomicUsize>,
+    }
+
+    impl Gates {
+        fn sink(&self) -> BufferSink {
+            let writer = GatedWriter {
+                closed: self.closed.clone(),
+                close_gate: self.close_gate.clone(),
+                fail_next_close: self.fail_next_close.clone(),
+                close_attempts: self.close_attempts.clone(),
+            };
+
+            BufferSink::new(WriteState::new(Box::new(writer), None, false))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sink_rejects_write_and_flush_after_close() {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, []).unwrap();
+        let mut sink = op
+            .writer("test_sink_rejects_write_and_flush_after_close")
+            .await
+            .unwrap()
+            .into_sink();
+
+        sink.close().await.unwrap();
+
+        let err = sink
+            .feed(Buffer::from("after close"))
+            .await
+            .expect_err("closed sink must reject writes");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(
+            err.message().contains("sink has been closed"),
+            "{}",
+            err.message()
+        );
+
+        let err = sink
+            .flush()
+            .await
+            .expect_err("closed sink must reject flushes");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(
+            err.message().contains("sink has been closed"),
+            "{}",
+            err.message()
+        );
+    }
+
+    #[test]
+    fn test_poll_close_retries_after_failure_then_closes() {
+        let gates = Gates::default();
+        gates.close_gate.store(true, Ordering::SeqCst);
+        gates.fail_next_close.store(true, Ordering::SeqCst);
+        let mut sink = gates.sink();
+        let waker = futures::task::noop_waker();
+        let mut cx = Context::from_waker(&waker);
+
+        let Poll::Ready(Err(err)) = Pin::new(&mut sink).poll_close(&mut cx) else {
+            panic!("first close must return the writer error");
+        };
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.message().contains("close failed"), "{}", err.message());
+        assert!(!sink.is_closed());
+        assert!(!sink.is_closing());
+        assert!(!gates.closed.load(Ordering::SeqCst));
+        assert_eq!(gates.close_attempts.load(Ordering::SeqCst), 1);
+
+        let Poll::Ready(Ok(())) = Pin::new(&mut sink).poll_close(&mut cx) else {
+            panic!("second close must succeed after restoring Idle");
+        };
+        assert!(sink.is_closed());
+        assert!(!sink.is_closing());
+        assert!(gates.closed.load(Ordering::SeqCst));
+        assert_eq!(gates.close_attempts.load(Ordering::SeqCst), 2);
+
+        let Poll::Ready(Err(err)) = Pin::new(&mut sink).poll_close(&mut cx) else {
+            panic!("third close must reject a closed sink");
+        };
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(
+            err.message().contains("sink has been closed"),
+            "{}",
+            err.message()
+        );
+        assert!(sink.is_closed());
+        assert_eq!(gates.close_attempts.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn test_poll_flush_rejects_while_closing() {
+        let gates = Gates::default();
+        let mut sink = gates.sink();
+        let waker = futures::task::noop_waker();
+        let mut cx = Context::from_waker(&waker);
+
+        assert!(Pin::new(&mut sink).poll_close(&mut cx).is_pending());
+        assert!(sink.is_closing());
+        assert!(!sink.is_closed());
+
+        let Poll::Ready(Err(err)) = Pin::new(&mut sink).poll_flush(&mut cx) else {
+            panic!("flush while closing must fail immediately");
+        };
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(
+            err.message().contains("sink is closing"),
+            "{}",
+            err.message()
+        );
+        assert!(sink.is_closing());
+        assert!(!sink.is_closed());
+
+        gates.close_gate.store(true, Ordering::SeqCst);
+        let Poll::Ready(Ok(())) = Pin::new(&mut sink).poll_close(&mut cx) else {
+            panic!("in-flight close must complete after rejected flush");
+        };
+        assert!(sink.is_closed());
+        assert!(!sink.is_closing());
+        assert!(gates.closed.load(Ordering::SeqCst));
+        assert_eq!(gates.close_attempts.load(Ordering::SeqCst), 1);
+    }
 
     #[tokio::test]
     async fn test_trait() {
@@ -181,9 +389,9 @@ mod tests {
             OpWrite::new(),
             OpWriter::new().with_chunk(1),
         ));
-        let write_gen = WriteGenerator::create(ctx).unwrap();
+        let write_state = WriteState::create(ctx).unwrap();
 
-        let v = BufferSink::new(write_gen);
+        let v = BufferSink::new(write_state);
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
     }

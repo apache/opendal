@@ -39,47 +39,53 @@ impl oio::StreamRead for SqliteReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
+        let p = build_absolute_path(&backend.root, path);
 
-        let (buffer, content_length) = if range.is_full() {
-            // Full read - use GET
-            match backend.core.get(&p).await? {
+        let (buffer, content_length) = match range {
+            BytesRange::Range {
+                offset: 0,
+                size: None,
+            } => match backend.core.get(&p).await? {
                 Some(bs) => {
                     let content_length = bs.len() as u64;
                     (bs, content_length)
                 }
                 None => return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
-            }
-        } else {
-            // Range read - use GETRANGE
-            let content_length = match backend.core.get_length(&p).await? {
-                Some(v) => v,
-                None => return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
-            };
-            let content_range = range.to_content_range(content_length)?;
-
-            let buffer = if content_range.is_empty() {
-                Buffer::new()
-            } else {
-                let start: isize = content_range.start.try_into().map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "range start exceeds isize::MAX")
-                        .set_source(err)
-                })?;
-                let limit: isize = content_range.len().try_into().map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "range size exceeds isize::MAX")
-                        .set_source(err)
-                })?;
-                match backend.core.get_range(&p, start, Some(limit)).await? {
-                    Some((bs, _)) => bs,
+            },
+            BytesRange::Range { size: Some(0), .. } | BytesRange::Suffix { size: 0 } => {
+                match backend.core.get_length(&p).await? {
+                    Some(content_length) => (Buffer::new(), content_length),
                     None => {
                         return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite"));
                     }
                 }
-            };
-            (buffer, content_length as u64)
+            }
+            BytesRange::Range { offset, size } => {
+                let (buffer, content_length) =
+                    match backend.core.get_range(&p, offset, size).await? {
+                        Some(v) => v,
+                        None => {
+                            return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite"));
+                        }
+                    };
+                let content_length_usize = usize::try_from(content_length).map_err(|err| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "sqlite value length exceeds usize::MAX",
+                    )
+                    .set_source(err)
+                })?;
+                let content_range = range.to_content_range(content_length_usize)?;
+                debug_assert_eq!(buffer.len(), content_range.len());
+                (buffer, content_length)
+            }
+            BytesRange::Suffix { size } => match backend.core.get_suffix(&p, size).await? {
+                Some(v) => v,
+                None => return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
+            },
         };
 
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
+        let metadata = MetadataBuilder::file(content_length).build();
         Ok((
             RpRead::new(metadata),
             Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,

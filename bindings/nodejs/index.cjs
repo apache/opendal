@@ -21,26 +21,34 @@
 
 const { Writable, Readable } = require('stream')
 
+function toWriterInput(chunk, encoding) {
+  if (typeof chunk === 'string' && encoding && encoding !== 'utf8' && encoding !== 'utf-8') {
+    return Buffer.from(chunk, encoding)
+  }
+  return chunk
+}
+
 class ReadStream extends Readable {
   constructor(reader, options) {
     super(options)
     this.reader = reader
   }
 
-  _read(size) {
-    const buf = Buffer.alloc(size)
-    this.reader
-      .read(buf)
-      .then((s) => {
-        if (s === 0n) {
-          this.push(null)
-        } else {
-          this.push(buf.subarray(0, Number(s)))
-        }
-      })
-      .catch((e) => {
-        this.emit('error', e)
-      })
+  async _read(size) {
+    try {
+      // Node can request size 0 when highWaterMark is 0.
+      const chunk = await this.reader.readChunk(Math.min(Math.max(size, 1), 0xffffffff))
+      if (!this.destroyed) {
+        this.push(chunk)
+      }
+    } catch (error) {
+      this.destroy(error)
+    }
+  }
+
+  _destroy(error, callback) {
+    this.reader = null
+    callback(error)
   }
 }
 
@@ -52,16 +60,22 @@ class BlockingReadStream extends Readable {
 
   _read(size) {
     try {
-      const buf = Buffer.alloc(size)
-      let s = this.reader.read(buf)
+      // Node can request size 0 when highWaterMark is 0.
+      const buf = Buffer.alloc(Math.max(size, 1))
+      const s = this.reader.read(buf)
       if (s === 0n) {
         this.push(null)
       } else {
         this.push(buf.subarray(0, Number(s)))
       }
-    } catch (e) {
-      this.emit('error', e)
+    } catch (error) {
+      this.destroy(error)
     }
+  }
+
+  _destroy(error, callback) {
+    this.reader = null
+    callback(error)
   }
 }
 
@@ -72,13 +86,21 @@ class WriteStream extends Writable {
   }
 
   _write(chunk, encoding, callback) {
+    let data
+    try {
+      data = toWriterInput(chunk, encoding)
+    } catch (error) {
+      callback(error)
+      return
+    }
+
     this.writer
-      .write(chunk)
+      .write(data)
       .then(() => {
         callback()
       })
-      .catch((e) => {
-        callback(e)
+      .catch((error) => {
+        callback(error)
       })
   }
 
@@ -88,8 +110,8 @@ class WriteStream extends Writable {
       .then(() => {
         callback()
       })
-      .catch((e) => {
-        callback(e)
+      .catch((error) => {
+        callback(error)
       })
   }
 }
@@ -102,10 +124,10 @@ class BlockingWriteStream extends Writable {
 
   _write(chunk, encoding, callback) {
     try {
-      this.writer.write(chunk)
+      this.writer.write(toWriterInput(chunk, encoding))
       callback()
-    } catch (e) {
-      callback(e)
+    } catch (error) {
+      callback(error)
     }
   }
 
@@ -113,21 +135,25 @@ class BlockingWriteStream extends Writable {
     try {
       this.writer.close()
       callback()
-    } catch (e) {
-      callback(e)
+    } catch (error) {
+      callback(error)
     }
   }
 }
 
+const generated = require('./generated.js')
 const {
-  Operator,
-  RetryLayer,
+  CapabilityOverrideLayer,
   ConcurrentLimitLayer,
+  LoggingLayer,
+  RetryLayer,
+  ThrottleLayer,
+  TimeoutLayer,
   BlockingReader,
   Reader,
   BlockingWriter,
   Writer,
-} = require('./generated.js')
+} = generated
 
 BlockingReader.prototype.createReadStream = function (options) {
   return new BlockingReadStream(this, options)
@@ -145,8 +171,12 @@ Writer.prototype.createWriteStream = function (options) {
   return new WriteStream(this, options)
 }
 
-module.exports.Operator = Operator
+module.exports = { ...generated }
 module.exports.layers = {
-  RetryLayer,
+  CapabilityOverrideLayer,
   ConcurrentLimitLayer,
+  LoggingLayer,
+  RetryLayer,
+  ThrottleLayer,
+  TimeoutLayer,
 }

@@ -17,8 +17,13 @@
 
 use std::time::Duration;
 
+use napi::bindgen_prelude::Error;
 use napi::bindgen_prelude::External;
 use napi::bindgen_prelude::Result;
+use napi::bindgen_prelude::Status;
+
+use crate::validate::duration_from_millis;
+use tokio::sync::Semaphore;
 
 pub trait NodeLayer: Send + Sync {
     fn layer(&self, op: opendal::Operator) -> opendal::Operator;
@@ -97,9 +102,9 @@ impl CapabilityOverrideLayer {
 pub struct RetryLayer {
     jitter: bool,
     max_times: Option<u32>,
-    factor: Option<f64>,
-    max_delay: Option<f64>,
-    min_delay: Option<f64>,
+    factor: Option<f32>,
+    max_delay: Option<Duration>,
+    min_delay: Option<Duration>,
 }
 
 #[napi]
@@ -126,14 +131,10 @@ impl RetryLayer {
         self.max_times = Some(v);
     }
 
-    /// Set factor of current backoff.
-    ///
-    /// # Panics
-    ///
-    /// This function will panic if the input factor is smaller than `1.0`.
+    /// Set the multiplier between retry delays.
     #[napi(setter)]
     pub fn factor(&mut self, v: f64) {
-        self.factor = Some(v);
+        self.factor = Some(v as f32);
     }
 
     /// Set max_delay of current backoff.
@@ -145,7 +146,7 @@ impl RetryLayer {
     /// - The unit of max_delay is millisecond.
     #[napi(setter)]
     pub fn max_delay(&mut self, v: f64) {
-        self.max_delay = Some(v);
+        self.max_delay = Some(duration_from_millis(v));
     }
 
     /// Set min_delay of current backoff.
@@ -155,7 +156,7 @@ impl RetryLayer {
     /// - The unit of min_delay is millisecond.
     #[napi(setter)]
     pub fn min_delay(&mut self, v: f64) {
-        self.min_delay = Some(v);
+        self.min_delay = Some(duration_from_millis(v));
     }
 
     #[napi]
@@ -168,13 +169,13 @@ impl RetryLayer {
             l = l.with_max_times(max_times as usize);
         }
         if let Some(factor) = self.factor {
-            l = l.with_factor(factor as f32);
+            l = l.with_factor(factor);
         }
         if let Some(max_delay) = self.max_delay {
-            l = l.with_max_delay(Duration::from_millis(max_delay as u64));
+            l = l.with_max_delay(max_delay);
         }
         if let Some(min_delay) = self.min_delay {
-            l = l.with_min_delay(Duration::from_millis(min_delay as u64));
+            l = l.with_min_delay(min_delay);
         }
 
         External::new(Layer { inner: Box::new(l) })
@@ -184,6 +185,17 @@ impl RetryLayer {
 impl NodeLayer for opendal::layers::ConcurrentLimitLayer {
     fn layer(&self, op: opendal::Operator) -> opendal::Operator {
         op.layer(self.clone())
+    }
+}
+
+fn parse_permits(value: i64, field: &str) -> Result<usize> {
+    let permits = usize::try_from(value).ok();
+    match permits {
+        Some(permits) if (1..=Semaphore::MAX_PERMITS).contains(&permits) => Ok(permits),
+        _ => Err(Error::new(
+            Status::InvalidArg,
+            format!("{field} must be between 1 and {}", Semaphore::MAX_PERMITS),
+        )),
     }
 }
 
@@ -217,8 +229,8 @@ impl NodeLayer for opendal::layers::ConcurrentLimitLayer {
 /// ```
 #[napi]
 pub struct ConcurrentLimitLayer {
-    permits: i64,
-    http_permits: Option<i64>,
+    permits: usize,
+    http_permits: Option<usize>,
 }
 
 #[napi]
@@ -230,12 +242,16 @@ impl ConcurrentLimitLayer {
     /// # Arguments
     ///
     /// * `permits` - The maximum number of concurrent operations allowed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the permit count is zero or outside the semaphore's range.
     #[napi(constructor)]
-    pub fn new(permits: i64) -> Self {
-        Self {
-            permits,
+    pub fn new(permits: i64) -> Result<Self> {
+        Ok(Self {
+            permits: parse_permits(permits, "permits")?,
             http_permits: None,
-        }
+        })
     }
 
     /// Set a concurrent limit for HTTP requests.
@@ -245,9 +261,14 @@ impl ConcurrentLimitLayer {
     /// # Arguments
     ///
     /// * `v` - The maximum number of concurrent HTTP requests allowed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the permit count is zero or outside the semaphore's range.
     #[napi(setter)]
-    pub fn http_permits(&mut self, v: i64) {
-        self.http_permits = Some(v);
+    pub fn http_permits(&mut self, v: i64) -> Result<()> {
+        self.http_permits = Some(parse_permits(v, "httpPermits")?);
+        Ok(())
     }
 
     /// Build the layer.
@@ -255,11 +276,10 @@ impl ConcurrentLimitLayer {
     /// Returns an `External<Layer>` that can be used with `Operator.layer()`.
     #[napi]
     pub fn build(&self) -> External<Layer> {
-        let permits = self.permits;
-        let mut l = opendal::layers::ConcurrentLimitLayer::new(permits as usize);
+        let mut l = opendal::layers::ConcurrentLimitLayer::new(self.permits);
 
         if let Some(http_permits) = self.http_permits {
-            l = l.with_http_concurrent_limit(http_permits as usize);
+            l = l.with_http_concurrent_limit(http_permits);
         }
 
         External::new(Layer { inner: Box::new(l) })
@@ -304,8 +324,8 @@ impl NodeLayer for opendal::layers::TimeoutLayer {
 #[derive(Default)]
 #[napi]
 pub struct TimeoutLayer {
-    timeout: Option<f64>,
-    io_timeout: Option<f64>,
+    timeout: Option<Duration>,
+    io_timeout: Option<Duration>,
 }
 
 #[napi]
@@ -323,7 +343,7 @@ impl TimeoutLayer {
     /// - Default is 60000ms (60 seconds).
     #[napi(setter)]
     pub fn timeout(&mut self, v: f64) {
-        self.timeout = Some(v);
+        self.timeout = Some(duration_from_millis(v));
     }
 
     /// Set timeout for IO operations (read, write, etc.)
@@ -334,7 +354,7 @@ impl TimeoutLayer {
     /// - Default is 10000ms (10 seconds).
     #[napi(setter)]
     pub fn io_timeout(&mut self, v: f64) {
-        self.io_timeout = Some(v);
+        self.io_timeout = Some(duration_from_millis(v));
     }
 
     #[napi]
@@ -342,10 +362,10 @@ impl TimeoutLayer {
         let mut l = opendal::layers::TimeoutLayer::default();
 
         if let Some(timeout) = self.timeout {
-            l = l.with_timeout(Duration::from_millis(timeout as u64));
+            l = l.with_timeout(timeout);
         }
         if let Some(io_timeout) = self.io_timeout {
-            l = l.with_io_timeout(Duration::from_millis(io_timeout as u64));
+            l = l.with_io_timeout(io_timeout);
         }
 
         External::new(Layer { inner: Box::new(l) })
@@ -460,10 +480,23 @@ impl ThrottleLayer {
     ///
     /// # Notes
     ///
-    /// Validation (bandwidth and burst must be greater than 0) is handled by the Rust core layer.
+    /// Both converted arguments must be greater than zero.
     #[napi(constructor)]
-    pub fn new(bandwidth: u32, burst: u32) -> Self {
-        Self { bandwidth, burst }
+    pub fn new(bandwidth: u32, burst: u32) -> Result<Self> {
+        if bandwidth == 0 {
+            return Err(Error::new(
+                Status::InvalidArg,
+                "bandwidth must be greater than 0",
+            ));
+        }
+        if burst == 0 {
+            return Err(Error::new(
+                Status::InvalidArg,
+                "burst must be greater than 0",
+            ));
+        }
+
+        Ok(Self { bandwidth, burst })
     }
 
     #[napi]

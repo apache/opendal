@@ -133,8 +133,15 @@ impl Builder for SwiftBuilder {
 
         let endpoint = match self.config.endpoint {
             Some(endpoint) => {
-                if endpoint.starts_with("http") {
-                    endpoint
+                let endpoint = endpoint.trim_end_matches('/');
+                if endpoint.is_empty() {
+                    return Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "missing endpoint for Swift",
+                    ));
+                }
+                if endpoint.starts_with("http://") || endpoint.starts_with("https://") {
+                    endpoint.to_string()
                 } else {
                     format!("https://{endpoint}")
                 }
@@ -239,6 +246,7 @@ impl Service for SwiftBackend {
     type Lister = oio::PageLister<SwiftLister>;
     type Deleter = oio::BatchDeleter<SwiftDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -266,13 +274,13 @@ impl Service for SwiftBackend {
         match resp.status() {
             StatusCode::OK | StatusCode::NO_CONTENT => {
                 let headers = resp.headers();
-                let mut meta = parse_into_metadata(path, headers)?;
+                let mut meta = parse_into_metadata(path, headers)?.into_builder();
                 let user_meta = parse_prefixed_headers(headers, "x-object-meta-");
                 if !user_meta.is_empty() {
-                    meta = meta.with_user_metadata(user_meta);
+                    meta.user_metadata(user_meta);
                 }
 
-                Ok(RpStat::new(meta))
+                Ok(RpStat::new(meta.build()))
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("ShowObjectMetadata")),
@@ -345,10 +353,20 @@ impl Service for SwiftBackend {
         args: OpPresign,
     ) -> Result<RpPresign> {
         let (expire, op) = args.into_parts();
+        let mut headers = http::HeaderMap::new();
 
-        let method = match &op {
+        let method = match op {
             PresignOperation::Stat(_) => http::Method::HEAD,
-            PresignOperation::Read(_, _) => http::Method::GET,
+            PresignOperation::Read(range, _) => {
+                if !range.is_full() {
+                    let value = range
+                        .to_header()
+                        .parse()
+                        .expect("byte range must be a valid HTTP header value");
+                    headers.insert(http::header::RANGE, value);
+                }
+                http::Method::GET
+            }
             PresignOperation::Write(_) => http::Method::PUT,
             _ => {
                 return Err(Error::new(
@@ -363,11 +381,7 @@ impl Service for SwiftBackend {
             Error::new(ErrorKind::Unexpected, "failed to parse presigned URL").set_source(e)
         })?;
 
-        Ok(RpPresign::new(PresignedRequest::new(
-            method,
-            uri,
-            http::HeaderMap::new(),
-        )))
+        Ok(RpPresign::new(PresignedRequest::new(method, uri, headers)))
     }
 
     fn copy(
@@ -375,8 +389,7 @@ impl Service for SwiftBackend {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpCopy,
-        _opts: OpCopier,
+        args: OpCopy,
     ) -> Result<Self::Copier> {
         let core = self.core.clone();
         let ctx = ctx.clone();
@@ -384,6 +397,28 @@ impl Service for SwiftBackend {
         let to = to.to_string();
 
         Ok(oio::OneShotCopier::new(async move {
+            let source_size = match args.source_content_length_hint() {
+                Some(size) => size,
+                None => {
+                    let stat_args: OpStat = options::StatOptions {
+                        version: args.source_version().map(str::to_owned),
+                        ..Default::default()
+                    }
+                    .into();
+                    let resp = core.swift_get_metadata(&ctx, &from, &stat_args).await?;
+                    match resp.status() {
+                        StatusCode::OK | StatusCode::NO_CONTENT => {
+                            parse_into_metadata(&from, resp.headers())?.content_length()
+                        }
+                        _ => {
+                            return Err(parse_error(
+                                ErrorContext::new(ServiceOperation("ShowObjectMetadata")),
+                                resp,
+                            ));
+                        }
+                    }
+                }
+            };
             // cannot copy objects larger than 5 GB.
             // Reference: https://docs.openstack.org/api-ref/object-store/#copy-object
             let resp = core.swift_copy(&ctx, &from, &to).await?;
@@ -391,7 +426,9 @@ impl Service for SwiftBackend {
             let status = resp.status();
 
             match status {
-                StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
+                StatusCode::CREATED | StatusCode::OK => {
+                    Ok(MetadataBuilder::file(source_size).build())
+                }
                 _ => Err(parse_error(
                     ErrorContext::new(ServiceOperation("CopyObject")),
                     resp,
@@ -411,5 +448,60 @@ impl Service for SwiftBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_handles_endpoint_scheme_prefix() {
+        let http_host = SwiftBuilder::default()
+            .endpoint("http-proxy.example.com/v1/AUTH_test/")
+            .container("photos")
+            .root("/albums")
+            .build()
+            .unwrap();
+        assert_eq!(http_host.info().scheme(), SWIFT_SCHEME);
+        assert_eq!(http_host.info().root().as_ref(), "/albums/");
+
+        let cfg = SwiftConfig {
+            endpoint: Some("http-proxy.example.com/v1/AUTH_test/".to_string()),
+            container: Some("photos".to_string()),
+            temp_url_key: Some("secret".to_string()),
+            ..Default::default()
+        };
+        let op = Operator::from_config(cfg).unwrap();
+
+        // Verify the built endpoint URL actually has https:// prepended via presign.
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let req = rt
+            .block_on(op.presign_read("pic.jpg", std::time::Duration::from_secs(60)))
+            .unwrap();
+        assert!(
+            req.uri()
+                .to_string()
+                .starts_with("https://http-proxy.example.com/v1/AUTH_test/photos/pic.jpg?")
+        );
+
+        let http_cfg = SwiftConfig {
+            endpoint: Some("http://127.0.0.1:8080/v1/AUTH_test/".to_string()),
+            container: Some("photos".to_string()),
+            temp_url_key: Some("secret".to_string()),
+            ..Default::default()
+        };
+        let http_op = Operator::from_config(http_cfg).unwrap();
+        let http_req = rt
+            .block_on(http_op.presign_read("pic.jpg", std::time::Duration::from_secs(60)))
+            .unwrap();
+        assert!(
+            http_req
+                .uri()
+                .to_string()
+                .starts_with("http://127.0.0.1:8080/v1/AUTH_test/photos/pic.jpg?")
+        );
     }
 }

@@ -34,24 +34,29 @@ all-features = true
 [dependencies]
 futures = { workspace = true }
 http = { workspace = true }
-opendal-core = { path = "../../core", version = "0.58.2", default-features = false }
+opendal-core = { path = "../../core", version = "0.59.5", default-features = false }
 tracing = "0.1"
 
 [dev-dependencies]
 anyhow = "1.0"
 dotenvy = "0.15"
-opendal-core = { path = "../../core", version = "0.58.2" }
-opentelemetry = { version = "0.32.0", default-features = false, features = [
+opendal-core = { path = "../../core", version = "0.59.5" }
+opentelemetry = { version = "0.33.1", default-features = false, features = [
   "trace",
 ] }
-opentelemetry-otlp = { version = "0.32.0", default-features = false, features = [
+opentelemetry-otlp = { version = "0.33.1", default-features = false, features = [
   "grpc-tonic",
   "trace",
 ] }
-opentelemetry_sdk = { version = "0.32.1", features = ["rt-tokio"] }
+opentelemetry_sdk = { version = "0.33.1", features = ["rt-tokio"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-tracing-opentelemetry = "0.33.0"
+tracing-opentelemetry = "0.34.0"
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",
   "tracing-log",
 ] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+opendal-http-transport-reqwest = { path = "../../http-transports/reqwest", version = "0.59.5", default-features = false }
+reqwest = { version = "0.13.4", default-features = false }
+tokio = { workspace = true, features = ["io-util", "net", "time"] }

@@ -20,6 +20,7 @@
 #![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
 use std::sync::Arc;
+use std::time::Duration;
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -28,20 +29,31 @@ use opentelemetry::KeyValue;
 use opentelemetry::global;
 use opentelemetry::trace::FutureExt as TraceFutureExt;
 use opentelemetry::trace::Span;
+use opentelemetry::trace::SpanKind;
+use opentelemetry::trace::Status;
 use opentelemetry::trace::TraceContextExt;
 use opentelemetry::trace::Tracer;
+
+#[cfg(test)]
+mod tests;
 
 /// `OtelTraceLayer` traces OpenDAL operations with
 /// [OpenTelemetry](https://docs.rs/opentelemetry/latest/opentelemetry/trace/index.html).
 ///
 /// The layer obtains the `opendal` tracer from OpenTelemetry's global tracer
-/// provider. Applications must install and configure that provider before
-/// issuing operations.
+/// provider. Applications must install that provider before issuing operations.
 ///
 /// The layer creates spans for service metadata, create, read, write, copy,
-/// rename, stat, list, and presign calls. It carries read, write, and list
-/// contexts into their stateful I/O bodies. Delete calls currently pass through
-/// without creating a span.
+/// compose, rename, restore, stat, delete, list, and presign calls. It carries
+/// read, write, copy, compose, delete, and list contexts into their stateful
+/// I/O bodies. Each
+/// deletion request and the final flush have their own `deleter.delete` and
+/// `deleter.close` child spans, respectively. If creating the deleter,
+/// submitting a deletion, or flushing fails, its span records the error.
+///
+/// The layer also creates a client span for each outbound HTTP request and
+/// keeps it active while polling the response body. Tasks spawned through the
+/// OpenDAL executor inherit the OpenTelemetry context active at submission.
 ///
 /// # Examples
 ///
@@ -72,19 +84,64 @@ impl OtelTraceLayer {
 
 impl Layer for OtelTraceLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
+        Arc::new(OtelTraceService { inner })
+    }
+
+    fn apply_context(&self, _service: Servicer, inner: OperationContext) -> OperationContext {
+        let transport = HttpTransporter::new(OtelTraceHttpTransport {
+            inner: inner.http_transport().clone(),
+        });
+        let executor = Executor::with(OtelTraceExecutor {
+            inner: inner.executor().clone().into_inner(),
+        });
+
+        inner.with_http_transport(transport).with_executor(executor)
     }
 }
 
-impl OtelTraceLayer {
-    fn layer(&self, inner: Servicer) -> OtelTraceService {
-        OtelTraceService { inner }
+struct OtelTraceHttpTransport {
+    inner: HttpTransporter,
+}
+
+impl HttpTransport for OtelTraceHttpTransport {
+    async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
+        let tracer = global::tracer("opendal");
+        let span = tracer
+            .span_builder("http::fetch")
+            .with_kind(SpanKind::Client)
+            .start(&tracer);
+        let cx = TraceContext::current_with_span(span);
+        let response = self.inner.fetch(req).with_context(cx.clone()).await?;
+
+        Ok(response.map(|body| body.map_inner(|stream| Box::new(stream.with_context(cx)))))
     }
 }
 
-#[doc(hidden)]
+struct OtelTraceExecutor {
+    inner: Arc<dyn Execute>,
+}
+
+impl Execute for OtelTraceExecutor {
+    fn execute(&self, task: BoxedStaticFuture<()>) {
+        self.inner.execute(Box::pin(task.with_current_context()));
+    }
+
+    fn try_execute(&self, task: BoxedStaticFuture<()>) -> Result<()> {
+        self.inner
+            .try_execute(Box::pin(task.with_current_context()))
+    }
+
+    fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
+        self.inner.timeout()
+    }
+
+    fn sleep(&self, duration: Duration) -> Option<BoxedStaticFuture<()>> {
+        self.inner.sleep(duration)
+    }
+}
+
 #[derive(Debug)]
-pub struct OtelTraceService {
+struct OtelTraceService {
     inner: Servicer,
 }
 
@@ -92,8 +149,9 @@ impl Service for OtelTraceService {
     type Reader = OtelTraceWrapper<oio::Reader>;
     type Writer = OtelTraceWrapper<oio::Writer>;
     type Lister = OtelTraceWrapper<oio::Lister>;
-    type Deleter = oio::Deleter;
-    type Copier = oio::Copier;
+    type Deleter = OtelTraceWrapper<oio::Deleter>;
+    type Copier = OtelTraceWrapper<oio::Copier>;
+    type Composer = OtelTraceWrapper<oio::Composer>;
 
     fn info(&self) -> ServiceInfo {
         let tracer = global::tracer("opendal");
@@ -102,6 +160,18 @@ impl Service for OtelTraceService {
 
     fn capability(&self) -> Capability {
         self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        let tracer = global::tracer("opendal");
+        let mut span = tracer.start("compose");
+        span.set_attribute(KeyValue::new("to", to.to_string()));
+        span.set_attribute(KeyValue::new("args", format!("{args:?}")));
+        let cx = TraceContext::current_with_span(span);
+        let _guard = cx.clone().attach();
+        self.inner
+            .compose(ctx, to, args)
+            .map(|c| OtelTraceWrapper::new(cx, c))
     }
 
     async fn create_dir(
@@ -149,7 +219,6 @@ impl Service for OtelTraceService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("copy");
@@ -157,8 +226,10 @@ impl Service for OtelTraceService {
         span.set_attribute(KeyValue::new("to", to.to_string()));
         span.set_attribute(KeyValue::new("args", format!("{args:?}")));
         let cx = TraceContext::current_with_span(span);
-        let _guard = cx.attach();
-        self.inner.copy(ctx, from, to, args, opts)
+        let _guard = cx.clone().attach();
+        self.inner
+            .copy(ctx, from, to, args)
+            .map(|c| OtelTraceWrapper::new(cx, c))
     }
 
     async fn rename(
@@ -204,7 +275,17 @@ impl Service for OtelTraceService {
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
-        self.inner.delete(ctx)
+        let tracer = global::tracer("opendal");
+        let cx = TraceContext::current_with_span(tracer.start("delete"));
+        let _guard = cx.clone().attach();
+        self.inner
+            .delete(ctx)
+            .inspect_err(|err| {
+                let span = cx.span();
+                span.record_error(err);
+                span.set_status(Status::error(err.kind().into_static()));
+            })
+            .map(|deleter| OtelTraceWrapper::new(cx, deleter))
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
@@ -233,8 +314,7 @@ impl Service for OtelTraceService {
     }
 }
 
-#[doc(hidden)]
-pub struct OtelTraceWrapper<R> {
+struct OtelTraceWrapper<R> {
     cx: TraceContext,
     inner: R,
 }
@@ -298,5 +378,71 @@ impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
 impl<R: oio::List> oio::List for OtelTraceWrapper<R> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         self.inner.next().with_context(self.cx.clone()).await
+    }
+}
+
+impl<D: oio::Delete> oio::Delete for OtelTraceWrapper<D> {
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        let tracer = global::tracer("opendal");
+        let mut span = tracer.start_with_context("deleter.delete", &self.cx);
+        span.set_attribute(KeyValue::new("path", path.to_string()));
+        span.set_attribute(KeyValue::new("args", format!("{args:?}")));
+        let cx = self.cx.with_span(span);
+        async { self.inner.delete(path, args).await }
+            .with_context(cx.clone())
+            .await
+            .inspect_err(|err| {
+                let span = cx.span();
+                span.record_error(err);
+                span.set_status(Status::error(err.kind().into_static()));
+            })
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        let tracer = global::tracer("opendal");
+        let span = tracer.start_with_context("deleter.close", &self.cx);
+        let cx = self.cx.with_span(span);
+        async { self.inner.close().await }
+            .with_context(cx.clone())
+            .await
+            .inspect_err(|err| {
+                let span = cx.span();
+                span.record_error(err);
+                span.set_status(Status::error(err.kind().into_static()));
+            })
+    }
+}
+
+impl<C: oio::Copy> oio::Copy for OtelTraceWrapper<C> {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        async { self.inner.next().await }
+            .with_context(self.cx.clone())
+            .await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        async { self.inner.close().await }
+            .with_context(self.cx.clone())
+            .await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        async { self.inner.abort().await }
+            .with_context(self.cx.clone())
+            .await
+    }
+}
+
+impl<C: oio::Compose> oio::Compose for OtelTraceWrapper<C> {
+    async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
+        async { self.inner.compose(path, args).await }
+            .with_context(self.cx.clone())
+            .await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        async { self.inner.close().await }
+            .with_context(self.cx.clone())
+            .await
     }
 }

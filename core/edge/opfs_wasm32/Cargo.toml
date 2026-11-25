@@ -27,9 +27,14 @@ version.workspace = true
 [lib]
 crate-type = ["cdylib"]
 
+[features]
+# Run the tests in a dedicated web worker instead of the main browser thread.
+worker = []
+
 [dependencies]
 futures = { workspace = true, features = ["std", "async-await"] }
 opendal = { path = "../..", default-features = false, features = [
+  "auto-simulate",
   "services-opfs",
 ] }
 wasm-bindgen = "0.2.89"

@@ -115,18 +115,14 @@ impl Builder for VercelArtifactsBuilder {
             .endpoint
             .unwrap_or_else(|| "https://api.vercel.com".to_string());
 
-        let mut query_params = Vec::new();
-        if let Some(team_id) = &self.config.team_id {
-            query_params.push(format!("teamId={team_id}"));
+        let mut query = QueryPairsWriter::new("");
+        if let Some(team_id) = self.config.team_id.as_deref() {
+            query = query.push("teamId", &percent_encode_path(team_id));
         }
-        if let Some(slug) = &self.config.team_slug {
-            query_params.push(format!("slug={slug}"));
+        if let Some(slug) = self.config.team_slug.as_deref() {
+            query = query.push("slug", &percent_encode_path(slug));
         }
-        let query_string = if query_params.is_empty() {
-            String::new()
-        } else {
-            format!("?{}", query_params.join("&"))
-        };
+        let query_string = query.finish();
 
         Ok(VercelArtifactsBackend {
             core: Arc::new(VercelArtifactsCore {
@@ -151,6 +147,7 @@ impl Service for VercelArtifactsBackend {
     type Lister = ();
     type Deleter = ();
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -235,7 +232,6 @@ impl Service for VercelArtifactsBackend {
         _from: &str,
         _to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
@@ -266,5 +262,73 @@ impl Service for VercelArtifactsBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    use futures::stream;
+    use http::{Request, Response, StatusCode};
+
+    use super::*;
+
+    #[derive(Clone, Default)]
+    struct RecordingTransport {
+        uris: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl HttpTransport for RecordingTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.uris.lock().unwrap().push(req.uri().to_string());
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header(http::header::CONTENT_LENGTH, "4")
+                .body(HttpBody::new(
+                    stream::iter([Ok(Buffer::from("data"))]),
+                    Some(4),
+                ))
+                .unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn build_encodes_team_query_params() {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let cfg = VercelArtifactsConfig::from_iter(
+                [
+                    ("access_token", "secret-token"),
+                    ("endpoint", "https://cache.example.com"),
+                    ("team_id", "team&id=1#frag"),
+                    ("team_slug", "my team/slug?x=1"),
+                ]
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string())),
+            )
+            .unwrap();
+
+            let transport = RecordingTransport::default();
+            let op = Operator::new(cfg.into_builder())
+                .unwrap()
+                .with_context(
+                    OperationContext::new()
+                        .with_http_transport(HttpTransporter::new(transport.clone())),
+                );
+
+            let meta = op.stat("abc123").await.unwrap();
+            assert_eq!(meta.content_length(), 4);
+
+            let uris = transport.uris.lock().unwrap().clone();
+            assert_eq!(
+                uris,
+                vec![
+                    "https://cache.example.com/v8/artifacts/abc123?teamId=team%26id%3D1%23frag&slug=my%20team/slug%3Fx%3D1"
+                ]
+            );
+        })
+        .await
+        .expect("test timed out");
     }
 }

@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use asyncband::once::OnceCell;
 use sqlx::mysql::MySqlConnectOptions;
 
 use super::MYSQL_SCHEME;
@@ -102,6 +101,17 @@ impl MysqlBuilder {
     }
 }
 
+fn validate_identifier(name: &str, value: &str) -> Result<()> {
+    if value.contains('\0') {
+        return Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            format!("{name} must not contain NUL bytes"),
+        )
+        .with_context("service", MYSQL_SCHEME));
+    }
+    Ok(())
+}
+
 impl Builder for MysqlBuilder {
     type Config = MysqlConfig;
 
@@ -129,24 +139,21 @@ impl Builder for MysqlBuilder {
                     .with_context("service", MYSQL_SCHEME));
             }
         };
+        validate_identifier("table", &table)?;
 
         let key_field = self.config.key_field.unwrap_or_else(|| "key".to_string());
+        validate_identifier("key_field", &key_field)?;
 
         let value_field = self
             .config
             .value_field
             .unwrap_or_else(|| "value".to_string());
+        validate_identifier("value_field", &value_field)?;
 
         let root = normalize_root(self.config.root.unwrap_or_else(|| "/".to_string()).as_str());
 
-        Ok(MysqlBackend::new(MysqlCore {
-            pool: OnceCell::new(),
-            config,
-            table,
-            key_field,
-            value_field,
-        })
-        .with_normalized_root(root))
+        let core = MysqlCore::new(config, &table, &key_field, &value_field);
+        Ok(MysqlBackend::new(core, &table).with_normalized_root(root))
     }
 }
 
@@ -160,8 +167,8 @@ pub struct MysqlBackend {
 }
 
 impl MysqlBackend {
-    pub fn new(core: MysqlCore) -> Self {
-        let info = ServiceInfo::new(MYSQL_SCHEME, "/", &core.table);
+    pub fn new(core: MysqlCore, table: &str) -> Self {
+        let info = ServiceInfo::new(MYSQL_SCHEME, "/", table);
         let capability = Capability {
             read: true,
             list: true,
@@ -195,6 +202,7 @@ impl Service for MysqlBackend {
     type Lister = oio::HierarchyLister<MysqlLazyLister>;
     type Deleter = oio::OneShotDeleter<MysqlDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()
@@ -217,15 +225,16 @@ impl Service for MysqlBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
-            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        if p == build_absolute_path(&self.root, "") {
+            Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.get_length(&p).await? {
-                Some(length) => Ok(RpStat::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(length as u64),
-                )),
+                Some(length) => Ok(RpStat::new({
+                    let metadata = MetadataBuilder::file(length as u64);
+                    metadata.build()
+                })),
                 None => Err(Error::new(ErrorKind::NotFound, "kv not found in mysql")),
             }
         }
@@ -244,7 +253,7 @@ impl Service for MysqlBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         let output: MysqlWriter = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             Ok(MysqlWriter::new(self.core.clone(), p))
         }?;
 
@@ -279,7 +288,6 @@ impl Service for MysqlBackend {
         _from: &str,
         _to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
@@ -310,5 +318,49 @@ impl Service for MysqlBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn valid_config() -> MysqlConfig {
+        MysqlConfig {
+            connection_string: Some("mysql://root:password@127.0.0.1:3306/testdb".to_string()),
+            table: Some("data".to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn build_rejects_nul_in_identifiers() {
+        for config in [
+            MysqlConfig {
+                table: Some("data\0bad".to_string()),
+                ..valid_config()
+            },
+            MysqlConfig {
+                key_field: Some("key\0bad".to_string()),
+                ..valid_config()
+            },
+            MysqlConfig {
+                value_field: Some("val\0bad".to_string()),
+                ..valid_config()
+            },
+        ] {
+            let err = config.into_builder().build().unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+    }
+
+    #[test]
+    fn build_preserves_unquoted_table_name_in_service_info() {
+        let config = MysqlConfig {
+            table: Some("my`table".to_string()),
+            ..valid_config()
+        };
+        let service = config.into_builder().build().unwrap();
+        assert_eq!(service.info().name().as_ref(), "my`table");
     }
 }

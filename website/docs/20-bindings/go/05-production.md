@@ -65,7 +65,7 @@ storage layer, the concrete type is `*opendal.Error`. Type-assert it and branch
 on `Code()` instead of parsing messages:
 
 ```go
-data, err := op.Read("maybe-missing.txt")
+data, err := op.Read(ctx, "maybe-missing.txt")
 if err != nil {
 	var oerr *opendal.Error
 	if errors.As(err, &oerr) && oerr.Code() == opendal.CodeNotFound {
@@ -77,8 +77,12 @@ if err != nil {
 ```
 
 Common codes include `CodeNotFound`, `CodePermissioDenied`, `CodeAlreadyExists`,
-`CodeRateLimited`, `CodeConditionNotMatch`, and `CodeUnsupported`. Note that
-`Delete` is idempotent — deleting a missing path succeeds rather than returning
+`CodeRateLimited`, `CodeConditionNotMatch`, `CodeUnsupported`, and
+`CodeCancelled`. When an operation is cancelled via a `context.Context`, the
+returned `*opendal.Error` has `CodeCancelled` and unwraps to `context.Canceled`
+or `context.DeadlineExceeded`, so `errors.Is(err, context.Canceled)` and
+`errors.Is(err, context.DeadlineExceeded)` both match. Note that `Delete` is
+idempotent — deleting a missing path succeeds rather than returning
 `CodeNotFound`.
 
 ## Capability checks {#capability-checks}
@@ -90,7 +94,7 @@ Not every service supports every operation. Query what a backend can do through
 ```go
 cap := op.Info().GetCapability()
 if cap.Copy() {
-	if err := op.Copy("a.txt", "b.txt"); err != nil {
+	if err := op.Copy(ctx, "a.txt", "b.txt"); err != nil {
 		log.Fatal(err)
 	}
 }

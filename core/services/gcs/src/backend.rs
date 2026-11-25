@@ -19,23 +19,25 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use log::debug;
+#[cfg(not(target_arch = "wasm32"))]
+use reqsign_command_execute_tokio::TokioCommandExecute;
 use reqsign_core::Context;
-use reqsign_core::Env as _;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredential;
 use reqsign_core::ProvideCredentialChain;
-use reqsign_core::Signer;
-use reqsign_core::StaticEnv;
 use reqsign_file_read_tokio::TokioFileRead;
 use reqsign_google::Credential;
 use reqsign_google::DefaultCredentialProvider;
+use reqsign_google::EnvCredentialProvider;
 use reqsign_google::FileCredentialProvider;
 use reqsign_google::RequestSigner;
 use reqsign_google::StaticCredentialProvider;
 use reqsign_google::TokenCredentialProvider;
 use reqsign_google::VmMetadataCredentialProvider;
+use reqsign_google::WellKnownCredentialProvider;
 
 use super::GCS_SCHEME;
+use super::composer::GcsComposer;
 use super::config::GcsConfig;
 use super::copier::GcsCopier;
 use super::core::constants::GCS_REWRITE_MAX_CHUNK_SIZE;
@@ -155,6 +157,10 @@ impl GcsBuilder {
     /// Specify a customized credential provider used by this service.
     ///
     /// This provider will be pushed to the front of credential chain.
+    ///
+    /// Implement the provider against [`opendal_core::reqsign_core`] and
+    /// [`crate::reqsign_google`] so that its types match the ones this service is
+    /// built with.
     pub fn credential_provider(
         mut self,
         provider: impl ProvideCredential<Credential = Credential> + 'static,
@@ -167,6 +173,10 @@ impl GcsBuilder {
     /// Specify a customized credential provider chain used by this service.
     ///
     /// This chain will be pushed to the front of default chain.
+    ///
+    /// Build the chain from [`opendal_core::reqsign_core`] and
+    /// [`crate::reqsign_google`] so that its types match the ones this service is
+    /// built with.
     pub fn credential_provider_chain(mut self, chain: ProvideCredentialChain<Credential>) -> Self {
         self.credential_provider_chain = Some(chain);
         self
@@ -239,10 +249,8 @@ impl GcsBuilder {
     }
 }
 
-impl Builder for GcsBuilder {
-    type Config = GcsConfig;
-
-    fn build(self) -> Result<impl Service> {
+impl GcsBuilder {
+    fn build_backend(self) -> Result<GcsBackend> {
         debug!("backend build started: {self:?}");
 
         #[allow(deprecated)]
@@ -276,51 +284,43 @@ impl Builder for GcsBuilder {
             .clone()
             .unwrap_or_else(|| DEFAULT_GCS_SCOPE.to_string());
 
-        let os_env = OsEnv;
-        let mut envs = os_env.vars();
-        envs.insert("GOOGLE_SCOPE".to_string(), scope.clone());
-
-        let ctx = Context::new()
-            .with_file_read(TokioFileRead)
-            .with_env(StaticEnv {
-                home_dir: os_env.home_dir(),
-                envs,
-            });
+        let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
+        #[cfg(not(target_arch = "wasm32"))]
+        let ctx = ctx.with_command_execute(TokioCommandExecute);
 
         let mut default_credential = DefaultCredentialProvider::builder();
-        #[cfg(target_arch = "wasm32")]
-        {
+        if self.config.disable_config_load || cfg!(target_arch = "wasm32") {
             default_credential = default_credential.no_env().no_well_known();
+        } else {
+            default_credential = default_credential
+                .env(EnvCredentialProvider::new().with_scope(&scope))
+                .well_known(WellKnownCredentialProvider::new().with_scope(&scope));
         }
 
-        if self.config.disable_config_load {
-            default_credential = default_credential.no_env().no_well_known();
-        }
-
-        if self.config.disable_vm_metadata || self.config.service_account.is_some() {
+        if self.config.disable_vm_metadata {
             default_credential = default_credential.no_vm_metadata();
+        } else {
+            let mut vm_metadata = VmMetadataCredentialProvider::new().with_scope(&scope);
+            if let Some(service_account) = self.config.service_account.as_deref() {
+                vm_metadata = vm_metadata.with_service_account(service_account);
+            }
+            default_credential = default_credential.vm_metadata(vm_metadata);
         }
 
         let mut credential_chain = ProvideCredentialChain::new().push(default_credential.build());
-
-        if !self.config.disable_vm_metadata
-            && let Some(service_account) = self.config.service_account.as_deref()
-        {
-            credential_chain = credential_chain.push(
-                VmMetadataCredentialProvider::new()
-                    .with_scope(&scope)
-                    .with_service_account(service_account),
-            );
-        }
 
         if let Some(path) = self.config.credential_path.as_deref() {
             credential_chain =
                 credential_chain.push_front(FileCredentialProvider::new(path).with_scope(&scope));
         }
 
-        if let Some(content) = self.config.credential.as_deref()
-            && let Ok(provider) = StaticCredentialProvider::from_base64(content)
-        {
+        if let Some(content) = self.config.credential.as_deref() {
+            let provider = StaticCredentialProvider::from_base64(content).map_err(|err| {
+                Error::new(ErrorKind::ConfigInvalid, "invalid base64 credential")
+                    .with_operation("Builder::build")
+                    .with_context("service", GCS_SCHEME)
+                    .set_source(err)
+            })?;
             credential_chain = credential_chain.push_front(provider.with_scope(&scope));
         }
 
@@ -333,21 +333,20 @@ impl Builder for GcsBuilder {
         }
 
         let sign_ctx = ctx;
-        let signer = Signer::new(
-            sign_ctx.clone(),
-            credential_chain,
-            RequestSigner::new("storage").with_scope(&scope),
-        );
+        let credential_provider = Arc::new(credential_chain);
+        let request_signer = Arc::new(RequestSigner::new("storage").with_scope(&scope));
 
         let info = ServiceInfo::new(GCS_SCHEME, &root, bucket);
         let capability = Capability {
             stat: true,
+            stat_with_version: true,
             stat_with_if_match: true,
             stat_with_if_none_match: true,
             stat_with_if_version_match: true,
             stat_with_if_version_not_match: true,
 
             read: true,
+            read_with_version: true,
             read_with_suffix: true,
 
             read_with_if_match: true,
@@ -380,11 +379,13 @@ impl Builder for GcsBuilder {
             },
 
             delete: true,
+            delete_with_version: true,
             delete_with_if_version_match: true,
             delete_with_if_version_not_match: true,
             delete_max_size: Some(100),
 
             copy: true,
+            copy_with_source_version: true,
             copy_with_if_version_match: true,
             copy_with_if_version_not_match: true,
             copy_can_multi: true,
@@ -395,10 +396,21 @@ impl Builder for GcsBuilder {
             copy_multi_min_size: Some(GCS_REWRITE_MIN_CHUNK_SIZE),
             copy_multi_max_size: Some(GCS_REWRITE_MAX_CHUNK_SIZE),
 
+            compose: true,
+            compose_with_content_type: true,
+            compose_with_content_disposition: true,
+            compose_with_content_encoding: true,
+            compose_with_cache_control: true,
+            compose_with_user_metadata: true,
+            compose_with_if_not_exists: true,
+            compose_with_if_version_match: true,
+            compose_with_source_version: true,
+
             list: true,
             list_with_limit: true,
             list_with_start_after: true,
             list_with_recursive: true,
+            list_with_versions: true,
 
             presign: true,
             presign_stat: true,
@@ -417,8 +429,10 @@ impl Builder for GcsBuilder {
                 endpoint,
                 bucket: bucket.to_string(),
                 root,
-                signer,
                 sign_ctx,
+                credential_provider,
+                request_signer,
+                signers: HttpTransportCache::new(),
                 predefined_acl: self.config.predefined_acl.clone(),
                 default_storage_class: self.config.default_storage_class.clone(),
                 skip_signature,
@@ -426,6 +440,14 @@ impl Builder for GcsBuilder {
         };
 
         Ok(backend)
+    }
+}
+
+impl Builder for GcsBuilder {
+    type Config = GcsConfig;
+
+    fn build(self) -> Result<impl Service> {
+        self.build_backend()
     }
 }
 
@@ -441,6 +463,7 @@ impl Service for GcsBackend {
     type Lister = oio::PageLister<GcsLister>;
     type Deleter = oio::BatchDeleter<GcsDeleter>;
     type Copier = GcsCopier;
+    type Composer = GcsComposer;
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -464,10 +487,7 @@ impl Service for GcsBackend {
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let error_ctx = ErrorContext::new(ServiceOperation("GetObject"))
-            .with_if_match(args.if_match().is_some())
-            .with_if_none_match(args.if_none_match().is_some())
-            .with_if_version_match(args.if_version_match().is_some())
-            .with_if_version_not_match(args.if_version_not_match().is_some());
+            .with_caller_condition(args.is_conditional());
         let resp = self.core.gcs_get_object_metadata(ctx, path, &args).await?;
 
         if !resp.status().is_success() {
@@ -528,14 +548,7 @@ impl Service for GcsBackend {
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let output: oio::PageLister<GcsLister> = {
-            let l = GcsLister::new(
-                self.core.clone(),
-                ctx.clone(),
-                path,
-                args.recursive(),
-                args.limit(),
-                args.start_after(),
-            );
+            let l = GcsLister::new(self.core.clone(), ctx.clone(), path, args);
 
             Ok(oio::PageLister::new(l))
         }?;
@@ -549,14 +562,26 @@ impl Service for GcsBackend {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         let output: GcsCopier = {
-            let copier = GcsCopier::new(self.core.clone(), ctx.clone(), from, to, args, opts);
+            let copier = GcsCopier::new(self.core.clone(), ctx.clone(), from, to, args);
             Ok(copier)
         }?;
 
         Ok(output)
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        if args.if_match().is_some()
+            || args.if_none_match().is_some()
+            || args.if_version_not_match().is_some()
+        {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "GCS compose does not support the requested destination option",
+            ));
+        }
+        Ok(GcsComposer::new(self.core.clone(), ctx.clone(), to, args))
     }
 
     async fn rename(
@@ -608,5 +633,466 @@ impl Service for GcsBackend {
             parts.uri,
             parts.headers,
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    use bytes::Bytes;
+    use http::header::AUTHORIZATION;
+    use reqsign_core::{FileRead, HttpSend, StaticEnv};
+
+    use super::*;
+
+    const TEST_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_only";
+    const IMPERSONATED_ADC_JSON: &[u8] = br#"{
+        "type": "impersonated_service_account",
+        "service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/target%40example.com:generateAccessToken",
+        "source_credentials": {
+            "client_id": "client-id",
+            "client_secret": "client-secret",
+            "refresh_token": "refresh-token"
+        }
+    }"#;
+
+    #[derive(Clone, Debug, Default)]
+    struct MockFileRead {
+        files: HashMap<String, Vec<u8>>,
+        paths: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl FileRead for MockFileRead {
+        async fn file_read(&self, path: &str) -> reqsign_core::Result<Vec<u8>> {
+            self.paths.lock().unwrap().push(path.to_string());
+            self.files.get(path).cloned().ok_or_else(|| {
+                reqsign_core::Error::config_invalid(format!("file not found: {path}"))
+            })
+        }
+    }
+
+    #[derive(Clone, Debug, Default)]
+    struct MockHttpSend {
+        requests: Arc<Mutex<Vec<(String, String)>>>,
+    }
+
+    impl HttpSend for MockHttpSend {
+        async fn http_send(
+            &self,
+            req: http::Request<Bytes>,
+        ) -> reqsign_core::Result<http::Response<Bytes>> {
+            let uri = req.uri().to_string();
+            let body = String::from_utf8_lossy(req.body()).into_owned();
+            self.requests.lock().unwrap().push((uri.clone(), body));
+
+            let response_body = if uri.contains("/computeMetadata/v1/") {
+                r#"{"access_token":"vm-token","expires_in":3600}"#
+            } else if uri == "https://oauth2.googleapis.com/token" {
+                r#"{"access_token":"source-token","expires_in":3600}"#
+            } else if uri == "https://sts.googleapis.com/v1/token" {
+                r#"{"access_token":"sts-exec-token","expires_in":3600}"#
+            } else if uri.contains(":generateAccessToken") {
+                r#"{"accessToken":"impersonated-token","expireTime":"2100-01-01T00:00:00Z"}"#
+            } else {
+                panic!("unexpected request uri: {uri}");
+            };
+
+            Ok(http::Response::builder()
+                .status(http::StatusCode::OK)
+                .body(Bytes::from_static(response_body.as_bytes()))
+                .unwrap())
+        }
+    }
+
+    #[test]
+    fn test_capability_supports_versioned_operations() {
+        let backend = GcsBuilder::default()
+            .bucket("test-bucket")
+            .token("test-token".to_string())
+            .disable_config_load()
+            .disable_vm_metadata()
+            .build()
+            .expect("GCS backend must build");
+
+        let capability = backend.capability();
+        assert!(capability.stat_with_version);
+        assert!(capability.read_with_version);
+        assert!(capability.copy_with_source_version);
+        assert!(capability.delete_with_version);
+    }
+
+    #[test]
+    fn test_invalid_base64_credential_returns_config_invalid() {
+        for invalid in ["not-valid-base64!!!", "//4="] {
+            let err = GcsBuilder::default()
+                .bucket("example-bucket")
+                .credential(invalid)
+                .disable_config_load()
+                .disable_vm_metadata()
+                .build()
+                .expect_err("invalid base64 credential must fail build");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+
+        assert!(
+            GcsBuilder::default()
+                .bucket("example-bucket")
+                .credential("")
+                .disable_config_load()
+                .disable_vm_metadata()
+                .build()
+                .is_ok()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_vm_metadata_wires_scope_and_service_account_without_static_env() {
+        let backend = GcsBuilder::default()
+            .bucket("example-bucket")
+            .scope(TEST_SCOPE)
+            .service_account("custom-sa@example.iam.gserviceaccount.com")
+            .disable_config_load()
+            .build_backend()
+            .unwrap();
+
+        assert_eq!(
+            backend.core.sign_ctx.env_var("GOOGLE_SCOPE"),
+            std::env::var("GOOGLE_SCOPE").ok()
+        );
+
+        let http = MockHttpSend::default();
+        let ctx = Context::new()
+            .with_env(StaticEnv::default())
+            .with_http_send(http.clone());
+        let (mut parts, ()) =
+            http::Request::get("https://storage.googleapis.com/example-bucket/obj")
+                .body(())
+                .unwrap()
+                .into_parts();
+
+        backend
+            .core
+            .signer_with_context(ctx)
+            .sign(&mut parts, None)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            parts
+                .headers
+                .get(AUTHORIZATION)
+                .and_then(|v| v.to_str().ok()),
+            Some("Bearer vm-token")
+        );
+        let requests = http.requests.lock().unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(
+            requests[0].0,
+            format!(
+                "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/custom-sa@example.iam.gserviceaccount.com/token?scopes={TEST_SCOPE}"
+            )
+        );
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test]
+    async fn test_env_and_well_known_providers_wire_scope_directly() {
+        for (env_key, env_value, expected_path) in [
+            (
+                "GOOGLE_APPLICATION_CREDENTIALS",
+                "/adc/env.json",
+                "/adc/env.json",
+            ),
+            (
+                "HOME",
+                "/adc-home",
+                "/adc-home/.config/gcloud/application_default_credentials.json",
+            ),
+        ] {
+            let backend = GcsBuilder::default()
+                .bucket("example-bucket")
+                .scope(TEST_SCOPE)
+                .disable_vm_metadata()
+                .build_backend()
+                .unwrap();
+
+            let file_read = MockFileRead {
+                files: HashMap::from([(expected_path.to_string(), IMPERSONATED_ADC_JSON.to_vec())]),
+                paths: Arc::default(),
+            };
+            let http = MockHttpSend::default();
+            let ctx = Context::new()
+                .with_env(StaticEnv {
+                    home_dir: None,
+                    envs: HashMap::from([(env_key.to_string(), env_value.to_string())]),
+                })
+                .with_file_read(file_read.clone())
+                .with_http_send(http.clone());
+            let (mut parts, ()) =
+                http::Request::get("https://storage.googleapis.com/example-bucket/obj")
+                    .body(())
+                    .unwrap()
+                    .into_parts();
+
+            backend
+                .core
+                .signer_with_context(ctx)
+                .sign(&mut parts, None)
+                .await
+                .unwrap();
+
+            assert_eq!(
+                parts
+                    .headers
+                    .get(AUTHORIZATION)
+                    .and_then(|v| v.to_str().ok()),
+                Some("Bearer impersonated-token")
+            );
+            assert_eq!(file_read.paths.lock().unwrap().as_slice(), &[expected_path]);
+            let requests = http.requests.lock().unwrap();
+            assert_eq!(requests.len(), 2);
+            let body: serde_json::Value = serde_json::from_str(&requests[1].1).unwrap();
+            assert_eq!(body["scope"], serde_json::json!([TEST_SCOPE]));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_disable_config_load_and_disable_vm_metadata_skip_default_providers() {
+        let backend = GcsBuilder::default()
+            .bucket("example-bucket")
+            .scope(TEST_SCOPE)
+            .service_account("custom-sa@example.iam.gserviceaccount.com")
+            .disable_config_load()
+            .disable_vm_metadata()
+            .build_backend()
+            .unwrap();
+
+        let file_read = MockFileRead {
+            files: HashMap::from([
+                ("/adc/env.json".to_string(), IMPERSONATED_ADC_JSON.to_vec()),
+                (
+                    "/adc-home/.config/gcloud/application_default_credentials.json".to_string(),
+                    IMPERSONATED_ADC_JSON.to_vec(),
+                ),
+            ]),
+            paths: Arc::default(),
+        };
+        let http = MockHttpSend::default();
+        let ctx = Context::new()
+            .with_env(StaticEnv {
+                home_dir: None,
+                envs: HashMap::from([
+                    (
+                        "GOOGLE_APPLICATION_CREDENTIALS".to_string(),
+                        "/adc/env.json".to_string(),
+                    ),
+                    ("HOME".to_string(), "/adc-home".to_string()),
+                ]),
+            })
+            .with_file_read(file_read.clone())
+            .with_http_send(http.clone());
+        let (mut parts, ()) =
+            http::Request::get("https://storage.googleapis.com/example-bucket/obj")
+                .body(())
+                .unwrap()
+                .into_parts();
+
+        let err = backend
+            .core
+            .signer_with_context(ctx)
+            .sign(&mut parts, None)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), reqsign_core::ErrorKind::CredentialInvalid);
+        assert!(file_read.paths.lock().unwrap().is_empty());
+        assert!(http.requests.lock().unwrap().is_empty());
+    }
+
+    #[cfg(unix)]
+    struct TempScript {
+        dir: std::path::PathBuf,
+        script_path: std::path::PathBuf,
+        marker_path: std::path::PathBuf,
+    }
+
+    #[cfg(unix)]
+    impl TempScript {
+        fn new(body: &str) -> Self {
+            use std::os::unix::fs::PermissionsExt;
+            use std::sync::atomic::{AtomicU64, Ordering};
+
+            static COUNTER: AtomicU64 = AtomicU64::new(0);
+            let dir = std::env::temp_dir().join(format!(
+                "opendal-gcs-cmd-{}-{}",
+                std::process::id(),
+                COUNTER.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            let marker_path = dir.join("executed");
+            let script_path = dir.join("cred.sh");
+            let script = format!("#!/bin/sh\ntouch \"{}\"\n{}\n", marker_path.display(), body);
+            std::fs::write(&script_path, script).unwrap();
+            std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+            Self {
+                dir,
+                script_path,
+                marker_path,
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    impl Drop for TempScript {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    #[cfg(unix)]
+    fn executable_external_account_json(script_path: &std::path::Path) -> Vec<u8> {
+        serde_json::json!({
+            "type": "external_account",
+            "audience": "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/provider",
+            "subject_token_type": "urn:ietf:params:oauth:token-type:id_token",
+            "token_url": "https://sts.googleapis.com/v1/token",
+            "credential_source": {
+                "executable": {
+                    "command": script_path.to_str().unwrap(),
+                    "timeout_millis": 5000,
+                }
+            }
+        })
+        .to_string()
+        .into_bytes()
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_executable_external_account_runs_via_wired_sign_ctx() {
+        let script = TempScript::new(
+            r#"printf '%s' '{"version":1,"success":true,"token_type":"urn:ietf:params:oauth:token-type:id_token","id_token":"exec-subject-token","expiration_time":4102444800}'"#,
+        );
+        let backend = GcsBuilder::default()
+            .bucket("example-bucket")
+            .disable_vm_metadata()
+            .build_backend()
+            .unwrap();
+
+        let file_read = MockFileRead {
+            files: HashMap::from([(
+                "/adc/exec.json".to_string(),
+                executable_external_account_json(&script.script_path),
+            )]),
+            paths: Arc::default(),
+        };
+        let http = MockHttpSend::default();
+        let ctx = backend
+            .core
+            .sign_ctx
+            .clone()
+            .with_env(StaticEnv {
+                home_dir: None,
+                envs: HashMap::from([
+                    (
+                        "GOOGLE_APPLICATION_CREDENTIALS".to_string(),
+                        "/adc/exec.json".to_string(),
+                    ),
+                    (
+                        "GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES".to_string(),
+                        "1".to_string(),
+                    ),
+                ]),
+            })
+            .with_file_read(file_read)
+            .with_http_send(http.clone());
+        let (mut parts, ()) =
+            http::Request::get("https://storage.googleapis.com/example-bucket/obj")
+                .body(())
+                .unwrap()
+                .into_parts();
+
+        backend
+            .core
+            .signer_with_context(ctx)
+            .sign(&mut parts, None)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            parts
+                .headers
+                .get(AUTHORIZATION)
+                .and_then(|v| v.to_str().ok()),
+            Some("Bearer sts-exec-token")
+        );
+        assert!(script.marker_path.exists());
+        let requests = http.requests.lock().unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].0, "https://sts.googleapis.com/v1/token");
+        assert!(
+            requests[0].1.contains("exec-subject-token"),
+            "{}",
+            requests[0].1
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_disable_config_load_skips_ambient_executable_external_account() {
+        let script = TempScript::new(
+            r#"printf '%s' '{"version":1,"success":true,"token_type":"urn:ietf:params:oauth:token-type:id_token","id_token":"exec-subject-token","expiration_time":4102444800}'"#,
+        );
+        let backend = GcsBuilder::default()
+            .bucket("example-bucket")
+            .disable_config_load()
+            .disable_vm_metadata()
+            .build_backend()
+            .unwrap();
+
+        let file_read = MockFileRead {
+            files: HashMap::from([(
+                "/adc/exec.json".to_string(),
+                executable_external_account_json(&script.script_path),
+            )]),
+            paths: Arc::default(),
+        };
+        let http = MockHttpSend::default();
+        let ctx = backend
+            .core
+            .sign_ctx
+            .clone()
+            .with_env(StaticEnv {
+                home_dir: None,
+                envs: HashMap::from([
+                    (
+                        "GOOGLE_APPLICATION_CREDENTIALS".to_string(),
+                        "/adc/exec.json".to_string(),
+                    ),
+                    (
+                        "GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES".to_string(),
+                        "1".to_string(),
+                    ),
+                ]),
+            })
+            .with_file_read(file_read.clone())
+            .with_http_send(http.clone());
+        let (mut parts, ()) =
+            http::Request::get("https://storage.googleapis.com/example-bucket/obj")
+                .body(())
+                .unwrap()
+                .into_parts();
+
+        let err = backend
+            .core
+            .signer_with_context(ctx)
+            .sign(&mut parts, None)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), reqsign_core::ErrorKind::CredentialInvalid);
+        assert!(file_read.paths.lock().unwrap().is_empty());
+        assert!(http.requests.lock().unwrap().is_empty());
+        assert!(!script.marker_path.exists());
     }
 }

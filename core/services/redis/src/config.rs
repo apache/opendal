@@ -38,6 +38,14 @@ pub struct RedisConfig {
     ///
     /// default is None
     pub cluster_endpoints: Option<String>,
+    /// Route read-only commands for `read` and `stat` to Redis Cluster replicas when available.
+    ///
+    /// Defaults to `false`. Enabling this option requires `cluster_endpoints`.
+    /// Replication lag can cause stale results. For example, `read` or `stat` can
+    /// briefly return `ErrorKind::NotFound` for a just-written key. OpenDAL returns
+    /// a replica miss without retrying on the primary.
+    /// <!-- @default false -->
+    pub read_from_replicas: bool,
     /// The maximum number of connections allowed.
     ///
     /// default is 10
@@ -67,6 +75,7 @@ impl Debug for RedisConfig {
         f.debug_struct("RedisConfig")
             .field("endpoint", &self.endpoint)
             .field("cluster_endpoints", &self.cluster_endpoints)
+            .field("read_from_replicas", &self.read_from_replicas)
             .field("username", &self.username)
             .field("root", &self.root)
             .field("db", &self.db)
@@ -90,6 +99,15 @@ impl Configurator for RedisConfig {
                 "endpoint or cluster_endpoints is required",
             )
             .with_context("service", REDIS_SCHEME));
+        }
+
+        if let Some(username) = uri.username() {
+            map.entry("username".to_string())
+                .or_insert_with(|| username.to_string());
+        }
+        if let Some(password) = uri.password() {
+            map.entry("password".to_string())
+                .or_insert_with(|| password.to_string());
         }
 
         if let Some(path) = uri.root()
@@ -142,6 +160,23 @@ mod tests {
         assert_eq!(cfg.endpoint.as_deref(), Some("redis://localhost:6379"));
         assert_eq!(cfg.db, 2);
         assert_eq!(cfg.root.as_deref(), Some("cache"));
+        assert!(!cfg.read_from_replicas);
+        Ok(())
+    }
+
+    #[test]
+    fn from_uri_parses_read_from_replicas() -> Result<()> {
+        let uri = OperatorUri::new(
+            "redis://?cluster_endpoints=redis://localhost:6379&read_from_replicas=true",
+            [],
+        )?;
+
+        let cfg = RedisConfig::from_uri(&uri)?;
+        assert_eq!(
+            cfg.cluster_endpoints.as_deref(),
+            Some("redis://localhost:6379")
+        );
+        assert!(cfg.read_from_replicas);
         Ok(())
     }
 
@@ -156,6 +191,41 @@ mod tests {
         assert_eq!(cfg.endpoint.as_deref(), Some("redis://localhost:6379"));
         assert_eq!(cfg.db, 0);
         assert_eq!(cfg.root.as_deref(), Some("app/data"));
+        Ok(())
+    }
+
+    #[test]
+    fn from_uri_extracts_credentials() -> Result<()> {
+        let uri = OperatorUri::new(
+            "redis://alice:s%40cret@localhost:6379/0",
+            Vec::<(String, String)>::new(),
+        )?;
+
+        let cfg = RedisConfig::from_uri(&uri)?;
+        assert_eq!(cfg.endpoint.as_deref(), Some("redis://localhost:6379"));
+        assert_eq!(cfg.username.as_deref(), Some("alice"));
+        assert_eq!(cfg.password.as_deref(), Some("s@cret"));
+        assert!(!format!("{cfg:?}").contains("s@cret"));
+
+        let password_only = OperatorUri::new(
+            "redis://:onlypass@localhost:6379/1",
+            Vec::<(String, String)>::new(),
+        )?;
+        let cfg = RedisConfig::from_uri(&password_only)?;
+        assert_eq!(cfg.username, None);
+        assert_eq!(cfg.password.as_deref(), Some("onlypass"));
+        assert_eq!(cfg.db, 1);
+
+        let override_uri = OperatorUri::new(
+            "redis://alice:secret@localhost:6379/0",
+            [
+                ("username".to_string(), "bob".to_string()),
+                ("password".to_string(), "override".to_string()),
+            ],
+        )?;
+        let cfg = RedisConfig::from_uri(&override_uri)?;
+        assert_eq!(cfg.username.as_deref(), Some("bob"));
+        assert_eq!(cfg.password.as_deref(), Some("override"));
         Ok(())
     }
 

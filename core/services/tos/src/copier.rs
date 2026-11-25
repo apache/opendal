@@ -34,7 +34,6 @@ pub fn new_tos_copier(
     from: &str,
     to: &str,
     args: OpCopy,
-    opts: OpCopier,
 ) -> Result<TosCopiers> {
     let capability = core.capability;
     let max_part_size = capability.copy_multi_max_size.ok_or_else(|| {
@@ -44,7 +43,7 @@ pub fn new_tos_copier(
         )
     })?;
 
-    let (copy_once_threshold, part_size) = match opts.chunk() {
+    let (copy_once_threshold, part_size) = match args.chunk() {
         Some(chunk) => {
             let min_part_size = capability.copy_multi_min_size.ok_or_else(|| {
                 Error::new(
@@ -60,9 +59,12 @@ pub fn new_tos_copier(
             (part_size, part_size)
         }
     };
+    let source_content_length_hint = args.source_content_length_hint();
+    let concurrent = args.concurrent();
 
     Ok(oio::MultipartCopier::new(
-        (ctx.executor().clone(), capability),
+        ctx.executor().clone(),
+        capability,
         TosCopier {
             core,
             ctx: ctx.clone(),
@@ -70,10 +72,10 @@ pub fn new_tos_copier(
             to: to.to_string(),
             args,
         },
-        opts.source_content_length_hint(),
+        source_content_length_hint,
         copy_once_threshold,
         part_size,
-        opts.concurrent(),
+        concurrent,
     ))
 }
 
@@ -122,9 +124,13 @@ impl oio::MultipartCopy for TosCopier {
                     .set_temporary());
                 }
 
-                let mut meta = Metadata::new(EntryMode::from_path(&self.to));
-                meta.set_etag(result.etag.trim_matches('"'));
-                Ok(meta)
+                let mut meta = if self.to.ends_with('/') {
+                    MetadataBuilder::dir()
+                } else {
+                    MetadataBuilder::unknown()
+                };
+                meta.etag(result.etag.trim_matches('"'));
+                Ok(meta.build())
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("CopyObject")),
@@ -228,15 +234,19 @@ impl oio::MultipartCopy for TosCopier {
                     return Err(Error::new(ErrorKind::Unexpected, ret.message));
                 }
 
-                let mut meta = Metadata::new(EntryMode::from_path(&self.to));
+                let mut meta = if self.to.ends_with('/') {
+                    MetadataBuilder::dir()
+                } else {
+                    MetadataBuilder::unknown()
+                };
                 if !ret.etag.is_empty() {
-                    meta.set_etag(ret.etag.trim_matches('"'));
+                    meta.etag(ret.etag.trim_matches('"'));
                 }
                 if !ret.version_id.is_empty() {
-                    meta.set_version(&ret.version_id);
+                    meta.version(&ret.version_id);
                 }
 
-                Ok(meta)
+                Ok(meta.build())
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),

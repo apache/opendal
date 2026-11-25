@@ -93,7 +93,7 @@ impl VercelBlobCore {
         range: BytesRange,
         _: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         // Vercel blob use an unguessable random id url to download the file
         // So we use list to get the url of the file and then use it to download the file
         let resp = self.list(ctx, &p, Some(1), None).await?;
@@ -129,7 +129,7 @@ impl VercelBlobCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://blob.vercel-storage.com/{}",
@@ -159,7 +159,7 @@ impl VercelBlobCore {
     }
 
     pub async fn head(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let resp = self.list(ctx, &p, Some(1), None).await?;
 
@@ -192,7 +192,7 @@ impl VercelBlobCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
+        let from = build_absolute_path(&self.root, from);
 
         let resp = self.list(ctx, &from, Some(1), None).await?;
 
@@ -202,7 +202,7 @@ impl VercelBlobCore {
             return Err(Error::new(ErrorKind::NotFound, "Blob not found"));
         }
 
-        let to = build_abs_path(&self.root, to);
+        let to = build_absolute_path(&self.root, to);
 
         let to_url = format!(
             "https://blob.vercel-storage.com/{}?fromUrl={}",
@@ -277,7 +277,7 @@ impl VercelBlobCore {
     }
 
     pub async fn vercel_delete_blob(&self, ctx: &OperationContext, path: &str) -> Result<()> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let resp = self.list(ctx, &p, Some(1), None).await?;
 
@@ -322,7 +322,7 @@ impl VercelBlobCore {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://blob.vercel-storage.com/mpu/{}",
@@ -359,7 +359,7 @@ impl VercelBlobCore {
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://blob.vercel-storage.com/mpu/{}",
@@ -393,7 +393,7 @@ impl VercelBlobCore {
         upload_id: &str,
         parts: Vec<Part>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://blob.vercel-storage.com/mpu/{}",
@@ -422,19 +422,17 @@ impl VercelBlobCore {
 }
 
 pub fn parse_blob(blob: &Blob) -> Result<Metadata> {
-    let mode = if blob.pathname.ends_with('/') {
-        EntryMode::DIR
+    let mut md = if blob.pathname.ends_with('/') {
+        MetadataBuilder::dir()
     } else {
-        EntryMode::FILE
+        MetadataBuilder::file(blob.size)
     };
-    let mut md = Metadata::new(mode);
     if let Some(content_type) = blob.content_type.clone() {
-        md.set_content_type(&content_type);
+        md.content_type(&content_type);
     }
-    md.set_content_length(blob.size);
-    md.set_last_modified(blob.uploaded_at.parse::<Timestamp>()?);
-    md.set_content_disposition(&blob.content_disposition);
-    Ok(md)
+    md.last_modified(blob.uploaded_at.parse::<Timestamp>()?);
+    md.content_disposition(&blob.content_disposition);
+    Ok(md.build())
 }
 
 fn resolve_blob(blobs: Vec<Blob>, path: String) -> String {

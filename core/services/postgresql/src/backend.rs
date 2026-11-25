@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use asyncband::once::OnceCell;
 use sqlx::postgres::PgConnectOptions;
 
 use super::POSTGRESQL_SCHEME;
@@ -96,6 +95,23 @@ impl PostgresqlBuilder {
     }
 }
 
+fn validate_identifier(name: &str, value: &str) -> Result<()> {
+    if value.is_empty() {
+        return Err(
+            Error::new(ErrorKind::ConfigInvalid, format!("{name} is empty"))
+                .with_context("service", POSTGRESQL_SCHEME),
+        );
+    }
+    if value.contains('\0') {
+        return Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            format!("{name} must not contain NUL bytes"),
+        )
+        .with_context("service", POSTGRESQL_SCHEME));
+    }
+    Ok(())
+}
+
 impl Builder for PostgresqlBuilder {
     type Config = PostgresqlConfig;
 
@@ -123,24 +139,21 @@ impl Builder for PostgresqlBuilder {
                     .with_context("service", POSTGRESQL_SCHEME));
             }
         };
+        validate_identifier("table", &table)?;
 
         let key_field = self.config.key_field.unwrap_or_else(|| "key".to_string());
+        validate_identifier("key_field", &key_field)?;
 
         let value_field = self
             .config
             .value_field
             .unwrap_or_else(|| "value".to_string());
+        validate_identifier("value_field", &value_field)?;
 
         let root = normalize_root(self.config.root.unwrap_or_else(|| "/".to_string()).as_str());
 
-        Ok(PostgresqlBackend::new(PostgresqlCore {
-            pool: OnceCell::new(),
-            config,
-            table,
-            key_field,
-            value_field,
-        })
-        .with_normalized_root(root))
+        let core = PostgresqlCore::new(config, &table, &key_field, &value_field);
+        Ok(PostgresqlBackend::new(core, &table).with_normalized_root(root))
     }
 }
 
@@ -154,14 +167,17 @@ pub struct PostgresqlBackend {
 }
 
 impl PostgresqlBackend {
-    pub fn new(core: PostgresqlCore) -> Self {
-        let info = ServiceInfo::new(POSTGRESQL_SCHEME, "/", &core.table);
+    pub fn new(core: PostgresqlCore, table: &str) -> Self {
+        let info = ServiceInfo::new(POSTGRESQL_SCHEME, "/", table);
         let capability = Capability {
             read: true,
             stat: true,
             write: true,
             write_can_empty: true,
             delete: true,
+            copy: true,
+            rename: true,
+            rename_with_if_not_exists: true,
             shared: true,
             ..Default::default()
         };
@@ -186,7 +202,8 @@ impl Service for PostgresqlBackend {
     type Writer = PostgresqlWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<PostgresqlDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()
@@ -209,15 +226,16 @@ impl Service for PostgresqlBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
-            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        if p == build_absolute_path(&self.root, "") {
+            Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.get_length(&p).await? {
-                Some(length) => Ok(RpStat::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(length as u64),
-                )),
+                Some(length) => Ok(RpStat::new({
+                    let metadata = MetadataBuilder::file(length as u64);
+                    metadata.build()
+                })),
                 None => Err(Error::new(
                     ErrorKind::NotFound,
                     "kv not found in postgresql",
@@ -239,7 +257,7 @@ impl Service for PostgresqlBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         let output: PostgresqlWriter = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             Ok(PostgresqlWriter::new(self.core.clone(), p))
         }?;
 
@@ -267,28 +285,32 @@ impl Service for PostgresqlBackend {
     fn copy(
         &self,
         _ctx: &OperationContext,
-        _from: &str,
-        _to: &str,
+        from: &str,
+        to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
+        let core = self.core.clone();
+        let from = build_absolute_path(&self.root, from);
+        let to = build_absolute_path(&self.root, to);
+        Ok(oio::OneShotCopier::new_with(move || {
+            let core = core.clone();
+            let from = from.clone();
+            let to = to.clone();
+            async move { core.copy(&from, &to).await }
+        }))
     }
 
     async fn rename(
         &self,
         _ctx: &OperationContext,
-        _from: &str,
-        _to: &str,
-        _args: OpRename,
+        from: &str,
+        to: &str,
+        args: OpRename,
     ) -> Result<RpRename> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
+        let from = build_absolute_path(&self.root, from);
+        let to = build_absolute_path(&self.root, to);
+        self.core.rename(&from, &to, args.if_not_exists()).await?;
+        Ok(RpRename::new())
     }
 
     async fn presign(
@@ -301,5 +323,85 @@ impl Service for PostgresqlBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn valid_config() -> PostgresqlConfig {
+        PostgresqlConfig {
+            connection_string: Some("postgresql://user:pass@127.0.0.1:5432/testdb".to_string()),
+            table: Some("data".to_string()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn build_rejects_empty_and_nul_identifiers() {
+        for config in [
+            PostgresqlConfig {
+                table: None,
+                ..valid_config()
+            },
+            PostgresqlConfig {
+                table: Some(String::new()),
+                ..valid_config()
+            },
+            PostgresqlConfig {
+                key_field: Some(String::new()),
+                ..valid_config()
+            },
+            PostgresqlConfig {
+                value_field: Some(String::new()),
+                ..valid_config()
+            },
+            PostgresqlConfig {
+                table: Some("data\0bad".to_string()),
+                ..valid_config()
+            },
+            PostgresqlConfig {
+                key_field: Some("key\0bad".to_string()),
+                ..valid_config()
+            },
+            PostgresqlConfig {
+                value_field: Some("val\0bad".to_string()),
+                ..valid_config()
+            },
+        ] {
+            let err = config.into_builder().build().unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+
+        for builder in [
+            PostgresqlBuilder::default()
+                .connection_string("postgresql://user:pass@127.0.0.1:5432/testdb")
+                .table(""),
+            PostgresqlBuilder::default()
+                .connection_string("postgresql://user:pass@127.0.0.1:5432/testdb")
+                .table("data\0bad"),
+            PostgresqlBuilder::default()
+                .connection_string("postgresql://user:pass@127.0.0.1:5432/testdb")
+                .table("data")
+                .key_field("key\0bad"),
+            PostgresqlBuilder::default()
+                .connection_string("postgresql://user:pass@127.0.0.1:5432/testdb")
+                .table("data")
+                .value_field("val\0bad"),
+        ] {
+            let err = builder.build().unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+    }
+
+    #[test]
+    fn build_preserves_unquoted_table_name_in_service_info() {
+        let config = PostgresqlConfig {
+            table: Some("my\"table".to_string()),
+            ..valid_config()
+        };
+        let service = config.into_builder().build().unwrap();
+        assert_eq!(service.info().name().as_ref(), "my\"table");
     }
 }

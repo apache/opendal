@@ -59,7 +59,7 @@ IMPORTS = {
         "from .types import Entry, PresignedRequest\n"
         "from typing_extensions import Unpack\n"
     ),
-    "file": "import collections.abc\nimport types\nimport typing_extensions\n",
+    "file": "import collections.abc\nimport types\nimport typing\n",
 }
 
 # Mirrors the `create_exception!` types in `src/errors.rs`; keep in sync.
@@ -88,14 +88,35 @@ def fix_incomplete_exceptions() -> None:
         path.write_text(EXCEPTIONS_STUB)
 
 
+def pin_disjoint_base_import(text: str) -> str:
+    """Import ``disjoint_base`` from ``typing_extensions`` instead of ``typing``.
+
+    PyO3 emits ``from typing import ..., disjoint_base`` when the build
+    interpreter targets Python 3.15+, where ``typing.disjoint_base`` exists.
+    The stubs must import it from ``typing_extensions`` so they also work on
+    the minimum supported Python (3.11).
+    """
+    lines = []
+    for line in text.splitlines(keepends=True):
+        if line.startswith("from typing import") and "disjoint_base" in line:
+            names = [n.strip() for n in line[len("from typing import") :].split(",")]
+            names.remove("disjoint_base")
+            line = f"from typing import {', '.join(names)}\n" if names else ""
+            line += "from typing_extensions import disjoint_base\n"
+        lines.append(line)
+    return "".join(lines)
+
+
 def relocate() -> None:
     """Move the stubs to the public ``opendal/<name>.pyi`` paths."""
     for name in SUBMODULES:
-        text = (GEN / f"{name}.pyi").read_text()
+        text = pin_disjoint_base_import((GEN / f"{name}.pyi").read_text())
         (PKG / f"{name}.pyi").write_text(IMPORTS.get(name, "") + text)
 
     # Stub for the ``opendal/_opendal.*.so`` extension itself.
-    (PKG / "_opendal.pyi").write_text((GEN / "__init__.pyi").read_text())
+    (PKG / "_opendal.pyi").write_text(
+        pin_disjoint_base_import((GEN / "__init__.pyi").read_text())
+    )
 
     for child in GEN.iterdir():
         child.unlink()

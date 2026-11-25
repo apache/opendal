@@ -23,6 +23,27 @@ using OpenDAL.Interop.Result;
 
 namespace OpenDAL;
 
+internal sealed class OutputStreamHandle : SafeHandle
+{
+    internal OutputStreamHandle(IntPtr nativeHandle) : base(IntPtr.Zero, true)
+    {
+        if (nativeHandle == IntPtr.Zero)
+        {
+            throw new ArgumentException("Native output stream handle must not be zero.", nameof(nativeHandle));
+        }
+
+        SetHandle(nativeHandle);
+    }
+
+    public override bool IsInvalid => handle == IntPtr.Zero;
+
+    protected override bool ReleaseHandle()
+    {
+        NativeMethods.operator_output_stream_free(handle);
+        return true;
+    }
+}
+
 /// <summary>
 /// Write-only stream over an OpenDAL path.
 /// </summary>
@@ -30,27 +51,29 @@ public sealed class OperatorOutputStream : Stream
 {
     internal const int DefaultBufferSize = 16 * 1024; // 16 KiB
 
-    private IntPtr handle;
+    private readonly OutputStreamHandle handle;
     private bool disposed;
     private bool completed;
     private bool abandoned;
     private readonly byte[] buffer;
     private int buffered;
 
-    internal OperatorOutputStream(IntPtr handle, int bufferSize)
+    internal OperatorOutputStream(OutputStreamHandle handle, byte[] buffer)
     {
-        if (handle == IntPtr.Zero)
+        ArgumentNullException.ThrowIfNull(handle);
+        if (handle.IsInvalid)
         {
             throw new ArgumentException("Native output stream handle must not be zero.", nameof(handle));
         }
 
-        if (bufferSize <= 0)
+        ArgumentNullException.ThrowIfNull(buffer);
+        if (buffer.Length == 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(bufferSize), "Buffer size must be greater than zero.");
+            throw new ArgumentOutOfRangeException(nameof(buffer), "Buffer size must be greater than zero.");
         }
 
         this.handle = handle;
-        buffer = GC.AllocateUninitializedArray<byte>(bufferSize);
+        this.buffer = buffer;
     }
 
     public override bool CanRead => false;
@@ -162,8 +185,17 @@ public sealed class OperatorOutputStream : Stream
     {
         ThrowIfDisposed();
         FlushBuffered();
-        var result = NativeMethods.operator_output_stream_close(handle);
-        Operator.ThrowIfErrorAndRelease(result);
+        try
+        {
+            var result = NativeMethods.operator_output_stream_close(handle);
+            Operator.ThrowIfErrorAndRelease(result);
+        }
+        catch
+        {
+            abandoned = true;
+            throw;
+        }
+
         completed = true;
     }
 
@@ -190,11 +222,21 @@ public sealed class OperatorOutputStream : Stream
         catch
         {
             AsyncStateRegistry.Unregister(context);
+            abandoned = true;
             throw;
         }
 
         state.BindCancellation(cancellationToken);
-        await state.Completion.Task.ConfigureAwait(false);
+        try
+        {
+            await state.Completion.Task.ConfigureAwait(false);
+        }
+        catch
+        {
+            abandoned = true;
+            throw;
+        }
+
         completed = true;
     }
 
@@ -224,6 +266,8 @@ public sealed class OperatorOutputStream : Stream
         catch
         {
             AsyncStateRegistry.Unregister(context);
+            abandoned = true;
+            buffered = 0;
             throw;
         }
 
@@ -238,6 +282,7 @@ public sealed class OperatorOutputStream : Stream
             // stream cannot tell what landed. Poison it rather than risk
             // flushing the same bytes twice.
             abandoned = true;
+            buffered = 0;
             throw;
         }
 
@@ -275,14 +320,24 @@ public sealed class OperatorOutputStream : Stream
             return;
         }
 
-        var result = NativeMethods.operator_output_stream_write(handle, buffer, (nuint)buffered);
-        Operator.ThrowIfErrorAndRelease(result);
+        try
+        {
+            var result = NativeMethods.operator_output_stream_write(handle, buffer, (nuint)buffered);
+            Operator.ThrowIfErrorAndRelease(result);
+        }
+        catch
+        {
+            abandoned = true;
+            buffered = 0;
+            throw;
+        }
+
         buffered = 0;
     }
 
     private void ThrowIfDisposed()
     {
-        ObjectDisposedException.ThrowIf(disposed || handle == IntPtr.Zero, this);
+        ObjectDisposedException.ThrowIf(disposed || handle.IsInvalid, this);
         if (completed)
         {
             throw new InvalidOperationException(
@@ -292,7 +347,7 @@ public sealed class OperatorOutputStream : Stream
         if (abandoned)
         {
             throw new InvalidOperationException(
-                "An abandoned flush left the native writer in an unknown state; dispose this stream and open a new one.");
+                "An abandoned flush or close left the native writer in an unknown state; dispose this stream and open a new one.");
         }
     }
 
@@ -300,8 +355,8 @@ public sealed class OperatorOutputStream : Stream
     /// Releases the stream. When the stream has not been completed, the
     /// remaining bytes are closed out best-effort and errors are swallowed;
     /// call <see cref="Complete"/> or <see cref="CompleteAsync"/> first when
-    /// close errors must surface. A stream poisoned by an abandoned flush is
-    /// released without closing.
+    /// close errors must surface. A stream poisoned by an abandoned flush or
+    /// close is released without closing.
     /// </summary>
     protected override void Dispose(bool disposing)
     {
@@ -309,7 +364,7 @@ public sealed class OperatorOutputStream : Stream
         {
             try
             {
-                if (!completed && !abandoned)
+                if (disposing && !completed && !abandoned)
                 {
                     FlushBuffered();
                     var close = NativeMethods.operator_output_stream_close(handle);
@@ -322,10 +377,12 @@ public sealed class OperatorOutputStream : Stream
             }
             finally
             {
-                NativeMethods.operator_output_stream_free(handle);
-                handle = IntPtr.Zero;
                 buffered = 0;
                 disposed = true;
+                if (disposing)
+                {
+                    handle.Dispose();
+                }
             }
         }
 

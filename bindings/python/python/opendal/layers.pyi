@@ -15,7 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import final
+from typing import SupportsFloat, SupportsIndex, final
+
+from typing_extensions import disjoint_base
+
+__all__ = [
+    "CapabilityOverrideLayer",
+    "ConcurrentLimitLayer",
+    "Layer",
+    "MimeGuessLayer",
+    "RetryLayer",
+    "TimeoutLayer",
+]
 
 @final
 class CapabilityOverrideLayer(Layer):
@@ -48,20 +59,27 @@ class ConcurrentLimitLayer(Layer):
     application does not exceed the limit.
     """
 
-    def __new__(cls, /, limit: int) -> ConcurrentLimitLayer:
+    def __new__(cls, /, limit: SupportsIndex) -> ConcurrentLimitLayer:
         """
         Create a new ConcurrentLimitLayer.
 
         Parameters
         ----------
         limit : int
-            Maximum number of concurrent operations allowed.
+            Maximum number of concurrent operations allowed. Must be greater
+            than ``0``.
 
         Returns
         -------
         ConcurrentLimitLayer
+
+        Raises
+        ------
+        ConfigInvalid
+            If ``limit`` is ``0``.
         """
 
+@disjoint_base
 class Layer:
     """
     Base class for all layers.
@@ -122,11 +140,11 @@ class RetryLayer(Layer):
     def __new__(
         cls,
         /,
-        max_times: int | None = None,
-        factor: float | None = None,
+        max_times: SupportsIndex | None = None,
+        factor: SupportsFloat | SupportsIndex | None = None,
         jitter: bool = False,
-        max_delay: float | None = None,
-        min_delay: float | None = None,
+        max_delay: SupportsFloat | SupportsIndex | None = None,
+        min_delay: SupportsFloat | SupportsIndex | None = None,
     ) -> RetryLayer:
         """
         Create a new RetryLayer.
@@ -174,7 +192,10 @@ class TimeoutLayer(Layer):
     """
 
     def __new__(
-        cls, /, timeout: float | None = None, io_timeout: float | None = None
+        cls,
+        /,
+        timeout: SupportsFloat | SupportsIndex | None = None,
+        io_timeout: SupportsFloat | SupportsIndex | None = None,
     ) -> TimeoutLayer:
         """
         Create a new TimeoutLayer.
@@ -183,14 +204,10 @@ class TimeoutLayer(Layer):
         ----------
         timeout : Optional[float]
             Timeout (in seconds) for control operations like ``stat`` and
-            ``delete``. Must be a positive, finite number. A value of ``0``
-            is rejected because it would make every operation time out
-            immediately. Defaults to ``60.0``.
+            ``delete``. Must be a positive, finite number. Defaults to ``60.0``.
         io_timeout : Optional[float]
             Timeout (in seconds) for IO operations like ``read`` and
-            ``write``. Must be a positive, finite number. A value of ``0``
-            is rejected because it would make every operation time out
-            immediately. Defaults to ``10.0``.
+            ``write``. Must be a positive, finite number. Defaults to ``10.0``.
 
         Returns
         -------

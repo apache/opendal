@@ -37,10 +37,22 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? AccountName { get; init; }
         /// <summary>
+        /// The authority host of the service principal for Microsoft Entra ID authentication. Defaults to `https://login.microsoftonline.com`.
+        /// </summary>
+        public string? AuthorityHost { get; init; }
+        /// <summary>
         /// Deprecated: Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit.
         /// </summary>
         [System.Obsolete("Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints.")]
         public long? BatchMaxOperations { get; init; }
+        /// <summary>
+        /// The client id of the service principal for Microsoft Entra ID authentication.
+        /// </summary>
+        public string? ClientId { get; init; }
+        /// <summary>
+        /// The client secret of the service principal for Microsoft Entra ID authentication.
+        /// </summary>
+        public string? ClientSecret { get; init; }
         /// <summary>
         /// The container name of Azblob service backend.
         /// </summary>
@@ -50,7 +62,7 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? EncryptionAlgorithm { get; init; }
         /// <summary>
-        /// The encryption key of Azblob service backend.
+        /// The Base64-encoded AES-256 customer-provided encryption key. The key must decode to exactly 32 bytes. Building an operator returns `ConfigInvalid` for invalid Base64 or a different decoded length.
         /// </summary>
         public string? EncryptionKey { get; init; }
         /// <summary>
@@ -73,6 +85,10 @@ namespace OpenDAL.ServiceConfig
         /// Skip signature will skip loading credentials and signing requests.
         /// </summary>
         public bool? SkipSignature { get; init; }
+        /// <summary>
+        /// The tenant id of the service principal for Microsoft Entra ID authentication.
+        /// </summary>
+        public string? TenantId { get; init; }
 
         public string Scheme => "azblob";
 
@@ -87,12 +103,24 @@ namespace OpenDAL.ServiceConfig
             {
                 map["account_name"] = Utilities.ToOptionString(AccountName);
             }
+            if (AuthorityHost is not null)
+            {
+                map["authority_host"] = Utilities.ToOptionString(AuthorityHost);
+            }
 #pragma warning disable CS0618
             if (BatchMaxOperations is not null)
             {
                 map["batch_max_operations"] = Utilities.ToOptionString(BatchMaxOperations);
             }
 #pragma warning restore CS0618
+            if (ClientId is not null)
+            {
+                map["client_id"] = Utilities.ToOptionString(ClientId);
+            }
+            if (ClientSecret is not null)
+            {
+                map["client_secret"] = Utilities.ToOptionString(ClientSecret);
+            }
             if (Container is not null)
             {
                 map["container"] = Utilities.ToOptionString(Container);
@@ -124,6 +152,10 @@ namespace OpenDAL.ServiceConfig
             if (SkipSignature is not null)
             {
                 map["skip_signature"] = Utilities.ToOptionString(SkipSignature);
+            }
+            if (TenantId is not null)
+            {
+                map["tenant_id"] = Utilities.ToOptionString(TenantId);
             }
             return map;
         }

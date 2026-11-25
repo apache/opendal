@@ -59,7 +59,7 @@ impl oio::OneShotWrite for PcloudWriter {
                     return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
                 }
 
-                Ok(Metadata::default())
+                Ok(MetadataBuilder::unknown().build())
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("UploadFile")),

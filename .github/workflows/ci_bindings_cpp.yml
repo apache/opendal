@@ -19,25 +19,22 @@ name: Bindings Cpp CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
-    paths: &paths
-      - "bindings/cpp/**"
-      - "core/**"
-      - ".github/actions/setup/**"
-      - ".github/workflows/ci_bindings_cpp.yml"
-      - "examples/cpp/**"
   pull_request:
     branches:
       - main
-    paths: *paths
+    paths:
+      - "bindings/cpp/**"
+      - "examples/cpp/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_cpp.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-cpp-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -51,7 +48,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install ninja-build valgrind doxygen
+          sudo apt-get install -y ninja-build valgrind doxygen
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -112,3 +109,36 @@ jobs:
       - name: Run getting-started example
         working-directory: "examples/cpp/build"
         run: ./getting-started
+
+  test-windows:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build-type: [Debug, Release]
+    defaults:
+      run:
+        # Git Bash puts its own link.exe ahead of the MSVC linker.
+        shell: pwsh
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+      - uses: ./.github/actions/setup
+
+      - name: Build Cpp binding and run tests
+        working-directory: "bindings/cpp"
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          cmake -S . -B build -GNinja -DCMAKE_CXX_COMPILER=cl "-DCMAKE_BUILD_TYPE=${{ matrix.build-type }}" -DOPENDAL_ENABLE_TESTING=ON
+          cmake --build build
+          .\build\opendal_cpp_test.exe
+
+      - name: Build and run Cpp examples
+        working-directory: "examples/cpp"
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          cmake -S . -B build -GNinja -DCMAKE_CXX_COMPILER=cl "-DCMAKE_BUILD_TYPE=${{ matrix.build-type }}"
+          cmake --build build
+          .\build\basic-example.exe
+          .\build\getting-started.exe

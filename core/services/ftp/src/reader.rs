@@ -20,6 +20,7 @@ use super::core::FtpCore;
 use super::core::Manager;
 use super::core::format_ftp_error;
 use super::lister::FtpLister;
+use super::lister::parse_list_line;
 use super::writer::FtpWriter;
 use asyncband::pool::bounded;
 use bytes::BytesMut;
@@ -240,10 +241,32 @@ impl FtpLazyLister {
             };
             let files = ftp_stream.list(pathname).await.map_err(format_ftp_error)?;
 
-            self.inner = Some(FtpLister::new(
-                if self.path == "/" { "" } else { &self.path },
-                files,
-            ));
+            // Listing `dir/` returns `dir/` itself first, as other services
+            // do. A non-empty listing proves the directory exists. Some
+            // servers answer LIST on a missing path with an empty success,
+            // and a parent listing can miss the directory (an unlistable
+            // parent, or servers that hide dot directories), so an empty
+            // listing is confirmed by changing into the directory.
+            let mut dir_exists = false;
+            if self.path != "/" && self.path.ends_with('/') {
+                dir_exists = files
+                    .iter()
+                    .any(|line| matches!(parse_list_line(line), Ok(Some(_))));
+                if !dir_exists {
+                    // CWD moves the connection away from the root that every
+                    // relative path depends on. Detach it from the pool first,
+                    // so success, failure and cancellation all drop it
+                    // instead of returning it for reuse.
+                    let mut ftp_stream = bounded::Object::detach(ftp_stream);
+                    dir_exists = ftp_stream.cwd(&self.path).await.is_ok();
+                }
+            }
+
+            let mut lister = FtpLister::new(if self.path == "/" { "" } else { &self.path }, files);
+            if dir_exists {
+                lister = lister.with_dir_entry();
+            }
+            self.inner = Some(lister);
         }
 
         Ok(self.inner.as_mut().expect("ftp lister must be initialized"))

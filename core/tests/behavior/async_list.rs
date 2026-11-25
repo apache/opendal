@@ -38,6 +38,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_list_prefix,
             test_list_rich_dir,
             test_list_empty_dir,
+            test_list_empty_hidden_dir,
             test_list_non_exist_dir,
             test_list_sub_dir,
             test_list_nested_dir,
@@ -289,6 +290,32 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
     assert_eq!(actual, expected);
 
     op.delete_with(parent).recursive(true).await?;
+    Ok(())
+}
+
+/// List an empty directory whose name starts with a dot should return the
+/// directory itself. Some servers hide dot entries from their parent's
+/// listing, so the directory must be confirmed without it.
+pub async fn test_list_empty_hidden_dir(op: Operator) -> Result<()> {
+    if !op.info().capability().create_dir {
+        return Ok(());
+    }
+    if skip_cos_create_dir_list_check(&op) {
+        return Ok(());
+    }
+    let dir = format!(".{}/", uuid::Uuid::new_v4());
+
+    op.create_dir(&dir).await.expect("create dir must succeed");
+
+    let objects: Vec<_> = op.lister(&dir).await?.try_collect().await?;
+    assert_eq!(
+        objects.iter().map(|e| e.path()).collect::<Vec<_>>(),
+        vec![dir.as_str()],
+        "only return the dir itself"
+    );
+    assert_eq!(objects[0].metadata().mode(), EntryMode::DIR);
+
+    op.delete(&dir).await.expect("delete must succeed");
     Ok(())
 }
 

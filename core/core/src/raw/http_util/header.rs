@@ -25,6 +25,7 @@ use http::HeaderValue;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
+use http::header::CONTENT_LANGUAGE;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
@@ -63,8 +64,9 @@ pub fn parse_cache_control(headers: &HeaderMap) -> Result<Option<&str>> {
 pub fn parse_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
     parse_header_to_str(headers, CONTENT_LENGTH)?
         .map(|v| {
-            v.parse::<u64>().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "header value is not valid integer").set_source(e)
+            v.parse::<u64>().map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "header value is not valid integer")
+                    .set_source(err)
             })
         })
         .transpose()
@@ -95,8 +97,32 @@ pub fn parse_content_range(headers: &HeaderMap) -> Result<Option<BytesContentRan
 /// Parse last modified from header map.
 pub fn parse_last_modified(headers: &HeaderMap) -> Result<Option<Timestamp>> {
     parse_header_to_str(headers, LAST_MODIFIED)?
-        .map(Timestamp::parse_rfc2822)
+        .map(parse_http_date)
         .transpose()
+}
+
+/// Parse an HTTP-date.
+///
+/// RFC 9110 Section 5.6.7 requires recipients to accept the IMF-fixdate
+/// format as well as the obsolete RFC 850 and asctime formats.
+fn parse_http_date(s: &str) -> Result<Timestamp> {
+    let err = match Timestamp::parse_rfc2822(s) {
+        Ok(ts) => return Ok(ts),
+        Err(err) => err,
+    };
+
+    // RFC 850, e.g. `Sunday, 06-Nov-94 08:49:37 GMT`, and asctime, e.g.
+    // `Sun Nov  6 08:49:37 1994`. Both are always in UTC.
+    for format in ["%A, %d-%b-%y %H:%M:%S GMT", "%a %b %e %H:%M:%S %Y"] {
+        if let Ok(ts) = jiff::fmt::strtime::parse(format, s)
+            .and_then(|tm| tm.to_datetime())
+            .and_then(|dt| jiff::tz::Offset::UTC.to_timestamp(dt))
+        {
+            return Ok(ts.into());
+        }
+    }
+
+    Err(err)
 }
 
 /// Parse etag from header map.
@@ -158,15 +184,19 @@ pub fn parse_into_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> 
     } else {
         EntryMode::FILE
     };
-    let content_length = parse_content_range(headers)?
-        .and_then(|value| value.size())
-        .or(parse_content_length(headers)?);
+    let content_range = parse_content_range(headers)?;
+    let content_length = match content_range {
+        Some(range) => range.size(),
+        None => parse_content_length(headers)?,
+    };
     let mut m = if mode == EntryMode::FILE {
         MetadataBuilder::file(content_length.ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "HTTP response does not contain file content length",
-            )
+            let message = if content_range.is_some() {
+                "HTTP Content-Range header does not specify total file content length"
+            } else {
+                "HTTP response does not contain file content length"
+            };
+            Error::new(ErrorKind::Unexpected, message)
         })?)
     } else {
         MetadataBuilder::dir()
@@ -182,6 +212,10 @@ pub fn parse_into_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> 
 
     if let Some(v) = parse_content_encoding(headers)? {
         m.content_encoding(v);
+    }
+
+    if let Some(v) = parse_header_to_str(headers, CONTENT_LANGUAGE)? {
+        m.content_language(v);
     }
 
     if let Some(v) = parse_etag(headers)? {
@@ -291,6 +325,26 @@ pub fn build_header_value(v: &str) -> Result<HeaderValue> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn test_parse_last_modified_accepts_all_http_date_formats() {
+        for value in [
+            "Sun, 06 Nov 1994 08:49:37 GMT",
+            "Sunday, 06-Nov-94 08:49:37 GMT",
+            "Sun Nov  6 08:49:37 1994",
+        ] {
+            let mut headers = HeaderMap::new();
+            headers.insert(LAST_MODIFIED, HeaderValue::from_static(value));
+            let ts = parse_last_modified(&headers)
+                .unwrap_or_else(|err| panic!("{value}: {err}"))
+                .expect("last modified must be present");
+            assert_eq!(ts.to_string(), "1994-11-06T08:49:37Z", "{value}");
+        }
+
+        let mut headers = HeaderMap::new();
+        headers.insert(LAST_MODIFIED, HeaderValue::from_static("not a date"));
+        assert!(parse_last_modified(&headers).is_err());
+    }
+
     /// Test cases is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html
     #[test]
     fn test_format_content_md5() {
@@ -354,12 +408,17 @@ mod tests {
 
     #[test]
     fn test_parse_multipart_boundary() {
-        let cases = vec![
+        let cases = [
             (
                 "multipart/mixed; boundary=gc0p4Jq0M2Yt08jU534c0p",
                 Some("gc0p4Jq0M2Yt08jU534c0p"),
             ),
             ("multipart/mixed", None),
+            // GCS returns unquoted boundaries that contain `=`.
+            (
+                "multipart/mixed; boundary=batch_pK7JBAk73-E=_AA5eFwv4m2Q=",
+                Some("batch_pK7JBAk73-E=_AA5eFwv4m2Q="),
+            ),
         ];
 
         for (input, expected) in cases {
@@ -370,5 +429,83 @@ mod tests {
 
             assert_eq!(actual, expected)
         }
+    }
+
+    #[test]
+    fn test_parse_multipart_boundary_missing_content_type() {
+        let headers = HeaderMap::new();
+
+        let actual = parse_multipart_boundary(&headers).expect("parse must success");
+
+        assert_eq!(actual, None)
+    }
+
+    #[test]
+    fn test_parse_multipart_boundary_non_utf8_content_type() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            CONTENT_TYPE,
+            HeaderValue::from_bytes(b"multipart/mixed; boundary=\xff").unwrap(),
+        );
+
+        parse_multipart_boundary(&headers).expect_err("non-utf8 header value must fail");
+    }
+
+    #[test]
+    fn test_parse_content_length_missing() {
+        let headers = HeaderMap::new();
+
+        assert_eq!(parse_content_length(&headers).unwrap(), None);
+    }
+
+    #[test]
+    fn test_parse_content_length_accepts_identical_duplicates() {
+        let mut headers = HeaderMap::new();
+        headers.append(CONTENT_LENGTH, HeaderValue::from_static("10"));
+        headers.append(CONTENT_LENGTH, HeaderValue::from_static("10"));
+
+        assert_eq!(parse_content_length(&headers).unwrap(), Some(10));
+    }
+
+    #[test]
+    fn test_parse_content_length_rejects_invalid_values() {
+        for value in ["-1", " 10", "10 ", "", "10, 10", "10abc"] {
+            let mut headers = HeaderMap::new();
+            headers.insert(CONTENT_LENGTH, HeaderValue::from_str(value).unwrap());
+
+            let err = parse_content_length(&headers).expect_err("invalid content length must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected, "value: {value:?}");
+        }
+    }
+
+    #[test]
+    fn test_parse_into_metadata_content_range_unknown_size_does_not_use_content_length() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_RANGE, HeaderValue::from_static("bytes 0-3/*"));
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("4"));
+
+        let err = parse_into_metadata("file.txt", &headers)
+            .expect_err("unknown total size in Content-Range must not fall back to Content-Length");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.to_string().contains("Content-Range"));
+    }
+
+    #[test]
+    fn test_parse_into_metadata_content_range_known_size() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_RANGE, HeaderValue::from_static("bytes 0-3/10"));
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("4"));
+
+        let meta = parse_into_metadata("file.txt", &headers).expect("parse must succeed");
+        assert_eq!(meta.content_length(), 10);
+    }
+
+    #[test]
+    fn test_parse_into_metadata_content_length() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("10"));
+
+        let meta = parse_into_metadata("file.txt", &headers).expect("parse must succeed");
+        assert_eq!(meta.content_length(), 10);
     }
 }

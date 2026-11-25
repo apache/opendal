@@ -111,6 +111,7 @@ Use reqwest's Rustls backend explicitly when you build the client:
 opendal = { version = "0.58", default-features = false, features = [
     "http-transport-reqwest-rustls",
 ] }
+opendal-http-transport-reqwest = { version = "0.58", default-features = false }
 reqwest = { version = "0.13.4", default-features = false, features = [
     "rustls",
     "stream",
@@ -121,7 +122,7 @@ reqwest = { version = "0.13.4", default-features = false, features = [
 use std::time::Duration;
 
 use opendal::HttpTransporter;
-use opendal::ReqwestTransport;
+use opendal_http_transport_reqwest::ReqwestTransport;
 
 fn build_transport() -> Result<HttpTransporter, Box<dyn std::error::Error>> {
     let client = reqwest::Client::builder()
@@ -142,6 +143,7 @@ Use `native-tls` when you want reqwest to delegate TLS to the platform stack:
 opendal = { version = "0.58", default-features = false, features = [
     "http-transport-reqwest-native-tls",
 ] }
+opendal-http-transport-reqwest = { version = "0.58", default-features = false }
 reqwest = { version = "0.13.4", default-features = false, features = [
     "native-tls",
     "stream",
@@ -150,7 +152,7 @@ reqwest = { version = "0.13.4", default-features = false, features = [
 
 ```rust,ignore
 use opendal::HttpTransporter;
-use opendal::ReqwestTransport;
+use opendal_http_transport_reqwest::ReqwestTransport;
 
 fn build_transport() -> Result<HttpTransporter, Box<dyn std::error::Error>> {
     let client = reqwest::Client::builder()
@@ -163,18 +165,16 @@ fn build_transport() -> Result<HttpTransporter, Box<dyn std::error::Error>> {
 
 ### rustls-no-provider
 
-When using `wekpki-roots`, you could use `rustls-no-provider`.
-
 Use `rustls-no-provider` when the application owns the Rustls provider and
-certificate roots. This example only configures Mozilla roots from
-`webpki-roots`; install or configure the Rustls crypto provider in application
-startup.
+certificate roots. Install a Rustls crypto provider before building the client
+configuration. This example uses Mozilla roots from `webpki-roots`.
 
 ```toml
 [dependencies]
 opendal = { version = "0.58", default-features = false, features = [
     "http-transport-reqwest-rustls-no-provider",
 ] }
+opendal-http-transport-reqwest = { version = "0.58", default-features = false }
 reqwest = { version = "0.13.4", default-features = false, features = [
     "rustls-no-provider",
     "stream",
@@ -185,7 +185,7 @@ webpki-roots = "1"
 
 ```rust,ignore
 use opendal::HttpTransporter;
-use opendal::ReqwestTransport;
+use opendal_http_transport_reqwest::ReqwestTransport;
 
 fn build_transport() -> Result<HttpTransporter, Box<dyn std::error::Error>> {
     let root_store =
@@ -203,7 +203,32 @@ fn build_transport() -> Result<HttpTransporter, Box<dyn std::error::Error>> {
 }
 ```
 
-To use `ring` crate, please refer `rustls` documentation.
+### FIPS TLS
+
+Enable `http-transport-reqwest-rustls-no-provider` with OpenDAL's default
+features disabled, and enable `fips` on Rustls 0.23 in your application. If you
+depend directly on `opendal-http-transport-reqwest` to construct a
+`ReqwestTransport`, disable its default features as well. Cargo features are
+additive across the dependency graph.
+
+The [standalone FIPS TLS example](https://github.com/apache/opendal/tree/main/examples/rust/fips-tls)
+installs `rustls::crypto::default_fips_provider()`, builds a client configuration
+with Mozilla roots, and asserts that `ClientConfig::fips()` returns `true`.
+It passes that configuration to reqwest and uses the resulting transport for
+an OpenDAL HTTPS read. Run the example from the repository root with network
+access to `www.iana.org` and the [AWS-LC FIPS build prerequisites](https://github.com/aws/aws-lc-rs/blob/main/aws-lc-fips-sys/README.md#build-prerequisites).
+
+```shell
+cargo run --locked --manifest-path examples/rust/fips-tls/Cargo.toml
+```
+
+The example covers TLS only. Rustls's `fips` feature can include `aws-lc-sys`
+in the dependency graph even though the provider used here selects
+`aws-lc-fips-sys`. Verify the cryptographic module and version, target platform,
+build configuration, and approved operating mode for your deployment. OpenDAL's
+S3, Azure Blob Storage, and GCS request signing still uses Reqsign 3.x, and
+`opendal-core` still depends on `md-5`. See [#7592](https://github.com/apache/opendal/issues/7592)
+for crate-wide FIPS readiness.
 
 ## WASM targets
 

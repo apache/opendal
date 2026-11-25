@@ -28,11 +28,13 @@ use redis::IntoConnectionInfo;
 use redis::ProtocolVersion;
 use redis::RedisConnectionInfo;
 use redis::cluster::ClusterClientBuilder;
+use redis::cluster_read_routing::RandomReplicaStrategy;
 
 use super::REDIS_SCHEME;
 use super::config::RedisConfig;
 use super::core::*;
 use super::deleter::RedisDeleter;
+use super::lister::RedisLister;
 use super::reader::*;
 use super::writer::RedisWriter;
 
@@ -77,6 +79,17 @@ impl RedisBuilder {
         self
     }
 
+    /// Route read-only commands for `read` and `stat` to Redis Cluster replicas when available.
+    ///
+    /// Defaults to `false`. Enabling this option requires [`Self::cluster_endpoints`].
+    /// Replication lag can cause stale results. For example, `read` or `stat` can
+    /// briefly return `ErrorKind::NotFound` for a just-written key. OpenDAL returns
+    /// a replica miss without retrying on the primary.
+    pub fn read_from_replicas(mut self, enabled: bool) -> Self {
+        self.config.read_from_replicas = enabled;
+        self
+    }
+
     /// set the username for redis
     ///
     /// default: no username
@@ -105,9 +118,10 @@ impl RedisBuilder {
         self
     }
 
-    /// Set the default ttl for redis services.
+    /// Set the default TTL for writes without a per-write expiration.
     ///
-    /// If set, we will specify `EX` for write operations.
+    /// Positive durations are rounded up to whole milliseconds and sent via
+    /// `SET ... PX`. An explicit duration must be positive.
     pub fn default_ttl(mut self, ttl: Duration) -> Self {
         self.default_ttl = Some(ttl);
         self
@@ -145,6 +159,28 @@ impl Builder for RedisBuilder {
     type Config = RedisConfig;
 
     fn build(self) -> Result<impl Service> {
+        if self.config.read_from_replicas
+            && self
+                .config
+                .cluster_endpoints
+                .as_deref()
+                .is_none_or(str::is_empty)
+        {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "read_from_replicas requires cluster_endpoints",
+            )
+            .with_context("service", REDIS_SCHEME));
+        }
+
+        if self.config.connection_pool_max_size == Some(0) {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "connection_pool_max_size must be greater than zero",
+            )
+            .with_context("service", REDIS_SCHEME));
+        }
+
         let default_ttl = match self.default_ttl {
             Some(ttl) => Some(ttl),
             None => self
@@ -161,12 +197,15 @@ impl Builder for RedisBuilder {
                 .as_str(),
         );
 
-        if let Some(endpoints) = self.config.cluster_endpoints.clone() {
+        let core = if let Some(endpoints) = self.config.cluster_endpoints.clone() {
             let mut cluster_endpoints: Vec<ConnectionInfo> = Vec::default();
             for endpoint in endpoints.split(',') {
                 cluster_endpoints.push(self.get_connection_info(endpoint.to_string())?);
             }
             let mut client_builder = ClusterClientBuilder::new(cluster_endpoints);
+            if self.config.read_from_replicas {
+                client_builder = client_builder.read_routing_strategy(RandomReplicaStrategy);
+            }
             if let Some(username) = &self.config.username {
                 client_builder = client_builder.username(username.clone());
             }
@@ -175,14 +214,13 @@ impl Builder for RedisBuilder {
             }
             let client = client_builder.build().map_err(format_redis_error)?;
 
-            Ok(RedisBackend::new(RedisCore::new(
+            RedisCore::new(
                 endpoints,
                 None,
                 Some(client),
                 default_ttl,
                 self.config.connection_pool_max_size,
-            ))
-            .with_normalized_root(root))
+            )
         } else {
             let endpoint = self
                 .config
@@ -194,64 +232,131 @@ impl Builder for RedisBuilder {
                 Client::open(self.get_connection_info(endpoint.clone())?).map_err(|e| {
                     Error::new(ErrorKind::ConfigInvalid, "invalid or unsupported scheme")
                         .with_context("service", REDIS_SCHEME)
-                        .with_context("endpoint", self.config.endpoint.as_ref().unwrap())
+                        .with_context("endpoint", endpoint.clone())
                         .with_context("db", self.config.db.to_string())
                         .set_source(e)
                 })?;
 
-            Ok(RedisBackend::new(RedisCore::new(
+            RedisCore::new(
                 endpoint,
                 Some(client),
                 None,
                 default_ttl,
                 self.config.connection_pool_max_size,
-            ))
-            .with_normalized_root(root))
-        }
+            )
+        };
+
+        let capability = Capability {
+            read: true,
+            write: true,
+            delete: true,
+            stat: true,
+            // A cluster SCAN cursor only covers the node that issued it.
+            list: self.config.cluster_endpoints.is_none(),
+            list_with_limit: self.config.cluster_endpoints.is_none(),
+            list_with_recursive: self.config.cluster_endpoints.is_none(),
+            write_can_empty: true,
+            write_with_expires: true,
+            shared: true,
+            ..Default::default()
+        };
+
+        Ok(RedisBackend {
+            info: ServiceInfo::new(REDIS_SCHEME, &root, core.addr()),
+            core: Arc::new(core),
+            root,
+            capability,
+        })
     }
 }
 
 impl RedisBuilder {
     fn get_connection_info(&self, endpoint: String) -> Result<ConnectionInfo> {
-        let ep_url = endpoint.parse::<Uri>().map_err(|e| {
-            Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
-                .with_context("service", REDIS_SCHEME)
-                .with_context("endpoint", endpoint)
-                .set_source(e)
-        })?;
-
-        let con_addr = match ep_url.scheme_str() {
-            Some("tcp") | Some("redis") | None => {
-                let host = ep_url
-                    .host()
-                    .map(|h| h.to_string())
-                    .unwrap_or_else(|| "127.0.0.1".to_string());
-                let port = ep_url.port_u16().unwrap_or(DEFAULT_REDIS_PORT);
-                ConnectionAddr::Tcp(host, port)
-            }
-            Some("rediss") => {
-                let host = ep_url
-                    .host()
-                    .map(|h| h.to_string())
-                    .unwrap_or_else(|| "127.0.0.1".to_string());
-                let port = ep_url.port_u16().unwrap_or(DEFAULT_REDIS_PORT);
-                ConnectionAddr::TcpTls {
-                    host,
-                    port,
-                    insecure: false,
-                    tls_params: None,
-                }
-            }
-            Some("unix") | Some("redis+unix") => {
-                let path = PathBuf::from(ep_url.path());
-                ConnectionAddr::Unix(path)
-            }
-            Some(s) => {
-                return Err(
-                    Error::new(ErrorKind::ConfigInvalid, "invalid or unsupported scheme")
+        let con_addr = if let Some(rest) = endpoint
+            .strip_prefix("unix://")
+            .or_else(|| endpoint.strip_prefix("redis+unix://"))
+        {
+            let path = if rest.starts_with('/') {
+                PathBuf::from(rest)
+            } else {
+                let ep_url = endpoint.parse::<Uri>().map_err(|e| {
+                    Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
                         .with_context("service", REDIS_SCHEME)
-                        .with_context("scheme", s),
+                        .with_context("endpoint", endpoint.clone())
+                        .set_source(e)
+                })?;
+                if ep_url.path().is_empty() {
+                    return Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "unix socket path is missing",
+                    )
+                    .with_context("service", REDIS_SCHEME)
+                    .with_context("endpoint", endpoint));
+                }
+                PathBuf::from(ep_url.path())
+            };
+            ConnectionAddr::Unix(path)
+        } else if let Some(path) = endpoint
+            .strip_prefix("unix:")
+            .or_else(|| endpoint.strip_prefix("redis+unix:"))
+        {
+            if path.is_empty() {
+                return Err(
+                    Error::new(ErrorKind::ConfigInvalid, "unix socket path is missing")
+                        .with_context("service", REDIS_SCHEME)
+                        .with_context("endpoint", endpoint),
                 );
+            }
+            ConnectionAddr::Unix(PathBuf::from(path))
+        } else {
+            let ep_url = endpoint.parse::<Uri>().map_err(|e| {
+                Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
+                    .with_context("service", REDIS_SCHEME)
+                    .with_context("endpoint", endpoint.clone())
+                    .set_source(e)
+            })?;
+
+            let extract_host = || -> Result<String> {
+                let host = ep_url
+                    .host()
+                    .map(|h| {
+                        h.strip_prefix('[')
+                            .and_then(|s| s.strip_suffix(']'))
+                            .unwrap_or(h)
+                    })
+                    .filter(|h| !h.is_empty())
+                    .ok_or_else(|| {
+                        Error::new(ErrorKind::ConfigInvalid, "endpoint host is missing")
+                            .with_context("service", REDIS_SCHEME)
+                            .with_context("endpoint", endpoint.clone())
+                    })?;
+                Ok(host.to_string())
+            };
+
+            match ep_url.scheme_str() {
+                Some("tcp") | Some("redis") | None => {
+                    let host = extract_host()?;
+                    let port = ep_url.port_u16().unwrap_or(DEFAULT_REDIS_PORT);
+                    ConnectionAddr::Tcp(host, port)
+                }
+                Some("rediss") => {
+                    let host = extract_host()?;
+                    let port = ep_url.port_u16().unwrap_or(DEFAULT_REDIS_PORT);
+                    ConnectionAddr::TcpTls {
+                        host,
+                        port,
+                        insecure: false,
+                        tls_params: None,
+                    }
+                }
+                Some(s) => {
+                    return Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "invalid or unsupported scheme",
+                    )
+                    .with_context("service", REDIS_SCHEME)
+                    .with_context("scheme", s));
+                }
             }
         };
 
@@ -288,38 +393,10 @@ pub struct RedisBackend {
     pub(crate) capability: Capability,
 }
 
-impl RedisBackend {
-    fn new(core: RedisCore) -> Self {
-        let info = ServiceInfo::new(REDIS_SCHEME, "/", core.addr());
-        let capability = Capability {
-            read: true,
-            write: true,
-            delete: true,
-            stat: true,
-            write_can_empty: true,
-            shared: true,
-            ..Default::default()
-        };
-
-        Self {
-            core: Arc::new(core),
-            root: "/".to_string(),
-            info,
-            capability,
-        }
-    }
-
-    fn with_normalized_root(mut self, root: String) -> Self {
-        self.info = self.info.with_root(&root);
-        self.root = root;
-        self
-    }
-}
-
 impl Service for RedisBackend {
     type Reader = oio::StreamReader<RedisReader>;
     type Writer = RedisWriter;
-    type Lister = ();
+    type Lister = RedisLister;
     type Deleter = oio::OneShotDeleter<RedisDeleter>;
     type Copier = ();
     type Composer = ();
@@ -345,9 +422,9 @@ impl Service for RedisBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.len(&p).await? {
@@ -372,13 +449,9 @@ impl Service for RedisBackend {
         Ok(output)
     }
 
-    fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
-        let output: RedisWriter = {
-            let p = build_abs_path(&self.root, path);
-            Ok(RedisWriter::new(self.core.clone(), p))
-        }?;
-
-        Ok(output)
+    fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let path = build_absolute_path(&self.root, path);
+        Ok(RedisWriter::new(self.core.clone(), path, args.expires()))
     }
 
     fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -392,11 +465,14 @@ impl Service for RedisBackend {
         Ok(output)
     }
 
-    fn list(&self, _ctx: &OperationContext, _path: &str, _args: OpList) -> Result<Self::Lister> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
+    fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        if !self.capability.list {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "listing is unavailable with Redis Cluster endpoints",
+            ));
+        }
+        Ok(RedisLister::new(self.core.clone(), &self.root, path, args))
     }
 
     fn copy(
@@ -435,5 +511,170 @@ impl Service for RedisBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn list_capabilities_depend_on_connection_mode() -> Result<()> {
+        let standalone = RedisBuilder::default().build()?;
+        let capability = standalone.capability();
+        assert!(capability.list && capability.list_with_recursive && capability.list_with_limit);
+        assert!(!capability.list_with_glob);
+
+        let cluster = RedisBuilder::default().cluster_endpoints("redis://localhost:6379");
+        let op = Operator::new(cluster)?;
+        let capability = op.info().capability();
+        assert!(!capability.list);
+        assert!(!capability.list_with_recursive);
+        assert!(!capability.list_with_limit);
+        assert!(!capability.list_with_glob);
+        let err = op
+            .list("/")
+            .await
+            .expect_err("cluster listing is unsupported");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        Ok(())
+    }
+
+    #[test]
+    fn replica_reads_require_cluster_endpoints() {
+        let standalone = RedisBuilder::default()
+            .endpoint("redis://localhost:6379")
+            .read_from_replicas(true);
+        let empty_cluster = RedisConfig {
+            cluster_endpoints: Some(String::new()),
+            read_from_replicas: true,
+            ..Default::default()
+        };
+
+        for builder in [standalone, empty_cluster.into_builder()] {
+            let err = builder
+                .build()
+                .expect_err("replica reads require a cluster");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+            assert_eq!(
+                err.message(),
+                "read_from_replicas requires cluster_endpoints"
+            );
+        }
+    }
+
+    #[test]
+    fn connection_info_handles_ipv6_and_schemeless_endpoints() -> Result<()> {
+        let builder = RedisBuilder::default();
+
+        let tcp_cases = [
+            ("[::1]", "::1", 6379),
+            ("[::1]:6380", "::1", 6380),
+            ("redis://[::1]:6380", "::1", 6380),
+            ("tcp://[::1]:6380", "::1", 6380),
+            ("redis://[::1]", "::1", 6379),
+            ("redis.internal", "redis.internal", 6379),
+            ("redis.internal:6380", "redis.internal", 6380),
+            ("127.0.0.1", "127.0.0.1", 6379),
+        ];
+
+        for (endpoint, expected_host, expected_port) in tcp_cases {
+            let info = builder.get_connection_info(endpoint.to_string())?;
+            assert_eq!(
+                info.addr(),
+                &ConnectionAddr::Tcp(expected_host.to_string(), expected_port),
+                "unexpected address for endpoint {endpoint}"
+            );
+        }
+
+        // Verify the unbracketed IPv6 host actually resolves via ToSocketAddrs.
+        let ipv6_info = builder.get_connection_info("redis://[::1]:6380".to_string())?;
+        let ConnectionAddr::Tcp(host, port) = ipv6_info.addr() else {
+            panic!("expected TCP address for IPv6 endpoint");
+        };
+        let addrs: Vec<_> = std::net::ToSocketAddrs::to_socket_addrs(&(host.as_str(), *port))
+            .expect("unbracketed IPv6 host must resolve")
+            .collect();
+        assert!(
+            addrs
+                .iter()
+                .any(|addr| addr.ip().is_ipv6() && addr.port() == 6380)
+        );
+
+        let tls_cases = [
+            ("rediss://[::1]", "::1", 6379),
+            ("rediss://[::1]:6380", "::1", 6380),
+            ("rediss://redis.internal:6380", "redis.internal", 6380),
+        ];
+
+        for (endpoint, expected_host, expected_port) in tls_cases {
+            let info = builder.get_connection_info(endpoint.to_string())?;
+            assert_eq!(
+                info.addr(),
+                &ConnectionAddr::TcpTls {
+                    host: expected_host.to_string(),
+                    port: expected_port,
+                    insecure: false,
+                    tls_params: None,
+                },
+                "unexpected TLS address for endpoint {endpoint}"
+            );
+        }
+
+        for endpoint in [
+            "unix:///tmp/redis.sock",
+            "redis+unix:///tmp/redis.sock",
+            "unix:/tmp/redis.sock",
+            "redis+unix:/tmp/redis.sock",
+        ] {
+            let info = builder.get_connection_info(endpoint.to_string())?;
+            assert_eq!(
+                info.addr(),
+                &ConnectionAddr::Unix(PathBuf::from("/tmp/redis.sock")),
+                "unexpected Unix address for endpoint {endpoint}"
+            );
+        }
+
+        for invalid in [
+            "",
+            "redis://",
+            "tcp://",
+            "rediss://",
+            "unix://",
+            "http://127.0.0.1:6379",
+        ] {
+            let err = builder
+                .get_connection_info(invalid.to_string())
+                .expect_err(&format!("invalid endpoint {invalid:?} must be rejected"));
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn build_validates_connection_pool_max_size() {
+        let zero_pool = RedisConfig {
+            endpoint: Some("redis://127.0.0.1:6379".to_string()),
+            connection_pool_max_size: Some(0),
+            ..Default::default()
+        };
+        let err = zero_pool
+            .into_builder()
+            .build()
+            .expect_err("zero pool size must return ConfigInvalid");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let uri = OperatorUri::new(
+            "redis://127.0.0.1:6379?connection_pool_max_size=0",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let err = RedisConfig::from_uri(&uri)
+            .unwrap()
+            .into_builder()
+            .build()
+            .expect_err("zero pool size from URI must return ConfigInvalid");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
 }

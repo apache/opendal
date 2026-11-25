@@ -15,108 +15,156 @@
 // specific language governing permissions and limitations
 // under the License.
 
+const std = @import("std");
 pub const c = @import("opendal_c_header");
+
+/// Owns a NUL-terminated string allocated by the underlying Rust library.
+/// Keep a single owner for the allocation. Call `deinit()` after using the slices
+/// returned by `slice()`.
+pub const OwnedString = struct {
+    ptr: [*c]u8,
+
+    pub fn slice(self: OwnedString) [:0]const u8 {
+        if (self.ptr == null) {
+            return "";
+        }
+        return std.mem.span(self.ptr);
+    }
+
+    pub fn deinit(self: *OwnedString) void {
+        if (self.ptr != null) {
+            c.opendal_string_free(self.ptr);
+            self.ptr = null;
+        }
+    }
+};
+
+/// Owns a byte buffer allocated by the underlying Rust library.
+/// Keep a single owner for the allocation. Call `deinit()` after using the slices
+/// returned by `slice()`.
+pub const Bytes = struct {
+    inner: c.opendal_bytes,
+
+    pub fn slice(self: Bytes) []const u8 {
+        if (self.inner.len == 0 or self.inner.data == null) {
+            return &.{};
+        }
+        return self.inner.data[0..self.inner.len];
+    }
+
+    pub fn deinit(self: *Bytes) void {
+        c.opendal_bytes_free(&self.inner);
+    }
+};
 
 pub const Operator = struct {
     inner: *c.opendal_operator,
 
-    pub fn init(scheme: []const u8, options: ?*c.opendal_operator_options) !Operator {
-        const result = c.opendal_operator_new(scheme.ptr, options);
-        if (result.op == null) {
-            if (result.@"error") |err| {
-                c.opendal_error_free(err);
-            }
+    pub fn init(scheme: [:0]const u8, options: ?*c.opendal_operator_options) !Operator {
+        var op: [*c]c.opendal_operator = null;
+        if (c.opendal_operator_new(scheme.ptr, options, &op)) |err| {
+            c.opendal_error_free(err);
             return error.OperatorInitFailed;
         }
-        return .{
-            .inner = result.op.?,
-        };
+        if (op == null) return error.OperatorInitFailed;
+        return .{ .inner = op };
     }
 
     pub fn deinit(self: *Operator) void {
         c.opendal_operator_free(self.inner);
     }
 
-    pub fn write(self: *const Operator, path: []const u8, data: []const u8) !void {
-        const bytes = c.opendal_bytes{
-            .data = @constCast(data.ptr),
-            .len = data.len,
-            .capacity = data.len,
+    pub fn write(self: *const Operator, path: [:0]const u8, data: []const u8) !void {
+        var bytes = c.opendal_bytes{
+            .data = null,
+            .len = 0,
+            .capacity = 0,
         };
+        if (data.len > 0) {
+            bytes.data = @constCast(data.ptr);
+            bytes.len = data.len;
+            bytes.capacity = data.len;
+        }
         if (c.opendal_operator_write(self.inner, path.ptr, &bytes)) |err| {
-            errdefer c.opendal_error_free(err);
-            try codeToError(err.*.code);
+            defer c.opendal_error_free(err);
+            return errorFromCode(err.*.code);
         }
     }
 
-    pub fn read(self: *const Operator, path: []const u8) ![]const u8 {
-        const result = c.opendal_operator_read(self.inner, path.ptr);
-        if (result.@"error") |err| {
-            errdefer c.opendal_error_free(err);
-            try codeToError(err.*.code);
+    pub fn read(self: *const Operator, path: [:0]const u8) !Bytes {
+        var data = c.opendal_bytes{
+            .data = null,
+            .len = 0,
+            .capacity = 0,
+        };
+        if (c.opendal_operator_read(self.inner, path.ptr, &data)) |err| {
+            defer c.opendal_error_free(err);
+            return errorFromCode(err.*.code);
         }
-        return result.data.data[0..result.data.len];
+        return .{ .inner = data };
     }
 
-    pub fn delete(self: *const Operator, path: []const u8) !void {
+    pub fn delete(self: *const Operator, path: [:0]const u8) !void {
         if (c.opendal_operator_delete(self.inner, path.ptr)) |err| {
-            errdefer c.opendal_error_free(err);
-            try codeToError(err.*.code);
+            defer c.opendal_error_free(err);
+            return errorFromCode(err.*.code);
         }
     }
 
-    pub fn stat(self: *const Operator, path: []const u8) !Metadata {
-        const result = c.opendal_operator_stat(self.inner, path.ptr);
-        if (result.@"error") |err| {
-            errdefer c.opendal_error_free(err);
-            try codeToError(err.*.code);
+    pub fn stat(self: *const Operator, path: [:0]const u8) !Metadata {
+        var meta: [*c]c.opendal_metadata = null;
+        if (c.opendal_operator_stat(self.inner, path.ptr, &meta)) |err| {
+            defer c.opendal_error_free(err);
+            return errorFromCode(err.*.code);
         }
-        return .{ .inner = result.meta.? };
+        return .{ .inner = meta };
     }
 
-    pub fn exists(self: *const Operator, path: []const u8) !bool {
-        const result = c.opendal_operator_exists(self.inner, path.ptr);
-        if (result.@"error") |err| {
-            errdefer c.opendal_error_free(err);
-            try codeToError(err.*.code);
+    pub fn exists(self: *const Operator, path: [:0]const u8) !bool {
+        var is_exist: bool = false;
+        if (c.opendal_operator_is_exist(self.inner, path.ptr, &is_exist)) |err| {
+            defer c.opendal_error_free(err);
+            return errorFromCode(err.*.code);
         }
-        return result.exists;
+        return is_exist;
     }
 
-    pub fn list(self: *const Operator, path: []const u8) !Lister {
-        const result = c.opendal_operator_list(self.inner, path.ptr);
-        if (result.@"error") |err| {
-            errdefer c.opendal_error_free(err);
-            try codeToError(err.*.code);
+    pub fn list(self: *const Operator, path: [:0]const u8) !Lister {
+        var lister: [*c]c.opendal_lister = null;
+        if (c.opendal_operator_list(self.inner, path.ptr, &lister)) |err| {
+            defer c.opendal_error_free(err);
+            return errorFromCode(err.*.code);
         }
-        return .{ .inner = result.lister.? };
+        return .{ .inner = lister };
     }
 
-    pub fn createDir(self: *const Operator, path: []const u8) !void {
+    pub fn createDir(self: *const Operator, path: [:0]const u8) !void {
         if (c.opendal_operator_create_dir(self.inner, path.ptr)) |err| {
-            errdefer c.opendal_error_free(err);
-            try codeToError(err.*.code);
+            defer c.opendal_error_free(err);
+            return errorFromCode(err.*.code);
         }
     }
 
-    pub fn rename(self: *const Operator, src: []const u8, dest: []const u8) !void {
+    pub fn rename(self: *const Operator, src: [:0]const u8, dest: [:0]const u8) !void {
         if (c.opendal_operator_rename(self.inner, src.ptr, dest.ptr)) |err| {
-            errdefer c.opendal_error_free(err);
-            try codeToError(err.*.code);
+            defer c.opendal_error_free(err);
+            return errorFromCode(err.*.code);
         }
     }
 
-    pub fn copy(self: *const Operator, src: []const u8, dest: []const u8) !void {
+    pub fn copy(self: *const Operator, src: [:0]const u8, dest: [:0]const u8) !void {
         if (c.opendal_operator_copy(self.inner, src.ptr, dest.ptr)) |err| {
-            errdefer c.opendal_error_free(err);
-            try codeToError(err.*.code);
+            defer c.opendal_error_free(err);
+            return errorFromCode(err.*.code);
         }
     }
 
     pub fn info(self: *const Operator) !OperatorInfo {
-        const info_new = c.opendal_operator_info_new(self.inner);
-        if (info_new == null) return error.InfoFailed;
-        return .{ .inner = info.? };
+        const info_new: ?*c.opendal_operator_info = c.opendal_operator_info_new(self.inner);
+        if (info_new) |inner| {
+            return .{ .inner = inner };
+        }
+        return error.InfoFailed;
     }
 };
 
@@ -127,26 +175,22 @@ pub const OperatorInfo = struct {
         c.opendal_operator_info_free(self.inner);
     }
 
-    pub fn scheme(self: *const OperatorInfo) []const u8 {
-        const ptr = c.opendal_operator_info_get_scheme(self.inner);
-        defer std.c.free(ptr);
-        return std.mem.span(ptr);
+    pub fn scheme(self: *const OperatorInfo) OwnedString {
+        return .{ .ptr = c.opendal_operator_info_get_scheme(self.inner) };
     }
 
-    pub fn root(self: *const OperatorInfo) []const u8 {
-        const ptr = c.opendal_operator_info_get_root(self.inner);
-        defer std.c.free(ptr);
-        return std.mem.span(ptr);
+    pub fn root(self: *const OperatorInfo) OwnedString {
+        return .{ .ptr = c.opendal_operator_info_get_root(self.inner) };
     }
 
-    pub fn name(self: *const OperatorInfo) []const u8 {
-        const ptr = c.opendal_operator_info_get_name(self.inner);
-        defer std.c.free(ptr);
-        return std.mem.span(ptr);
+    pub fn name(self: *const OperatorInfo) OwnedString {
+        return .{ .ptr = c.opendal_operator_info_get_name(self.inner) };
     }
 
     pub fn capability(self: *const OperatorInfo) c.opendal_capability {
-        return c.opendal_operator_info_get_capability(self.inner);
+        var cap: c.opendal_capability = undefined;
+        c.opendal_operator_info_get_capability(self.inner, &cap);
+        return cap;
     }
 };
 
@@ -158,15 +202,13 @@ pub const Lister = struct {
     }
 
     pub fn next(self: *const Lister) !?Entry {
-        const result = c.opendal_lister_next(self.inner);
-        if (result.@"error") |err| {
-            errdefer c.opendal_error_free(err);
-            try codeToError(err.*.code);
+        var entry: [*c]c.opendal_entry = null;
+        if (c.opendal_lister_next(self.inner, &entry)) |err| {
+            defer c.opendal_error_free(err);
+            return errorFromCode(err.*.code);
         }
-        if (result.entry) |entry| {
-            return Entry{ .inner = entry };
-        }
-        return null;
+        if (entry == null) return null;
+        return Entry{ .inner = entry };
     }
 };
 
@@ -177,14 +219,12 @@ pub const Entry = struct {
         c.opendal_entry_free(self.inner);
     }
 
-    pub fn path(self: *const Entry) []const u8 {
-        const ptr = c.opendal_entry_path(self.inner);
-        return std.mem.span(ptr);
+    pub fn path(self: *const Entry) OwnedString {
+        return .{ .ptr = c.opendal_entry_path(self.inner) };
     }
 
-    pub fn name(self: *const Entry) []const u8 {
-        const ptr = c.opendal_entry_name(self.inner);
-        return std.mem.span(ptr);
+    pub fn name(self: *const Entry) OwnedString {
+        return .{ .ptr = c.opendal_entry_name(self.inner) };
     }
 };
 
@@ -211,22 +251,25 @@ pub const Metadata = struct {
         return c.opendal_metadata_content_length(self.inner);
     }
 
-    pub fn contentType(self: *const Metadata) ?[]const u8 {
-        var len: usize = undefined;
-        const ptr = c.opendal_metadata_content_type(self.inner, &len);
-        if (ptr == null) return null;
-        return ptr[0..len];
+    pub fn contentType(self: *const Metadata) ?OwnedString {
+        const ptr = c.opendal_metadata_content_type(self.inner);
+        if (ptr == null) {
+            return null;
+        }
+        return OwnedString{ .ptr = ptr };
     }
 
-    pub fn etag(self: *const Metadata) ?[]const u8 {
-        var len: usize = undefined;
-        const ptr = c.opendal_metadata_etag(self.inner, &len);
-        if (ptr == null) return null;
-        return ptr[0..len];
+    pub fn etag(self: *const Metadata) ?OwnedString {
+        const ptr = c.opendal_metadata_etag(self.inner);
+        if (ptr == null) {
+            return null;
+        }
+        return OwnedString{ .ptr = ptr };
     }
 
+    /// Returns the last-modified timestamp in milliseconds since the Unix epoch, or `-1` if absent.
     pub fn lastModified(self: *const Metadata) i64 {
-        return c.opendal_metadata_last_modified(self.inner);
+        return c.opendal_metadata_last_modified_ms(self.inner);
     }
 };
 
@@ -244,6 +287,7 @@ pub const Code = enum(c.opendal_code) {
     CONDITION_NOT_MATCH = c.OPENDAL_CONDITION_NOT_MATCH,
     RANGE_NOT_SATISFIED = c.OPENDAL_RANGE_NOT_SATISFIED,
     CONFLICT = c.OPENDAL_CONFLICT,
+    CANCELLED = c.OPENDAL_CANCELLED,
 };
 
 pub const OpendalError = error{
@@ -260,9 +304,15 @@ pub const OpendalError = error{
     ConditionNotMatch,
     RangeNotSatisfied,
     Conflict,
+    Cancelled,
 };
 
+/// Converts a C error code to a Zig error. Unrecognized codes return `error.Unexpected`.
 pub fn codeToError(code: c.opendal_code) OpendalError!void {
+    return errorFromCode(code);
+}
+
+fn errorFromCode(code: c.opendal_code) OpendalError {
     return switch (code) {
         c.OPENDAL_UNEXPECTED => error.Unexpected,
         c.OPENDAL_UNSUPPORTED => error.Unsupported,
@@ -277,7 +327,8 @@ pub fn codeToError(code: c.opendal_code) OpendalError!void {
         c.OPENDAL_CONDITION_NOT_MATCH => error.ConditionNotMatch,
         c.OPENDAL_RANGE_NOT_SATISFIED => error.RangeNotSatisfied,
         c.OPENDAL_CONFLICT => error.Conflict,
-        else => {},
+        c.OPENDAL_CANCELLED => error.Cancelled,
+        else => error.Unexpected,
     };
 }
 
@@ -296,9 +347,10 @@ pub fn errorToCode(err: OpendalError) c_int {
         error.ConditionNotMatch => c.OPENDAL_CONDITION_NOT_MATCH,
         error.RangeNotSatisfied => c.OPENDAL_RANGE_NOT_SATISFIED,
         error.Conflict => c.OPENDAL_CONFLICT,
+        error.Cancelled => c.OPENDAL_CANCELLED,
     };
 }
-const std = @import("std");
+
 const testing = std.testing;
 
 test "Error Tests" {
@@ -316,6 +368,8 @@ test "Error Tests" {
     try testing.expectError(error.ConditionNotMatch, codeToError(c.OPENDAL_CONDITION_NOT_MATCH));
     try testing.expectError(error.RangeNotSatisfied, codeToError(c.OPENDAL_RANGE_NOT_SATISFIED));
     try testing.expectError(error.Conflict, codeToError(c.OPENDAL_CONFLICT));
+    try testing.expectError(error.Cancelled, codeToError(c.OPENDAL_CANCELLED));
+    try testing.expectError(error.Unexpected, codeToError(999));
 
     // Zig error to C code
     try testing.expectEqual(c.OPENDAL_UNEXPECTED, errorToCode(error.Unexpected));
@@ -331,10 +385,18 @@ test "Error Tests" {
     try testing.expectEqual(c.OPENDAL_CONDITION_NOT_MATCH, errorToCode(error.ConditionNotMatch));
     try testing.expectEqual(c.OPENDAL_RANGE_NOT_SATISFIED, errorToCode(error.RangeNotSatisfied));
     try testing.expectEqual(c.OPENDAL_CONFLICT, errorToCode(error.Conflict));
+    try testing.expectEqual(c.OPENDAL_CANCELLED, errorToCode(error.Cancelled));
 }
 
 test "Semantic Analyzer" {
     testing.refAllDecls(@This());
+    testing.refAllDecls(OwnedString);
+    testing.refAllDecls(Bytes);
+    testing.refAllDecls(Operator);
+    testing.refAllDecls(OperatorInfo);
+    testing.refAllDecls(Lister);
+    testing.refAllDecls(Entry);
+    testing.refAllDecls(Metadata);
 }
 
 test "operator basic operations" {
@@ -342,19 +404,22 @@ test "operator basic operations" {
     var op = try Operator.init("memory", null);
     defer op.deinit();
 
+    try testing.expectError(error.NotFound, op.read("/testpath"));
+
     // Prepare some data to be written
     const data = "this_string_length_is_24";
 
     // Write this into path "/testpath"
     try op.write("/testpath", data);
-    defer _ = op.delete("/testpath") catch |err| {
+    defer op.delete("/testpath") catch |err| {
         std.debug.panic("Error deleting file: {}\n", .{err});
     };
 
     // We can read it out, make sure the data is the same
-    const read_bytes = try op.read("/testpath");
-    try testing.expectEqual(read_bytes.len, 24);
-    try testing.expectEqualStrings(read_bytes, data);
+    var read_bytes = try op.read("/testpath");
+    defer read_bytes.deinit();
+    try testing.expectEqual(read_bytes.slice().len, 24);
+    try testing.expectEqualStrings(read_bytes.slice(), data);
 }
 
 test "operator advanced operations" {
@@ -408,19 +473,124 @@ test "operator advanced operations" {
     var lister = try op.list("/testdir/");
     defer lister.deinit();
     var count: usize = 0;
-    while (try lister.next()) |entry| {
-        // defer entry.deinit();
+    while (try lister.next()) |e| {
+        var entry = e;
+        defer entry.deinit();
         count += 1;
-        try testing.expect(entry.path().len > 0);
-        try testing.expect(entry.name().len > 0);
-        // std.log.debug("entry name: {s}", .{entry.name()});
-        // std.log.debug("entry path: {s}", .{entry.path()});
+        var entry_path = entry.path();
+        defer entry_path.deinit();
+        var entry_name = entry.name();
+        defer entry_name.deinit();
+        try testing.expect(entry_path.slice().len > 0);
+        try testing.expect(entry_name.slice().len > 0);
+        try testing.expect(try op.exists(entry_path.slice()));
     }
     try testing.expectEqual(count, 2);
 
     // Test delete operation
     // try op.delete("/testdir/renamed.txt");
     try testing.expect(!try op.exists("/testdir/renamed.txt"));
+}
+
+test "operator info" {
+    var op = try Operator.init("memory", null);
+    defer op.deinit();
+
+    var op_info = try op.info();
+    defer op_info.deinit();
+
+    var scheme = op_info.scheme();
+    defer scheme.deinit();
+    try testing.expectEqualStrings("memory", scheme.slice());
+
+    var root = op_info.root();
+    defer root.deinit();
+    try testing.expectEqualStrings("/", root.slice());
+
+    var name = op_info.name();
+    defer name.deinit();
+    try testing.expect(name.slice().len > 0);
+    // Exercise idempotent double-deinit alongside the deferred `name.deinit()`.
+    name.deinit();
+    try testing.expectEqualStrings("", name.slice());
+
+    const cap = op_info.capability();
+    try testing.expect(cap.read);
+    try testing.expect(cap.write);
+    try testing.expect(cap.stat);
+}
+
+test "metadata optional fields" {
+    var op = try Operator.init("memory", null);
+    defer op.deinit();
+
+    try op.write("/meta.txt", "metadata test");
+    defer op.delete("/meta.txt") catch {};
+
+    var meta = try op.stat("/meta.txt");
+    defer meta.deinit();
+    try testing.expect(meta.contentType() == null);
+    try testing.expect(meta.etag() == null);
+    try testing.expectEqual(@as(i64, -1), meta.lastModified());
+
+    const opts = c.opendal_write_options_new();
+    defer c.opendal_write_options_free(opts);
+    c.opendal_write_options_set_content_type(opts, "text/plain");
+    const payload: []const u8 = "typed payload";
+    const raw_bytes = c.opendal_bytes{
+        .data = @constCast(payload.ptr),
+        .len = payload.len,
+        .capacity = payload.len,
+    };
+    if (c.opendal_operator_write_with(op.inner, "/typed.txt", &raw_bytes, opts)) |err| {
+        defer c.opendal_error_free(err);
+        return errorFromCode(err.*.code);
+    }
+    defer op.delete("/typed.txt") catch {};
+
+    var typed_meta = try op.stat("/typed.txt");
+    defer typed_meta.deinit();
+    var content_type = typed_meta.contentType() orelse return error.TestExpectedContentType;
+    defer content_type.deinit();
+    try testing.expectEqualStrings("text/plain", content_type.slice());
+}
+
+test "empty write and read" {
+    var op = try Operator.init("memory", null);
+    defer op.deinit();
+
+    try op.write("/empty.txt", "");
+    defer op.delete("/empty.txt") catch {};
+
+    var read_bytes = try op.read("/empty.txt");
+    defer read_bytes.deinit();
+    try testing.expectEqual(@as(usize, 0), read_bytes.slice().len);
+    try testing.expectEqualStrings("", read_bytes.slice());
+
+    read_bytes.deinit();
+    try testing.expectEqual(@as(usize, 0), read_bytes.slice().len);
+}
+
+test "runtime sentinel path" {
+    const allocator = testing.allocator;
+
+    var op = try Operator.init("memory", null);
+    defer op.deinit();
+
+    const path = try std.fmt.allocPrintZ(allocator, "/runtime-{d}.txt", .{42});
+    defer allocator.free(path);
+
+    const payload = "runtime path payload";
+    try op.write(path, payload);
+    defer op.delete(path) catch {};
+
+    var read_bytes = try op.read(path);
+    defer read_bytes.deinit();
+    try testing.expectEqualStrings(payload, read_bytes.slice());
+}
+
+test "operator init invalid scheme" {
+    try testing.expectError(error.OperatorInitFailed, Operator.init("nonexistent_scheme", null));
 }
 
 test "sync operations" {
@@ -431,8 +601,9 @@ test "sync operations" {
 
     // Test first path
     try writeData(&op, "test_path", &data);
-    const read_bytes1 = try readData(&op, "test_path");
-    try testing.expectEqualSlices(u8, &data, read_bytes1);
+    var read_bytes1 = try readData(&op, "test_path");
+    defer read_bytes1.deinit();
+    try testing.expectEqualSlices(u8, &data, read_bytes1.slice());
 }
 
 // FIXME: test async operations
@@ -455,16 +626,17 @@ test "sync operations" {
 //     try testing.expectEqual(read_frame1.status(), .Suspended);
 
 //     try coro.xawait(write_frame1);
-//     const read_bytes1 = try coro.xawait(read_frame1);
+//     var read_bytes1 = try coro.xawait(read_frame1);
+//     defer read_bytes1.deinit();
 //     try testing.expectEqual(write_frame1.status(), .Done);
 //     try testing.expectEqual(read_frame1.status(), .Done);
-//     try testing.expectEqualSlices(u8, &data, read_bytes1);
+//     try testing.expectEqualSlices(u8, &data, read_bytes1.slice());
 // }
 
-fn writeData(op: *Operator, path: []const u8, data: []const u8) !void {
+fn writeData(op: *Operator, path: [:0]const u8, data: []const u8) !void {
     try op.write(path, data);
 }
 
-fn readData(op: *Operator, path: []const u8) ![]const u8 {
+fn readData(op: *Operator, path: [:0]const u8) !Bytes {
     return try op.read(path);
 }

@@ -19,10 +19,12 @@ use std::sync::Arc;
 
 use suppaftp::FtpError;
 use suppaftp::Status;
+use suppaftp::tokio::AsyncRustlsFtpStream;
 use suppaftp::types::Response;
 
 use super::core::FtpCore;
 use super::core::format_ftp_error;
+use super::lister::parse_list_line;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -47,16 +49,88 @@ impl oio::OneShotDelete for FtpDeleter {
         };
 
         match result {
-            Err(FtpError::UnexpectedResponse(Response {
-                status: Status::FileUnavailable,
-                ..
-            }))
-            | Ok(_) => (),
-            Err(e) => {
-                return Err(format_ftp_error(e));
+            Ok(_) => Ok(()),
+            Err(
+                err @ FtpError::UnexpectedResponse(Response {
+                    status: Status::FileUnavailable,
+                    ..
+                }),
+            ) => verify_deleted_after_file_unavailable(&mut ftp_stream, &path, err).await,
+            Err(e) => Err(format_ftp_error(e)),
+        }
+    }
+}
+
+async fn verify_deleted_after_file_unavailable(
+    ftp_stream: &mut AsyncRustlsFtpStream,
+    path: &str,
+    delete_err: FtpError,
+) -> Result<()> {
+    let basename = get_basename(path).trim_end_matches('/');
+    if basename.is_empty() {
+        return Err(
+            Error::new(ErrorKind::Unexpected, "failed to remove directory").set_source(delete_err),
+        );
+    }
+
+    let parent = get_parent(path);
+    let parent_arg = if parent == "/" { None } else { Some(parent) };
+
+    match ftp_stream.list(parent_arg).await {
+        Ok(lines) => {
+            if lines
+                .into_iter()
+                .filter_map(|line| parse_list_line(line.as_str()).ok().flatten())
+                .any(|file| file.name() == basename)
+            {
+                return Err(delete_existing_entry_error(path, delete_err));
             }
         }
-
-        Ok(())
+        Err(FtpError::UnexpectedResponse(Response {
+            status: Status::FileUnavailable,
+            ..
+        })) => {
+            // Parent directory itself does not exist, so the target does not exist either.
+            return Ok(());
+        }
+        Err(e) => return Err(format_ftp_error(e)),
     }
+
+    // Some FTP servers (e.g., vsftpd without force_dot_files=YES) omit dotfiles
+    // from LIST output. Double-check dotfiles so a failed delete on a hidden
+    // file or non-empty hidden directory does not silently succeed.
+    if basename.starts_with('.') {
+        if path.ends_with('/') {
+            if let Ok(lines) = ftp_stream.list(Some(path)).await
+                && lines
+                    .into_iter()
+                    .filter_map(|line| parse_list_line(line.as_str()).ok().flatten())
+                    .next()
+                    .is_some()
+            {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "failed to remove directory")
+                        .set_source(delete_err),
+                );
+            }
+            if ftp_stream.size(path.trim_end_matches('/')).await.is_ok() {
+                return Err(delete_existing_entry_error(path, delete_err));
+            }
+        } else if ftp_stream.size(path).await.is_ok() {
+            return Err(
+                Error::new(ErrorKind::Unexpected, "failed to remove file").set_source(delete_err)
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn delete_existing_entry_error(path: &str, delete_err: FtpError) -> Error {
+    let message = if path.ends_with('/') {
+        "failed to remove directory"
+    } else {
+        "failed to remove file"
+    };
+    Error::new(ErrorKind::Unexpected, message).set_source(delete_err)
 }

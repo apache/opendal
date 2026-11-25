@@ -82,9 +82,14 @@ impl oio::PageList for AzdlsLister {
                 Error::new(ErrorKind::Unexpected, "header value is not valid string")
                     .set_source(err)
             })?;
-            ctx.token = value.to_string();
+            if value.trim().is_empty() {
+                ctx.token.clear();
+                ctx.done = true;
+            } else {
+                ctx.token = value.to_string();
+            }
         } else {
-            ctx.token = "".to_string();
+            ctx.token.clear();
             ctx.done = true;
         }
 
@@ -109,10 +114,19 @@ impl oio::PageList for AzdlsLister {
             } else {
                 MetadataBuilder::dir()
             };
-            meta.etag(format!("\"{}\"", object.etag))
-                .last_modified(Timestamp::parse_rfc2822(&object.last_modified)?);
+            let etag = object.etag.trim();
+            if !etag.is_empty() {
+                if (etag.starts_with('"') && etag.ends_with('"') && etag.len() >= 2)
+                    || (etag.starts_with("W/\"") && etag.ends_with('"') && etag.len() >= 4)
+                {
+                    meta.etag(etag);
+                } else {
+                    meta.etag(format!("\"{etag}\""));
+                }
+            }
+            meta.last_modified(Timestamp::parse_rfc2822(&object.last_modified)?);
 
-            let mut path = build_rel_path(&self.core.root, &object.name);
+            let mut path = build_relative_path(&self.core.root, &object.name);
             if mode.is_dir() {
                 path += "/"
             };
@@ -178,5 +192,60 @@ mod tests {
                     .to_string()
             }
         );
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    mod transport_tests {
+        use bytes::Bytes;
+        use http::{Response, StatusCode};
+
+        use crate::backend::test_util::{ScriptedTransport, test_operator};
+
+        #[tokio::test]
+        async fn list_terminates_on_empty_and_whitespace_continuation() {
+            for continuation in ["", "   "] {
+                let body = r#"{"paths":[{"contentLength":"5","etag":"0x1","lastModified":"Sat, 26 Nov 2022 10:43:05 GMT","name":"dir/a.txt"}]}"#;
+                let transport = ScriptedTransport::new(vec![
+                    Response::builder()
+                        .status(StatusCode::OK)
+                        .header("x-ms-continuation", continuation)
+                        .body(Bytes::from_static(body.as_bytes()))
+                        .unwrap(),
+                ]);
+                let op = test_operator(transport.clone());
+
+                let entries = op
+                    .list("dir/")
+                    .await
+                    .expect("list must terminate cleanly on empty continuation");
+                assert_eq!(transport.requests().len(), 1);
+                assert!(entries.iter().any(|e| e.path() == "dir/a.txt"));
+            }
+        }
+
+        #[tokio::test]
+        async fn list_paginates_until_empty_continuation() {
+            let page1 = r#"{"paths":[{"contentLength":"1","etag":"0x1","lastModified":"Sat, 26 Nov 2022 10:43:05 GMT","name":"dir/a.txt"}]}"#;
+            let page2 = r#"{"paths":[{"contentLength":"2","etag":"0x2","lastModified":"Sat, 26 Nov 2022 10:43:05 GMT","name":"dir/b.txt"}]}"#;
+            let transport = ScriptedTransport::new(vec![
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .header("x-ms-continuation", "page-2")
+                    .body(Bytes::from_static(page1.as_bytes()))
+                    .unwrap(),
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .header("x-ms-continuation", "")
+                    .body(Bytes::from_static(page2.as_bytes()))
+                    .unwrap(),
+            ]);
+            let op = test_operator(transport.clone());
+
+            let entries = op.list("dir/").await.expect("paginated list must succeed");
+            let requests = transport.requests();
+            assert_eq!(requests.len(), 2);
+            assert!(requests[1].uri.contains("continuation=page-2"));
+            assert!(entries.iter().any(|e| e.path() == "dir/a.txt"));
+            assert!(entries.iter().any(|e| e.path() == "dir/b.txt"));
+        }
     }
 }

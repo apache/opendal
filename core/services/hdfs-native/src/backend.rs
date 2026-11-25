@@ -58,9 +58,10 @@ impl HdfsNativeBuilder {
     ///
     /// Valid format including:
     ///
-    /// - `default`: using the default setting based on hadoop config.
-    /// - `hdfs://127.0.0.1:9000`: connect to hdfs cluster.
-    /// - `hdfs://namenode1:9000,namenode2:9000`: connect to hdfs ha cluster.
+    /// - `default`: use `fs.defaultFS` from Hadoop configuration or client options.
+    /// - `hdfs://mycluster`: use a logical nameservice configured in Hadoop.
+    /// - `hdfs://127.0.0.1:9000`: connect to a single NameNode.
+    /// - `hdfs://namenode1:9000,namenode2:9000`: connect to an HDFS HA cluster by its addresses.
     pub fn name_node(mut self, name_node: &str) -> Self {
         if !name_node.is_empty() {
             // Trim trailing `/` so that we can accept `hdfs://127.0.0.1:9000/`
@@ -106,13 +107,27 @@ impl Builder for HdfsNativeBuilder {
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
 
-        let mut hdfs_config = init_hdfs_config(name_node);
-        if let Some(options) = &self.config.options {
-            hdfs_config.extend(options.iter().map(|(k, v)| (k.clone(), v.clone())));
+        let mut hdfs_config = self.config.options.unwrap_or_default();
+        let mut client_builder = hdfs_native::ClientBuilder::new();
+        if name_node != "default" {
+            let authority = name_node
+                .strip_prefix(HDFS_SCHEME_PREFIX)
+                .unwrap_or(name_node)
+                .trim_end_matches('/');
+            let url = if !authority.is_empty() && !authority.contains([':', ',', '/']) {
+                format!("{HDFS_SCHEME_PREFIX}{authority}")
+            } else {
+                // Preserve the synthetic nameservice for explicit addresses, including its
+                // delegation token service name and the precedence of client options.
+                let mut ha_config = init_hdfs_config(name_node);
+                ha_config.extend(hdfs_config);
+                hdfs_config = ha_config;
+                format!("{HDFS_SCHEME_PREFIX}{HDFS_DEFAULT_AUTHORITY}")
+            };
+            client_builder = client_builder.with_url(url);
         }
 
-        let client = hdfs_native::ClientBuilder::new()
-            .with_url(format!("{}{}", HDFS_SCHEME_PREFIX, HDFS_DEFAULT_AUTHORITY))
+        let client = client_builder
             .with_config(hdfs_config)
             .build()
             .map_err(parse_hdfs_error)?;
@@ -127,10 +142,14 @@ impl Builder for HdfsNativeBuilder {
                     read: true,
 
                     write: true,
+                    write_can_multi: true,
+                    write_can_empty: true,
                     write_can_append: true,
+                    write_with_if_not_exists: true,
 
                     create_dir: true,
                     delete: true,
+                    delete_with_recursive: true,
 
                     list: true,
 
@@ -163,7 +182,7 @@ pub struct HdfsNativeBackend {
 }
 
 impl Service for HdfsNativeBackend {
-    type Reader = oio::PositionReader<HdfsNativeReader>;
+    type Reader = HdfsNativeReader;
     type Writer = HdfsNativeLazyWriter;
     type Lister = HdfsNativeLazyLister;
     type Deleter = oio::OneShotDeleter<HdfsNativeDeleter>;
@@ -193,10 +212,7 @@ impl Service for HdfsNativeBackend {
         Ok(RpStat::new(m))
     }
     fn read(&self, _ctx: &OperationContext, path: &str, _: OpRead) -> Result<Self::Reader> {
-        Ok(oio::PositionReader::new(HdfsNativeReader::new(
-            self.core.clone(),
-            path,
-        )))
+        Ok(HdfsNativeReader::new(self.core.clone(), path))
     }
 
     fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {

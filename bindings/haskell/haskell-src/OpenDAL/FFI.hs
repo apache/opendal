@@ -21,6 +21,11 @@ import Foreign
 import Foreign.C.String
 import Foreign.C.Types
 
+alignUp :: Int -> Int -> Int
+alignUp offset align
+  | align <= 1 = offset
+  | otherwise = ((offset + align - 1) `div` align) * align
+
 data RawOperator
 
 data RawLister
@@ -81,7 +86,7 @@ data FFIMetadata = FFIMetadata
   { ffiMode :: CUInt,
     ffiCacheControl :: CString,
     ffiContentDisposition :: CString,
-    ffiContentLength :: CULong,
+    ffiContentLength :: Word64,
     ffiContentMD5 :: CString,
     ffiContentType :: CString,
     ffiETag :: CString,
@@ -89,46 +94,71 @@ data FFIMetadata = FFIMetadata
   }
   deriving (Show)
 
+ffiMetadataModeOffset :: Int
+ffiMetadataModeOffset = 0
+
+ffiMetadataCacheControlOffset :: Int
+ffiMetadataCacheControlOffset =
+  alignUp (ffiMetadataModeOffset + sizeOf (undefined :: CUInt)) (alignment (undefined :: CString))
+
+ffiMetadataContentDispositionOffset :: Int
+ffiMetadataContentDispositionOffset =
+  alignUp (ffiMetadataCacheControlOffset + sizeOf (undefined :: CString)) (alignment (undefined :: CString))
+
+ffiMetadataContentLengthOffset :: Int
+ffiMetadataContentLengthOffset =
+  alignUp (ffiMetadataContentDispositionOffset + sizeOf (undefined :: CString)) (alignment (undefined :: Word64))
+
+ffiMetadataContentMD5Offset :: Int
+ffiMetadataContentMD5Offset =
+  alignUp (ffiMetadataContentLengthOffset + sizeOf (undefined :: Word64)) (alignment (undefined :: CString))
+
+ffiMetadataContentTypeOffset :: Int
+ffiMetadataContentTypeOffset =
+  alignUp (ffiMetadataContentMD5Offset + sizeOf (undefined :: CString)) (alignment (undefined :: CString))
+
+ffiMetadataETagOffset :: Int
+ffiMetadataETagOffset =
+  alignUp (ffiMetadataContentTypeOffset + sizeOf (undefined :: CString)) (alignment (undefined :: CString))
+
+ffiMetadataLastModifiedOffset :: Int
+ffiMetadataLastModifiedOffset =
+  alignUp (ffiMetadataETagOffset + sizeOf (undefined :: CString)) (alignment (undefined :: CString))
+
+ffiMetadataAlignment :: Int
+ffiMetadataAlignment =
+  maximum
+    [ alignment (undefined :: CUInt),
+      alignment (undefined :: CString),
+      alignment (undefined :: Word64)
+    ]
+
+ffiMetadataSize :: Int
+ffiMetadataSize =
+  alignUp (ffiMetadataLastModifiedOffset + sizeOf (undefined :: CString)) ffiMetadataAlignment
+
 instance Storable FFIMetadata where
-  sizeOf _ = sizeOf (undefined :: CSize) + sizeOf (undefined :: CString) * 6 + sizeOf (undefined :: CULong)
-  alignment _ = alignment (undefined :: CSize)
+  sizeOf _ = ffiMetadataSize
+  alignment _ = ffiMetadataAlignment
   peek ptr = do
-    mode <- peekByteOff ptr modeOffset
-    cacheControl <- peekByteOff ptr cacheControlOffset
-    contentDisposition <- peekByteOff ptr contentDispositionOffset
-    contentLength <- peekByteOff ptr contentLengthOffset
-    contentMD5 <- peekByteOff ptr contentMD5Offset
-    contentType <- peekByteOff ptr contentTypeOffset
-    eTag <- peekByteOff ptr eTagOffset
-    lastModified <- peekByteOff ptr lastModifiedOffset
+    mode <- peekByteOff ptr ffiMetadataModeOffset
+    cacheControl <- peekByteOff ptr ffiMetadataCacheControlOffset
+    contentDisposition <- peekByteOff ptr ffiMetadataContentDispositionOffset
+    contentLength <- peekByteOff ptr ffiMetadataContentLengthOffset
+    contentMD5 <- peekByteOff ptr ffiMetadataContentMD5Offset
+    contentType <- peekByteOff ptr ffiMetadataContentTypeOffset
+    eTag <- peekByteOff ptr ffiMetadataETagOffset
+    lastModified <- peekByteOff ptr ffiMetadataLastModifiedOffset
     return $ FFIMetadata mode cacheControl contentDisposition contentLength contentMD5 contentType eTag lastModified
-    where
-      modeOffset = 0
-      cacheControlOffset = modeOffset + sizeOf (undefined :: CSize)
-      contentDispositionOffset = cacheControlOffset + sizeOf (undefined :: CString)
-      contentLengthOffset = contentDispositionOffset + sizeOf (undefined :: CString)
-      contentMD5Offset = contentLengthOffset + sizeOf (undefined :: CULong)
-      contentTypeOffset = contentMD5Offset + sizeOf (undefined :: CString)
-      eTagOffset = contentTypeOffset + sizeOf (undefined :: CString)
-      lastModifiedOffset = eTagOffset + sizeOf (undefined :: CString)
   poke ptr (FFIMetadata mode cacheControl contentDisposition contentLength contentMD5 contentType eTag lastModified) = do
-    pokeByteOff ptr modeOffset mode
-    pokeByteOff ptr cacheControlOffset cacheControl
-    pokeByteOff ptr contentDispositionOffset contentDisposition
-    pokeByteOff ptr contentLengthOffset contentLength
-    pokeByteOff ptr contentMD5Offset contentMD5
-    pokeByteOff ptr contentTypeOffset contentType
-    pokeByteOff ptr eTagOffset eTag
-    pokeByteOff ptr lastModifiedOffset lastModified
-    where
-      modeOffset = 0
-      cacheControlOffset = modeOffset + sizeOf (undefined :: CSize)
-      contentDispositionOffset = cacheControlOffset + sizeOf (undefined :: CString)
-      contentLengthOffset = contentDispositionOffset + sizeOf (undefined :: CString)
-      contentMD5Offset = contentLengthOffset + sizeOf (undefined :: CULong)
-      contentTypeOffset = contentMD5Offset + sizeOf (undefined :: CString)
-      eTagOffset = contentTypeOffset + sizeOf (undefined :: CString)
-      lastModifiedOffset = eTagOffset + sizeOf (undefined :: CString)
+    pokeByteOff ptr ffiMetadataModeOffset mode
+    pokeByteOff ptr ffiMetadataCacheControlOffset cacheControl
+    pokeByteOff ptr ffiMetadataContentDispositionOffset contentDisposition
+    pokeByteOff ptr ffiMetadataContentLengthOffset contentLength
+    pokeByteOff ptr ffiMetadataContentMD5Offset contentMD5
+    pokeByteOff ptr ffiMetadataContentTypeOffset contentType
+    pokeByteOff ptr ffiMetadataETagOffset eTag
+    pokeByteOff ptr ffiMetadataLastModifiedOffset lastModified
 
 foreign import ccall "via_map_ffi"
   c_via_map_ffi ::
@@ -139,7 +169,15 @@ foreign import ccall "wrapper"
 
 foreign import ccall "&free_operator" c_free_operator :: FunPtr (Ptr RawOperator -> IO ())
 
-foreign import ccall "free_byteslice" c_free_byteslice :: Ptr CChar -> CSize -> IO ()
+foreign import ccall "free_operator" freeOperator :: Ptr RawOperator -> IO ()
+
+foreign import ccall "free_byteslice" freeByteSlice :: Ptr ByteSlice -> IO ()
+
+foreign import ccall "free_bool" freeBool :: Ptr CBool -> IO ()
+
+foreign import ccall "free_string" freeString :: CString -> IO ()
+
+foreign import ccall "free_metadata" freeMetadata :: Ptr FFIMetadata -> IO ()
 
 foreign import ccall "blocking_read" c_blocking_read :: Ptr RawOperator -> CString -> Ptr (FFIResult ByteSlice) -> IO ()
 
@@ -157,25 +195,28 @@ foreign import ccall "blocking_delete" c_blocking_delete :: Ptr RawOperator -> C
 
 foreign import ccall "blocking_stat" c_blocking_stat :: Ptr RawOperator -> CString -> Ptr (FFIResult FFIMetadata) -> IO ()
 
-foreign import ccall "blocking_list" c_blocking_list :: Ptr RawOperator -> CString -> Ptr (FFIResult (Ptr RawLister)) -> IO ()
+foreign import ccall "blocking_list" c_blocking_list :: Ptr RawOperator -> CString -> Ptr (FFIResult RawLister) -> IO ()
 
-foreign import ccall "blocking_scan" c_blocking_scan :: Ptr RawOperator -> CString -> Ptr (FFIResult (Ptr RawLister)) -> IO ()
+foreign import ccall "blocking_scan" c_blocking_scan :: Ptr RawOperator -> CString -> Ptr (FFIResult RawLister) -> IO ()
 
-foreign import ccall "lister_next" c_lister_next :: Ptr RawLister -> Ptr (FFIResult CString) -> IO ()
+foreign import ccall "lister_next" c_lister_next :: Ptr RawLister -> Ptr (FFIResult CChar) -> IO ()
 
 foreign import ccall "&free_lister" c_free_lister :: FunPtr (Ptr RawLister -> IO ())
 
+foreign import ccall "free_lister" freeLister :: Ptr RawLister -> IO ()
 
-foreign import ccall "operator_info" c_operator_info :: Ptr RawOperator -> Ptr (FFIResult CString) -> IO ()
+foreign import ccall "operator_info" c_operator_info :: Ptr RawOperator -> Ptr (FFIResult CChar) -> IO ()
 
-foreign import ccall "blocking_writer" c_blocking_writer :: Ptr RawOperator -> CString -> Ptr (FFIResult (Ptr RawWriter)) -> IO ()
+foreign import ccall "blocking_writer" c_blocking_writer :: Ptr RawOperator -> CString -> Ptr (FFIResult RawWriter) -> IO ()
 
-foreign import ccall "blocking_writer_append" c_blocking_writer_append :: Ptr RawOperator -> CString -> Ptr (FFIResult (Ptr RawWriter)) -> IO ()
+foreign import ccall "blocking_writer_append" c_blocking_writer_append :: Ptr RawOperator -> CString -> Ptr (FFIResult RawWriter) -> IO ()
 
 foreign import ccall "writer_write" c_writer_write :: Ptr RawWriter -> Ptr CChar -> CSize -> Ptr (FFIResult ()) -> IO ()
 
 foreign import ccall "writer_close" c_writer_close :: Ptr RawWriter -> Ptr (FFIResult FFIMetadata) -> IO ()
 
 foreign import ccall "&free_writer" c_free_writer :: FunPtr (Ptr RawWriter -> IO ())
+
+foreign import ccall "free_writer" freeWriter :: Ptr RawWriter -> IO ()
 
 foreign import ccall "blocking_remove_all" c_blocking_remove_all :: Ptr RawOperator -> CString -> Ptr (FFIResult ()) -> IO ()

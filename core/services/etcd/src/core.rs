@@ -20,9 +20,11 @@ use asyncband::pool::ObjectStatus;
 use asyncband::pool::bounded;
 use etcd_client::Client;
 use etcd_client::ConnectOptions;
+use etcd_client::Error as EtcdError;
 use etcd_client::KvClient;
 use std::fmt::Debug;
 use std::sync::Arc;
+use tonic::Code;
 
 use opendal_core::raw::*;
 use opendal_core::{Buffer, Error, ErrorKind, Result};
@@ -62,7 +64,6 @@ impl ManageObject for Manager {
 #[derive(Clone)]
 pub struct EtcdCore {
     endpoints: Vec<String>,
-    options: ConnectOptions,
     max_decoding_message_size: Option<usize>,
     client: Arc<bounded::Pool<Manager>>,
 }
@@ -71,7 +72,6 @@ impl Debug for EtcdCore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("EtcdCore")
             .field("endpoints", &self.endpoints.join(","))
-            .field("options", &self.options.clone())
             .field("max_decoding_message_size", &self.max_decoding_message_size)
             .finish_non_exhaustive()
     }
@@ -87,13 +87,12 @@ impl EtcdCore {
             bounded::PoolConfig::new(64),
             Manager {
                 endpoints: endpoints.clone(),
-                options: options.clone(),
+                options,
             },
         );
 
         Self {
             endpoints,
-            options,
             max_decoding_message_size,
             client,
         }
@@ -173,10 +172,52 @@ impl EtcdCore {
     }
 }
 
-use etcd_client::Error as EtcdError;
-
 pub fn format_etcd_error(e: EtcdError) -> Error {
-    Error::new(ErrorKind::Unexpected, e.to_string().as_str())
+    if let EtcdError::GRpcStatus(status) = &e
+        && matches!(
+            (status.code(), status.message()),
+            (Code::PermissionDenied, _)
+                | (
+                    Code::InvalidArgument,
+                    "etcdserver: authentication failed, invalid user ID or password"
+                        | "etcdserver: user name is empty"
+                )
+        )
+    {
+        return Error::new(ErrorKind::PermissionDenied, e.to_string()).set_source(e);
+    }
+
+    Error::new(ErrorKind::Unexpected, e.to_string())
         .set_source(e)
         .set_temporary()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tonic::Status;
+
+    #[test]
+    fn authentication_and_authorization_errors_are_permanent() {
+        for status in [
+            Status::permission_denied("etcdserver: permission denied"),
+            Status::invalid_argument(
+                "etcdserver: authentication failed, invalid user ID or password",
+            ),
+            Status::invalid_argument("etcdserver: user name is empty"),
+        ] {
+            let err = format_etcd_error(EtcdError::GRpcStatus(status));
+            assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+            assert!(!err.is_temporary());
+        }
+    }
+
+    #[test]
+    fn other_invalid_argument_errors_keep_the_retry_policy() {
+        let err = format_etcd_error(EtcdError::GRpcStatus(Status::invalid_argument(
+            "etcdserver: key is not provided",
+        )));
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_temporary());
+    }
 }

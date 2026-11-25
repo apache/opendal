@@ -25,13 +25,16 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header;
-use quick_xml::Reader;
+use quick_xml::NsReader;
 use quick_xml::Writer;
 use quick_xml::escape::escape;
 use quick_xml::events::BytesEnd;
+use quick_xml::events::BytesRef;
 use quick_xml::events::BytesStart;
 use quick_xml::events::BytesText;
 use quick_xml::events::Event;
+use quick_xml::name::Namespace;
+use quick_xml::name::ResolveResult;
 use serde::Deserialize;
 
 use opendal_core::raw::*;
@@ -67,6 +70,14 @@ static HEADER_DEPTH: &str = "Depth";
 ///
 /// reference: [RFC4918: 10.3.  Destination Header](https://datatracker.ietf.org/doc/html/rfc4918#section-10.3)
 static HEADER_DESTINATION: &str = "Destination";
+/// The WebDAV `If` header for conditional requests with state tokens or entity tags.
+///
+/// Used as a tagged-list precondition (`<{url}> (...)`) for weak ETags on PUT and DELETE
+/// because HTTP `If-Match` requires strong comparison and some servers (such as Apache
+/// `mod_dav`) also apply strong comparison to `If-None-Match` on non-GET/HEAD methods.
+///
+/// reference: [RFC4918: 10.4.  If Header](https://datatracker.ietf.org/doc/html/rfc4918#section-10.4)
+static HEADER_IF: &str = "If";
 /// The header to specify the overwrite behavior of the query
 ///
 /// The Overwrite request header specifies whether the server should
@@ -110,7 +121,7 @@ impl Debug for WebdavCore {
 
 impl WebdavCore {
     pub async fn webdav_stat(&self, ctx: &OperationContext, path: &str) -> Result<Metadata> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         self.webdav_stat_rooted_abs_path(ctx, &path).await
     }
 
@@ -176,7 +187,7 @@ impl WebdavCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url: String = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::get(&url);
@@ -208,7 +219,19 @@ impl WebdavCore {
         }
 
         if !range.is_full() {
-            req = req.header(header::RANGE, range.to_header());
+            let range_header = range.to_header();
+            if range_header.is_empty() {
+                let mut err = Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "range has no valid HTTP Range header representation",
+                )
+                .with_context("offset", range.offset());
+                if let Some(size) = range.size() {
+                    err = err.with_context("size", size);
+                }
+                return Err(err);
+            }
+            req = req.header(header::RANGE, range_header);
         }
 
         let req = req
@@ -224,11 +247,10 @@ impl WebdavCore {
         &self,
         ctx: &OperationContext,
         path: &str,
-        size: Option<u64>,
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::put(&url);
@@ -237,9 +259,7 @@ impl WebdavCore {
             req = req.header(header::AUTHORIZATION, v)
         }
 
-        if let Some(v) = size {
-            req = req.header(header::CONTENT_LENGTH, v)
-        }
+        req = req.header(header::CONTENT_LENGTH, body.len());
 
         if let Some(v) = args.content_type() {
             req = req.header(header::CONTENT_TYPE, v)
@@ -248,6 +268,14 @@ impl WebdavCore {
         if let Some(v) = args.content_disposition() {
             req = req.header(header::CONTENT_DISPOSITION, v)
         }
+
+        req = apply_etag_preconditions(
+            req,
+            &url,
+            args.if_not_exists(),
+            args.if_match(),
+            args.if_none_match(),
+        )?;
 
         let req = req
             .extension(Operation::Write)
@@ -272,7 +300,7 @@ impl WebdavCore {
         path: &str,
         user_metadata: &HashMap<String, String>,
     ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::builder().method("PROPPATCH").uri(&url);
@@ -302,8 +330,9 @@ impl WebdavCore {
         &self,
         ctx: &OperationContext,
         path: &str,
+        args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::delete(&url);
@@ -311,6 +340,8 @@ impl WebdavCore {
         if let Some(auth) = &self.authorization {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
+
+        req = apply_etag_preconditions(req, &url, false, args.if_match(), None)?;
 
         let req = req
             .extension(Operation::Delete)
@@ -327,13 +358,12 @@ impl WebdavCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        // Make sure target's dir is exist.
         self.webdav_mkcol(ctx, get_parent(to)).await?;
 
-        let source = build_rooted_abs_path(&self.root, from);
+        let source = build_rooted_absolute_path(&self.root, from);
         let source_uri = format!("{}{}", self.endpoint, percent_encode_path(&source));
 
-        let target = build_rooted_abs_path(&self.root, to);
+        let target = build_rooted_absolute_path(&self.root, to);
         let target_uri = format!("{}{}", self.endpoint, percent_encode_path(&target));
 
         let mut req = Request::builder().method("COPY").uri(&source_uri);
@@ -361,15 +391,10 @@ impl WebdavCore {
         to: &str,
         if_not_exists: bool,
     ) -> Result<Response<Buffer>> {
-        // Check if source file exists.
-        let _ = self.webdav_stat(ctx, from).await?;
-        // Make sure target's dir is exist.
-        self.webdav_mkcol(ctx, get_parent(to)).await?;
-
-        let source = build_rooted_abs_path(&self.root, from);
+        let source = build_rooted_absolute_path(&self.root, from);
         let source_uri = format!("{}{}", self.endpoint, percent_encode_path(&source));
 
-        let target = build_rooted_abs_path(&self.root, to);
+        let target = build_rooted_absolute_path(&self.root, to);
         let target_uri = format!("{}{}", self.endpoint, percent_encode_path(&target));
 
         let mut req = Request::builder().method("MOVE").uri(&source_uri);
@@ -396,7 +421,7 @@ impl WebdavCore {
         path: &str,
         args: &OpList,
     ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::builder().method("PROPFIND").uri(&url);
@@ -428,7 +453,7 @@ impl WebdavCore {
     ///
     /// We only expose this method to the backend since there are dependencies on input path.
     pub async fn webdav_mkcol(&self, ctx: &OperationContext, path: &str) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let mut path = path.as_str();
 
         let mut dirs = VecDeque::default();
@@ -503,6 +528,68 @@ impl WebdavCore {
             )),
         }
     }
+}
+
+fn validate_weak_etag(etag: &str) -> Result<()> {
+    // RFC 9110 §8.8.3 defines entity-tag = [ weak ] DQUOTE *etagc DQUOTE,
+    // where etagc = %x21 / %x23-7E / obs-text. Also reject `]` and `)` because
+    // RFC 4918 §10.4.2 wraps entity-tags inside `([etag])` and servers such as
+    // Apache mod_dav (`dav_process_if_header()`) scan for `]` and `)` without
+    // quote awareness, terminating the condition list early.
+    let opaque_tag = etag
+        .strip_prefix("W/")
+        .and_then(|weak| weak.strip_prefix('"'))
+        .and_then(|tag| tag.strip_suffix('"'));
+    if !opaque_tag.is_some_and(|tag| {
+        tag.bytes().all(|byte| {
+            matches!(byte, b'!' | 0x23..=0x7e | 0x80..=0xff) && !matches!(byte, b']' | b')')
+        })
+    }) {
+        return Err(Error::new(ErrorKind::ConfigInvalid, "Invalid weak ETag"));
+    }
+    Ok(())
+}
+
+/// Apply ETag preconditions for mutating WebDAV requests (PUT and DELETE).
+///
+/// Strong ETags and `*` use standard HTTP `If-Match` / `If-None-Match` headers.
+/// Weak ETags (`W/"..."`) are encoded as a single tagged-list WebDAV `If` header
+/// (`<{url}> (...)`) targeting the resource URI so parent collections are not
+/// evaluated on DELETE or new-file PUT. Weak `if_none_match` also retains
+/// `If-None-Match` for non-DAV HTTP servers that implement RFC 9110 weak matching.
+fn apply_etag_preconditions(
+    mut req: http::request::Builder,
+    url: &str,
+    if_not_exists: bool,
+    if_match: Option<&str>,
+    if_none_match: Option<&str>,
+) -> Result<http::request::Builder> {
+    let mut dav_if = Vec::new();
+
+    if let Some(etag) = if_match.map(str::trim) {
+        if etag.starts_with("W/") {
+            validate_weak_etag(etag)?;
+            dav_if.push(format!("[{etag}]"));
+        } else {
+            req = req.header(header::IF_MATCH, etag);
+        }
+    }
+
+    if if_not_exists {
+        req = req.header(header::IF_NONE_MATCH, "*");
+    } else if let Some(etag) = if_none_match.map(str::trim) {
+        if etag.starts_with("W/") {
+            validate_weak_etag(etag)?;
+            dav_if.push(format!("Not [{etag}]"));
+        }
+        req = req.header(header::IF_NONE_MATCH, etag);
+    }
+
+    if !dav_if.is_empty() {
+        req = req.header(HEADER_IF, format!("<{url}> ({})", dav_if.join(" ")));
+    }
+
+    Ok(req)
 }
 
 /// Build a PROPPATCH request body to set user-defined metadata.
@@ -595,175 +682,291 @@ pub fn build_proppatch_request(
     String::from_utf8(writer.into_inner().into_inner()).expect("valid utf8")
 }
 
-/// Parse user metadata from the raw XML response using quick-xml Reader.
+fn is_dav_element(ns: &ResolveResult<'_>, local_name: &str, expected: &str) -> bool {
+    local_name.eq_ignore_ascii_case(expected)
+        && matches!(
+            ns,
+            ResolveResult::Bound(Namespace("DAV:")) | ResolveResult::Unbound
+        )
+}
+
+fn parse_status_code(status: &str) -> Option<u16> {
+    let mut parts = status.split_whitespace();
+    parts.next()?;
+    parts.next()?.parse::<u16>().ok()
+}
+
+fn decode_general_ref(entity: &BytesRef<'_>, out: &mut String) {
+    match entity.resolve_char_ref() {
+        Ok(Some(ch)) => out.push(ch),
+        Ok(None) => match entity.as_ref() {
+            "lt" => out.push('<'),
+            "gt" => out.push('>'),
+            "amp" => out.push('&'),
+            "quot" => out.push('"'),
+            "apos" => out.push('\''),
+            _ => {}
+        },
+        Err(_) => {}
+    }
+}
+
+/// Parse user metadata from the raw XML response using quick-xml NsReader.
 ///
-/// This function extracts properties in the specified namespace
-/// from the PROPFIND response and returns them as a HashMap.
+/// This function extracts properties in the specified namespace from 2xx
+/// `<D:propstat>` blocks of the first `<D:response>` in the PROPFIND response
+/// and returns them as a HashMap.
 ///
 /// Note: WebDAV servers like Nextcloud/ownCloud may use dynamic namespace prefixes
-/// (e.g., x1:, x2:) instead of the prefix we send. The namespace URI is the
-/// reliable identifier, not the prefix.
+/// (e.g., x1:, x2:) or default namespaces instead of the prefix we send. The
+/// namespace URI is the reliable identifier, not the prefix.
 ///
 /// # Arguments
 /// * `xml` - The raw XML response string
 /// * `namespace_uri` - The namespace URI to look for
 pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<String, String> {
     let mut user_metadata = HashMap::new();
-    let mut reader = Reader::from_str(xml);
-    reader.config_mut().trim_text(true);
+    let mut reader = NsReader::from_str(xml);
 
-    // Track namespace prefix -> URI mappings
-    let mut ns_prefixes: HashMap<String, String> = HashMap::new();
-    // Track which prefixes map to our target namespace URI
-    let mut target_prefixes: Vec<String> = Vec::new();
-
-    // Current element state for tracking property values
-    let mut current_prop_key: Option<String> = None;
+    let mut depth: usize = 0;
+    let mut response_depth: Option<usize> = None;
+    let mut propstat_depth: Option<usize> = None;
+    let mut prop_depth: Option<usize> = None;
+    let mut in_status = false;
+    let mut status_text = String::new();
+    let mut propstat_status: Option<u16> = None;
+    let mut propstat_props: HashMap<String, String> = HashMap::new();
+    let mut current_prop: Option<(String, usize)> = None;
     let mut current_prop_value = String::new();
 
-    let mut buf = Vec::new();
     loop {
-        let event = reader.read_event_into(&mut buf);
-        match event {
-            Ok(Event::Start(ref e)) => {
-                // Extract namespace declarations from attributes
-                for attr in e.attributes().flatten() {
-                    let key = attr.key.as_ref().to_string();
-                    if key.starts_with("xmlns:") {
-                        let prefix = key.strip_prefix("xmlns:").unwrap_or("").to_string();
-                        let uri = attr.value.to_string();
-                        if uri == namespace_uri && !target_prefixes.contains(&prefix) {
-                            target_prefixes.push(prefix.clone());
-                        }
-                        ns_prefixes.insert(prefix, uri);
-                    }
-                }
+        match reader.read_resolved_event() {
+            Ok((ns, Event::Start(e))) => {
+                depth += 1;
+                let local_name = e.local_name();
+                let local_name = local_name.into_inner();
 
-                // Check if this element is in our target namespace
-                let name = e.name().as_ref().to_string();
-                if let Some(colon_pos) = name.find(':') {
-                    let prefix = &name[..colon_pos];
-                    let local_name = &name[colon_pos + 1..];
-                    if target_prefixes.contains(&prefix.to_string()) {
-                        current_prop_key = Some(local_name.to_string());
-                        current_prop_value.clear();
-                    }
-                }
-            }
-            Ok(Event::Empty(ref e)) => {
-                // Extract namespace declarations from attributes
-                for attr in e.attributes().flatten() {
-                    let key = attr.key.as_ref().to_string();
-                    if key.starts_with("xmlns:") {
-                        let prefix = key.strip_prefix("xmlns:").unwrap_or("").to_string();
-                        let uri = attr.value.to_string();
-                        if uri == namespace_uri && !target_prefixes.contains(&prefix) {
-                            target_prefixes.push(prefix.clone());
-                        }
-                        ns_prefixes.insert(prefix, uri);
-                    }
-                }
-
-                // For Empty events (self-closing tags), immediately insert with empty value
-                let name = e.name().as_ref().to_string();
-                if let Some(colon_pos) = name.find(':') {
-                    let prefix = &name[..colon_pos];
-                    let local_name = &name[colon_pos + 1..];
-                    if target_prefixes.contains(&prefix.to_string()) {
-                        user_metadata.insert(local_name.to_string(), String::new());
-                    }
-                }
-            }
-            Ok(Event::Text(ref e)) if current_prop_key.is_some() => {
-                // Text content - add directly (no escaping needed)
-                current_prop_value.push_str(e.as_ref());
-            }
-            Ok(Event::GeneralRef(ref e)) if current_prop_key.is_some() => {
-                // Handle XML entity references (e.g., &lt; &gt; &amp; &quot; &apos;)
-                let decoded = match e.as_ref() {
-                    "lt" => "<",
-                    "gt" => ">",
-                    "amp" => "&",
-                    "quot" => "\"",
-                    "apos" => "'",
-                    _ => "", // Unknown entity, skip
-                };
-                current_prop_value.push_str(decoded);
-            }
-            Ok(Event::End(ref e)) => {
-                let name = e.name().as_ref().to_string();
-                if let Some(colon_pos) = name.find(':') {
-                    let prefix = &name[..colon_pos];
-                    let local_name = &name[colon_pos + 1..];
-                    if target_prefixes.contains(&prefix.to_string())
-                        && let Some(key) = current_prop_key.take()
-                        && key == local_name
+                if response_depth.is_none() && is_dav_element(&ns, local_name, "response") {
+                    response_depth = Some(depth);
+                } else if propstat_depth.is_none() && is_dav_element(&ns, local_name, "propstat") {
+                    propstat_depth = Some(depth);
+                    prop_depth = None;
+                    in_status = false;
+                    status_text.clear();
+                    propstat_status = None;
+                    propstat_props.clear();
+                } else if let Some(ps_d) = propstat_depth {
+                    if depth == ps_d + 1 && is_dav_element(&ns, local_name, "prop") {
+                        prop_depth = Some(depth);
+                    } else if depth == ps_d + 1 && is_dav_element(&ns, local_name, "status") {
+                        in_status = true;
+                        status_text.clear();
+                    } else if let Some(p_d) = prop_depth
+                        && depth == p_d + 1
+                        && matches!(ns, ResolveResult::Bound(Namespace(uri)) if uri == namespace_uri)
                     {
-                        user_metadata.insert(key, current_prop_value.clone());
+                        current_prop = Some((local_name.to_string(), depth));
                         current_prop_value.clear();
                     }
                 }
             }
-            Ok(Event::Eof) => break,
+            Ok((ns, Event::Empty(e))) => {
+                let elem_depth = depth + 1;
+                if let Some(p_d) = prop_depth
+                    && elem_depth == p_d + 1
+                    && matches!(ns, ResolveResult::Bound(Namespace(uri)) if uri == namespace_uri)
+                {
+                    propstat_props.insert(e.local_name().into_inner().to_string(), String::new());
+                }
+            }
+            Ok((_, Event::Text(e))) => {
+                if current_prop.is_some() {
+                    current_prop_value.push_str(e.as_ref());
+                } else if in_status {
+                    status_text.push_str(e.as_ref());
+                }
+            }
+            Ok((_, Event::CData(e))) => {
+                if current_prop.is_some() {
+                    current_prop_value.push_str(e.as_ref());
+                } else if in_status {
+                    status_text.push_str(e.as_ref());
+                }
+            }
+            Ok((_, Event::GeneralRef(e))) => {
+                if current_prop.is_some() {
+                    decode_general_ref(&e, &mut current_prop_value);
+                } else if in_status {
+                    decode_general_ref(&e, &mut status_text);
+                }
+            }
+            Ok((_, Event::End(_))) => {
+                if let Some((_, prop_elem_depth)) = &current_prop
+                    && *prop_elem_depth == depth
+                    && let Some((key, _)) = current_prop.take()
+                {
+                    propstat_props.insert(key, std::mem::take(&mut current_prop_value));
+                } else if in_status && propstat_depth.is_some_and(|ps_d| depth == ps_d + 1) {
+                    propstat_status = parse_status_code(&status_text);
+                    in_status = false;
+                } else if prop_depth == Some(depth) {
+                    prop_depth = None;
+                } else if propstat_depth == Some(depth) {
+                    if propstat_status.is_some_and(|code| (200..300).contains(&code)) {
+                        user_metadata.extend(propstat_props.drain());
+                    } else {
+                        propstat_props.clear();
+                    }
+                    propstat_depth = None;
+                    prop_depth = None;
+                    in_status = false;
+                    propstat_status = None;
+                } else if response_depth == Some(depth) {
+                    break;
+                }
+                depth = depth.saturating_sub(1);
+            }
+            Ok((_, Event::Eof)) => break,
             Err(_) => break,
             _ => {}
         }
-        buf.clear();
     }
 
     user_metadata
 }
 
-/// Check if a PROPPATCH 207 Multi-Status response indicates success using quick-xml Reader.
+/// Check if a PROPPATCH 207 Multi-Status response indicates success using quick-xml NsReader.
 ///
 /// A 207 status code only indicates that there is detailed information available,
 /// not success or failure. We need to parse the response body to check if all
-/// property updates were successful (status 200).
+/// property updates were successful (2xx status).
 ///
-/// Returns Ok(()) if all properties were successfully updated, or an error
-/// with details about the failure.
+/// Returns Ok(()) if the XML is well-formed, every `<D:propstat>` contains a
+/// `<D:status>`, and all reported `<D:status>` elements succeeded with a 2xx
+/// status code, or an error otherwise.
 pub fn check_proppatch_response(xml: &str) -> Result<()> {
-    let mut reader = Reader::from_str(xml);
-    reader.config_mut().trim_text(true);
+    let mut reader = NsReader::from_str(xml);
 
-    let mut buf = Vec::new();
-    let mut in_status = false;
+    let mut depth: usize = 0;
+    let mut root_closed = false;
+    let mut propstat_depth: Option<usize> = None;
+    let mut propstat_has_status = false;
+    let mut status_depth: Option<usize> = None;
     let mut status_text = String::new();
+    let mut has_status = false;
 
     loop {
-        match reader.read_event_into(&mut buf) {
-            Ok(Event::Start(ref e)) => {
-                let name = e.name().as_ref().to_lowercase();
-                // Match status element regardless of namespace prefix
-                if name.ends_with(":status") || name == "status" {
-                    in_status = true;
+        match reader.read_resolved_event() {
+            Ok((ns, Event::Start(e))) => {
+                if root_closed {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "PROPPATCH response XML has trailing element after root",
+                    ));
+                }
+                depth += 1;
+                let local_name = e.local_name();
+                let local_name = local_name.into_inner();
+                if propstat_depth.is_none() && is_dav_element(&ns, local_name, "propstat") {
+                    propstat_depth = Some(depth);
+                    propstat_has_status = false;
+                } else if status_depth.is_none() && is_dav_element(&ns, local_name, "status") {
+                    status_depth = Some(depth);
                     status_text.clear();
                 }
             }
-            Ok(Event::Text(ref e)) if in_status => {
-                status_text.push_str(e.as_ref());
-            }
-            Ok(Event::End(ref e)) => {
-                let name = e.name().as_ref().to_lowercase();
-                if name.ends_with(":status") || name == "status" {
-                    // Parse status code from "HTTP/1.1 XXX Description"
-                    if let Some(code_str) = status_text.split_whitespace().nth(1)
-                        && let Ok(code) = code_str.parse::<u16>()
-                        && !(200..300).contains(&code)
-                    {
-                        return Err(Error::new(
-                            ErrorKind::Unexpected,
-                            format!("PROPPATCH failed with status: {status_text}"),
-                        ));
-                    }
-                    in_status = false;
+            Ok((ns, Event::Empty(e))) => {
+                if root_closed {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "PROPPATCH response XML has trailing element after root",
+                    ));
+                }
+                let local_name = e.local_name();
+                let local_name = local_name.into_inner();
+                if is_dav_element(&ns, local_name, "status") {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "PROPPATCH response has empty status",
+                    ));
+                }
+                if is_dav_element(&ns, local_name, "propstat") {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "PROPPATCH response propstat missing status",
+                    ));
+                }
+                if depth == 0 {
+                    root_closed = true;
                 }
             }
-            Ok(Event::Eof) => break,
-            Err(_) => break,
+            Ok((_, Event::Text(e))) if status_depth.is_some() => {
+                status_text.push_str(e.as_ref());
+            }
+            Ok((_, Event::GeneralRef(e))) if status_depth.is_some() => {
+                decode_general_ref(&e, &mut status_text);
+            }
+            Ok((_, Event::End(_))) => {
+                if status_depth == Some(depth) {
+                    let Some(code) = parse_status_code(&status_text) else {
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            format!(
+                                "PROPPATCH response has invalid status: {}",
+                                status_text.trim()
+                            ),
+                        ));
+                    };
+                    if !(200..300).contains(&code) {
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            format!("PROPPATCH failed with status: {}", status_text.trim()),
+                        ));
+                    }
+                    has_status = true;
+                    if propstat_depth.is_some_and(|ps_d| depth == ps_d + 1) {
+                        propstat_has_status = true;
+                    }
+                    status_depth = None;
+                } else if propstat_depth == Some(depth) {
+                    if !propstat_has_status {
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            "PROPPATCH response propstat missing status",
+                        ));
+                    }
+                    propstat_depth = None;
+                    propstat_has_status = false;
+                }
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    root_closed = true;
+                }
+            }
+            Ok((_, Event::Eof)) => break,
+            Err(err) => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "parse webdav proppatch response xml",
+                )
+                .set_source(err));
+            }
             _ => {}
         }
-        buf.clear();
+    }
+
+    if depth != 0 {
+        return Err(Error::new(
+            ErrorKind::Unexpected,
+            "PROPPATCH response XML is truncated",
+        ));
+    }
+
+    if !has_status {
+        return Err(Error::new(
+            ErrorKind::Unexpected,
+            "PROPPATCH response missing status",
+        ));
     }
 
     Ok(())
@@ -820,7 +1023,7 @@ pub fn parse_propstat(propstat: &Propstat) -> Result<Metadata> {
         ));
     }
 
-    let mode: EntryMode = if resourcetype.value == Some(ResourceType::Collection) {
+    let mode: EntryMode = if resourcetype.collection.is_some() {
         EntryMode::DIR
     } else {
         EntryMode::FILE
@@ -909,15 +1112,11 @@ pub struct Prop {
 
 #[derive(Deserialize, Debug, PartialEq, Eq, Clone, Default)]
 pub struct ResourceTypeContainer {
-    #[serde(rename = "$value")]
-    pub value: Option<ResourceType>,
+    pub collection: Option<Collection>,
 }
 
-#[derive(Deserialize, Debug, PartialEq, Eq, Clone)]
-#[serde(rename_all = "lowercase")]
-pub enum ResourceType {
-    Collection,
-}
+#[derive(Deserialize, Debug, PartialEq, Eq, Clone, Default)]
+pub struct Collection {}
 
 #[cfg(test)]
 mod tests {
@@ -933,7 +1132,7 @@ mod tests {
                 getetag: None,
                 getcontentlength: getcontentlength.map(str::to_string),
                 getcontenttype: None,
-                resourcetype: ResourceTypeContainer { value: None },
+                resourcetype: ResourceTypeContainer::default(),
             },
         }
     }
@@ -961,10 +1160,7 @@ mod tests {
             propstat.prop.getlastmodified.as_deref(),
             Some("Tue, 01 May 2022 06:39:47 GMT")
         );
-        assert_eq!(
-            propstat.prop.resourcetype.value,
-            Some(ResourceType::Collection)
-        );
+        assert!(propstat.prop.resourcetype.collection.is_some());
 
         assert_eq!(propstat.status, "HTTP/1.1 200 OK");
     }
@@ -1014,10 +1210,7 @@ mod tests {
             response.propstat[0].prop.getlastmodified.as_deref(),
             Some("Tue, 01 May 2022 06:39:47 GMT")
         );
-        assert_eq!(
-            response.propstat[0].prop.resourcetype.value,
-            Some(ResourceType::Collection)
-        );
+        assert!(response.propstat[0].prop.resourcetype.collection.is_some());
         assert_eq!(response.propstat[0].status, "HTTP/1.1 200 OK");
     }
 
@@ -1057,7 +1250,7 @@ mod tests {
             response.propstat[0].prop.getcontentlength.as_deref(),
             Some("1")
         );
-        assert_eq!(response.propstat[0].prop.resourcetype.value, None);
+        assert_eq!(response.propstat[0].prop.resourcetype.collection, None);
         assert_eq!(response.propstat[0].status, "HTTP/1.1 200 OK");
     }
 
@@ -1632,6 +1825,17 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::new())
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("Get")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
     fn test_parse_error_maps_missing_if_match_to_not_found() {
         let resp = Response::builder()
             .status(StatusCode::PRECONDITION_FAILED)
@@ -1659,6 +1863,198 @@ mod tests {
             resp,
         );
         assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    }
+
+    #[test]
+    fn test_deserialize_extension_resourcetype_elements() {
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <D:multistatus xmlns:D="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav" xmlns:card="urn:ietf:params:xml:ns:carddav">
+          <D:response>
+            <D:href>/calendar/</D:href>
+            <D:propstat>
+              <D:prop>
+                <D:getlastmodified>Sat, 07 May 2022 06:39:47 GMT</D:getlastmodified>
+                <D:resourcetype><D:collection/><cal:calendar/></D:resourcetype>
+              </D:prop>
+              <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+          </D:response>
+          <D:response>
+            <D:href>/addressbook/</D:href>
+            <D:propstat>
+              <D:prop>
+                <D:getlastmodified>Sat, 07 May 2022 06:39:47 GMT</D:getlastmodified>
+                <D:resourcetype>
+                  <card:addressbook><card:nested/></card:addressbook>
+                  <D:collection xmlns:D="DAV:"/>
+                </D:resourcetype>
+              </D:prop>
+              <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+          </D:response>
+          <D:response>
+            <D:href>/principal</D:href>
+            <D:propstat>
+              <D:prop>
+                <D:getcontentlength>42</D:getcontentlength>
+                <D:getlastmodified>Sat, 07 May 2022 06:39:47 GMT</D:getlastmodified>
+                <D:resourcetype><D:principal/></D:resourcetype>
+              </D:prop>
+              <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+          </D:response>
+        </D:multistatus>"#;
+
+        let ms = deserialize_multistatus(xml.as_bytes()).unwrap();
+        assert_eq!(ms.response.len(), 3);
+
+        let cal_meta = parse_propstats(&ms.response[0].propstat).unwrap();
+        assert!(cal_meta.is_dir());
+
+        let card_meta = parse_propstats(&ms.response[1].propstat).unwrap();
+        assert!(card_meta.is_dir());
+
+        let principal_meta = parse_propstats(&ms.response[2].propstat).unwrap();
+        assert!(principal_meta.is_file());
+        assert_eq!(principal_meta.content_length(), 42);
+    }
+
+    #[test]
+    fn test_parse_user_metadata_preserves_whitespace_entities_and_char_refs() {
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <D:multistatus xmlns:D="DAV:" xmlns:opendal="https://opendal.apache.org/ns">
+          <D:response>
+            <D:propstat>
+              <D:prop>
+                <opendal:spaced>hello &amp; world</opendal:spaced>
+                <opendal:padded>  keep spaces  </opendal:padded>
+                <opendal:numref>a&#10;b&#x0A;c&#x1F600;</opendal:numref>
+                <opendal:cdata><![CDATA[  raw & <text>  ]]></opendal:cdata>
+              </D:prop>
+              <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+          </D:response>
+        </D:multistatus>"#;
+
+        let user_metadata = parse_user_metadata_from_xml(xml, DEFAULT_USER_METADATA_URI);
+
+        assert_eq!(
+            user_metadata.get("spaced").map(String::as_str),
+            Some("hello & world")
+        );
+        assert_eq!(
+            user_metadata.get("padded").map(String::as_str),
+            Some("  keep spaces  ")
+        );
+        assert_eq!(
+            user_metadata.get("numref").map(String::as_str),
+            Some(
+                "a
+b
+c😀"
+            )
+        );
+        assert_eq!(
+            user_metadata.get("cdata").map(String::as_str),
+            Some("  raw & <text>  ")
+        );
+    }
+
+    #[test]
+    fn test_parse_user_metadata_default_namespace_scoping_and_404_filtering() {
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <D:multistatus xmlns:D="DAV:" xmlns:x="https://opendal.apache.org/ns">
+          <D:response>
+            <D:propstat>
+              <D:status>HTTP/1.1 200 OK</D:status>
+              <D:prop>
+                <defns xmlns="https://opendal.apache.org/ns">seen</defns>
+                <empty_defns xmlns="https://opendal.apache.org/ns"/>
+                <x:kept>yes</x:kept>
+                <x:shadowed xmlns:x="https://other.example.com/ns">no</x:shadowed>
+              </D:prop>
+            </D:propstat>
+            <D:propstat>
+              <D:prop>
+                <x:missing/>
+                <x:denied>secret</x:denied>
+                <def_missing xmlns="https://opendal.apache.org/ns"/>
+              </D:prop>
+              <D:status>HTTP/1.1 404 Not Found</D:status>
+            </D:propstat>
+          </D:response>
+          <D:response>
+            <D:propstat>
+              <D:prop>
+                <x:second_response>ignored</x:second_response>
+              </D:prop>
+              <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+          </D:response>
+        </D:multistatus>"#;
+
+        let user_metadata = parse_user_metadata_from_xml(xml, DEFAULT_USER_METADATA_URI);
+
+        assert_eq!(user_metadata.len(), 3);
+        assert_eq!(user_metadata.get("defns").map(String::as_str), Some("seen"));
+        assert_eq!(
+            user_metadata.get("empty_defns").map(String::as_str),
+            Some("")
+        );
+        assert_eq!(user_metadata.get("kept").map(String::as_str), Some("yes"));
+        assert!(!user_metadata.contains_key("shadowed"));
+        assert!(!user_metadata.contains_key("missing"));
+        assert!(!user_metadata.contains_key("denied"));
+        assert!(!user_metadata.contains_key("def_missing"));
+        assert!(!user_metadata.contains_key("second_response"));
+    }
+
+    #[test]
+    fn test_check_proppatch_response_rejects_malformed_truncated_and_missing_status() {
+        let invalid_cases = [
+            // Malformed closing tag
+            r#"<D:multistatus xmlns:D="DAV:"><D:response></D:wrong></D:multistatus>"#,
+            // Syntax error inside tag
+            r#"<D:multistatus xmlns:D="DAV:"><D:response"#,
+            // Truncated after 200 OK status before closing tags
+            r#"<D:multistatus xmlns:D="DAV:"><D:response><D:propstat><D:status>HTTP/1.1 200 OK</D:status>"#,
+            // Missing any status element
+            r#"<D:multistatus xmlns:D="DAV:"><D:response><D:propstat><D:prop/></D:propstat></D:response></D:multistatus>"#,
+            // Empty body
+            "",
+            // Self-closing empty status element
+            r#"<D:multistatus xmlns:D="DAV:"><D:response><D:propstat><D:status/></D:propstat></D:response></D:multistatus>"#,
+            // Unparsable status line
+            r#"<D:multistatus xmlns:D="DAV:"><D:response><D:propstat><D:status>broken</D:status></D:propstat></D:response></D:multistatus>"#,
+            // Mixed 200 and 424 propstats
+            r#"<D:multistatus xmlns:D="DAV:"><D:response><D:propstat><D:status>HTTP/1.1 200 OK</D:status></D:propstat><D:propstat><D:status>HTTP/1.1 424 Failed Dependency</D:status></D:propstat></D:response></D:multistatus>"#,
+            // One 200 propstat alongside another propstat missing status
+            r#"<D:multistatus xmlns:D="DAV:"><D:response><D:propstat><D:status>HTTP/1.1 200 OK</D:status></D:propstat><D:propstat><D:prop/></D:propstat></D:response></D:multistatus>"#,
+            // One 200 propstat alongside a self-closing empty propstat
+            r#"<D:multistatus xmlns:D="DAV:"><D:response><D:propstat><D:status>HTTP/1.1 200 OK</D:status></D:propstat><D:propstat/></D:response></D:multistatus>"#,
+            // Trailing start element after root closes
+            r#"<D:multistatus xmlns:D="DAV:"><D:response><D:propstat><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response></D:multistatus><extra></extra>"#,
+            // Trailing empty element after root closes
+            r#"<D:multistatus xmlns:D="DAV:"><D:response><D:propstat><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response></D:multistatus><extra/>"#,
+        ];
+
+        for xml in invalid_cases {
+            let err = check_proppatch_response(xml)
+                .expect_err(&format!("proppatch XML must fail: {xml}"));
+            assert_eq!(err.kind(), ErrorKind::Unexpected, "{xml}");
+        }
+
+        // Default DAV: namespace and non-DAV <status> element inside <prop> must still succeed.
+        let valid_default_ns = r#"<?xml version="1.0" encoding="utf-8"?>
+        <multistatus xmlns="DAV:" xmlns:opendal="https://opendal.apache.org/ns">
+          <response>
+            <propstat>
+              <prop><opendal:status>HTTP/1.1 500 Ignored</opendal:status></prop>
+              <status>HTTP/1.1 200 OK</status>
+            </propstat>
+          </response>
+        </multistatus>"#;
+        assert!(check_proppatch_response(valid_default_ns).is_ok());
     }
 }
 
@@ -1692,6 +2088,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::UNAUTHORIZED => (ErrorKind::PermissionDenied, false),
         // Some services (like owncloud) return 403 while file locked.
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, true),
         // RFC 7232: 412 means an If-Match / If-Unmodified-Since
@@ -1706,6 +2103,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
             (ErrorKind::ConditionNotMatch, false)
         }
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         // Allowing retry for resource locked.
         StatusCode::LOCKED => (ErrorKind::Unexpected, true),
         StatusCode::INTERNAL_SERVER_ERROR

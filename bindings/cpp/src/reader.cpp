@@ -17,10 +17,26 @@
  * under the License.
  */
 
+#include <cstddef>
+#include <limits>
+#include <stdexcept>
+
 #include "lib.rs.h"
 #include "opendal.hpp"
 
 namespace opendal {
+
+namespace {
+
+ffi::Reader &CheckedReader(ffi::Reader *reader) {
+  if (reader == nullptr) {
+    throw std::logic_error(
+        "opendal::Reader method called on a moved-from object");
+  }
+  return *reader;
+}
+
+}  // namespace
 
 void Reader::Destroy() noexcept {
   if (reader_) {
@@ -38,12 +54,48 @@ Reader::Reader(Reader &&other) noexcept : reader_{other.reader_} {
 Reader::~Reader() noexcept { Destroy(); }
 
 std::streamsize Reader::Read(void *s, std::streamsize n) {
-  return reader_->read(rust::Slice<uint8_t>(static_cast<uint8_t *>(s), n));
+  auto &reader = CheckedReader(reader_);
+  if (n < 0) {
+    throw std::invalid_argument("read size must be non-negative");
+  }
+  if (n == 0) {
+    return 0;
+  }
+  if (s == nullptr) {
+    throw std::invalid_argument("read buffer must not be null");
+  }
+  if constexpr (std::numeric_limits<std::streamsize>::max() >
+                std::numeric_limits<std::ptrdiff_t>::max()) {
+    if (n > std::numeric_limits<std::ptrdiff_t>::max()) {
+      throw std::invalid_argument("read size exceeds maximum buffer length");
+    }
+  }
+  return static_cast<std::streamsize>(reader.read(
+      rust::Slice<uint8_t>(static_cast<uint8_t *>(s),
+                           static_cast<std::size_t>(n))));
 }
 
 std::streamsize Reader::ReadAt(void *s, std::streamsize n, uint64_t offset) {
-  return reader_->read_at(rust::Slice<uint8_t>(static_cast<uint8_t *>(s), n),
-                          offset);
+  const auto &reader = CheckedReader(reader_);
+  if (n < 0) {
+    throw std::invalid_argument("read size must be non-negative");
+  }
+  if (n == 0) {
+    return 0;
+  }
+  if (s == nullptr) {
+    throw std::invalid_argument("read buffer must not be null");
+  }
+  if constexpr (std::numeric_limits<std::streamsize>::max() >
+                std::numeric_limits<std::ptrdiff_t>::max()) {
+    if (n > std::numeric_limits<std::ptrdiff_t>::max()) {
+      throw std::invalid_argument("read size exceeds maximum buffer length");
+    }
+  }
+  return static_cast<std::streamsize>(reader.read_at(
+      rust::Slice<uint8_t>(static_cast<uint8_t *>(s),
+                           static_cast<std::size_t>(n)),
+      offset));
 }
 
 ffi::SeekDir rust_seek_dir(std::ios_base::seekdir dir) {
@@ -63,7 +115,8 @@ ffi::SeekDir rust_seek_dir(std::ios_base::seekdir dir) {
 }
 
 std::streampos Reader::Seek(std::streamoff off, std::ios_base::seekdir dir) {
-  return reader_->seek(off, rust_seek_dir(dir));
+  auto &reader = CheckedReader(reader_);
+  return static_cast<std::streamoff>(reader.seek(off, rust_seek_dir(dir)));
 }
 
 }  // namespace opendal

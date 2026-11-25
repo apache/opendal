@@ -62,6 +62,7 @@
         <cargo-build.profile>dev</cargo-build.profile>
         <cargo-build.enableZigbuild>false</cargo-build.enableZigbuild>
         <cargo-build.target/> <!-- override cargo build target; e.g., use musl instead -->
+        <opendal.test-native-panics>false</opendal.test-native-panics>
         <jni.classifier>${os.detected.classifier}</jni.classifier>
 
         <!-- library dependencies -->
@@ -217,6 +218,8 @@
                                 <argument>${cargo-build.profile}</argument>
                                 <argument>--enable-zigbuild</argument>
                                 <argument>${cargo-build.enableZigbuild}</argument>
+                                <argument>--test-native-panics</argument>
+                                <argument>${opendal.test-native-panics}</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -321,6 +324,85 @@
     </build>
 
     <profiles>
+        <profile>
+            <id>all-natives</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>compile-native-code</id>
+                                <phase>none</phase>
+                            </execution>
+                            <execution>
+                                <id>stage-all-natives</id>
+                                <phase>prepare-package</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <skip>false</skip>
+                                    <executable>python3</executable>
+                                    <arguments>
+                                        <argument>${project.basedir}/tools/all_natives.py</argument>
+                                        <argument>stage</argument>
+                                        <argument>--inputs=${all.natives.dir}</argument>
+                                        <argument>${project.artifactId}-${project.version}</argument>
+                                        <argument>${project.build.outputDirectory}</argument>
+                                        <argument>${project.build.directory}/all-natives</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>native-jar</id>
+                                <phase>none</phase>
+                            </execution>
+                            <execution>
+                                <id>all-natives-jar</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                                <configuration>
+                                    <classifier>all</classifier>
+                                    <classesDirectory>${project.build.directory}/all-natives</classesDirectory>
+                                    <forceCreation>true</forceCreation>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>net.nicoulaj.maven.plugins</groupId>
+                        <artifactId>checksum-maven-plugin</artifactId>
+                        <version>1.11</version>
+                        <executions>
+                            <execution>
+                                <id>all-natives-checksum</id>
+                                <phase>post-integration-test</phase>
+                                <goals>
+                                    <goal>artifacts</goal>
+                                </goals>
+                                <configuration>
+                                    <algorithms>
+                                        <algorithm>SHA-512</algorithm>
+                                    </algorithms>
+                                    <includeClassifiers>all</includeClassifiers>
+                                    <excludeMainArtifact>true</excludeMainArtifact>
+                                    <attachChecksums>true</attachChecksums>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
         <profile>
             <id>apache-release</id>
             <build>

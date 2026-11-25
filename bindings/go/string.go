@@ -17,12 +17,9 @@
 
 package opendal
 
-import (
-	"context"
-	"unsafe"
+import "errors"
 
-	"github.com/jupiterrider/ffi"
-)
+var errInvalidUTF8 = errors.New("string is not valid UTF-8")
 
 func copyCStringAndFree(ptr *byte, free func(*byte)) string {
 	if ptr == nil {
@@ -33,15 +30,4 @@ func copyCStringAndFree(ptr *byte, free func(*byte)) string {
 	return BytePtrToString(ptr)
 }
 
-var ffiStringFree = newFFI(ffiOpts{
-	sym:    "opendal_string_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(ptr *byte) {
-	return func(ptr *byte) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&ptr),
-		)
-	}
-})
+var ffiStringFree = newDirectFFI[func(ptr *byte)]("opendal_string_free")

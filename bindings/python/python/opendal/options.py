@@ -60,7 +60,7 @@ class ReadKwargs(TypedDict, total=False):
     offset: int
     """The offset of the file."""
     prefetch: int
-    """The number of bytes to prefetch."""
+    """The number of completed chunks to buffer during concurrent reads."""
     size: int
     """The size of the file."""
     if_match: str
@@ -72,11 +72,11 @@ class ReadKwargs(TypedDict, total=False):
     if_unmodified_since: datetime
     """The last modified time of the file."""
     content_type: str
-    """The content type of the file."""
+    """The Content-Type response header override, where supported."""
     cache_control: str
-    """The cache control of the file."""
+    """The Cache-Control response header override, where supported."""
     content_disposition: str
-    """The content disposition of the file."""
+    """The Content-Disposition response header override, where supported."""
 
 
 class WriteKwargs(TypedDict, total=False):
@@ -142,6 +142,20 @@ class StatKwargs(TypedDict, total=False):
     """The content disposition of the file."""
 
 
+class CopyKwargs(TypedDict, total=False):
+    """Options for `copy` operations."""
+
+    if_not_exists: bool
+    """Whether to fail if a file already exists at the target path."""
+
+
+class RenameKwargs(TypedDict, total=False):
+    """Options for `rename` operations."""
+
+    if_not_exists: bool
+    """Whether to fail if a file already exists at the target path."""
+
+
 class DeleteKwargs(TypedDict, total=False):
     """Options for `delete` operations."""
 
@@ -157,7 +171,17 @@ class DeleteKwargs(TypedDict, total=False):
 
 
 class OpenKwargs(ReadKwargs, WriteKwargs, total=False):
-    """Keyword arguments for `Operator.open`."""
+    """Keyword arguments for `Operator.open` and `AsyncOperator.open`.
+
+    Accepted keys depend on `mode`: read modes (`"r"`, `"rb"`, `"br"`) accept
+    reader options only, while write, append, and create modes (`"w"`, `"wb"`,
+    `"ab"`, `"xb"`, etc.) accept writer options only.
+
+    The `content_type`, `cache_control`, and `content_disposition` options
+    apply only when writing, appending, or creating and raise `TypeError` in
+    read mode. Use the operator's `read()` method to supply response header
+    overrides.
+    """
 
 
 __all__ = [
@@ -165,6 +189,8 @@ __all__ = [
     "WriteKwargs",
     "ListKwargs",
     "StatKwargs",
+    "CopyKwargs",
+    "RenameKwargs",
     "DeleteKwargs",
     "OpenKwargs",
 ]

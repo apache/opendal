@@ -44,4 +44,4 @@ tokio-rustls = { version = "0.26", default-features = false, features = [
 url = { workspace = true }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync"] }

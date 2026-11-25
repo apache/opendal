@@ -221,6 +221,18 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn operator_debug_redacts_credentials() {
+        let credential = "fixture-credential";
+        let op = Operator::new(
+            EtcdBuilder::default()
+                .username("alice")
+                .password(credential),
+        )
+        .unwrap();
+        assert!(!format!("{op:?}").contains(credential));
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -234,6 +246,7 @@ impl EtcdBackend {
     fn new(core: EtcdCore, root: &str) -> Self {
         let info = ServiceInfo::new(ETCD_SCHEME, root, "etcd");
         let capability = Capability {
+            create_dir: true,
             read: true,
 
             write: true,
@@ -278,7 +291,7 @@ impl Service for EtcdBackend {
         path: &str,
         _args: OpCreateDir,
     ) -> Result<RpCreateDir> {
-        let abs_path = build_abs_path(&self.info.root(), path);
+        let abs_path = build_absolute_path(&self.info.root(), path);
 
         // In etcd, we simulate directory creation by storing an empty value
         // with the directory path (ensuring it ends with '/')
@@ -295,7 +308,7 @@ impl Service for EtcdBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let abs_path = build_abs_path(&self.info.root(), path);
+        let abs_path = build_absolute_path(&self.info.root(), path);
 
         // First check if it's a direct key
         match self.core.get(&abs_path).await? {
@@ -341,7 +354,7 @@ impl Service for EtcdBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, _op: OpWrite) -> Result<Self::Writer> {
         let output: EtcdWriter = {
-            let abs_path = build_abs_path(&self.info.root(), path);
+            let abs_path = build_absolute_path(&self.info.root(), path);
             let writer = EtcdWriter::new(self.core.clone(), abs_path);
             Ok(writer)
         }?;

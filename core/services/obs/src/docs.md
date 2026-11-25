@@ -21,6 +21,20 @@ Use [`crate::ObsConfig`] for serializable configuration and this builder's
 methods for direct construction. The field and method documentation defines
 accepted values, defaults, and environment interaction.
 
+## Credentials
+
+OpenDAL resolves OBS credentials in this order:
+
+1. `access_key_id`, `secret_access_key`, and `security_token` set on the builder
+   or config. The signer attaches `security_token` as the `x-obs-security-token`
+   header when it is set.
+2. `HUAWEI_CLOUD_ACCESS_KEY_ID`, `HUAWEI_CLOUD_SECRET_ACCESS_KEY`, and
+   `HUAWEI_CLOUD_SECURITY_TOKEN` loaded from the environment.
+
+[`crate::Obs::disable_config_load`] removes the environment step so that only
+configured credentials are used. [`crate::Obs::skip_signature`] skips credential
+loading and request signing, which sends requests without authentication.
+
 ## Example
 
 ### Via Builder

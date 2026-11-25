@@ -18,7 +18,7 @@
 import collections.abc
 from datetime import datetime
 from os import PathLike
-from typing import Any, final
+from typing import Any, SupportsIndex, final
 
 from typing_extensions import Unpack
 
@@ -29,6 +29,8 @@ from .layers import Layer
 from .options import OpenKwargs
 from .services import Scheme
 from .types import Entry, Metadata, PresignedRequest
+
+__all__ = ["AsyncOperator", "Operator"]
 
 @final
 class AsyncOperator:
@@ -85,7 +87,12 @@ class AsyncOperator:
             If the operator is not able to work correctly.
         """
     def copy(
-        self, /, source: str | PathLike[str], target: str | PathLike[str]
+        self,
+        /,
+        source: str | PathLike[str],
+        target: str | PathLike[str],
+        *,
+        if_not_exists: bool | None = None,
     ) -> collections.abc.Awaitable[None]:
         """
         Copy a file from one path to another.
@@ -96,6 +103,10 @@ class AsyncOperator:
             The path to the source file.
         target : str
             The path to the target file.
+        if_not_exists : bool, optional
+            If True, require `copy_with_if_not_exists` and raise `Unsupported`
+            if the service lacks it. Raise `ConditionNotMatch` if the target
+            already exists. Defaults to False, which allows overwriting.
 
         Returns
         -------
@@ -203,8 +214,11 @@ class AsyncOperator:
         The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
         ``scheme`` key selects the service, so a static type checker rejects a
         wrong scheme, a missing required key, an unknown key, and a wrong value
-        type. Non-string values (``bool``, ``int``, ``os.PathLike``, ``list``)
-        are converted to the string form core consumes.
+        type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
+        ``os.PathLike[str]``, and flat ``list`` or ``tuple`` of those) are
+        converted to the string form core consumes. ``bytes``-like objects,
+        non-dict ``Mapping``s, nested sequences, and other iterables raise
+        ``Unsupported``.
 
         Parameters
         ----------
@@ -282,7 +296,7 @@ class AsyncOperator:
         /,
         path: str | PathLike[str],
         *,
-        limit: int | None = None,
+        limit: SupportsIndex | None = None,
         start_after: str | None = None,
         recursive: bool | None = None,
         versions: bool | None = None,
@@ -317,16 +331,37 @@ class AsyncOperator:
         """
         Open an async file-like object for the given path.
 
-        The returning async file-like object is a context manager.
+        The returned file is an async context manager and reads or writes bytes.
+        Use `read()` to supply response header overrides when reading.
 
         Parameters
         ----------
         path : str
             The path to the file.
         mode : str
-            The mode to open the file in. Only "rb" and "wb" are supported.
+            `"r"` to read, `"w"` to write (overwrite by default), `"a"` to append,
+            or `"x"` to create a new file. An optional `"b"` can appear before or
+            after the letter. All supported modes are binary; text modes such as
+            `"rt"` raise `ValueError`. `AsyncFile` writes bytes, so encode text
+            with `str.encode()` and decode reads with `bytes.decode()`.
         **kwargs : dict
             Additional options for the underlying reader or writer.
+
+        Raises
+        ------
+        TypeError
+            If `**kwargs` contains an unknown keyword argument, an option with a
+            non-`None` value that does not apply to `mode`, or a value with an
+            incompatible type.
+        ValueError
+            If the mode is invalid or unsupported, including text (`"t"`) and
+            update (`"+"`) modes, or if the mode conflicts with `append` or
+            `if_not_exists` in `**kwargs`.
+        ConditionNotMatch
+            If create mode (`"x"`) targets an existing file. The failure can
+            surface from `write()` or `close()`.
+        Unsupported
+            If the service does not support append or `if_not_exists` writes.
 
         Returns
         -------
@@ -337,7 +372,7 @@ class AsyncOperator:
         self,
         /,
         path: str | PathLike[str],
-        expire_second: int,
+        expire_second: SupportsIndex,
         *,
         version: str | None = None,
     ) -> collections.abc.Awaitable[PresignedRequest]:
@@ -362,7 +397,7 @@ class AsyncOperator:
         self,
         /,
         path: str | PathLike[str],
-        expire_second: int,
+        expire_second: SupportsIndex,
         *,
         version: str | None = None,
         if_match: str | None = None,
@@ -408,7 +443,7 @@ class AsyncOperator:
         self,
         /,
         path: str | PathLike[str],
-        expire_second: int,
+        expire_second: SupportsIndex,
         *,
         version: str | None = None,
         if_match: str | None = None,
@@ -454,7 +489,7 @@ class AsyncOperator:
         self,
         /,
         path: str | PathLike[str],
-        expire_second: int,
+        expire_second: SupportsIndex,
         *,
         content_type: str | None = None,
         content_disposition: str | None = None,
@@ -502,12 +537,12 @@ class AsyncOperator:
         path: str | PathLike[str],
         *,
         version: str | None = None,
-        concurrent: int | None = None,
-        chunk: int | None = None,
-        gap: int | None = None,
-        offset: int | None = None,
-        prefetch: int | None = None,
-        size: int | None = None,
+        concurrent: SupportsIndex | None = None,
+        chunk: SupportsIndex | None = None,
+        gap: SupportsIndex | None = None,
+        offset: SupportsIndex | None = None,
+        prefetch: SupportsIndex | None = None,
+        size: SupportsIndex | None = None,
         if_match: str | None = None,
         if_none_match: str | None = None,
         if_modified_since: datetime | None = None,
@@ -517,7 +552,10 @@ class AsyncOperator:
         content_disposition: str | None = None,
     ) -> collections.abc.Awaitable[bytes]:
         """
-        Read the entire contents of a file at the given path.
+        Read all or a selected range of bytes from a file.
+
+        A positive `prefetch` cannot be combined with `content_type`,
+        `cache_control`, or `content_disposition`. Combining them raises `ValueError`.
 
         Parameters
         ----------
@@ -534,23 +572,23 @@ class AsyncOperator:
         offset : int, optional
             The offset of the file.
         prefetch : int, optional
-            The number of bytes to prefetch.
+            The number of completed chunks to buffer during concurrent reads.
         size : int, optional
             The size of the file.
         if_match : str, optional
             The ETag of the file.
         if_none_match : str, optional
             The ETag of the file.
-        if_modified_since : str, optional
+        if_modified_since : datetime, optional
             The last modified time of the file.
-        if_unmodified_since : str, optional
+        if_unmodified_since : datetime, optional
             The last modified time of the file.
         content_type : str, optional
-            The content type of the file.
+            The Content-Type response header override, where supported.
         cache_control : str, optional
-            The cache control of the file.
+            The Cache-Control response header override, where supported.
         content_disposition : str, optional
-            The content disposition of the file.
+            The Content-Disposition response header override, where supported.
 
         Returns
         -------
@@ -574,7 +612,12 @@ class AsyncOperator:
             An awaitable that completes when the removal is finished.
         """
     def rename(
-        self, /, source: str | PathLike[str], target: str | PathLike[str]
+        self,
+        /,
+        source: str | PathLike[str],
+        target: str | PathLike[str],
+        *,
+        if_not_exists: bool | None = None,
     ) -> collections.abc.Awaitable[None]:
         """
         Rename (move) a file from one path to another.
@@ -585,6 +628,11 @@ class AsyncOperator:
             The path to the source file.
         target : str
             The path to the target file.
+        if_not_exists : bool, optional
+            If True, require `rename_with_if_not_exists` and raise `Unsupported`
+            if the service lacks it. Raise `ConditionNotMatch` if the target
+            already exists, leaving both files unchanged. Defaults to False,
+            which allows overwriting.
 
         Returns
         -------
@@ -596,7 +644,7 @@ class AsyncOperator:
         /,
         path: str | PathLike[str],
         *,
-        limit: int | None = None,
+        limit: SupportsIndex | None = None,
         start_after: str | None = None,
         versions: bool | None = None,
         deleted: bool | None = None,
@@ -685,8 +733,8 @@ class AsyncOperator:
         bs: bytes,
         *,
         append: bool | None = None,
-        chunk: int | None = None,
-        concurrent: int | None = None,
+        chunk: SupportsIndex | None = None,
+        concurrent: SupportsIndex | None = None,
         cache_control: str | None = None,
         content_type: str | None = None,
         content_disposition: str | None = None,
@@ -786,7 +834,14 @@ class Operator:
         Exception
             If the operator is not able to work correctly.
         """
-    def copy(self, /, source: str | PathLike[str], target: str | PathLike[str]) -> None:
+    def copy(
+        self,
+        /,
+        source: str | PathLike[str],
+        target: str | PathLike[str],
+        *,
+        if_not_exists: bool | None = None,
+    ) -> None:
         """
         Copy a file from one path to another.
 
@@ -796,6 +851,10 @@ class Operator:
             The path to the source file.
         target : str
             The path to the target file.
+        if_not_exists : bool, optional
+            If True, require `copy_with_if_not_exists` and raise `Unsupported`
+            if the service lacks it. Raise `ConditionNotMatch` if the target
+            already exists. Defaults to False, which allows overwriting.
         """
     def create_dir(self, /, path: str | PathLike[str]) -> None:
         """
@@ -881,8 +940,11 @@ class Operator:
         The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
         ``scheme`` key selects the service, so a static type checker rejects a
         wrong scheme, a missing required key, an unknown key, and a wrong value
-        type. Non-string values (``bool``, ``int``, ``os.PathLike``, ``list``)
-        are converted to the string form core consumes.
+        type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
+        ``os.PathLike[str]``, and flat ``list`` or ``tuple`` of those) are
+        converted to the string form core consumes. ``bytes``-like objects,
+        non-dict ``Mapping``s, nested sequences, and other iterables raise
+        ``Unsupported``.
 
         Parameters
         ----------
@@ -958,7 +1020,7 @@ class Operator:
         /,
         path: str | PathLike[str],
         *,
-        limit: int | None = None,
+        limit: SupportsIndex | None = None,
         start_after: str | None = None,
         recursive: bool | None = None,
         versions: bool | None = None,
@@ -993,16 +1055,37 @@ class Operator:
         """
         Open a file-like object for the given path.
 
-        The returning file-like object is a context manager.
+        The returned file is a context manager and reads or writes bytes.
+        Use `read()` to supply response header overrides when reading.
 
         Parameters
         ----------
         path : str
             The path to the file.
         mode : str
-            The mode to open the file in. Only "rb" and "wb" are supported.
+            `"r"` to read, `"w"` to write (overwrite by default), `"a"` to append,
+            or `"x"` to create a new file. An optional `"b"` can appear before or
+            after the letter. All supported modes are binary; text modes such as
+            `"rt"` raise `ValueError`. Wrap the returned file with
+            `io.TextIOWrapper` to read or write text.
         **kwargs
             Additional options for the underlying reader or writer.
+
+        Raises
+        ------
+        TypeError
+            If `**kwargs` contains an unknown keyword argument, an option with a
+            non-`None` value that does not apply to `mode`, or a value with an
+            incompatible type.
+        ValueError
+            If the mode is invalid or unsupported, including text (`"t"`) and
+            update (`"+"`) modes, or if the mode conflicts with `append` or
+            `if_not_exists` in `**kwargs`.
+        ConditionNotMatch
+            If create mode (`"x"`) targets an existing file. The failure can
+            surface from `write()`, `flush()`, or `close()`.
+        Unsupported
+            If the service does not support append or `if_not_exists` writes.
 
         Returns
         -------
@@ -1015,12 +1098,12 @@ class Operator:
         path: str | PathLike[str],
         *,
         version: str | None = None,
-        concurrent: int | None = None,
-        chunk: int | None = None,
-        gap: int | None = None,
-        offset: int | None = None,
-        prefetch: int | None = None,
-        size: int | None = None,
+        concurrent: SupportsIndex | None = None,
+        chunk: SupportsIndex | None = None,
+        gap: SupportsIndex | None = None,
+        offset: SupportsIndex | None = None,
+        prefetch: SupportsIndex | None = None,
+        size: SupportsIndex | None = None,
         if_match: str | None = None,
         if_none_match: str | None = None,
         if_modified_since: datetime | None = None,
@@ -1030,7 +1113,10 @@ class Operator:
         content_disposition: str | None = None,
     ) -> bytes:
         """
-        Read the entire contents of a file at the given path.
+        Read all or a selected range of bytes from a file.
+
+        A positive `prefetch` cannot be combined with `content_type`,
+        `cache_control`, or `content_disposition`. Combining them raises `ValueError`.
 
         Parameters
         ----------
@@ -1047,23 +1133,23 @@ class Operator:
         offset : int, optional
             The offset of the file.
         prefetch : int, optional
-            The number of bytes to prefetch.
+            The number of completed chunks to buffer during concurrent reads.
         size : int, optional
             The size of the file.
         if_match : str, optional
             The ETag of the file.
         if_none_match : str, optional
             The ETag of the file.
-        if_modified_since : str, optional
+        if_modified_since : datetime, optional
             The last modified time of the file.
-        if_unmodified_since : str, optional
+        if_unmodified_since : datetime, optional
             The last modified time of the file.
         content_type : str, optional
-            The content type of the file.
+            The Content-Type response header override, where supported.
         cache_control : str, optional
-            The cache control of the file.
+            The Cache-Control response header override, where supported.
         content_disposition : str, optional
-            The content disposition of the file.
+            The Content-Disposition response header override, where supported.
 
         Returns
         -------
@@ -1080,7 +1166,12 @@ class Operator:
             The path to remove.
         """
     def rename(
-        self, /, source: str | PathLike[str], target: str | PathLike[str]
+        self,
+        /,
+        source: str | PathLike[str],
+        target: str | PathLike[str],
+        *,
+        if_not_exists: bool | None = None,
     ) -> None:
         """
         Rename (move) a file from one path to another.
@@ -1091,13 +1182,18 @@ class Operator:
             The path to the source file.
         target : str
             The path to the target file.
+        if_not_exists : bool, optional
+            If True, require `rename_with_if_not_exists` and raise `Unsupported`
+            if the service lacks it. Raise `ConditionNotMatch` if the target
+            already exists, leaving both files unchanged. Defaults to False,
+            which allows overwriting.
         """
     def scan(
         self,
         /,
         path: str | PathLike[str],
         *,
-        limit: int | None = None,
+        limit: SupportsIndex | None = None,
         start_after: str | None = None,
         versions: bool | None = None,
         deleted: bool | None = None,
@@ -1186,8 +1282,8 @@ class Operator:
         bs: bytes,
         *,
         append: bool | None = None,
-        chunk: int | None = None,
-        concurrent: int | None = None,
+        chunk: SupportsIndex | None = None,
+        concurrent: SupportsIndex | None = None,
         cache_control: str | None = None,
         content_type: str | None = None,
         content_disposition: str | None = None,

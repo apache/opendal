@@ -104,18 +104,29 @@ impl WebdavBuilder {
         self
     }
 
-    /// Disable automatic parent directory creation before write operations.
+    /// Disable automatic parent directory creation before writing files.
     ///
-    /// By default, OpenDAL creates parent directories using MKCOL before writing files.
-    /// This requires PROPFIND support to check directory existence.
+    /// By default, OpenDAL checks for parent directories using `PROPFIND` and creates
+    /// missing directories using `MKCOL` before writing files. Enable this option to
+    /// skip those checks and `MKCOL` calls for servers such as `bazel-remote`.
     ///
-    /// Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND
-    /// or don't require explicit directory creation. Enable this option to skip
-    /// the MKCOL calls and write files directly.
+    /// Explicit `create_dir` calls are unaffected.
     ///
-    /// Default: false
+    /// Default: `false`
     pub fn disable_create_dir(mut self, disable: bool) -> Self {
         self.config.disable_create_dir = disable;
+        self
+    }
+
+    /// Disable native recursive listing with WebDAV's `Depth: infinity`.
+    ///
+    /// Set this to `true` for servers that reject or ignore infinity depth.
+    /// With capability simulation enabled, OpenDAL walks the directory tree
+    /// using `Depth: 1` requests instead.
+    ///
+    /// The default is `false`.
+    pub fn disable_depth_infinity(mut self, disable: bool) -> Self {
+        self.config.disable_depth_infinity = disable;
         self
     }
 
@@ -216,10 +227,15 @@ impl Builder for WebdavBuilder {
 
                 write: true,
                 write_can_empty: true,
+                write_with_if_match: true,
+                write_with_if_none_match: true,
+                write_with_if_not_exists: true,
                 write_with_user_metadata: true,
 
                 create_dir: true,
                 delete: true,
+                delete_with_recursive: true,
+                delete_with_if_match: true,
 
                 copy: true,
 
@@ -227,14 +243,13 @@ impl Builder for WebdavBuilder {
                 rename_with_if_not_exists: true,
 
                 list: true,
+                list_with_recursive: !self.config.disable_depth_infinity,
 
-                // We already support recursive list but some details still need to polish.
-                // list_with_recursive: true,
                 shared: true,
 
                 ..Default::default()
             },
-            endpoint: endpoint.to_string(),
+            endpoint: endpoint.trim_end_matches('/').to_string(),
             server_path,
             authorization,
             root,
@@ -301,16 +316,19 @@ impl Service for WebdavBackend {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        let output: oio::OneShotWriter<WebdavWriter> = {
-            Ok(oio::OneShotWriter::new(WebdavWriter::new(
-                self.core.clone(),
-                ctx.clone(),
-                args,
-                path.to_string(),
-            )))
-        }?;
+        if args.if_version_match().is_some() || args.if_version_not_match().is_some() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "WebDAV does not support write version conditions",
+            ));
+        }
 
-        Ok(output)
+        Ok(oio::OneShotWriter::new(WebdavWriter::new(
+            self.core.clone(),
+            ctx.clone(),
+            args,
+            path.to_string(),
+        )))
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -325,16 +343,19 @@ impl Service for WebdavBackend {
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        let output: oio::PageLister<WebdavLister> = {
-            Ok(oio::PageLister::new(WebdavLister::new(
-                self.core.clone(),
-                ctx.clone(),
-                path,
-                args,
-            )))
-        }?;
+        if args.recursive() && !self.core.capability.list_with_recursive {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "WebDAV recursive listing with Depth: infinity is disabled",
+            ));
+        }
 
-        Ok(output)
+        Ok(oio::PageLister::new(WebdavLister::new(
+            self.core.clone(),
+            ctx.clone(),
+            path,
+            args,
+        )))
     }
 
     fn copy(
@@ -391,6 +412,8 @@ impl Service for WebdavBackend {
         to: &str,
         args: OpRename,
     ) -> Result<RpRename> {
+        self.core.webdav_stat(ctx, from).await?;
+        self.core.webdav_mkcol(ctx, get_parent(to)).await?;
         let resp = self
             .core
             .webdav_move(ctx, from, to, args.if_not_exists())
@@ -418,5 +441,342 @@ impl Service for WebdavBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+
+    use bytes::Bytes;
+    use futures::stream;
+    use http::Request;
+    use http::Response;
+
+    use super::*;
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct RecordedRequest {
+        method: String,
+        path: String,
+        headers: http::HeaderMap,
+    }
+
+    #[derive(Clone, Default)]
+    struct RecordingHttpTransport {
+        requests: Arc<Mutex<Vec<RecordedRequest>>>,
+    }
+
+    impl RecordingHttpTransport {
+        fn requests(&self) -> Vec<RecordedRequest> {
+            self.requests.lock().unwrap().clone()
+        }
+
+        fn methods_and_paths(&self) -> Vec<(String, String)> {
+            self.requests()
+                .into_iter()
+                .map(|req| (req.method, req.path))
+                .collect()
+        }
+    }
+
+    impl HttpTransport for RecordingHttpTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let method = req.method().as_str().to_string();
+            let path = req.uri().path().to_string();
+            let headers = req.headers().clone();
+            self.requests.lock().unwrap().push(RecordedRequest {
+                method: method.clone(),
+                path: path.clone(),
+                headers,
+            });
+
+            let (status, body) = match (method.as_str(), path.as_str()) {
+                ("PROPFIND", _) => (StatusCode::NOT_FOUND, ""),
+                ("MKCOL", _) | ("PUT", _) => (StatusCode::CREATED, ""),
+                ("DELETE", _) => (StatusCode::NO_CONTENT, ""),
+                _ => (StatusCode::METHOD_NOT_ALLOWED, ""),
+            };
+
+            let data = Bytes::from_static(body.as_bytes());
+            let size = data.len() as u64;
+            Ok(Response::builder()
+                .status(status)
+                .body(HttpBody::new(
+                    stream::iter([Ok(Buffer::from(data))]),
+                    Some(size),
+                ))
+                .unwrap())
+        }
+    }
+
+    fn test_operator_with_endpoint(
+        endpoint: &str,
+        disable_create_dir: bool,
+    ) -> Result<(Operator, RecordingHttpTransport)> {
+        let transport = RecordingHttpTransport::default();
+        let op = Operator::new(
+            WebdavBuilder::default()
+                .endpoint(endpoint)
+                .disable_create_dir(disable_create_dir),
+        )?
+        .with_context(
+            OperationContext::new().with_http_transport(HttpTransporter::new(transport.clone())),
+        );
+        Ok((op, transport))
+    }
+
+    fn test_operator(disable_create_dir: bool) -> Result<(Operator, RecordingHttpTransport)> {
+        test_operator_with_endpoint("http://localhost:8080", disable_create_dir)
+    }
+
+    #[test]
+    fn depth_infinity_is_enabled_by_default() -> Result<()> {
+        let service = WebdavBuilder::default()
+            .endpoint("http://localhost:8080")
+            .build()?;
+        let args = options::ListOptions {
+            recursive: true,
+            ..Default::default()
+        };
+
+        assert!(service.capability().list_with_recursive);
+        assert!(service.capability().delete_with_recursive);
+        assert!(
+            service
+                .list(&OperationContext::default(), "/", args.into())
+                .is_ok()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn disabling_depth_infinity_rejects_native_recursive_list() -> Result<()> {
+        let service = WebdavBuilder::default()
+            .endpoint("http://localhost:8080")
+            .disable_depth_infinity(true)
+            .build()?;
+        let ctx = OperationContext::default();
+        let args = options::ListOptions {
+            recursive: true,
+            ..Default::default()
+        };
+
+        assert!(!service.capability().list_with_recursive);
+        // `disable_depth_infinity` only controls recursive `PROPFIND`;
+        // collection `DELETE` stays recursive per RFC 4918 §9.6.1.
+        assert!(service.capability().delete_with_recursive);
+        let err = service.list(&ctx, "/", args.into()).err().unwrap();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(service.list(&ctx, "/", OpList::default()).is_ok());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn write_and_explicit_create_dir_respect_disable_create_dir() -> Result<()> {
+        let (op, transport) = test_operator(true)?;
+        assert!(op.info().capability().create_dir);
+
+        op.write("nested/dir/dst.txt", "hello").await?;
+        assert_eq!(
+            transport.methods_and_paths(),
+            vec![("PUT".to_string(), "/nested/dir/dst.txt".to_string())]
+        );
+
+        op.create_dir("nested/dir/").await?;
+        assert_eq!(
+            transport.methods_and_paths(),
+            vec![
+                ("PUT".to_string(), "/nested/dir/dst.txt".to_string()),
+                ("PROPFIND".to_string(), "/nested/dir/".to_string()),
+                ("PROPFIND".to_string(), "/nested/".to_string()),
+                ("MKCOL".to_string(), "/nested/".to_string()),
+                ("MKCOL".to_string(), "/nested/dir/".to_string()),
+            ]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn strong_etag_if_match_uses_if_match_header_only() -> Result<()> {
+        let (op, transport) = test_operator(true)?;
+
+        op.write_with("nested/file.txt", "hello")
+            .if_match("\"strong-1\"")
+            .await?;
+        op.delete_with("nested/file.txt")
+            .if_match("\"strong-1\"")
+            .await?;
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 2);
+
+        for (req, expected_method) in requests.iter().zip(["PUT", "DELETE"]) {
+            assert_eq!(req.method, expected_method);
+            assert_eq!(
+                req.headers
+                    .get(http::header::IF_MATCH)
+                    .and_then(|v| v.to_str().ok()),
+                Some("\"strong-1\"")
+            );
+            assert!(req.headers.get("If").is_none());
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn weak_etag_if_match_uses_tagged_dav_if_header_only() -> Result<()> {
+        let (op, transport) = test_operator_with_endpoint("http://localhost:8080/dav/", true)?;
+
+        op.write_with("nested/my file.txt", "hello")
+            .if_match(" W/\"weak-1\" ")
+            .await?;
+        op.delete_with("nested/my file.txt")
+            .if_match("W/\"weak-1\"")
+            .await?;
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 2);
+
+        let expected_if = "<http://localhost:8080/dav/nested/my%20file.txt> ([W/\"weak-1\"])";
+        for (req, expected_method) in requests.iter().zip(["PUT", "DELETE"]) {
+            assert_eq!(req.method, expected_method);
+            assert_eq!(req.path, "/dav/nested/my%20file.txt");
+            assert!(req.headers.get(http::header::IF_MATCH).is_none());
+            assert_eq!(req.headers.get_all("If").iter().count(), 1);
+            assert_eq!(
+                req.headers.get("If").and_then(|v| v.to_str().ok()),
+                Some(expected_if)
+            );
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn strong_etag_if_none_match_and_if_not_exists_use_if_none_match_only() -> Result<()> {
+        let (op, transport) = test_operator(true)?;
+
+        op.write_with("a.txt", "1")
+            .if_none_match("\"strong-1\"")
+            .await?;
+        op.write_with("b.txt", "2").if_none_match("*").await?;
+        op.write_with("c.txt", "3").if_not_exists(true).await?;
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 3);
+
+        for (req, expected) in requests.iter().zip(["\"strong-1\"", "*", "*"]) {
+            assert_eq!(req.method, "PUT");
+            assert_eq!(
+                req.headers
+                    .get(http::header::IF_NONE_MATCH)
+                    .and_then(|v| v.to_str().ok()),
+                Some(expected)
+            );
+            assert!(req.headers.get("If").is_none());
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn weak_etag_if_none_match_uses_if_none_match_and_tagged_dav_if() -> Result<()> {
+        let (op, transport) = test_operator_with_endpoint("http://localhost:8080/dav/", true)?;
+
+        op.write_with("nested/file.txt", "hello")
+            .if_none_match(" W/\"weak-1\" ")
+            .await?;
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 1);
+        let req = &requests[0];
+        assert_eq!(req.method, "PUT");
+        assert_eq!(
+            req.headers
+                .get(http::header::IF_NONE_MATCH)
+                .and_then(|v| v.to_str().ok()),
+            Some("W/\"weak-1\"")
+        );
+        assert_eq!(req.headers.get_all("If").iter().count(), 1);
+        assert_eq!(
+            req.headers.get("If").and_then(|v| v.to_str().ok()),
+            Some("<http://localhost:8080/dav/nested/file.txt> (Not [W/\"weak-1\"])")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn combined_weak_if_match_and_if_none_match_merges_into_single_dav_if() -> Result<()> {
+        let (op, transport) = test_operator(true)?;
+
+        op.write_with("file.txt", "hello")
+            .if_match("W/\"a\"")
+            .if_none_match("W/\"b\"")
+            .await?;
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 1);
+        let req = &requests[0];
+        assert!(req.headers.get(http::header::IF_MATCH).is_none());
+        assert_eq!(
+            req.headers
+                .get(http::header::IF_NONE_MATCH)
+                .and_then(|v| v.to_str().ok()),
+            Some("W/\"b\"")
+        );
+        assert_eq!(req.headers.get_all("If").iter().count(), 1);
+        assert_eq!(
+            req.headers.get("If").and_then(|v| v.to_str().ok()),
+            Some("<http://localhost:8080/file.txt> ([W/\"a\"] Not [W/\"b\"])")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn invalid_weak_etag_returns_config_invalid_for_put_and_delete() -> Result<()> {
+        let (op, transport) = test_operator(true)?;
+
+        for invalid in [
+            "W/\"bad]\"",
+            "W/\"a)b\"",
+            "W/unquoted",
+            "W/\"a\" \"b\"",
+            "W/\"a",
+        ] {
+            let err = op
+                .write_with("file.txt", "hello")
+                .if_match(invalid)
+                .await
+                .unwrap_err();
+            assert_eq!(
+                err.kind(),
+                ErrorKind::ConfigInvalid,
+                "PUT if_match: {invalid}"
+            );
+
+            let err = op
+                .write_with("file.txt", "hello")
+                .if_none_match(invalid)
+                .await
+                .unwrap_err();
+            assert_eq!(
+                err.kind(),
+                ErrorKind::ConfigInvalid,
+                "PUT if_none_match: {invalid}"
+            );
+
+            let err = op
+                .delete_with("file.txt")
+                .if_match(invalid)
+                .await
+                .unwrap_err();
+            assert_eq!(
+                err.kind(),
+                ErrorKind::ConfigInvalid,
+                "DELETE if_match: {invalid}"
+            );
+        }
+
+        assert!(transport.requests().is_empty());
+        Ok(())
     }
 }

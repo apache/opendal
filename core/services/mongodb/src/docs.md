@@ -21,6 +21,10 @@ Use [`crate::MongodbConfig`] for serializable configuration and this builder's
 methods for direct construction. The field and method documentation defines
 accepted values, defaults, and environment interaction.
 
+Create a unique index on `key_field` (for example,
+`db.<collection>.createIndex({ key: 1 }, { unique: true })`) so concurrent
+writes to the same key cannot insert duplicate documents.
+
 ## Example
 
 ### Via Builder

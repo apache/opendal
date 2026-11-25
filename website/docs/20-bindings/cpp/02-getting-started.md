@@ -8,14 +8,28 @@ description: Build and run your first OpenDAL C++ program, then connect it to a 
 
 ## Build the binding
 
-Prerequisites: CMake ≥ 3.22, Clang or AppleClang, Rust toolchain (the binding
-compiles the Rust core as part of the build).
+The C++ binding is available as source. Its [Cargo.toml](https://github.com/apache/opendal/blob/main/bindings/cpp/Cargo.toml)
+enables the OpenDAL blocking API, and the default build includes the memory
+service.
+
+Install CMake 3.22 or later and Rust. The binding builds the Rust core as part
+of the build. The examples below use Clang. On Windows, the sync binding also
+builds with MSVC.
 
 ```shell
 cd bindings/cpp
 mkdir build && cd build
 cmake -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ ..
 make
+```
+
+To build and run a sync example with MSVC, install Ninja and run these commands
+from the repository root in an x64 Visual Studio Developer Command Prompt.
+
+```bat
+cmake -S examples/cpp -B build/cpp -G Ninja -DCMAKE_CXX_COMPILER=cl
+cmake --build build/cpp
+build\cpp\getting-started.exe
 ```
 
 For development (enables tests and docs):
@@ -64,12 +78,17 @@ int main() {
 }
 ```
 
-The configuration keys match the per-service docs at [/services](/services).
-You must enable the service at CMake configure time via `OPENDAL_FEATURES`:
+The configuration keys match the per-service docs at [Services](/services).
+`OPENDAL_FEATURES` takes a comma-separated list of Cargo features. Use the
+`opendal/` prefix for service features listed in the [core Cargo.toml](https://github.com/apache/opendal/blob/main/core/Cargo.toml).
+To add S3, rerun CMake from `bindings/cpp/build`:
 
-```cmake
-cmake -DOPENDAL_FEATURES="opendal/services-s3" ...
+```shell
+cmake -DCMAKE_CXX_COMPILER=clang++ -DOPENDAL_FEATURES="opendal/services-s3" ..
+cmake --build .
 ```
+
+Exposing additional Rust layers requires C++ binding code.
 
 ## Streaming reads
 

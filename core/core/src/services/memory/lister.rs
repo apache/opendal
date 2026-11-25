@@ -39,18 +39,36 @@ impl oio::List for MemoryLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         match self.keys.next() {
             Some(key) => {
-                let metadata = if key.ends_with('/') {
+                let mut path = build_relative_path(&self.root, &key);
+                if path.is_empty() {
+                    path = "/".to_string();
+                }
+                let metadata = if path.ends_with('/') {
                     MetadataBuilder::dir()
                 } else {
                     MetadataBuilder::unknown()
                 };
-                let mut path = build_rel_path(&self.root, &key);
-                if path.is_empty() {
-                    path = "/".to_string();
-                }
                 Ok(Some(oio::Entry::new(&path, metadata.build())))
             }
             None => Ok(None),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::raw::oio::List;
+
+    #[tokio::test]
+    async fn test_root_marker_entry_is_dir() -> Result<()> {
+        for (root, key) in [("/", ""), ("/sub/", "sub/")] {
+            let mut lister = MemoryLister::new(root, vec![key.to_string()]);
+            let entry = lister.next().await?.expect("root entry should be yielded");
+            assert_eq!(entry.path(), "/", "root {root}");
+            assert_eq!(entry.mode(), EntryMode::DIR, "root {root}");
+            assert!(lister.next().await?.is_none(), "root {root}");
+        }
+        Ok(())
     }
 }

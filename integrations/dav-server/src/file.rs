@@ -23,8 +23,8 @@ use dav_server::fs::{DavFile, OpenOptions};
 use dav_server::fs::{DavMetaData, FsResult};
 use dav_server::fs::{FsError, FsFuture};
 use futures::FutureExt;
-use futures::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
-use opendal_core::{FuturesAsyncReader, FuturesAsyncWriter, Operator};
+use futures::{AsyncReadExt, AsyncSeekExt};
+use opendal_core::{FuturesAsyncReader, Operator, Writer};
 
 use super::metadata::OpendalMetaData;
 use super::utils::*;
@@ -44,8 +44,11 @@ impl Debug for OpendalFile {
             .field(
                 "state",
                 match &self.state {
-                    State::Read { .. } => &"read",
-                    State::Write(_) => &"write",
+                    State::Read(_) => &"read",
+                    State::Writing(_) => &"writing",
+                    State::Appending { .. } => &"appending",
+                    State::Closed => &"closed",
+                    State::Failed => &"failed",
                 },
             )
             .finish()
@@ -53,13 +56,23 @@ impl Debug for OpendalFile {
 }
 
 enum State {
-    Read(FuturesAsyncReader),
-    Write(FuturesAsyncWriter),
+    Read(Box<FuturesAsyncReader>),
+    Writing(Writer),
+    Appending {
+        writer: Writer,
+        can_seek_to_start: bool,
+    },
+    Closed,
+    Failed,
 }
 
 impl OpendalFile {
     /// Create a new opendal file.
     pub async fn open(op: Operator, path: String, options: OpenOptions) -> FsResult<Self> {
+        if path.is_empty() || path.ends_with('/') {
+            return Err(FsError::Forbidden);
+        }
+
         let state = if options.read {
             let r = op
                 .reader(&path)
@@ -68,16 +81,35 @@ impl OpendalFile {
                 .into_futures_async_read(..)
                 .await
                 .map_err(convert_error)?;
-            State::Read(r)
+            State::Read(Box::new(r))
         } else if options.write {
+            // Reject opening a path as a file when a collection already exists
+            // at `{path}/`. Object stores and memory treat `dir` and `dir/` as
+            // separate keys, so writing `dir` would otherwise shadow the
+            // collection in `metadata` and `PROPFIND`.
+            let dir_path = format!("{path}/");
+            if dir_exists(&op, &dir_path).await? {
+                return Err(if options.create_new {
+                    FsError::Exists
+                } else {
+                    FsError::Forbidden
+                });
+            }
+
             let w = op
                 .writer_with(&path)
                 .append(options.append)
                 .if_not_exists(options.create_new)
                 .await
-                .map_err(convert_error)?
-                .into_futures_async_write();
-            State::Write(w)
+                .map_err(convert_error)?;
+            if options.append {
+                State::Appending {
+                    writer: w,
+                    can_seek_to_start: true,
+                }
+            } else {
+                State::Writing(w)
+            }
         } else {
             return Err(FsError::NotImplemented);
         };
@@ -88,6 +120,30 @@ impl OpendalFile {
             state,
             buf: BytesMut::new(),
         })
+    }
+
+    async fn write(&mut self, buf: impl Buf) -> FsResult<()> {
+        let writer = match &mut self.state {
+            State::Writing(writer) => writer,
+            State::Appending {
+                writer,
+                can_seek_to_start,
+            } => {
+                if buf.has_remaining() {
+                    *can_seek_to_start = false;
+                }
+                writer
+            }
+            _ => return Err(FsError::GeneralFailure),
+        };
+
+        if writer.write_from(buf).await.is_err() {
+            let _ = writer.abort().await;
+            self.state = State::Failed;
+            return Err(FsError::GeneralFailure);
+        }
+
+        Ok(())
     }
 }
 
@@ -105,29 +161,12 @@ impl DavFile for OpendalFile {
         .boxed()
     }
 
-    fn write_buf(&mut self, mut buf: Box<dyn Buf + Send>) -> FsFuture<'_, ()> {
-        async move {
-            let State::Write(w) = &mut self.state else {
-                return Err(FsError::GeneralFailure);
-            };
-
-            w.write_all(&buf.copy_to_bytes(buf.remaining()))
-                .await
-                .map_err(|_| FsError::GeneralFailure)?;
-            Ok(())
-        }
-        .boxed()
+    fn write_buf(&mut self, buf: Box<dyn Buf + Send>) -> FsFuture<'_, ()> {
+        self.write(buf).boxed()
     }
 
     fn write_bytes(&mut self, buf: Bytes) -> FsFuture<'_, ()> {
-        async move {
-            let State::Write(w) = &mut self.state else {
-                return Err(FsError::GeneralFailure);
-            };
-
-            w.write_all(&buf).await.map_err(|_| FsError::GeneralFailure)
-        }
-        .boxed()
+        self.write(buf).boxed()
     }
 
     fn read_bytes(&mut self, count: usize) -> FsFuture<'_, Bytes> {
@@ -148,23 +187,33 @@ impl DavFile for OpendalFile {
 
     fn seek(&mut self, pos: SeekFrom) -> FsFuture<'_, u64> {
         async move {
-            let State::Read(r) = &mut self.state else {
-                return Err(FsError::GeneralFailure);
-            };
-
-            r.seek(pos).await.map_err(|_| FsError::GeneralFailure)
+            match &mut self.state {
+                State::Read(r) => r.seek(pos).await.map_err(|_| FsError::GeneralFailure),
+                State::Appending {
+                    can_seek_to_start: true,
+                    ..
+                } if pos == SeekFrom::Start(0) => Ok(0),
+                _ => Err(FsError::GeneralFailure),
+            }
         }
         .boxed()
     }
 
     fn flush(&mut self) -> FsFuture<'_, ()> {
         async move {
-            let State::Write(w) = &mut self.state else {
-                return Err(FsError::GeneralFailure);
+            let writer = match &mut self.state {
+                State::Writing(writer) | State::Appending { writer, .. } => writer,
+                _ => return Err(FsError::GeneralFailure),
             };
 
-            w.flush().await.map_err(|_| FsError::GeneralFailure)?;
-            w.close().await.map_err(|_| FsError::GeneralFailure)
+            if writer.close().await.is_err() {
+                let _ = writer.abort().await;
+                self.state = State::Failed;
+                return Err(FsError::GeneralFailure);
+            }
+
+            self.state = State::Closed;
+            Ok(())
         }
         .boxed()
     }

@@ -41,14 +41,18 @@ opendal-core = { path = "../../core", version = "0.59.5", default-features = fal
 ] }
 opendal-service-azure-common = { path = "../azure-common", version = "0.59.5" }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
-reqsign-azure-storage = { version = "3.1.1", default-features = false }
-reqsign-core = { version = "3.2.0", default-features = false }
-reqsign-file-read-tokio = { version = "3.0.3", default-features = false }
+reqsign-azure-storage = { version = "3.3.2", default-features = false }
+reqsign-core = { version = "3.3.4", default-features = false }
+reqsign-file-read-tokio = { version = "3.0.9", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 sha2 = { workspace = true }
 uuid = { workspace = true, features = ["v4", "serde"] }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+reqsign-command-execute-tokio = { version = "3.0.9", default-features = false }
+
 [dev-dependencies]
+futures = { workspace = true }
 pretty_assertions = "1"
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

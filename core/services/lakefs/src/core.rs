@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
@@ -55,7 +56,7 @@ impl LakefsCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -85,9 +86,9 @@ impl LakefsCore {
         ctx: &OperationContext,
         path: &str,
         range: BytesRange,
-        _args: &OpRead,
+        args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -104,6 +105,9 @@ impl LakefsCore {
         let auth_header_content = format_authorization_by_basic(&self.username, &self.password)?;
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
+        if let Some(etag) = args.if_none_match() {
+            req = req.header(header::IF_NONE_MATCH, format_etag(etag).as_ref());
+        }
         if !range.is_full() {
             req = req.header(header::RANGE, range.to_header());
         }
@@ -124,7 +128,7 @@ impl LakefsCore {
         amount: &Option<usize>,
         after: Option<String>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "{}/api/v1/repositories/{}/refs/{}/objects/ls?",
@@ -167,7 +171,7 @@ impl LakefsCore {
         _args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -198,7 +202,7 @@ impl LakefsCore {
         path: &str,
         _args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -229,10 +233,10 @@ impl LakefsCore {
         path: &str,
         dest: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
-        let d = build_abs_path(&self.root, dest)
+        let d = build_absolute_path(&self.root, dest)
             .trim_end_matches('/')
             .to_string();
 
@@ -298,6 +302,15 @@ impl LakefsCore {
         }
 
         Ok(meta.build())
+    }
+}
+
+// lakeFS returns bare checksums in object metadata and quoted ETags in GET headers.
+pub(super) fn format_etag(etag: &str) -> Cow<'_, str> {
+    if etag.starts_with('"') && etag.ends_with('"') {
+        Cow::Borrowed(etag)
+    } else {
+        Cow::Owned(format!("\"{etag}\""))
     }
 }
 

@@ -26,19 +26,32 @@ use futures::TryStreamExt;
 use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::PyStopAsyncIteration;
 use pyo3::types::PyWeakrefReference;
-use pyo3_async_runtimes::tokio::future_into_py;
 
+use crate::runtime::{check_runtime_process, future_into_py, runtime_is_inherited};
 use crate::*;
 
 const ASYNC_LISTER_BATCH_SIZE: usize = 64;
 
-#[pyclass(unsendable, module = "opendal")]
-pub struct BlockingLister(ocore::blocking::Lister);
+/// An iterator over entries returned by `Operator.list()`.
+///
+/// Waiting for an entry releases the Python GIL. Concurrent calls to `next()`
+/// on the same iterator raise `RuntimeError`.
+#[pyclass(module = "opendal")]
+pub struct BlockingLister(Option<ocore::blocking::Lister>);
 
 impl BlockingLister {
     /// Create a new blocking lister.
     pub fn new(inner: ocore::blocking::Lister) -> Self {
-        Self(inner)
+        Self(Some(inner))
+    }
+}
+
+impl Drop for BlockingLister {
+    fn drop(&mut self) {
+        if runtime_is_inherited() {
+            // The core lister enters its Tokio handle on drop.
+            std::mem::forget(self.0.take());
+        }
     }
 }
 
@@ -47,9 +60,11 @@ impl BlockingLister {
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
-    fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<Py<PyAny>>> {
-        match slf.0.next() {
-            Some(Ok(entry)) => Ok(Some(Entry::new(entry).into_py_any(slf.py())?)),
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+        check_runtime_process()?;
+        let lister = self.0.as_mut().expect("lister is present until drop");
+        match py.detach(|| lister.next()) {
+            Some(Ok(entry)) => Ok(Some(Entry::new(entry).into_py_any(py)?)),
             Some(Err(err)) => {
                 let pyerr = format_pyerr(err);
                 Err(pyerr)
@@ -135,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_async_lister_state_batches_ready_entries() {
-        pyo3_async_runtimes::tokio::get_runtime().block_on(async {
+        crate::runtime::get_runtime().unwrap().block_on(async {
             let op = ocore::Operator::new(ocore::services::Memory::default()).unwrap();
             let expected: Vec<_> = (0..130).map(|idx| format!("items/{idx:03}")).collect();
             for path in &expected {
@@ -319,19 +334,37 @@ impl AsyncLister {
     fn __aiter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
-    fn __anext__(slf: PyRefMut<'_, Self>) -> PyResult<Option<Py<PyAny>>> {
+    fn __anext__(slf: PyRef<'_, Self>) -> PyResult<Option<Py<PyAny>>> {
+        check_runtime_process()?;
         slf.reconcile_deliveries(slf.py())?;
 
-        if let Some(mut state) = slf.state.try_lock() {
-            let mut requeued = slf.requeued.lock().unwrap();
-            if !requeued.is_empty() || !state.buffered.is_empty() || state.exhausted {
-                let py = slf.py();
-                let future = pyo3_async_runtimes::get_running_loop(py)?
-                    .call_method0(pyo3::intern!(py, "create_future"))?;
-                let entry = requeued
-                    .pop_front()
-                    .map(Ok)
-                    .or_else(|| state.buffered.pop_front());
+        let has_ready = if let Some(state) = slf.state.try_lock() {
+            let requeued = slf.requeued.lock().unwrap();
+            !requeued.is_empty() || !state.buffered.is_empty() || state.exhausted
+        } else {
+            false
+        };
+
+        if has_ready {
+            let py = slf.py();
+            let future = pyo3_async_runtimes::get_running_loop(py)?
+                .call_method0(pyo3::intern!(py, "create_future"))?;
+            let next_item = if let Some(mut state) = slf.state.try_lock() {
+                let mut requeued = slf.requeued.lock().unwrap();
+                if !requeued.is_empty() || !state.buffered.is_empty() || state.exhausted {
+                    Some(
+                        requeued
+                            .pop_front()
+                            .map(Ok)
+                            .or_else(|| state.buffered.pop_front()),
+                    )
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            if let Some(entry) = next_item {
                 let result = match entry {
                     Some(Ok(entry)) => Entry::new(entry).into_py_any(py),
                     Some(Err(err)) => Err(format_pyerr(err)),

@@ -28,6 +28,7 @@ use std::sync::LazyLock;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
+use http::StatusCode;
 use opendal_core::Buffer;
 use opendal_core::Error;
 use opendal_core::ErrorKind;
@@ -35,6 +36,7 @@ use opendal_core::HttpBody;
 use opendal_core::HttpRedirect;
 use opendal_core::HttpTransport;
 use opendal_core::HttpTransporter;
+use opendal_core::HttpUri;
 use opendal_core::Result;
 use opendal_core::raw::parse_content_encoding;
 use opendal_core::raw::parse_content_length;
@@ -91,7 +93,7 @@ impl HttpTransport for ReqwestTransport {
         let url = reqwest::Url::parse(target).map_err(|err| {
             Error::new(ErrorKind::Unexpected, "request url is invalid")
                 .with_operation("reqwest::fetch")
-                .with_context("url", uri.to_string())
+                .with_context("url", HttpUri::new(uri.to_string()).redacted_uri())
                 .set_source(err)
         })?;
 
@@ -130,36 +132,35 @@ impl HttpTransport for ReqwestTransport {
 
         // Don't set body if body is empty.
         if !body.is_empty() {
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                req_builder = req_builder.body(reqwest::Body::wrap(HttpBufferBody(body)))
-            }
-            #[cfg(target_arch = "wasm32")]
-            {
-                req_builder = req_builder.body(reqwest::Body::from(body.to_bytes()))
-            }
+            // `Buffer` is already fully buffered in memory, and reqwest can only
+            // replay a `Bytes` body on 307 and 308 redirects. Converting a
+            // contiguous `Buffer` is zero-copy, and only a multi-chunk `Buffer`
+            // is copied, so release the source chunks before sending.
+            let bytes = body.to_bytes();
+            drop(body);
+            req_builder = req_builder.body(reqwest::Body::from(bytes));
         }
 
         let mut resp = req_builder.send().await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "send http request")
                 .with_operation("reqwest::send")
-                .with_context("url", uri.to_string())
+                .with_context("url", HttpUri::new(uri.to_string()).redacted_uri())
                 .with_temporary(is_temporary_error(&err))
                 .set_source(err.without_url())
         })?;
 
-        // Get content length from header so that we can check it.
-        //
-        // - If the request method is HEAD, we will ignore content length.
-        // - If response contains content_encoding, we should omit its content length.
-        let content_length = if is_head || parse_content_encoding(resp.headers())?.is_some() {
+        // RFC 9110 §8.6: HEAD and 304 responses may carry the Content-Length
+        // of the selected representation even though they have no body.
+        let status = resp.status();
+        let is_bodyless = is_head || status == StatusCode::NOT_MODIFIED;
+        let content_length = if is_bodyless || parse_content_encoding(resp.headers())?.is_some() {
             None
         } else {
             parse_content_length(resp.headers())?
         };
 
         let mut hr = Response::builder()
-            .status(resp.status())
+            .status(status)
             // Insert uri into response extension so that we can fetch
             // it later.
             .extension(uri.clone());
@@ -193,7 +194,7 @@ impl HttpTransport for ReqwestTransport {
                 .map_err(move |err| {
                     Error::new(ErrorKind::Unexpected, "read data from http response")
                         .with_operation("reqwest::fetch")
-                        .with_context("url", uri.to_string())
+                        .with_context("url", HttpUri::new(uri.to_string()).redacted_uri())
                         .with_temporary(is_temporary_error(&err))
                         .set_source(err.without_url())
                 }),
@@ -230,33 +231,6 @@ fn is_temporary_error(err: &reqwest::Error) -> bool {
     err.is_body() ||
     // error decoding response body, for example, connection reset.
     err.is_decode()
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-struct HttpBufferBody(Buffer);
-
-#[cfg(not(target_arch = "wasm32"))]
-impl http_body::Body for HttpBufferBody {
-    type Data = bytes::Bytes;
-    type Error = std::convert::Infallible;
-
-    fn poll_frame(
-        mut self: std::pin::Pin<&mut Self>,
-        _: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>> {
-        match self.0.next() {
-            Some(bs) => std::task::Poll::Ready(Some(Ok(http_body::Frame::data(bs)))),
-            None => std::task::Poll::Ready(None),
-        }
-    }
-
-    fn is_end_stream(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    fn size_hint(&self) -> http_body::SizeHint {
-        http_body::SizeHint::with_exact(self.0.len() as u64)
-    }
 }
 
 #[cfg(test)]

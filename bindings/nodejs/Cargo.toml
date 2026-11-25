@@ -37,8 +37,37 @@ default = [
   "services-http",
   "services-ipmfs",
   "services-memory",
+  "services-minio",
   "services-obs",
   "services-oss",
+  "services-r2",
+  "services-akamai",
+  "services-ceph-rgw",
+  "services-garage",
+  "services-ibm-cos",
+  "services-idrive-e2",
+  "services-ionos",
+  "services-neon",
+  "services-rustfs",
+  "services-seaweedfs",
+  "services-storj",
+  "services-exoscale",
+  "services-hetzner",
+  "services-oci",
+  "services-ovhcloud",
+  "services-qingstor",
+  "services-scaleway",
+  "services-spaces",
+  "services-supabase",
+  "services-tigris",
+  "services-wasabi",
+  "services-b2-s3",
+  "services-cos-s3",
+  "services-gcs-s3",
+  "services-lakefs-s3",
+  "services-oss-s3",
+  "services-swift-s3api",
+  "services-tos-s3",
   "services-s3",
   "services-webdav",
   "services-webhdfs",
@@ -93,20 +122,46 @@ services-all = [
 ]
 
 # Default services provided by opendal.
+services-akamai = ["opendal/services-akamai"]
 services-aliyun-drive = ["opendal/services-aliyun-drive"]
 services-azblob = ["opendal/services-azblob"]
 services-azdls = ["opendal/services-azdls"]
+services-ceph-rgw = ["opendal/services-ceph-rgw"]
 services-cos = ["opendal/services-cos"]
+services-cos-s3 = ["opendal/services-cos-s3"]
+services-exoscale = ["opendal/services-exoscale"]
 services-fs = ["opendal/services-fs"]
+services-garage = ["opendal/services-garage"]
 services-gcs = ["opendal/services-gcs"]
 services-gcs-grpc = ["opendal/services-gcs-grpc"]
+services-gcs-s3 = ["opendal/services-gcs-s3"]
 services-ghac = ["opendal/services-ghac"]
+services-hetzner = ["opendal/services-hetzner"]
 services-http = ["opendal/services-http"]
+services-ibm-cos = ["opendal/services-ibm-cos"]
+services-idrive-e2 = ["opendal/services-idrive-e2"]
+services-ionos = ["opendal/services-ionos"]
 services-ipmfs = ["opendal/services-ipmfs"]
+services-lakefs-s3 = ["opendal/services-lakefs-s3"]
 services-memory = ["opendal/services-memory"]
+services-minio = ["opendal/services-minio"]
+services-neon = ["opendal/services-neon"]
 services-obs = ["opendal/services-obs"]
+services-oci = ["opendal/services-oci"]
 services-oss = ["opendal/services-oss"]
+services-oss-s3 = ["opendal/services-oss-s3"]
+services-ovhcloud = ["opendal/services-ovhcloud"]
+services-qingstor = ["opendal/services-qingstor"]
+services-r2 = ["opendal/services-r2"]
+services-rustfs = ["opendal/services-rustfs"]
 services-s3 = ["opendal/services-s3"]
+services-scaleway = ["opendal/services-scaleway"]
+services-seaweedfs = ["opendal/services-seaweedfs"]
+services-spaces = ["opendal/services-spaces"]
+services-storj = ["opendal/services-storj"]
+services-supabase = ["opendal/services-supabase"]
+services-tigris = ["opendal/services-tigris"]
+services-wasabi = ["opendal/services-wasabi"]
 services-webdav = ["opendal/services-webdav"]
 services-webhdfs = ["opendal/services-webhdfs"]
 
@@ -114,6 +169,7 @@ services-webhdfs = ["opendal/services-webhdfs"]
 services-alluxio = ["opendal/services-alluxio"]
 services-azfile = ["opendal/services-azfile"]
 services-b2 = ["opendal/services-b2"]
+services-b2-s3 = ["opendal/services-b2-s3"]
 services-cacache = ["opendal/services-cacache"]
 services-compfs = ["opendal/services-compfs"]
 services-dashmap = ["opendal/services-dashmap"]
@@ -147,8 +203,10 @@ services-sftp = ["opendal/services-sftp"]
 services-sled = ["opendal/services-sled"]
 services-sqlite = ["opendal/services-sqlite"]
 services-swift = ["opendal/services-swift"]
+services-swift-s3api = ["opendal/services-swift-s3api"]
 services-tikv = ["opendal/services-tikv"]
 services-tos = ["opendal/services-tos"]
+services-tos-s3 = ["opendal/services-tos-s3"]
 services-upyun = ["opendal/services-upyun"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-yandex-disk = ["opendal/services-yandex-disk"]
@@ -169,7 +227,7 @@ opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
   "layers-throttle",
 ] }
-tokio = "1"
+tokio = { version = "1", features = ["sync"] }
 
 [build-dependencies]
 napi-build = "2"

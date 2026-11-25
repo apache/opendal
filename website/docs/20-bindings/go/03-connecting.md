@@ -97,7 +97,7 @@ op, err := opendal.NewOperator(s3.Scheme, opendal.OperatorOptions{
 configuration or credentials are wrong:
 
 ```go
-if err := op.Check(); err != nil {
+if err := op.Check(ctx); err != nil {
 	log.Fatalf("operator is not reachable: %v", err)
 }
 ```

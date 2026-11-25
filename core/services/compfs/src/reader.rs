@@ -64,9 +64,13 @@ impl oio::PositionRead for CompfsReader {
                     .read(true)
                     .open(&path)
                     .await?;
-                Ok(file)
+                if file.metadata().await?.is_dir() {
+                    return Ok(None);
+                }
+                Ok(Some(file))
             })
-            .await?;
+            .await?
+            .ok_or_else(|| Error::new(ErrorKind::IsADirectory, "read path is a directory"))?;
 
         Ok(CompfsReaderHandle::new(self.core.clone(), file))
     }
@@ -154,7 +158,13 @@ impl oio::Write for CompfsLazyWriter {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.inner().await?.abort().await
+        match &mut self.inner {
+            Some(w) => w.abort().await,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "cannot abort completion-based operations",
+            )),
+        }
     }
 }
 
@@ -188,7 +198,14 @@ impl oio::List for CompfsLazyLister {
                     .await?
                 {
                     Ok(read_dir) => Some(CompfsLister::new(self.core.clone(), &path, read_dir)),
-                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+                    Err(e)
+                        if matches!(
+                            e.kind(),
+                            std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+                        ) =>
+                    {
+                        None
+                    }
                     Err(e) => return Err(new_std_io_error(e)),
                 },
             );
@@ -198,5 +215,113 @@ impl oio::List for CompfsLazyLister {
             Some(lister) => lister.next().await,
             None => Ok(None),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use opendal_core::ErrorKind;
+    use opendal_core::Operator;
+    use opendal_core::raw::oio::PositionRead;
+    use opendal_core::raw::oio::Read;
+
+    use super::*;
+    use crate::Compfs;
+
+    #[tokio::test]
+    async fn test_read_directory_returns_is_a_directory() {
+        tokio::time::timeout(Duration::from_secs(30), async {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let root = temp_dir.path();
+            std::fs::create_dir(root.join("dir")).unwrap();
+            #[cfg(unix)]
+            std::os::unix::fs::symlink("dir", root.join("dir_link")).unwrap();
+
+            let service = Compfs::default()
+                .root(root.to_str().unwrap())
+                .build()
+                .unwrap();
+            let raw_reader = service
+                .read(&OperationContext::new(), "dir", OpRead::default())
+                .unwrap();
+            let err = raw_reader
+                .read(BytesRange::new(0, Some(1)))
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+
+            let direct_core = Arc::new(CompfsCore {
+                info: ServiceInfo::new(crate::COMPFS_SCHEME, root.to_str().unwrap(), ""),
+                capability: Capability::default(),
+                root: root.to_path_buf(),
+                dispatcher: compio::dispatcher::Dispatcher::new().unwrap(),
+                buf_pool: oio::PooledBuf::new(1),
+            });
+            let direct_reader = CompfsReader::new(direct_core, root.join("dir"));
+            let err = direct_reader.open().await.err().unwrap();
+            assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+
+            let op = Operator::new(Compfs::default().root(root.to_str().unwrap())).unwrap();
+
+            let err = op.read("dir").await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+
+            let err = op.read_with("dir").range(0..1).await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+
+            let reader = op.reader("dir").await.unwrap();
+            let err = reader.read(..).await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+
+            #[cfg(unix)]
+            {
+                let err = op.read("dir_link").await.unwrap_err();
+                assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+                assert!(!err.is_temporary(), "{err:?}");
+            }
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_abort_unused_writer_preserves_existing_file() {
+        let root = std::env::temp_dir().join("opendal-test-compfs-abort-unused-existing");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("existing.txt");
+        std::fs::write(&path, b"original").unwrap();
+
+        let op = Operator::new(Compfs::default().root(root.to_str().unwrap())).unwrap();
+        let mut writer = op.writer("existing.txt").await.unwrap();
+
+        let err = writer.abort().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert_eq!(std::fs::read(&path).unwrap(), b"original");
+
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_abort_unused_writer_does_not_create_path() {
+        let root = std::env::temp_dir().join("opendal-test-compfs-abort-unused-missing");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+
+        let op = Operator::new(Compfs::default().root(root.to_str().unwrap())).unwrap();
+        let mut writer = op.writer("new-dir/nested/file.txt").await.unwrap();
+
+        let err = writer.abort().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(!root.join("new-dir").exists());
+
+        std::fs::remove_dir_all(&root).unwrap();
     }
 }

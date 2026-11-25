@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use bytes::Bytes;
 use http::Request;
@@ -28,8 +29,8 @@ use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
-use reqsign_core::{Context, Signer};
-use reqsign_tencent_cos::Credential;
+use reqsign_core::{Context, ProvideCredentialDyn, Signer};
+use reqsign_tencent_cos::{Credential, RequestSigner};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -52,7 +53,10 @@ pub struct CosCore {
     pub root: String,
     pub endpoint: String,
 
-    pub signer: Signer<Credential>,
+    pub sign_ctx: Context,
+    pub credential_provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
+    pub request_signer: Arc<RequestSigner>,
+    pub signers: HttpTransportCache<Signer<Credential>>,
 }
 
 impl Debug for CosCore {
@@ -67,12 +71,13 @@ impl Debug for CosCore {
 
 impl CosCore {
     fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
-        self.signer.clone().with_context(
-            Context::new()
-                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                .with_http_send(ctx.http_transport().clone())
-                .with_env(reqsign_core::OsEnv),
-        )
+        self.signers.get_or_init(ctx.http_transport(), |transport| {
+            Signer::new(
+                self.sign_ctx.clone().with_http_send(transport),
+                self.credential_provider.clone(),
+                self.request_signer.clone(),
+            )
+        })
     }
 
     pub async fn sign<T>(&self, ctx: &OperationContext, req: Request<T>) -> Result<Request<T>> {
@@ -132,7 +137,7 @@ impl CosCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -186,7 +191,7 @@ impl CosCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -246,7 +251,7 @@ impl CosCore {
     }
 
     pub fn cos_head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -287,7 +292,7 @@ impl CosCore {
         path: &str,
         args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -323,7 +328,7 @@ impl CosCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let url = format!(
             "{}/{}?append&position={}",
             self.endpoint,
@@ -362,8 +367,8 @@ impl CosCore {
         to: &str,
         args: &OpCopy,
     ) -> Result<Response<Buffer>> {
-        let source = build_abs_path(&self.root, from);
-        let target = build_abs_path(&self.root, to);
+        let source = build_absolute_path(&self.root, from);
+        let target = build_absolute_path(&self.root, to);
 
         let mut source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
         if let Some(version) = args.source_version() {
@@ -400,7 +405,7 @@ impl CosCore {
         delimiter: &str,
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = QueryPairsWriter::new(&self.endpoint);
 
@@ -434,7 +439,7 @@ impl CosCore {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
 
@@ -488,7 +493,7 @@ impl CosCore {
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?partNumber={}&uploadId={}",
@@ -520,7 +525,7 @@ impl CosCore {
         parts: Vec<CompleteMultipartUploadRequestPart>,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",
@@ -565,7 +570,7 @@ impl CosCore {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",
@@ -592,7 +597,7 @@ impl CosCore {
         key_marker: &str,
         version_id_marker: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, prefix);
+        let p = build_absolute_path(&self.root, prefix);
 
         let mut url = QueryPairsWriter::new(&self.endpoint);
         url = url.push("versions", "");
@@ -927,6 +932,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
@@ -998,6 +1004,17 @@ mod error_tests {
             .body(body)
             .expect("response must build");
         parse_error(ctx, resp)
+    }
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let err = parse_cos_error(
+            ErrorContext::new(ServiceOperation("GetObject")),
+            StatusCode::RANGE_NOT_SATISFIABLE,
+            "InvalidRange",
+        );
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
     }
 
     #[test]

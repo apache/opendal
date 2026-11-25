@@ -41,19 +41,39 @@ module.exports = function servicesDocsPlugin(context) {
   return {
     name: "opendal-services-docs",
 
+    getPathsToWatch() {
+      return [
+        path.resolve(__dirname, "../data/services.json"),
+        path.resolve(__dirname, "../data/capabilities.json"),
+      ];
+    },
+
     async loadContent() {
-      const dataPath = path.resolve(__dirname, "../data/services.json");
-      const raw = fs.readFileSync(dataPath, "utf8");
-      return JSON.parse(raw);
+      const servicesPath = path.resolve(__dirname, "../data/services.json");
+      const capabilitiesPath = path.resolve(
+        __dirname,
+        "../data/capabilities.json"
+      );
+      return {
+        servicesData: JSON.parse(fs.readFileSync(servicesPath, "utf8")),
+        capabilitiesData: JSON.parse(fs.readFileSync(capabilitiesPath, "utf8")),
+      };
     },
 
     async contentLoaded({ content, actions }) {
       const { createData, addRoute } = actions;
-      const { bindings, services } = content;
+      const { servicesData, capabilitiesData } = content;
+      const { bindings, services } = servicesData;
 
       const indexComponent =
         "@site/src/components/services/ServicesIndex.jsx";
       const pageComponent = "@site/src/components/services/ServicePage.jsx";
+      const capabilitiesComponent =
+        "@site/src/components/services/CapabilitiesPage.jsx";
+
+      const capabilityByScheme = Object.fromEntries(
+        capabilitiesData.services.map((s) => [s.scheme, s])
+      );
 
       // The index only needs a slim summary per service, not full snippets.
       const summary = services.map((s) => ({
@@ -64,7 +84,11 @@ module.exports = function servicesDocsPlugin(context) {
       }));
       const indexData = await createData(
         "services-index.json",
-        JSON.stringify({ bindings, services: summary })
+        JSON.stringify({
+          bindings,
+          services: summary,
+          capabilityFieldCount: capabilitiesData.fields.length,
+        })
       );
       addRoute({
         path: joinUrl([baseUrl, "services"]),
@@ -73,10 +97,29 @@ module.exports = function servicesDocsPlugin(context) {
         exact: true,
       });
 
+      const matrixData = await createData(
+        "services-capabilities.json",
+        JSON.stringify(capabilitiesData)
+      );
+      addRoute({
+        path: joinUrl([baseUrl, "services", "capabilities"]),
+        component: capabilitiesComponent,
+        modules: { data: matrixData },
+        exact: true,
+      });
+
       for (const service of services) {
         const data = await createData(
           `service-${service.scheme}.json`,
-          JSON.stringify({ bindings, service })
+          JSON.stringify({
+            bindings,
+            service,
+            capability: capabilityByScheme[service.scheme] || null,
+            capabilityGroups: capabilitiesData.groups.filter(
+              (g) => g.id !== "summary"
+            ),
+            capabilityFields: capabilitiesData.fields,
+          })
         );
         addRoute({
           path: joinUrl([baseUrl, "services", service.scheme]),

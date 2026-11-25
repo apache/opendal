@@ -37,7 +37,7 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? Bucket { get; init; }
         /// <summary>
-        /// Disable config load so that opendal will not load config from environment. For examples: - envs like `TOS_ACCESS_KEY_ID`
+        /// Disable config load so that opendal will not load config from environment. For examples: - envs like `VOLCENGINE_ACCESS_KEY_ID`
         /// </summary>
         public bool? DisableConfigLoad { get; init; }
         /// <summary>

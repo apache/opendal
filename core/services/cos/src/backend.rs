@@ -24,7 +24,6 @@ use http::Uri;
 use log::debug;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
-use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
 use reqsign_tencent_cos::DefaultCredentialProvider;
 use reqsign_tencent_cos::RequestSigner;
@@ -223,7 +222,8 @@ impl Builder for CosBuilder {
             credential = credential.push_front(static_provider);
         }
 
-        let signer = Signer::new(ctx, credential, RequestSigner::new());
+        let credential_provider = Arc::new(credential);
+        let request_signer = Arc::new(RequestSigner::new());
 
         let info = ServiceInfo::new(COS_SCHEME, &root, &bucket);
         let capability = Capability {
@@ -293,7 +293,10 @@ impl Builder for CosBuilder {
                 bucket: bucket.clone(),
                 root,
                 endpoint,
-                signer,
+                sign_ctx: ctx,
+                credential_provider,
+                request_signer,
+                signers: HttpTransportCache::new(),
             }),
         })
     }
@@ -536,7 +539,7 @@ impl Service for CosBackend {
             quick_xml::de::from_reader(resp.into_body().reader())
                 .map_err(new_xml_deserialize_error)
                 .map_err(Error::set_temporary)?;
-        let abs_path = build_abs_path(&self.core.root, path);
+        let abs_path = build_absolute_path(&self.core.root, path);
 
         if output
             .version

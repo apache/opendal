@@ -131,11 +131,7 @@ impl FoyerBuilder {
     /// Enables hybrid cache with disk storage. When memory cache is full, data will
     /// be persisted to this directory.
     pub fn disk_path(mut self, path: &str) -> Self {
-        self.config.disk_path = if path.is_empty() {
-            None
-        } else {
-            Some(path.to_string())
-        };
+        self.config.disk_path = (!path.is_empty()).then(|| path.to_string());
         self
     }
 
@@ -192,10 +188,10 @@ impl Builder for FoyerBuilder {
                 .as_str(),
         );
 
-        let mut core = FoyerCore::new(self.config.clone());
-        if let Some(cache) = self.cache {
-            core = core.with_cache(cache.clone());
-        }
+        let core = match self.cache {
+            Some(cache) => FoyerCore::with_cache(self.config.clone(), cache),
+            None => FoyerCore::try_new(self.config.clone())?,
+        };
 
         debug!("backend build finished: {:?}", self.config);
 
@@ -268,16 +264,20 @@ impl Service for FoyerBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.get(&p).await? {
-                Some(bs) => Ok(RpStat::new({
-                    let metadata = MetadataBuilder::file(bs.len() as u64);
-                    metadata.build()
-                })),
+                Some(bs) => {
+                    let metadata = if p.ends_with('/') {
+                        MetadataBuilder::dir()
+                    } else {
+                        MetadataBuilder::file(bs.len() as u64)
+                    };
+                    Ok(RpStat::new(metadata.build()))
+                }
                 None => Err(Error::new(ErrorKind::NotFound, "key not found in foyer")),
             }
         }
@@ -296,7 +296,7 @@ impl Service for FoyerBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         let output: FoyerWriter = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             Ok(FoyerWriter::new(self.core.clone(), p))
         }?;
 
@@ -357,5 +357,166 @@ impl Service for FoyerBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use opendal_core::raw::oio::Write as _;
+
+    use super::*;
+
+    fn assert_config_invalid(res: Result<impl Service>, context: &str) {
+        let err = match res {
+            Ok(_) => panic!("expected ConfigInvalid for {context}, got Ok"),
+            Err(err) => err,
+        };
+        assert_eq!(
+            err.kind(),
+            ErrorKind::ConfigInvalid,
+            "unexpected error for {context}: {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_build_rejects_invalid_config() {
+        // shards = 0
+        assert_config_invalid(FoyerBuilder::new().shards(0).build(), "builder shards(0)");
+        assert_config_invalid(
+            FoyerConfig::from_iter([("shards".to_string(), "0".to_string())])
+                .unwrap()
+                .into_builder()
+                .build(),
+            "from_iter shards=0",
+        );
+        assert_config_invalid(
+            FoyerConfig::from_uri(
+                &OperatorUri::new("foyer:///?shards=0", Vec::<(String, String)>::new()).unwrap(),
+            )
+            .unwrap()
+            .into_builder()
+            .build(),
+            "uri shards=0",
+        );
+
+        let builder = FoyerBuilder::new().disk_path("unused-disk-cache");
+        assert_config_invalid(builder.disk_file_size(0).build(), "zero disk file size");
+        assert_config_invalid(
+            FoyerBuilder::new()
+                .disk_path("unused-disk-cache")
+                .disk_file_size(usize::MAX)
+                .build(),
+            "block alignment overflow",
+        );
+        assert_config_invalid(
+            FoyerBuilder::new()
+                .disk_path("unused-disk-cache")
+                .disk_capacity(4096)
+                .build(),
+            "disk without a full block",
+        );
+    }
+
+    #[tokio::test]
+    async fn test_empty_disk_path_uses_memory_cache() -> Result<()> {
+        for builder in [
+            FoyerBuilder::new().disk_path("").disk_file_size(0),
+            FoyerConfig {
+                disk_path: Some(String::new()),
+                disk_file_size: Some(0),
+                ..Default::default()
+            }
+            .into_builder(),
+        ] {
+            let op = Operator::new(builder)?;
+            op.write("file", "data").await?;
+            assert_eq!(op.read("file").await?.to_bytes(), "data");
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dir_and_root_stat_and_writer_metadata() -> Result<()> {
+        let ctx = OperationContext::default();
+        for root in ["/", "/sub/"] {
+            let builder = if root == "/" {
+                FoyerBuilder::new()
+            } else {
+                FoyerBuilder::new().root(root)
+            };
+            let service = builder.build()?;
+
+            // Root stat returns DIR
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR,
+                "root {root}"
+            );
+
+            let mut root_writer = service.write(&ctx, "/", OpWrite::default())?;
+            root_writer.close().await?;
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR,
+                "root {root}"
+            );
+
+            // Writing and statting a directory marker returns DIR metadata
+            let mut dir_writer = service.write(&ctx, "a/", OpWrite::default())?;
+            let dir_meta = dir_writer.close().await?;
+            assert_eq!(dir_meta.mode(), EntryMode::DIR, "root {root}");
+            assert_eq!(
+                service
+                    .stat(&ctx, "a/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR,
+                "root {root}"
+            );
+
+            // Missing directory marker returns NotFound
+            let missing_err = service
+                .stat(&ctx, "missing/", OpStat::default())
+                .await
+                .unwrap_err();
+            assert_eq!(missing_err.kind(), ErrorKind::NotFound, "root {root}");
+
+            // Writing and statting a regular file returns FILE metadata with length
+            let mut file_writer = service.write(&ctx, "a/file.txt", OpWrite::default())?;
+            file_writer.write(Buffer::from("hello")).await?;
+            let file_meta = file_writer.close().await?;
+            assert_eq!(file_meta.mode(), EntryMode::FILE, "root {root}");
+            assert_eq!(file_meta.content_length(), 5, "root {root}");
+
+            let stat_meta = service
+                .stat(&ctx, "a/file.txt", OpStat::default())
+                .await?
+                .into_metadata();
+            assert_eq!(stat_meta.mode(), EntryMode::FILE, "root {root}");
+            assert_eq!(stat_meta.content_length(), 5, "root {root}");
+
+            // End-to-end check through Operator
+            let op_builder = if root == "/" {
+                FoyerBuilder::new()
+            } else {
+                FoyerBuilder::new().root(root)
+            };
+            let op = Operator::new(op_builder)?;
+            assert_eq!(op.stat("/").await?.mode(), EntryMode::DIR, "root {root}");
+            op.write("sim/file", "data").await?;
+            let op_file_meta = op.stat("sim/file").await?;
+            assert_eq!(op_file_meta.mode(), EntryMode::FILE, "root {root}");
+            assert_eq!(op_file_meta.content_length(), 4, "root {root}");
+        }
+        Ok(())
     }
 }

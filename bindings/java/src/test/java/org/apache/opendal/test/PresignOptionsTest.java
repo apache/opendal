@@ -20,8 +20,10 @@
 package org.apache.opendal.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collections;
 import org.apache.hc.core5.http.NameValuePair;
 import org.apache.hc.core5.net.URIBuilder;
@@ -139,6 +141,52 @@ public class PresignOptionsTest {
                                 "response-content-type", "response-cache-control", "response-content-disposition");
                 assertThat(request.getHeaders()).doesNotContainKey("range");
             }
+        }
+    }
+
+    @Test
+    public void testPresignRejectsNegativeDuration() {
+        try (final AsyncOperator op = AsyncOperator.of(CONFIG)) {
+            for (final Duration invalid : Arrays.asList(Duration.ofNanos(-1), Duration.ofSeconds(-1))) {
+                assertThatThrownBy(() -> op.presignRead("report.csv", invalid))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageStartingWith("duration ");
+                assertThatThrownBy(() -> op.presignRead(
+                                "report.csv", invalid, ReadOptions.builder().build()))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageStartingWith("duration ");
+                assertThatThrownBy(() -> op.presignWrite("report.csv", invalid))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageStartingWith("duration ");
+                assertThatThrownBy(() -> op.presignWrite(
+                                "report.csv", invalid, WriteOptions.builder().build()))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageStartingWith("duration ");
+                assertThatThrownBy(() -> op.presignStat("report.csv", invalid))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageStartingWith("duration ");
+                assertThatThrownBy(() -> op.presignStat(
+                                "report.csv", invalid, StatOptions.builder().build()))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageStartingWith("duration ");
+            }
+        }
+    }
+
+    @Test
+    public void testPresignAcceptsBoundaryDurations() throws Exception {
+        try (final AsyncOperator op = AsyncOperator.of(CONFIG)) {
+            final PresignedRequest zero =
+                    op.presignRead("report.csv", Duration.ZERO).join();
+            assertThat(new URIBuilder(zero.getUri()).getQueryParams())
+                    .extracting(NameValuePair::getName, NameValuePair::getValue)
+                    .contains(tuple("X-Amz-Expires", "0"));
+
+            final PresignedRequest max = op.presignStat("report.csv", Duration.ofNanos(Long.MAX_VALUE))
+                    .join();
+            assertThat(new URIBuilder(max.getUri()).getQueryParams())
+                    .extracting(NameValuePair::getName, NameValuePair::getValue)
+                    .contains(tuple("X-Amz-Expires", String.valueOf(Long.MAX_VALUE / 1_000_000_000L)));
         }
     }
 }

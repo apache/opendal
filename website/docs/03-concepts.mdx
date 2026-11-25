@@ -77,7 +77,8 @@ Not every service supports every operation or optional feature. Each operator
 carries a **capability** set describing what its service can do, and an
 unsupported call fails with an explicit error instead of silently misbehaving.
 Where a binding exposes capability inspection, check for optional behavior —
-such as conditional writes or multipart uploads — before relying on it.
+such as conditional writes or multipart uploads — before relying on it, or
+compare backends in the [service capability matrix](/services/capabilities).
 
 Paths follow one rule everywhere: they are always relative to the operator's
 root, and a trailing `/` means a directory. `logs/app/` is a directory;
@@ -94,5 +95,6 @@ directly. In a binding with a different surface — such as Dart's `Storage` and
 ## Next steps
 
 - [Services](/services) — every supported backend and its configuration.
+- [Service capabilities](/services/capabilities) — supported operations, conditions, and size limits across backends.
 - [Rust core](./10-core/01-overview.md) — the reference implementation that powers every binding.
 - Pick your language from the sidebar — [Python](/docs/bindings/python), [Node.js](/docs/bindings/nodejs), [Java](/docs/bindings/java), and more.

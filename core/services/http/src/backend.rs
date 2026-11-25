@@ -113,6 +113,31 @@ impl Builder for HttpBuilder {
             }
         };
 
+        let uri = endpoint.parse::<http::Uri>().map_err(|err| {
+            Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
+                .with_context("service", HTTP_SCHEME)
+                .set_source(err)
+        })?;
+        let is_http_scheme = matches!(
+            uri.scheme(),
+            Some(scheme)
+                if *scheme == http::uri::Scheme::HTTP || *scheme == http::uri::Scheme::HTTPS
+        );
+        if !is_http_scheme || uri.host().is_none_or(str::is_empty) {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "endpoint must be a valid http or https URI with a host",
+            )
+            .with_context("service", HTTP_SCHEME));
+        }
+        if uri.query().is_some() || endpoint.contains('#') {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "endpoint must not contain a query or fragment",
+            )
+            .with_context("service", HTTP_SCHEME));
+        }
+
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
 
@@ -314,5 +339,133 @@ impl Service for HttpBackend {
             parts.uri,
             parts.headers,
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+    use std::time::Duration;
+
+    use http::Method;
+    use http::Request;
+    use http::Response;
+    use http::Uri;
+    use http::header;
+
+    use super::*;
+
+    #[derive(Debug)]
+    struct RecordedRequest {
+        uri: Uri,
+        authorization: Option<String>,
+    }
+
+    #[derive(Debug, Default)]
+    struct RecordingTransport {
+        requests: Arc<Mutex<Vec<RecordedRequest>>>,
+    }
+
+    impl HttpTransport for RecordingTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let authorization = req
+                .headers()
+                .get(header::AUTHORIZATION)
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_string);
+            self.requests
+                .lock()
+                .expect("requests lock must not be poisoned")
+                .push(RecordedRequest {
+                    uri: req.uri().clone(),
+                    authorization,
+                });
+
+            let body = if req.method() == Method::HEAD {
+                HttpBody::new(futures::stream::empty(), Some(0))
+            } else {
+                HttpBody::new(futures::stream::iter([Ok(Buffer::from("hello"))]), Some(5))
+            };
+
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_LENGTH, "5")
+                .body(body)
+                .expect("response must build"))
+        }
+    }
+
+    #[test]
+    fn build_rejects_invalid_endpoint() {
+        let missing_err =
+            Operator::new(HttpBuilder::default()).expect_err("missing endpoint must fail");
+        assert_eq!(missing_err.kind(), ErrorKind::ConfigInvalid);
+
+        let empty_cfg = HttpConfig {
+            endpoint: Some(String::new()),
+            ..Default::default()
+        };
+        let empty_err =
+            Operator::new(empty_cfg.into_builder()).expect_err("empty endpoint must fail");
+        assert_eq!(empty_err.kind(), ErrorKind::ConfigInvalid);
+
+        let invalid_endpoints = [
+            "example.com",
+            "127.0.0.1",
+            "127.0.0.1:8080",
+            "ftp://example.com",
+            "file:///tmp",
+            "https://",
+            "http:///path",
+            "https://:8080",
+            "https://example.com/bad path",
+            "https://example.com#frag",
+            "https://example.com/prefix#frag",
+            "https://example.com?foo=bar",
+            "https://example.com/prefix?foo=bar",
+        ];
+
+        for endpoint in invalid_endpoints {
+            let err = Operator::new(HttpBuilder::default().endpoint(endpoint))
+                .expect_err(&format!("invalid endpoint `{endpoint}` must be rejected"));
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "endpoint={endpoint}");
+        }
+    }
+
+    #[tokio::test]
+    async fn from_uri_credentials_send_basic_auth_and_disable_presign() -> Result<()> {
+        crate::register_http_service(OperatorRegistry::get());
+
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let op = Operator::from_uri("https://alice:secret@example.com/static")?.with_context(
+            OperationContext::new().with_http_transport(HttpTransporter::new(RecordingTransport {
+                requests: requests.clone(),
+            })),
+        );
+
+        let cap = op.info().capability();
+        assert!(!cap.presign);
+        assert!(!cap.presign_read);
+        assert!(!cap.presign_stat);
+
+        let presign_err = op
+            .presign_read("file.txt", Duration::from_secs(60))
+            .await
+            .expect_err("presign must be rejected when URI carries credentials");
+        assert_eq!(presign_err.kind(), ErrorKind::Unsupported);
+
+        op.stat("file.txt").await?;
+        let data = op.read("file.txt").await?;
+        assert_eq!(data.to_bytes(), b"hello".as_slice());
+
+        let expected_auth = format_authorization_by_basic("alice", "secret")?;
+        let recorded = requests.lock().expect("requests lock must not be poisoned");
+        assert_eq!(recorded.len(), 2);
+        for req in recorded.iter() {
+            assert_eq!(req.uri.to_string(), "https://example.com/static/file.txt");
+            assert_eq!(req.authorization.as_deref(), Some(expected_auth.as_str()));
+        }
+
+        Ok(())
     }
 }

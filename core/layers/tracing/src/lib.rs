@@ -24,6 +24,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
+use std::time::Duration;
 
 use futures::Stream;
 use futures::StreamExt;
@@ -33,6 +34,9 @@ use tracing::Instrument;
 use tracing::Level;
 use tracing::Span;
 use tracing::span;
+
+#[cfg(test)]
+mod tests;
 
 /// `TracingLayer` traces every operation with
 /// [tracing](https://docs.rs/tracing/).
@@ -141,7 +145,7 @@ impl TracingLayer {
 
 impl Layer for TracingLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
+        Arc::new(TracingService { inner })
     }
 
     fn apply_context(&self, _srv: Servicer, inner: OperationContext) -> OperationContext {
@@ -157,19 +161,19 @@ impl Layer for TracingLayer {
     }
 }
 
-impl TracingLayer {
-    fn layer(&self, inner: Servicer) -> TracingService {
-        TracingService { inner }
-    }
-}
-
 struct TracingHttpTransport {
     inner: HttpTransporter,
 }
 
 impl HttpTransport for TracingHttpTransport {
     async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
-        let span = span!(Level::DEBUG, "http::fetch", ?req);
+        let span = span!(
+            Level::DEBUG,
+            "http::fetch",
+            method = %req.method(),
+            uri = %HttpUri::new(req.uri().to_string()).redacted_uri(),
+            version = ?req.version(),
+        );
 
         let resp = self.inner.fetch(req).instrument(span.clone()).await?;
 
@@ -190,8 +194,17 @@ impl Execute for TracingExecutor {
             .execute(Box::pin(f.instrument(Span::current())) as BoxedStaticFuture<()>)
     }
 
+    fn try_execute(&self, f: BoxedStaticFuture<()>) -> Result<()> {
+        self.inner
+            .try_execute(Box::pin(f.instrument(Span::current())))
+    }
+
     fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
         self.inner.timeout()
+    }
+
+    fn sleep(&self, duration: Duration) -> Option<BoxedStaticFuture<()>> {
+        self.inner.sleep(duration)
     }
 }
 
@@ -212,9 +225,8 @@ where
     }
 }
 
-#[doc(hidden)]
 #[derive(Debug)]
-pub struct TracingService {
+struct TracingService {
     inner: Servicer,
 }
 
@@ -223,8 +235,8 @@ impl Service for TracingService {
     type Writer = TracingWrapper<oio::Writer>;
     type Lister = TracingWrapper<oio::Lister>;
     type Deleter = TracingWrapper<oio::Deleter>;
-    type Copier = oio::Copier;
-    type Composer = oio::Composer;
+    type Copier = TracingWrapper<oio::Copier>;
+    type Composer = TracingWrapper<oio::Composer>;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -235,7 +247,9 @@ impl Service for TracingService {
     }
 
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
-        self.inner.compose(ctx, to, args)
+        let span = span!(Level::DEBUG, "compose", to, ?args);
+        span.in_scope(|| self.inner.compose(ctx, to, args))
+            .map(|c| TracingWrapper::new(span, c))
     }
 
     async fn create_dir(
@@ -273,8 +287,8 @@ impl Service for TracingService {
         args: OpCopy,
     ) -> Result<Self::Copier> {
         let span = span!(Level::DEBUG, "copy", from, to, ?args);
-        let _guard = span.enter();
-        self.inner.copy(ctx, from, to, args)
+        span.in_scope(|| self.inner.copy(ctx, from, to, args))
+            .map(|c| TracingWrapper::new(span, c))
     }
 
     async fn rename(
@@ -329,8 +343,7 @@ impl Service for TracingService {
     }
 }
 
-#[doc(hidden)]
-pub struct TracingWrapper<R> {
+struct TracingWrapper<R> {
     span: Span,
     inner: R,
 }
@@ -400,5 +413,39 @@ impl<R: oio::Delete> oio::Delete for TracingWrapper<R> {
 
     async fn close(&mut self) -> Result<()> {
         self.inner.close().instrument(self.span.clone()).await
+    }
+}
+
+impl<C: oio::Copy> oio::Copy for TracingWrapper<C> {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        async { self.inner.next().await }
+            .instrument(self.span.clone())
+            .await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        async { self.inner.close().await }
+            .instrument(self.span.clone())
+            .await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        async { self.inner.abort().await }
+            .instrument(self.span.clone())
+            .await
+    }
+}
+
+impl<C: oio::Compose> oio::Compose for TracingWrapper<C> {
+    async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
+        async { self.inner.compose(path, args).await }
+            .instrument(self.span.clone())
+            .await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        async { self.inner.close().await }
+            .instrument(self.span.clone())
+            .await
     }
 }

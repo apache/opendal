@@ -1,10 +1,209 @@
 # Unreleased
 
+## Path normalization
+
+Operation paths preserve leading and trailing whitespace, including paths made
+entirely of whitespace. If your application previously relied on OpenDAL to
+trim user input, call `trim()` before passing the input to OpenDAL.
+
+Operation paths and service roots remove components equal to `.`. For example,
+`./data/./file` addresses `data/file`. Operation paths still use a trailing `/`
+to mark directories.
+
+## Per-write expiration
+
+`WriteOptions` and `Capability` now have `expires` and `write_with_expires`
+fields, respectively. For exhaustive struct literals, add `expires: None` or
+`write_with_expires: false` to preserve the previous behavior, or use
+`..Default::default()` to pick up the new defaults.
+
+## `ReadOptions` gains `limit`
+
+Use `..Default::default()` in `ReadOptions` struct literals, or set
+`limit: None` to keep requiring the complete length of a bounded range.
+Set `limit: Some(n)` to read up to the first `n` bytes of the selected range
+and accept EOF after a valid starting byte.
+
+## Automatic capability simulation
+
+The `auto-simulate` feature in `opendal` and `opendal-core` now controls
+whether `Operator::new` installs `SimulateLayer` automatically. The feature
+is enabled by default. If you previously disabled default features and rely
+on automatic simulation, add `auto-simulate` to your dependency features.
+To apply simulation to individual operators, see the runnable
+[`SimulateLayer` example][crate::layers::SimulateLayer#examples].
+
+## WebDAV recursive listing
+
+WebDAV now sends `Depth: infinity` for recursive listings by default. The
+reported nginx and ownCloud configurations reject that depth with HTTP 403
+and 412, respectively. Jianguoyun has been reported to return only one level.
+
+Set `disable_depth_infinity = true` in the affected endpoint's WebDAV
+configuration. With the default `auto-simulate` feature, OpenDAL walks the
+directory tree using `Depth: 1` requests for recursive listing and deletion.
+If `auto-simulate` is disabled, add `SimulateLayer::default()` to the Rust
+operator to enable the walk.
+
+## Glob listing
+
+`ListOptions` and `Capability` now have `glob` and `list_with_glob` fields,
+respectively. For exhaustive struct literals, add `glob: None` or
+`list_with_glob: false`, or use `..Default::default()`.
+
+## Shared semaphores for `ConcurrentLimitLayer`
+
+`ConcurrentLimitLayer` now uses asyncband 0.8. If you pass an `Arc<asyncband::semaphore::Semaphore>` to `with_semaphore` or `with_http_semaphore`, update your direct asyncband dependency to `0.8` and enable its `semaphore` feature. Semaphores from asyncband 0.7 no longer implement this version's `ConcurrentLimitSemaphore` trait.
+
+## Moka and MiniMoka configuration durations
+
+`MokaConfig` and `MiniMokaConfig` now use `Option<jiff::SignedDuration>` for
+`time_to_live` and `time_to_idle`, instead of `Option<String>`. Set these fields
+with `SignedDuration::from_secs(5)` or parse a duration string. The builder
+setters still accept `std::time::Duration`, and string/map configuration still
+accepts duration strings such as `"5s"`.
+
+## `jiff` upgraded to 1.0
+
+OpenDAL now uses `jiff` 1.0. `opendal::raw` re-exports `jiff::SignedDuration`,
+and `opendal::raw::Timestamp` exposes its inner `jiff::Timestamp` through
+`into_inner()` and `From` conversions. If your code uses these types directly,
+upgrade your direct `jiff` dependency to `1.0`. jiff 1.0 requires Rust 1.85,
+which is below OpenDAL's minimum supported Rust version.
+
+`SystemTime::from(opendal::raw::Timestamp)` keeps its signature, but it can
+still panic when the target's `SystemTime` cannot represent the timestamp,
+matching the previous jiff 0.2 conversion. For example, wasm cannot represent
+timestamps before the Unix epoch. Convert a `jiff::Timestamp` directly with
+`SystemTime::try_from(timestamp)` and handle the error.
+
+## Tokio executor moved to `opendal-executor-tokio`
+
+If you depend directly on `opendal-core`, remove its `executors-tokio` feature
+and import `opendal_executor_tokio::TokioExecutor` from the new crate. Use
+`Executor::install_default(TokioExecutor::default())` before concurrent
+operations, or pass `Executor::with(TokioExecutor::default())` to your
+operator's `OperationContext`.
+
+The `opendal` facade still exposes `opendal::executors::TokioExecutor` with the
+`executors-tokio` feature. If you disable `auto-register-services` or your linker
+omits the process constructor, call `opendal::install_default()` to install
+Tokio and the other enabled defaults, or configure the executor explicitly.
+
+## `PrometheusClientLayer` uses `prometheus-client` 0.26
+
+`opendal-layer-prometheus-client` upgraded its `prometheus-client` dependency
+from 0.25 to 0.26. Callers that pass a `&mut prometheus_client::registry::Registry`
+to `PrometheusClientLayerBuilder::register` must update their direct
+`prometheus-client` dependency to 0.26; a 0.25 `Registry` no longer satisfies
+the signature.
+
+## `OtelMetricsLayer` and `OtelTraceLayer` use OpenTelemetry 0.33
+
+The `opendal-layer-otelmetrics` and `opendal-layer-oteltrace` crates now use
+`opentelemetry` 0.33, and the `opendal-layer-tracing` examples use
+`tracing-opentelemetry` 0.34. Update your direct `opentelemetry` crates to 0.33
+when you pass a `Meter` to `OtelMetricsLayerBuilder::register` or install the
+global OpenTelemetry tracer and meter providers used by these layers. A `Meter`
+from `opentelemetry` 0.32 no longer satisfies the signature.
+
 ## Raw API
+
+### Path helper names
+
+Use `build_absolute_path`, `build_rooted_absolute_path`, and
+`build_relative_path` in place of `build_abs_path`, `build_rooted_abs_path`,
+and `build_rel_path`, respectively. The old names are deprecated aliases.
+
+### Open range streams that can end at EOF
+
+`oio::Read::open` accepts EOF after a valid starting byte in a bounded
+forward range. `BytesRange::to_content_range` now clamps such a range to the
+available bytes. Keep using `oio::Read::read` for an exact bounded range.
 
 ### Submit tasks through `ConcurrentTasks::execute`
 
 `raw::ConcurrentTasks::create_task` has been removed. Submit inputs with `execute()` and collect outputs in submission order with `next()`. These methods keep task ownership, completion accounting, and retry handling inside the queue. If code needs input data after successful completion, include that data in the factory's output type.
+
+### `raw::oio::FlatLister` removed
+
+`raw::oio::FlatLister` has been removed. Recursive listing simulation for services without native recursive listing is provided by [`SimulateLayer`][crate::layers::SimulateLayer] (enabled automatically with the default `auto-simulate` feature). Use `SimulateLayer` instead of constructing `oio::FlatLister` directly.
+
+### Explicit executor and capability in `oio::MultipartCopier::new`
+
+`raw::oio::IntoMultipartCopyContext` has been removed, and
+`raw::oio::MultipartCopier::new` now takes `executor: Executor` and
+`capability: Capability` as explicit parameters instead of a single
+`impl IntoMultipartCopyContext` argument. Pass `executor` and `capability`
+separately when constructing a `MultipartCopier`.
+
+## Services
+
+### Redb requires `redb` 5
+
+`RedbBuilder::database` takes an `Arc<redb::Database>`, so the `redb` version OpenDAL builds
+with appears in your dependency graph. `opendal` now depends on `redb` 5. Upgrade your own
+`redb` dependency to `5.x` when you pass an externally created database to the builder.
+
+`redb` 5 changed the file locking protocol. Open the same database file with matching `redb` 5.x
+versions in every process, because `redb` 5 does not reliably detect a `redb` 4.2 or earlier
+process that keeps the file open.
+
+Existing databases need no data migration. `redb` 5 changed the encoding of `Option<&str>`,
+`Option<String>`, `Option<bool>`, and `Option<char>` only, and the Redb service stores entries
+in a `TableDefinition<&str, &[u8]>` table.
+
+## Zig binding
+
+`Operator.read()` returns `Bytes`. Use `slice()` to borrow the data and defer
+`deinit()` to release the allocation. The scheme passed to `Operator.init()`
+and paths passed to operator methods, including both paths for `copy()` and
+`rename()`, now use `[:0]const u8`. String literals still work directly.
+
+```diff
+-fn printObject(op: *const opendal.Operator, path: []const u8) !void {
+-    const data = try op.read(path);
+-    std.debug.print("{s}\n", .{data});
++fn printObject(op: *const opendal.Operator, path: [:0]const u8) !void {
++    var data = try op.read(path);
++    defer data.deinit();
++    std.debug.print("{s}\n", .{data.slice()});
+ }
+```
+
+Use `std.fmt.allocPrintZ` in place of `std.fmt.allocPrint` to format a path at
+runtime. Use `allocator.dupeZ(u8, input)` for an existing slice, such as a
+scheme or path from application configuration. Free the allocated string with
+the same allocator.
+
+```diff
+-const path = try std.fmt.allocPrint(allocator, "/object-{d}.txt", .{id});
++const path = try std.fmt.allocPrintZ(allocator, "/object-{d}.txt", .{id});
+ defer allocator.free(path);
+ try printObject(op, path);
+```
+
+`Entry.path()` and `Entry.name()` return `OwnedString`. The same ownership
+rules apply to `OperatorInfo.scheme()`, `root()`, and `name()`, and to values
+returned by the optional metadata getters `contentType()` and `etag()`. Keep
+each result in a single owner and use its slice before calling `deinit()`.
+`OwnedString.slice()` preserves the NUL sentinel, so an entry path can be
+passed directly to another operator method while the owner is alive.
+
+```diff
+-const path = entry.path();
+-const name = entry.name();
+-std.debug.print("{s}: {s}\n", .{ path, name });
++var path = entry.path();
++defer path.deinit();
++var name = entry.name();
++defer name.deinit();
++std.debug.print("{s}: {s}\n", .{ path.slice(), name.slice() });
+```
+
+`lastModified()` returns an `i64` timestamp in milliseconds since the Unix
+epoch, or `-1` when absent. Update exhaustive switches for `Code.CANCELLED`
+and `error.Cancelled` in `OpendalError`.
 
 # Upgrade to v0.59
 

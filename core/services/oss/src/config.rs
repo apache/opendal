@@ -65,6 +65,15 @@ pub struct OssConfig {
     pub allow_anonymous: bool,
 
     // authenticate options
+    /// Disable loading credentials from ambient sources.
+    ///
+    /// This removes the environment provider and the OSS profile, Alibaba
+    /// Cloud shared credentials, Alibaba Cloud CLI config, and
+    /// `ALIBABA_CLOUD_CREDENTIALS_URI` sources. Explicit access keys, OIDC
+    /// options that are all set on the builder, and the `role_arn` AssumeRole
+    /// flow remain enabled, and ECS instance RAM role credentials keep loading
+    /// from instance metadata.
+    pub disable_config_load: bool,
     /// Access key id for oss.
     ///
     /// - this field if it's `is_some`
@@ -148,7 +157,10 @@ impl opendal_core::Configurator for OssConfig {
     }
 
     fn into_builder(self) -> Self::Builder {
-        OssBuilder { config: self }
+        OssBuilder {
+            config: self,
+            credential_providers: None,
+        }
     }
 }
 

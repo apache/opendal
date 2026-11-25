@@ -19,25 +19,22 @@ name: Bindings D CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "*"
-    paths: &paths
-      - "core/**"
+  pull_request:
+    branches:
+      - main
+    paths:
       - "bindings/c/**"
       - "bindings/d/**"
       - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_d.yml"
-  pull_request:
-    branches:
-      - main
-    paths: *paths
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-d-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -52,7 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: dlang-community/setup-dlang@v2
+      - uses: dlang-community/setup-dlang@5d239e99bc553874d9362e7e6aeeac9454b6789f # v2
         with:
           compiler: ${{ matrix.dlang }}
 

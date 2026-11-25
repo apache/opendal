@@ -145,17 +145,21 @@ impl Service for RocksdbBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             let bs = self.core.get(&p)?;
             match bs {
-                Some(bs) => Ok(RpStat::new({
-                    let metadata = MetadataBuilder::file(bs.len() as u64);
-                    metadata.build()
-                })),
+                Some(bs) => {
+                    let metadata = if p.ends_with('/') {
+                        MetadataBuilder::dir()
+                    } else {
+                        MetadataBuilder::file(bs.len() as u64)
+                    };
+                    Ok(RpStat::new(metadata.build()))
+                }
                 None => Err(Error::new(ErrorKind::NotFound, "kv not found in rocksdb")),
             }
         }
@@ -174,7 +178,7 @@ impl Service for RocksdbBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         let output: RocksdbWriter = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             let writer = RocksdbWriter::new(self.core.clone(), p);
             Ok(writer)
         }?;
@@ -193,7 +197,7 @@ impl Service for RocksdbBackend {
 
     fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let output: oio::HierarchyLister<RocksdbLister> = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             let lister = RocksdbLister::new(self.core.clone(), self.root.clone(), p)?;
             Ok(oio::HierarchyLister::new(lister, path, args.recursive()))
         }?;
@@ -237,5 +241,136 @@ impl Service for RocksdbBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::*;
+    use opendal_core::raw::oio::Write as _;
+
+    struct TempDir(PathBuf);
+
+    impl TempDir {
+        fn new(prefix: &str) -> Self {
+            static COUNTER: AtomicUsize = AtomicUsize::new(0);
+            let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "opendal-rocksdb-{prefix}-{}-{id}",
+                std::process::id()
+            ));
+            let _ = std::fs::remove_dir_all(&path);
+            Self(path)
+        }
+
+        fn path_str(&self) -> &str {
+            self.0
+                .to_str()
+                .expect("temp dir path should be valid utf-8")
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_create_dir_root_and_list() -> Result<()> {
+        for root in ["/", "/sub/"] {
+            let dir = TempDir::new("create-dir-root");
+            let builder = RocksdbBuilder::default().datadir(dir.path_str());
+            let builder = if root == "/" {
+                builder
+            } else {
+                builder.root(root)
+            };
+            let op = Operator::new(builder)?.layer(layers::SimulateLayer::default());
+
+            op.create_dir("/").await?;
+
+            for entries in [
+                op.list("/").await?,
+                op.list_with("/").recursive(true).await?,
+            ] {
+                let actual: Vec<_> = entries
+                    .iter()
+                    .map(|e| (e.path(), e.metadata().mode()))
+                    .collect();
+                assert_eq!(actual, vec![("/", EntryMode::DIR)], "root {root}");
+            }
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_root_stat() -> Result<()> {
+        let ctx = OperationContext::default();
+        for root in ["/", "/sub/"] {
+            let dir = TempDir::new("root-stat");
+            let builder = RocksdbBuilder::default().datadir(dir.path_str());
+            let builder = if root == "/" {
+                builder
+            } else {
+                builder.root(root)
+            };
+            let service = builder.build()?;
+
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR,
+                "root {root}"
+            );
+
+            let mut writer = service.write(&ctx, "/", OpWrite::default())?;
+            writer.close().await?;
+
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR,
+                "root {root}"
+            );
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dir_marker_stat_metadata() -> Result<()> {
+        for root in ["/", "/sub/"] {
+            let dir = TempDir::new("dir-marker-stat");
+            let builder = RocksdbBuilder::default().datadir(dir.path_str());
+            let builder = if root == "/" {
+                builder
+            } else {
+                builder.root(root)
+            };
+            let srv: Servicer = Arc::new(builder.build()?);
+            let op = Operator::from_parts(OperationContext::default(), srv)
+                .layer(layers::SimulateLayer::default().with_stat_dir(false));
+
+            op.create_dir("a/").await?;
+            assert_eq!(op.stat("a/").await?.mode(), EntryMode::DIR, "root {root}");
+
+            op.write("a/file.txt", "hello").await?;
+            let meta = op.stat("a/file.txt").await?;
+            assert_eq!(meta.mode(), EntryMode::FILE, "root {root}");
+            assert_eq!(meta.content_length(), 5, "root {root}");
+
+            let err = op.stat("missing/").await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::NotFound, "root {root}");
+        }
+        Ok(())
     }
 }

@@ -20,6 +20,8 @@ use std::fmt::Debug;
 use asyncband::once::OnceCell;
 use futures::AsyncReadExt;
 use futures::AsyncWriteExt;
+use futures::TryStreamExt;
+use mongodb::bson::Bson;
 use mongodb::bson::doc;
 use mongodb::gridfs::{FilesCollectionDocument, GridFsBucket};
 use mongodb::options::ClientOptions;
@@ -72,49 +74,90 @@ impl GridfsCore {
         path: &str,
     ) -> Result<Option<FilesCollectionDocument>> {
         let filter = doc! { "filename": path };
-        let doc = bucket.find_one(filter).await.map_err(parse_mongodb_error)?;
+        let doc = bucket
+            .find_one(filter)
+            .sort(doc! { "uploadDate": -1, "_id": -1 })
+            .await
+            .map_err(parse_mongodb_error)?;
         Ok(doc)
+    }
+
+    async fn delete_doc_by_id(bucket: &GridFsBucket, file_id: Bson) -> Result<()> {
+        match bucket.delete(file_id).await {
+            Ok(()) => Ok(()),
+            Err(err) if is_gridfs_file_not_found(&err) => Ok(()),
+            Err(err) => Err(parse_mongodb_error(err)),
+        }
+    }
+
+    async fn delete_superseded_docs(bucket: &GridFsBucket, path: &str) -> Result<()> {
+        let mut cursor = bucket
+            .find(doc! { "filename": path })
+            .sort(doc! { "uploadDate": -1, "_id": -1 })
+            .await
+            .map_err(parse_mongodb_error)?;
+
+        // Keep the newest revision under `(uploadDate, _id)` so concurrent writers
+        // cannot delete each other's latest revision.
+        cursor.try_next().await.map_err(parse_mongodb_error)?;
+        while let Some(doc) = cursor.try_next().await.map_err(parse_mongodb_error)? {
+            Self::delete_doc_by_id(bucket, doc.id).await?;
+        }
+
+        Ok(())
     }
 
     pub async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let bucket = self.get_bucket().await?;
-        let Some(doc) = Self::get_one_doc(bucket, path).await? else {
-            return Ok(None);
-        };
+        for _ in 0..2 {
+            let Some(doc) = Self::get_one_doc(bucket, path).await? else {
+                return Ok(None);
+            };
 
-        let mut destination = Vec::new();
-        let file_id = doc.id;
-        let mut stream = bucket
-            .open_download_stream(file_id)
-            .await
-            .map_err(parse_mongodb_error)?;
-        stream
-            .read_to_end(&mut destination)
-            .await
-            .map_err(new_std_io_error)?;
-        Ok(Some(Buffer::from(destination)))
+            let file_id = doc.id;
+            let mut stream = match bucket.open_download_stream(file_id.clone()).await {
+                Ok(stream) => stream,
+                Err(err) if is_gridfs_file_not_found(&err) => continue,
+                Err(err) => return Err(parse_mongodb_error(err)),
+            };
+            let mut destination = Vec::new();
+            match stream.read_to_end(&mut destination).await {
+                Ok(_) => return Ok(Some(Buffer::from(destination))),
+                Err(err) => {
+                    // GridFS deletes the file document before its chunks. Missing chunks
+                    // indicate a race only if the selected file document is gone too.
+                    if is_gridfs_missing_chunk(&err)
+                        && bucket
+                            .find_one(doc! { "_id": &file_id })
+                            .await
+                            .map_err(parse_mongodb_error)?
+                            .is_none()
+                    {
+                        continue;
+                    }
+                    return Err(new_std_io_error(err));
+                }
+            }
+        }
+
+        Ok(None)
     }
 
     /// Get the byte length of the file.
-    pub async fn get_length(&self, path: &str) -> Result<Option<usize>> {
+    pub async fn get_length(&self, path: &str) -> Result<Option<u64>> {
         let bucket = self.get_bucket().await?;
         let Some(doc) = Self::get_one_doc(bucket, path).await? else {
             return Ok(None);
         };
 
-        Ok(Some(doc.length as usize))
+        Ok(Some(doc.length))
     }
 
     pub async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let bucket = self.get_bucket().await?;
 
-        // delete old file if exists
-        if let Some(doc) = Self::get_one_doc(bucket, path).await? {
-            let file_id = doc.id;
-            bucket.delete(file_id).await.map_err(parse_mongodb_error)?;
-        };
-
-        // set new file
+        // Upload the new revision before cleaning up older revisions so a failed
+        // upload does not lose the previous version.
         let mut upload_stream = bucket
             .open_upload_stream(path)
             .await
@@ -125,19 +168,43 @@ impl GridfsCore {
             .map_err(new_std_io_error)?;
         upload_stream.close().await.map_err(new_std_io_error)?;
 
+        Self::delete_superseded_docs(bucket, path).await?;
+
         Ok(())
     }
 
     pub async fn delete(&self, path: &str) -> Result<()> {
         let bucket = self.get_bucket().await?;
-        let Some(doc) = Self::get_one_doc(bucket, path).await? else {
-            return Ok(());
-        };
+        let mut cursor = bucket
+            .find(doc! { "filename": path })
+            .await
+            .map_err(parse_mongodb_error)?;
 
-        let file_id = doc.id;
-        bucket.delete(file_id).await.map_err(parse_mongodb_error)?;
+        while let Some(doc) = cursor.try_next().await.map_err(parse_mongodb_error)? {
+            Self::delete_doc_by_id(bucket, doc.id).await?;
+        }
+
         Ok(())
     }
+}
+
+fn is_gridfs_file_not_found(err: &mongodb::error::Error) -> bool {
+    matches!(
+        err.kind.as_ref(),
+        mongodb::error::ErrorKind::GridFs(mongodb::error::GridFsErrorKind::FileNotFound { .. })
+    )
+}
+
+fn is_gridfs_missing_chunk(err: &std::io::Error) -> bool {
+    let mongo_error = err
+        .get_ref()
+        .and_then(|inner| inner.downcast_ref::<mongodb::error::Error>());
+    matches!(
+        mongo_error.map(|err| err.kind.as_ref()),
+        Some(mongodb::error::ErrorKind::GridFs(
+            mongodb::error::GridFsErrorKind::MissingChunk { .. }
+        ))
+    )
 }
 
 fn parse_mongodb_error(err: mongodb::error::Error) -> Error {

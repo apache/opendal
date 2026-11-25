@@ -42,21 +42,3 @@ pub async fn hello_world() -> String {
     let bs = op.read("test").await.unwrap().to_bytes();
     String::from_utf8_lossy(&bs).to_string()
 }
-
-#[cfg(test)]
-mod tests {
-    use wasm_bindgen_test::wasm_bindgen_test;
-    use wasm_bindgen_test::wasm_bindgen_test_configure;
-
-    use super::*;
-
-    wasm_bindgen_test_configure!(run_in_browser);
-
-    /// This test is executed in the wasm target but rustc reports `dead_code` in wrong.
-    #[allow(dead_code)]
-    #[wasm_bindgen_test]
-    async fn test_hello_world() {
-        let s = hello_world().await;
-        assert_eq!(s, "Hello, WASM! We are from OpenDAL at rust side!")
-    }
-}

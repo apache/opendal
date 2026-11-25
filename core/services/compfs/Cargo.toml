@@ -25,14 +25,14 @@ edition = { workspace = true }
 homepage = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
-rust-version = { workspace = true }
+rust-version = "1.95"
 version = { workspace = true }
 
 [package.metadata.docs.rs]
 all-features = true
 
 [dependencies]
-compio = { version = "0.19.0", features = [
+compio = { workspace = true, features = [
   "bytes",
   "dispatcher",
   "fs",
@@ -44,7 +44,11 @@ compio = { version = "0.19.0", features = [
 opendal-core = { path = "../../core", version = "0.59.5", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "1", features = ["fs"] }
+
 [dev-dependencies]
 bytes = { workspace = true }
 rand = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tempfile = "3"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

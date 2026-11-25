@@ -24,6 +24,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 
@@ -39,24 +40,26 @@ func main() {
 	}
 	defer op.Close() // Always close the operator to release resources.
 
+	ctx := context.Background()
+
 	// The same verbs work on every service.
-	if _, err := op.Write("hello.txt", []byte("Hello, World!")); err != nil {
+	if _, err := op.Write(ctx, "hello.txt", []byte("Hello, World!")); err != nil {
 		log.Fatal(err)
 	}
 
-	data, err := op.Read("hello.txt")
+	data, err := op.Read(ctx, "hello.txt")
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("read %d bytes: %s\n", len(data), data)
 
-	meta, err := op.Stat("hello.txt")
+	meta, err := op.Stat(ctx, "hello.txt")
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("size = %d bytes\n", meta.ContentLength())
 
-	if err := op.Delete("hello.txt"); err != nil {
+	if err := op.Delete(ctx, "hello.txt"); err != nil {
 		log.Fatal(err)
 	}
 }

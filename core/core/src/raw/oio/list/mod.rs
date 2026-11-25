@@ -25,9 +25,6 @@ pub use page_list::PageContext;
 pub use page_list::PageList;
 pub use page_list::PageLister;
 
-mod flat_list;
-pub use flat_list::FlatLister;
-
 mod hierarchy_list;
 pub use hierarchy_list::HierarchyLister;
 

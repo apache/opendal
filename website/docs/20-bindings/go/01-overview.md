@@ -10,7 +10,7 @@ description: The OpenDAL Go binding — install it, see what it supports, and wh
 A native Go binding for OpenDAL: access S3, GCS, Azure Blob, the local
 filesystem, and [many more services](/services) through one API, with the
 performance of the Rust core underneath. It is built on `opendal-c` via
-[purego](https://github.com/ebitengine/purego) and libffi, so **no CGO** is
+[purego](https://github.com/ebitengine/purego), so **no CGO** or `libffi` is
 required.
 
 New to the model behind the API? Read [Concepts](../../03-concepts.mdx) first —
@@ -19,7 +19,8 @@ expresses through its own native API.
 
 :::note
 This binding has its own version number, independent of the Rust core. Check
-compatibility against the binding's version, not the core's.
+compatibility against the binding's version, not the core's, and pair it with
+`opendal-go-services` packages built for the same `opendal-c` ABI.
 :::
 
 ## Status
@@ -31,7 +32,9 @@ Released and usable, published to
 
 - **Synchronous API** — every operation is a blocking method that returns a Go
   `error`; there is no async variant.
-- **Streaming** reads and writes through `io.ReadSeekCloser` and `io.WriteCloser`.
+- **Streaming** reads through `io.ReadSeekCloser` and `io.WriterTo`, and writes
+  through `io.Writer` and `io.ReaderFrom` (`Writer.Close(ctx)` returns object
+  metadata).
 - **Per-scheme packages** — each service is a small companion module under
   `github.com/apache/opendal-go-services/<scheme>` that you import alongside the
   binding.
@@ -39,8 +42,6 @@ Released and usable, published to
   `*net/http.Request`.
 
 ## Installation
-
-The binding requires **libffi** to be installed on your system.
 
 ```shell
 go get github.com/apache/opendal/bindings/go@latest
@@ -57,6 +58,7 @@ go get github.com/apache/opendal-go-services/memory
 
 - **API reference**: [pkg.go.dev](https://pkg.go.dev/github.com/apache/opendal/bindings/go)
 - **Services & configuration**: [/services](/services)
+- **Upgrade guide**: [`upgrade.md`](https://github.com/apache/opendal/blob/main/bindings/go/upgrade.md)
 - **Source & examples**: [`bindings/go/`](https://github.com/apache/opendal/tree/main/bindings/go)
 - **Scheme packages**: [`opendal-go-services`](https://github.com/apache/opendal-go-services)
 

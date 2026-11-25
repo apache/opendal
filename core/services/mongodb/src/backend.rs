@@ -111,12 +111,28 @@ impl MongodbBuilder {
     }
 }
 
+fn validate_field_path(name: &str, value: &str) -> Result<()> {
+    if value.is_empty()
+        || value.contains('\0')
+        || value
+            .split('.')
+            .any(|segment| segment.is_empty() || segment.starts_with('$'))
+    {
+        return Err(
+            Error::new(ErrorKind::ConfigInvalid, format!("{name} is invalid"))
+                .with_context("service", MONGODB_SCHEME)
+                .with_context("field", name),
+        );
+    }
+    Ok(())
+}
+
 impl Builder for MongodbBuilder {
     type Config = MongodbConfig;
 
     fn build(self) -> Result<impl Service> {
-        let conn = match &self.config.connection_string.clone() {
-            Some(v) => v.clone(),
+        let connection_string = match self.config.connection_string {
+            Some(v) => v,
             None => {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "connection_string is required")
@@ -124,15 +140,15 @@ impl Builder for MongodbBuilder {
                 );
             }
         };
-        let database = match &self.config.database.clone() {
-            Some(v) => v.clone(),
+        let database = match self.config.database {
+            Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "database is required")
                     .with_context("service", MONGODB_SCHEME));
             }
         };
-        let collection = match &self.config.collection.clone() {
-            Some(v) => v.clone(),
+        let collection = match self.config.collection {
+            Some(v) => v,
             None => {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "collection is required")
@@ -140,14 +156,13 @@ impl Builder for MongodbBuilder {
                 );
             }
         };
-        let key_field = match &self.config.key_field.clone() {
-            Some(v) => v.clone(),
-            None => "key".to_string(),
-        };
-        let value_field = match &self.config.value_field.clone() {
-            Some(v) => v.clone(),
-            None => "value".to_string(),
-        };
+        let key_field = self.config.key_field.unwrap_or_else(|| "key".to_string());
+        validate_field_path("key_field", &key_field)?;
+        let value_field = self
+            .config
+            .value_field
+            .unwrap_or_else(|| "value".to_string());
+        validate_field_path("value_field", &value_field)?;
         let root = normalize_root(
             self.config
                 .root
@@ -156,7 +171,7 @@ impl Builder for MongodbBuilder {
                 .as_str(),
         );
         Ok(MongodbBackend::new(MongodbCore {
-            connection_string: conn,
+            connection_string,
             database,
             collection,
             collection_instance: OnceCell::new(),
@@ -237,9 +252,9 @@ impl Service for MongodbBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.get_length(&p).await? {
@@ -265,7 +280,7 @@ impl Service for MongodbBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         let output: MongodbWriter = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             Ok(MongodbWriter::new(self.core.clone(), p))
         }?;
 
@@ -326,5 +341,65 @@ impl Service for MongodbBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn valid_config() -> MongodbConfig {
+        MongodbConfig {
+            connection_string: Some("mongodb://127.0.0.1:27017".to_string()),
+            database: Some("demo".to_string()),
+            collection: Some("demo".to_string()),
+            root: None,
+            key_field: None,
+            value_field: None,
+        }
+    }
+
+    #[test]
+    fn build_rejects_invalid_field_paths() {
+        for invalid in [
+            "",
+            ".",
+            ".a",
+            "a.",
+            "a..b",
+            "$val",
+            "$ROOT",
+            "payload.$data",
+            "a\0b",
+        ] {
+            let mut cfg = valid_config();
+            cfg.key_field = Some(invalid.to_string());
+            assert_eq!(
+                cfg.into_builder().build().err().unwrap().kind(),
+                ErrorKind::ConfigInvalid,
+                "expected key_field {invalid:?} to fail validation"
+            );
+
+            let mut cfg = valid_config();
+            cfg.value_field = Some(invalid.to_string());
+            assert_eq!(
+                cfg.into_builder().build().err().unwrap().kind(),
+                ErrorKind::ConfigInvalid,
+                "expected value_field {invalid:?} to fail validation"
+            );
+        }
+    }
+
+    #[test]
+    fn build_accepts_flat_and_nested_fields() {
+        let mut cfg = valid_config();
+        cfg.key_field = Some("_id".to_string());
+        cfg.value_field = Some("payload.data".to_string());
+        assert!(cfg.into_builder().build().is_ok());
+
+        let mut cfg = valid_config();
+        cfg.key_field = Some("meta.key".to_string());
+        cfg.value_field = Some("a.b.c".to_string());
+        assert!(cfg.into_builder().build().is_ok());
     }
 }

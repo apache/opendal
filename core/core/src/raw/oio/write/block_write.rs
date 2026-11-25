@@ -107,9 +107,13 @@ pub struct BlockWriter<W: BlockWrite> {
     w: Arc<W>,
     executor: Executor,
 
-    started: bool,
-    block_ids: Vec<Uuid>,
+    /// Block IDs scheduled for upload, in submission order.
+    ///
+    /// The IDs remain here until `abort_block` succeeds, so a failed abort can
+    /// be retried with the complete list.
+    scheduled_block_ids: Vec<Uuid>,
     cache: Option<Buffer>,
+    abort_pending: bool,
     tasks: ConcurrentTasks<WriteInput<W>, Uuid>,
 }
 
@@ -121,9 +125,9 @@ impl<W: BlockWrite> BlockWriter<W> {
         Self {
             w: Arc::new(inner),
             executor: executor.clone(),
-            started: false,
-            block_ids: Vec::new(),
+            scheduled_block_ids: Vec::new(),
             cache: None,
+            abort_pending: false,
 
             tasks: ConcurrentTasks::new(executor, concurrent, 0, |input| {
                 Box::pin(async move {
@@ -173,30 +177,42 @@ where
     W: BlockWrite,
 {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        if !self.started && self.cache.is_none() {
-            self.fill_cache(bs);
-            return Ok(());
-        }
-
-        // The block upload process has been started.
-        self.started = true;
-
-        let bytes = self.cache.clone().expect("pending write must exist");
+        let Some(bytes) = self.cache.clone() else {
+            if self.scheduled_block_ids.is_empty() {
+                self.fill_cache(bs);
+                return Ok(());
+            }
+            // The final block was scheduled or abort discarded the tail.
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "block writer cannot accept more data while closing or aborting",
+            ));
+        };
+        let block_id = Uuid::new_v4();
         self.tasks
             .execute(WriteInput {
                 w: self.w.clone(),
                 executor: self.executor.clone(),
-                block_id: Uuid::new_v4(),
+                block_id,
                 bytes,
             })
             .await?;
+        // Record the block only after the task was accepted, so an attempt that
+        // never started cannot leak into the ordered completion list.
+        self.scheduled_block_ids.push(block_id);
         self.cache = None;
         self.fill_cache(bs);
         Ok(())
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        if !self.started {
+        if self.abort_pending {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "block writer cannot close while cleanup is pending",
+            ));
+        }
+        if self.scheduled_block_ids.is_empty() {
             let (size, body) = match self.cache.clone() {
                 Some(cache) => (cache.len(), cache),
                 None => (0, Buffer::new()),
@@ -208,36 +224,38 @@ where
         }
 
         if let Some(cache) = self.cache.clone() {
+            let block_id = Uuid::new_v4();
             self.tasks
                 .execute(WriteInput {
                     w: self.w.clone(),
                     executor: self.executor.clone(),
-                    block_id: Uuid::new_v4(),
+                    block_id,
                     bytes: cache,
                 })
                 .await?;
+            self.scheduled_block_ids.push(block_id);
             self.cache = None;
         }
 
-        loop {
-            let Some(result) = self.tasks.next().await.transpose()? else {
-                break;
-            };
-            self.block_ids.push(result);
-        }
+        while self.tasks.next().await.transpose()?.is_some() {}
 
-        let block_ids = self.block_ids.clone();
+        let block_ids = self.scheduled_block_ids.clone();
         self.w.complete_block(block_ids).await
     }
 
     async fn abort(&mut self) -> Result<()> {
-        if !self.started {
+        if self.scheduled_block_ids.is_empty() {
             return Ok(());
         }
 
         self.tasks.clear();
         self.cache = None;
-        self.w.abort_block(self.block_ids.clone()).await?;
+
+        // Keep the IDs until the abort succeeds so a temporary failure can be retried.
+        self.abort_pending = true;
+        self.w.abort_block(self.scheduled_block_ids.clone()).await?;
+        self.scheduled_block_ids.clear();
+        self.abort_pending = false;
         Ok(())
     }
 }
@@ -326,7 +344,7 @@ mod tests {
     async fn test_block_writer_with_concurrent_errors() {
         let mut rng = rng();
 
-        let mut w = BlockWriter::new(Executor::default(), TestWrite::new(), 8);
+        let mut w = BlockWriter::new(crate::test_executor(), TestWrite::new(), 8);
         let mut total_size = 0u64;
         let mut expected_content = Vec::new();
 
@@ -370,7 +388,7 @@ mod tests {
         let mut rng = rng();
 
         for _ in 1..100 {
-            let mut w = BlockWriter::new(Executor::default(), TestWrite::new(), 8);
+            let mut w = BlockWriter::new(crate::test_executor(), TestWrite::new(), 8);
 
             let size = rng.random_range(1..1024);
             let mut bs = vec![0; size];
@@ -399,5 +417,257 @@ mod tests {
                 "content must be the same"
             );
         }
+    }
+
+    #[derive(Default)]
+    struct RecordingState {
+        written: Vec<Uuid>,
+        aborted: Vec<Uuid>,
+        abort_calls: Vec<Vec<Uuid>>,
+        abort_failures: usize,
+        complete_calls: Vec<Vec<Uuid>>,
+        fail_first_complete: bool,
+        fail_write_on: Option<&'static [u8]>,
+    }
+
+    struct RecordingWrite {
+        state: Arc<Mutex<RecordingState>>,
+    }
+
+    impl RecordingWrite {
+        fn new() -> (Self, Arc<Mutex<RecordingState>>) {
+            let state = Arc::new(Mutex::new(RecordingState::default()));
+            (
+                Self {
+                    state: state.clone(),
+                },
+                state,
+            )
+        }
+    }
+
+    impl BlockWrite for RecordingWrite {
+        async fn write_once(&self, _: u64, _: Buffer) -> Result<Metadata> {
+            Ok(MetadataBuilder::unknown().build())
+        }
+
+        async fn write_block(&self, block_id: Uuid, _: u64, body: Buffer) -> Result<()> {
+            let fail = {
+                let mut state = self.state.lock().expect("test state mutex poisoned");
+                state.written.push(block_id);
+                state.fail_write_on == Some(body.to_bytes().as_ref())
+            };
+            if fail {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "injected write block failure",
+                ));
+            }
+
+            Ok(())
+        }
+
+        async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<Metadata> {
+            let mut state = self.state.lock().expect("test state mutex poisoned");
+            state.complete_calls.push(block_ids);
+            if std::mem::take(&mut state.fail_first_complete) {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "injected complete failure").set_temporary(),
+                );
+            }
+            Ok(MetadataBuilder::unknown().build())
+        }
+
+        async fn abort_block(&self, block_ids: Vec<Uuid>) -> Result<()> {
+            let mut state = self.state.lock().expect("test state mutex poisoned");
+            state.abort_calls.push(block_ids.clone());
+            state.aborted.extend(block_ids);
+
+            if state.abort_failures > 0 {
+                state.abort_failures -= 1;
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "injected abort block failure")
+                        .set_temporary(),
+                );
+            }
+
+            Ok(())
+        }
+    }
+
+    fn assert_same_block_ids(actual: &[Uuid], expected: &[Uuid]) {
+        let mut actual = actual.to_vec();
+        let mut expected = expected.to_vec();
+        actual.sort_unstable();
+        expected.sort_unstable();
+        assert_eq!(actual, expected);
+    }
+
+    async fn wait_for_writes(state: &Arc<Mutex<RecordingState>>, expected: usize) {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while state
+                .lock()
+                .expect("test state mutex poisoned")
+                .written
+                .len()
+                < expected
+            {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("all scheduled blocks should start");
+    }
+
+    #[tokio::test]
+    async fn test_block_writer_abort_returns_uploaded_block_ids_when_not_concurrent() -> Result<()>
+    {
+        let (inner, state) = RecordingWrite::new();
+        let mut w = BlockWriter::new(crate::test_executor(), inner, 1);
+
+        w.write(Buffer::from("a")).await?;
+        w.write(Buffer::from("b")).await?;
+        w.write(Buffer::from("c")).await?;
+
+        let written = state
+            .lock()
+            .expect("test state mutex poisoned")
+            .written
+            .clone();
+        assert_eq!(written.len(), 2);
+
+        w.abort().await?;
+
+        let state = state.lock().expect("test state mutex poisoned");
+        assert_eq!(state.abort_calls, vec![written]);
+        assert_eq!(state.aborted, state.written);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_block_writer_abort_returns_all_scheduled_block_ids_when_concurrent() -> Result<()>
+    {
+        let (inner, state) = RecordingWrite::new();
+        let mut w = BlockWriter::new(crate::test_executor(), inner, 4);
+
+        for data in ["a", "b", "c", "d", "e", "f"] {
+            w.write(Buffer::from(data)).await?;
+        }
+
+        wait_for_writes(&state, 5).await;
+        let written = state
+            .lock()
+            .expect("test state mutex poisoned")
+            .written
+            .clone();
+        assert_eq!(written.len(), 5);
+
+        w.abort().await?;
+
+        let state = state.lock().expect("test state mutex poisoned");
+        assert_eq!(state.abort_calls.len(), 1);
+        assert_same_block_ids(&state.abort_calls[0], &written);
+        assert_same_block_ids(&state.aborted, &written);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_block_writer_abort_after_partial_close_failure() -> Result<()> {
+        let (inner, state) = RecordingWrite::new();
+        state
+            .lock()
+            .expect("test state mutex poisoned")
+            .fail_write_on = Some(b"b");
+        let mut w = BlockWriter::new(crate::test_executor(), inner, 2);
+
+        w.write(Buffer::from("a")).await?;
+        w.write(Buffer::from("b")).await?;
+        w.write(Buffer::from("c")).await?;
+        w.write(Buffer::from("d")).await?;
+
+        wait_for_writes(&state, 3).await;
+
+        let err = w.close().await.expect_err("close should fail");
+        assert!(!err.is_temporary());
+
+        w.abort().await?;
+
+        let state = state.lock().expect("test state mutex poisoned");
+        assert_eq!(state.written.len(), 3);
+        assert_eq!(state.abort_calls.len(), 1);
+        assert_same_block_ids(&state.abort_calls[0], &state.written);
+        assert_same_block_ids(&state.aborted, &state.written);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_block_writer_close_can_retry_after_temporary_commit_failure() -> Result<()> {
+        let (inner, state) = RecordingWrite::new();
+        state.lock().unwrap().fail_first_complete = true;
+        let mut w = BlockWriter::new(crate::test_executor(), inner, 1);
+
+        w.write(Buffer::from("a")).await?;
+        w.write(Buffer::from("b")).await?;
+        let err = w.close().await.expect_err("first commit fails");
+        assert_eq!(err.message(), "injected complete failure");
+        assert!(err.is_temporary());
+        let err = w
+            .write(Buffer::from("extra"))
+            .await
+            .expect_err("final block was already scheduled");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_permanent());
+        w.close().await?;
+
+        let state = state.lock().unwrap();
+        assert_eq!(state.written.len(), 2);
+        assert_eq!(
+            state.complete_calls,
+            vec![state.written.clone(), state.written.clone()]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_block_writer_abort_can_retry_after_temporary_abort_failure() -> Result<()> {
+        let (inner, state) = RecordingWrite::new();
+        let mut w = BlockWriter::new(crate::test_executor(), inner, 1);
+
+        w.write(Buffer::from("a")).await?;
+        w.write(Buffer::from("b")).await?;
+        w.write(Buffer::from("c")).await?;
+
+        let written = state
+            .lock()
+            .expect("test state mutex poisoned")
+            .written
+            .clone();
+        assert_eq!(written.len(), 2);
+
+        state
+            .lock()
+            .expect("test state mutex poisoned")
+            .abort_failures = 1;
+
+        let err = w.abort().await.expect_err("first abort should fail");
+        assert_eq!(err.message(), "injected abort block failure");
+        assert!(err.is_temporary());
+        let err = w
+            .write(Buffer::from("extra"))
+            .await
+            .expect_err("cleanup is still pending");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_permanent());
+        let err = w.close().await.expect_err("cleanup is still pending");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_permanent());
+
+        w.abort().await?;
+
+        let state = state.lock().expect("test state mutex poisoned");
+        assert!(state.complete_calls.is_empty());
+        assert_eq!(state.abort_calls, vec![written.clone(), written.clone()]);
+        assert_eq!(state.aborted, [written.clone(), written].concat());
+        Ok(())
     }
 }

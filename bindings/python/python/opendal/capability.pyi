@@ -17,6 +17,8 @@
 
 from typing import final
 
+__all__ = ["Capability"]
+
 @final
 class Capability:
     """
@@ -33,6 +35,9 @@ class Capability:
     @property
     def copy(self, /) -> bool:
         """If operator supports copy."""
+    @property
+    def copy_with_if_not_exists(self, /) -> bool:
+        """If copy can require that the target file does not exist."""
     @property
     def create_dir(self, /) -> bool:
         """If operator supports create dir."""
@@ -108,6 +113,9 @@ class Capability:
     @property
     def rename(self, /) -> bool:
         """If operator supports rename."""
+    @property
+    def rename_with_if_not_exists(self, /) -> bool:
+        """If rename can require that the target file does not exist."""
     @property
     def shared(self, /) -> bool:
         """If operator supports shared."""

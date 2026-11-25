@@ -1,0 +1,40 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: r2
+description: "Behavior test for the Cloudflare R2 provider preset. This service is sponsored by @Xuanwo."
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup
+      uses: 1Password/load-secrets-action@70062d7a876d3eb6334754fa26efd2fbd90c32f2 # v5.0.1
+      with:
+        export-env: true
+      env:
+        OPENDAL_R2_BUCKET: op://services/r2/bucket
+        OPENDAL_R2_ENDPOINT: op://services/r2/endpoint
+        OPENDAL_R2_ACCESS_KEY_ID: op://services/r2/access_key_id
+        OPENDAL_R2_SECRET_ACCESS_KEY: op://services/r2/secret_access_key
+
+    - name: Add test overrides
+      shell: bash
+      run: |
+        # R2 does not enforce destination copy conditions or delete If-Match.
+        cat << EOF >> $GITHUB_ENV
+        OPENDAL_TEST_CAPABILITY_OVERRIDES=stat_with_version=false,read_with_version=false,delete_with_version=false,list_with_versions=false,list_with_deleted=false,copy_with_source_version=false,copy_with_if_not_exists=false,copy_with_if_match=false,delete_with_if_match=false,restore=false,restore_with_version=false,restore_with_if_not_exists=false,write_can_append=false,delete_max_size=700,stat_with_override_cache_control=false,stat_with_override_content_disposition=false,stat_with_override_content_type=false
+        EOF

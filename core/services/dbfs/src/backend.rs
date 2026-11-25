@@ -60,10 +60,11 @@ impl DbfsBuilder {
     /// - Azure: `https://adb-1234567890123456.78.azuredatabricks.net`
     /// - Aws: `https://dbc-123a5678-90bc.cloud.databricks.com`
     pub fn endpoint(mut self, endpoint: &str) -> Self {
+        let endpoint = endpoint.trim_end_matches('/');
         self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
-            Some(endpoint.trim_end_matches('/').to_string())
+            Some(endpoint.to_string())
         };
         self
     }
@@ -123,7 +124,7 @@ impl Builder for DbfsBuilder {
         Ok(DbfsBackend {
             core: Arc::new(DbfsCore {
                 root,
-                endpoint: endpoint.to_string(),
+                endpoint,
                 token,
             }),
             capability,
@@ -197,9 +198,6 @@ impl Service for DbfsBackend {
                     false => meta.set_file(decoded_response.file_size as u64),
                 };
                 Ok(RpStat::new(meta.build()))
-            }
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(MetadataBuilder::dir().build()))
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("GetStatus")),
@@ -304,4 +302,227 @@ struct DbfsStatus {
     is_dir: bool,
     file_size: i64,
     modification_time: i64,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use http::Method;
+    use serde_json::Value;
+
+    use super::*;
+    use crate::core::test_support::RecordingTransport;
+
+    const TEST_TIMEOUT: Duration = Duration::from_secs(10);
+
+    #[tokio::test]
+    async fn rename_ensures_parent_dir_not_destination_file() {
+        tokio::time::timeout(TEST_TIMEOUT, async {
+            let transport = RecordingTransport::new([
+                (
+                    StatusCode::NOT_FOUND,
+                    r#"{"error_code":"RESOURCE_DOES_NOT_EXIST","message":"not found"}"#,
+                ),
+                (StatusCode::OK, "{}"),
+                (StatusCode::OK, "{}"),
+            ]);
+            let ctx = transport.context();
+
+            let backend = DbfsBuilder::default()
+                .endpoint("https://example.databricks.com")
+                .token("tok")
+                .root("/root")
+                .build()
+                .unwrap();
+
+            backend
+                .rename(&ctx, "a.txt", "dir/b.txt", OpRename::default())
+                .await
+                .unwrap();
+
+            let reqs = transport.requests();
+            assert_eq!(reqs.len(), 3);
+
+            assert_eq!(reqs[0].method, Method::GET);
+            assert_eq!(
+                reqs[0].uri,
+                "https://example.databricks.com/api/2.0/dbfs/get-status?path=/root/dir"
+            );
+
+            assert_eq!(reqs[1].method, Method::POST);
+            assert_eq!(
+                reqs[1].uri,
+                "https://example.databricks.com/api/2.0/dbfs/mkdirs"
+            );
+            let mkdir_body: Value = serde_json::from_slice(&reqs[1].body).unwrap();
+            assert_eq!(mkdir_body["path"], "/root/dir");
+
+            assert_eq!(reqs[2].method, Method::POST);
+            assert_eq!(
+                reqs[2].uri,
+                "https://example.databricks.com/api/2.0/dbfs/move"
+            );
+            let move_body: Value = serde_json::from_slice(&reqs[2].body).unwrap();
+            assert_eq!(move_body["source_path"], "/root/a.txt");
+            assert_eq!(move_body["destination_path"], "/root/dir/b.txt");
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    #[tokio::test]
+    async fn rename_skips_mkdirs_when_parent_already_exists() {
+        tokio::time::timeout(TEST_TIMEOUT, async {
+            let transport = RecordingTransport::new([
+                (
+                    StatusCode::OK,
+                    r#"{"is_dir":true,"file_size":0,"modification_time":1700000000000}"#,
+                ),
+                (StatusCode::OK, "{}"),
+            ]);
+            let ctx = transport.context();
+
+            let backend = DbfsBuilder::default()
+                .endpoint("https://example.databricks.com")
+                .token("tok")
+                .root("/root")
+                .build()
+                .unwrap();
+
+            backend
+                .rename(&ctx, "a.txt", "dir/b.txt", OpRename::default())
+                .await
+                .unwrap();
+
+            let reqs = transport.requests();
+            assert_eq!(reqs.len(), 2);
+            assert_eq!(reqs[0].method, Method::GET);
+            assert_eq!(
+                reqs[0].uri,
+                "https://example.databricks.com/api/2.0/dbfs/get-status?path=/root/dir"
+            );
+            assert_eq!(reqs[1].method, Method::POST);
+            assert_eq!(
+                reqs[1].uri,
+                "https://example.databricks.com/api/2.0/dbfs/move"
+            );
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    #[tokio::test]
+    async fn rename_ensures_configured_root_when_destination_is_at_root() {
+        tokio::time::timeout(TEST_TIMEOUT, async {
+            let transport = RecordingTransport::new([
+                (
+                    StatusCode::NOT_FOUND,
+                    r#"{"error_code":"RESOURCE_DOES_NOT_EXIST","message":"not found"}"#,
+                ),
+                (StatusCode::CREATED, "{}"),
+                (StatusCode::OK, "{}"),
+            ]);
+            let ctx = transport.context();
+
+            let backend = DbfsBuilder::default()
+                .endpoint("https://example.databricks.com")
+                .token("tok")
+                .root("/root")
+                .build()
+                .unwrap();
+
+            backend
+                .rename(&ctx, "a.txt", "b.txt", OpRename::default())
+                .await
+                .unwrap();
+
+            let reqs = transport.requests();
+            assert_eq!(reqs.len(), 3);
+            assert_eq!(
+                reqs[0].uri,
+                "https://example.databricks.com/api/2.0/dbfs/get-status?path=/root"
+            );
+            let mkdir_body: Value = serde_json::from_slice(&reqs[1].body).unwrap();
+            assert_eq!(mkdir_body["path"], "/root");
+            let move_body: Value = serde_json::from_slice(&reqs[2].body).unwrap();
+            assert_eq!(move_body["source_path"], "/root/a.txt");
+            assert_eq!(move_body["destination_path"], "/root/b.txt");
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    #[tokio::test]
+    async fn rename_propagates_mkdirs_failure_without_calling_move() {
+        tokio::time::timeout(TEST_TIMEOUT, async {
+            let transport = RecordingTransport::new([
+                (
+                    StatusCode::NOT_FOUND,
+                    r#"{"error_code":"RESOURCE_DOES_NOT_EXIST","message":"not found"}"#,
+                ),
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    r#"{"error_code":"INTERNAL_ERROR","message":"mkdirs failed"}"#,
+                ),
+            ]);
+            let ctx = transport.context();
+
+            let backend = DbfsBuilder::default()
+                .endpoint("https://example.databricks.com")
+                .token("tok")
+                .root("/root")
+                .build()
+                .unwrap();
+
+            let err = backend
+                .rename(&ctx, "a.txt", "dir/b.txt", OpRename::default())
+                .await
+                .unwrap_err();
+
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_temporary());
+
+            let reqs = transport.requests();
+            assert_eq!(reqs.len(), 2);
+            assert_eq!(
+                reqs[1].uri,
+                "https://example.databricks.com/api/2.0/dbfs/mkdirs"
+            );
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    #[tokio::test]
+    async fn stat_missing_trailing_slash_returns_not_found() {
+        tokio::time::timeout(TEST_TIMEOUT, async {
+            let transport = RecordingTransport::new([(
+                StatusCode::NOT_FOUND,
+                r#"{"error_code":"RESOURCE_DOES_NOT_EXIST","message":"missing"}"#,
+            )]);
+            let ctx = transport.context();
+
+            let backend = DbfsBuilder::default()
+                .endpoint("https://example.databricks.com")
+                .token("tok")
+                .build()
+                .unwrap();
+
+            // Root stat still succeeds without network calls.
+            let root_rp = backend.stat(&ctx, "/", OpStat::default()).await.unwrap();
+            assert_eq!(root_rp.into_metadata().mode(), EntryMode::DIR);
+            assert!(transport.requests().is_empty());
+
+            // Non-existent directory must return NotFound rather than fabricating a DIR.
+            let err = backend
+                .stat(&ctx, "missing/", OpStat::default())
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::NotFound);
+            assert_eq!(transport.requests().len(), 1);
+        })
+        .await
+        .expect("test timed out");
+    }
 }

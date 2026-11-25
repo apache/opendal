@@ -364,14 +364,13 @@ where
     }
 
     async fn abort(&mut self) -> Result<()> {
-        let Some(upload_id) = self.upload_id.clone() else {
+        let Some(upload_id) = self.upload_id.as_deref() else {
             return Ok(());
         };
 
         self.tasks.clear();
         self.cache = None;
-        self.w.abort_part(&upload_id).await?;
-        Ok(())
+        self.w.abort_part(upload_id).await
     }
 }
 
@@ -392,6 +391,8 @@ mod tests {
         length: u64,
         content: Option<Buffer>,
         fail_randomly: bool,
+        abort_calls: usize,
+        abort_failures: usize,
     }
 
     impl TestWrite {
@@ -403,13 +404,23 @@ mod tests {
             Self::new_with_failures(false)
         }
 
+        pub fn new_stable_with_abort_failures(abort_failures: usize) -> Arc<Mutex<Self>> {
+            Self::new_with_options(false, abort_failures)
+        }
+
         fn new_with_failures(fail_randomly: bool) -> Arc<Mutex<Self>> {
+            Self::new_with_options(fail_randomly, 0)
+        }
+
+        fn new_with_options(fail_randomly: bool, abort_failures: usize) -> Arc<Mutex<Self>> {
             let v = Self {
                 upload_id: uuid::Uuid::new_v4().to_string(),
                 part_numbers: Vec::new(),
                 length: 0,
                 content: None,
                 fail_randomly,
+                abort_calls: 0,
+                abort_failures,
             };
 
             Arc::new(Mutex::new(v))
@@ -515,8 +526,16 @@ mod tests {
         }
 
         async fn abort_part(&self, upload_id: &str) -> Result<()> {
-            let test = self.lock().await;
+            let mut test = self.lock().await;
             assert_eq!(upload_id, test.upload_id);
+            test.abort_calls += 1;
+
+            if test.abort_failures > 0 {
+                test.abort_failures -= 1;
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "transient abort failure").set_temporary()
+                );
+            }
 
             Ok(())
         }
@@ -529,7 +548,7 @@ mod tests {
     impl TimeoutExecutor {
         pub fn new() -> Self {
             Self {
-                exec: Executor::new().into_inner(),
+                exec: crate::test_executor().into_inner(),
             }
         }
     }
@@ -541,7 +560,7 @@ mod tests {
 
         fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
             let time = rng().random_range(0..100);
-            Some(Box::pin(tokio::time::sleep(Duration::from_nanos(time))))
+            self.exec.sleep(Duration::from_nanos(time))
         }
     }
 
@@ -595,7 +614,7 @@ mod tests {
         let mut rng = rng();
 
         for _ in 0..100 {
-            let mut w = MultipartWriter::new(Executor::default(), TestWrite::new(), 200);
+            let mut w = MultipartWriter::new(crate::test_executor(), TestWrite::new(), 200);
             let size = rng.random_range(1..1024);
             let mut bs = vec![0; size];
             rng.fill_bytes(&mut bs);
@@ -619,6 +638,32 @@ mod tests {
             assert!(inner.content.is_some());
             assert_eq!(inner.content.clone().unwrap().to_bytes(), bs);
         }
+    }
+
+    #[tokio::test]
+    async fn test_multipart_writer_abort_can_retry_after_failure() -> Result<()> {
+        let inner = TestWrite::new_stable_with_abort_failures(1);
+        let mut writer = MultipartWriter::new(Executor::default(), inner.clone(), 1);
+
+        writer.write(Buffer::from("first")).await?;
+        writer.write(Buffer::from("second")).await?;
+        assert!(writer.upload_id.is_some());
+
+        let err = writer
+            .abort()
+            .await
+            .expect_err("first abort must fail transiently");
+        assert!(err.is_temporary());
+        assert!(
+            writer.upload_id.is_some(),
+            "failed abort must keep the upload id for retry"
+        );
+
+        writer.abort().await?;
+
+        let inner = inner.lock().await;
+        assert_eq!(inner.abort_calls, 2);
+        Ok(())
     }
 
     #[tokio::test]

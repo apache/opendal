@@ -90,16 +90,10 @@ impl ThrottleLayer {
 
 impl Layer for ThrottleLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
-    }
-}
-
-impl ThrottleLayer {
-    fn layer(&self, inner: Servicer) -> ThrottleAccessor {
-        ThrottleAccessor {
+        Arc::new(ThrottleService {
             inner,
             rate_limiter: self.rate_limiter.clone(),
-        }
+        })
     }
 }
 
@@ -127,14 +121,13 @@ async fn wait_for_quota(limiter: &SharedRateLimiter, len: u64) -> Result<()> {
     })
 }
 
-#[doc(hidden)]
 #[derive(Debug)]
-pub struct ThrottleAccessor {
+struct ThrottleService {
     inner: Servicer,
     rate_limiter: SharedRateLimiter,
 }
 
-impl Service for ThrottleAccessor {
+impl Service for ThrottleService {
     type Reader = ThrottleWrapper<oio::Reader>;
     type Writer = ThrottleWrapper<oio::Writer>;
     type Lister = oio::Lister;
@@ -230,8 +223,7 @@ impl Service for ThrottleAccessor {
     }
 }
 
-#[doc(hidden)]
-pub struct ThrottleWrapper<R> {
+struct ThrottleWrapper<R> {
     inner: R,
     limiter: SharedRateLimiter,
 }

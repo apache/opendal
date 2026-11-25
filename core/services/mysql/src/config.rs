@@ -61,6 +61,37 @@ impl Debug for MysqlConfig {
     }
 }
 
+fn percent_encode_userinfo(input: &str) -> String {
+    use std::fmt::Write;
+
+    let mut encoded = String::with_capacity(input.len());
+    for byte in input.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
+            encoded.push(byte as char);
+        } else {
+            let _ = write!(encoded, "%{byte:02X}");
+        }
+    }
+    encoded
+}
+
+fn format_connection_string(
+    authority: &str,
+    username: Option<&str>,
+    password: Option<&str>,
+) -> String {
+    match (username, password) {
+        (Some(user), Some(pass)) => format!(
+            "mysql://{}:{}@{authority}",
+            percent_encode_userinfo(user),
+            percent_encode_userinfo(pass)
+        ),
+        (Some(user), None) => format!("mysql://{}@{authority}", percent_encode_userinfo(user)),
+        (None, Some(pass)) => format!("mysql://:{}@{authority}", percent_encode_userinfo(pass)),
+        (None, None) => format!("mysql://{authority}"),
+    }
+}
+
 impl opendal_core::Configurator for MysqlConfig {
     type Builder = MysqlBuilder;
 
@@ -69,7 +100,9 @@ impl opendal_core::Configurator for MysqlConfig {
 
         if let Some(authority) = uri.authority() {
             map.entry("connection_string".to_string())
-                .or_insert_with(|| format!("mysql://{authority}"));
+                .or_insert_with(|| {
+                    format_connection_string(authority, uri.username(), uri.password())
+                });
         }
 
         if let Some(path) = uri.root()
@@ -88,7 +121,8 @@ impl opendal_core::Configurator for MysqlConfig {
             if let Some(root) = rest
                 && !root.is_empty()
             {
-                map.insert("root".to_string(), root.to_string());
+                map.entry("root".to_string())
+                    .or_insert_with(|| root.to_string());
             }
         }
 
@@ -103,6 +137,7 @@ impl opendal_core::Configurator for MysqlConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use opendal_core::Builder;
     use opendal_core::Configurator;
     use opendal_core::OperatorUri;
 
@@ -134,5 +169,74 @@ mod tests {
         let cfg = MysqlConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.table.as_deref(), Some("users"));
         assert_eq!(cfg.root.as_deref(), Some("logs"));
+    }
+
+    #[test]
+    fn from_uri_preserves_credentials_and_builds() {
+        let uri = OperatorUri::new(
+            "mysql://alice%40corp.com:p%3Aa%23s%2Fs%40%251@db.example.com:3306/kv/cache",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = MysqlConfig::from_uri(&uri).unwrap();
+        assert_eq!(
+            cfg.connection_string.as_deref(),
+            Some("mysql://alice%40corp.com:p%3Aa%23s%2Fs%40%251@db.example.com:3306")
+        );
+        assert_eq!(cfg.table.as_deref(), Some("kv"));
+        assert_eq!(cfg.root.as_deref(), Some("cache"));
+        cfg.into_builder().build().unwrap();
+
+        let user_only =
+            OperatorUri::new("mysql://root@[::1]:3306/kv", Vec::<(String, String)>::new()).unwrap();
+        let cfg = MysqlConfig::from_uri(&user_only).unwrap();
+        assert_eq!(
+            cfg.connection_string.as_deref(),
+            Some("mysql://root@[::1]:3306")
+        );
+        cfg.into_builder().build().unwrap();
+
+        let pass_only = OperatorUri::new(
+            "mysql://:s%23e%3Ac@db.example.com:3306/kv",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = MysqlConfig::from_uri(&pass_only).unwrap();
+        assert_eq!(
+            cfg.connection_string.as_deref(),
+            Some("mysql://:s%23e%3Ac@db.example.com:3306")
+        );
+        cfg.into_builder().build().unwrap();
+    }
+
+    #[test]
+    fn from_uri_respects_explicit_root_and_connection_string_options() {
+        let uri = OperatorUri::new(
+            "mysql://user:pass@db.example.com:3306/kv/path?root=override",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = MysqlConfig::from_uri(&uri).unwrap();
+        assert_eq!(
+            cfg.connection_string.as_deref(),
+            Some("mysql://user:pass@db.example.com:3306")
+        );
+        assert_eq!(cfg.table.as_deref(), Some("kv"));
+        assert_eq!(cfg.root.as_deref(), Some("override"));
+
+        let explicit_conn = OperatorUri::new(
+            "mysql://user:pass@db.example.com:3306/kv/path",
+            [(
+                "connection_string".to_string(),
+                "mysql://other:pw@127.0.0.1:3306/testdb".to_string(),
+            )],
+        )
+        .unwrap();
+        let cfg = MysqlConfig::from_uri(&explicit_conn).unwrap();
+        assert_eq!(
+            cfg.connection_string.as_deref(),
+            Some("mysql://other:pw@127.0.0.1:3306/testdb")
+        );
     }
 }

@@ -28,13 +28,37 @@ let new_test_block_operator test_ctxt : operator =
   let cfgs = [ ("root", bracket_tmpdir test_ctxt) ] in
   test_check_result (Operator.new_operator "fs" cfgs)
 
+let new_test_memory_operator () : operator =
+  test_check_result (Operator.new_operator "memory" [])
+
+let read_string bo path =
+  test_check_result (Operator.read bo path)
+  |> Array.to_seq |> Bytes.of_seq |> Bytes.to_string
+
+let contains_substring s sub =
+  let len_s = String.length s in
+  let len_sub = String.length sub in
+  let rec check i =
+    if i > len_s - len_sub then false
+    else if String.sub s i len_sub = sub then true
+    else check (i + 1)
+  in
+  if len_sub = 0 then true else check 0
+
+let assert_utf8_error label = function
+  | Ok _ -> assert_failure (label ^ ": expected UTF-8 error, got Ok")
+  | Error err ->
+      assert_bool
+        (Printf.sprintf "%s: expected UTF-8 error, got %S" label err)
+        (contains_substring err "UTF-8")
+
 (** Basic operator creation tests *)
 let test_new_block_operator _ = ignore new_test_block_operator
 
 (** Test directory creation and recursive removal *)
 let test_create_dir_and_remove_all test_ctxt =
   let bo = new_test_block_operator test_ctxt in
-  ignore (test_check_result (Operator.create_dir bo "/testdir/"));
+  assert_equal true (test_check_result (Operator.create_dir bo "/testdir/"));
   ignore
     (test_check_result
        (Operator.write bo "/testdir/foo" (Bytes.of_string "bar")));
@@ -65,6 +89,44 @@ let test_operator_reader test_ctxt =
   assert_equal 5 i;
   assert_equal "world" (Bytes.to_string data)
 
+(** Test that a read buffer larger than the remaining bytes returns the tail *)
+let test_reader_pread_short_read test_ctxt =
+  let bo = new_test_block_operator test_ctxt in
+  ignore
+    (test_check_result
+       (Operator.write bo "tempfile" (Bytes.of_string "helloworld")));
+  let reader = Operator.reader bo "tempfile" |> test_check_result in
+  let data = Bytes.make 64 '\000' in
+  let n = Operator.Reader.pread reader data 5L |> test_check_result in
+  assert_equal 5 n;
+  assert_equal "world" (Bytes.sub_string data 0 n)
+
+(** Test that reads at or beyond EOF return zero without failing *)
+let test_reader_pread_eof test_ctxt =
+  let bo = new_test_block_operator test_ctxt in
+  ignore
+    (test_check_result
+       (Operator.write bo "tempfile" (Bytes.of_string "helloworld")));
+  let reader = Operator.reader bo "tempfile" |> test_check_result in
+  let data = Bytes.make 8 'x' in
+  let n = Operator.Reader.pread reader data 10L |> test_check_result in
+  assert_equal 0 n;
+  assert_equal "xxxxxxxx" (Bytes.to_string data);
+  let n = Operator.Reader.pread reader data 100L |> test_check_result in
+  assert_equal 0 n
+
+(** Test that a negative offset is rejected instead of wrapped to u64 *)
+let test_reader_pread_negative_offset _ =
+  let bo = new_test_memory_operator () in
+  ignore
+    (test_check_result
+       (Operator.write bo "tempfile" (Bytes.of_string "helloworld")));
+  let reader = Operator.reader bo "tempfile" |> test_check_result in
+  let data = Bytes.make 8 'x' in
+  match Operator.Reader.pread reader data (-1L) with
+  | Ok n -> assert_failure (Printf.sprintf "expected error, got %d" n)
+  | Error _ -> ()
+
 (** Test writer functionality *)
 let test_operator_writer test_ctxt =
   let bo = new_test_block_operator test_ctxt in
@@ -81,6 +143,30 @@ let test_operator_writer test_ctxt =
   let data = test_check_result (Operator.read bo "test_writer_file") in
   assert_equal "Hello World!"
     (data |> Array.to_seq |> Bytes.of_seq |> Bytes.to_string)
+
+(** Test that write copies caller-owned bytes instead of retaining them *)
+let test_write_copies_caller_bytes _ =
+  let bo = new_test_memory_operator () in
+  let data = Bytes.of_string "original" in
+  ignore (test_check_result (Operator.write bo "copy" data));
+  Bytes.set data 0 'X';
+  Gc.compact ();
+  assert_equal "original" (read_string bo "copy")
+
+(** Test that each writer chunk is copied before it is buffered *)
+let test_writer_copies_caller_bytes _ =
+  let bo = new_test_memory_operator () in
+  let writer = Operator.writer bo "copy" |> test_check_result in
+  let first = Bytes.of_string "Hello " in
+  let second = Bytes.of_string "World!" in
+  ignore (test_check_result (Operator.Writer.write writer first));
+  Bytes.set first 0 'J';
+  Gc.compact ();
+  ignore (test_check_result (Operator.Writer.write writer second));
+  Bytes.set second 0 'X';
+  Gc.compact ();
+  ignore (test_check_result (Operator.Writer.close writer));
+  assert_equal "Hello World!" (read_string bo "copy")
 
 (** Test metadata functionality *)
 let test_operator_stat test_ctxt =
@@ -334,16 +420,6 @@ let test_complex_workflow test_ctxt =
   let readme_str =
     readme_data |> Array.to_seq |> Bytes.of_seq |> Bytes.to_string
   in
-  let contains_substring s sub =
-    let len_s = String.length s in
-    let len_sub = String.length sub in
-    let rec check i =
-      if i > len_s - len_sub then false
-      else if String.sub s i len_sub = sub then true
-      else check (i + 1)
-    in
-    if len_sub = 0 then true else check 0
-  in
   assert_bool "README should contain project info"
     (contains_substring readme_str "My Project");
 
@@ -361,6 +437,49 @@ let test_complex_workflow test_ctxt =
   (* Clean up *)
   ignore (test_check_result (Operator.remove_all bo "project/"))
 
+(** Test that text arguments with invalid UTF-8 return [Error]. *)
+let test_invalid_utf8_rejected _ =
+  let bad = "\xff" in
+  assert_utf8_error "new_operator scheme" (Operator.new_operator bad []);
+  assert_utf8_error "new_operator config key"
+    (Operator.new_operator "memory" [ (bad, "value") ]);
+  assert_utf8_error "new_operator config value"
+    (Operator.new_operator "memory" [ ("key", bad) ]);
+  assert_utf8_error "new_operator shadowed invalid config value"
+    (Operator.new_operator "memory" [ ("root", bad); ("root", "/valid") ]);
+
+  let bo = new_test_memory_operator () in
+  ignore
+    (test_check_result
+       (Operator.write bo "keep.txt" (Bytes.of_string "keep me")));
+
+  assert_utf8_error "list" (Operator.list bo bad);
+  assert_utf8_error "lister" (Operator.lister bo bad);
+  assert_utf8_error "stat" (Operator.stat bo bad);
+  assert_utf8_error "is_exist" (Operator.is_exist bo bad);
+  assert_utf8_error "create_dir" (Operator.create_dir bo bad);
+  assert_utf8_error "read" (Operator.read bo bad);
+  assert_utf8_error "reader" (Operator.reader bo bad);
+  assert_utf8_error "write" (Operator.write bo bad (Bytes.of_string "data"));
+  assert_utf8_error "writer" (Operator.writer bo bad);
+  assert_utf8_error "copy from" (Operator.copy bo bad "dst");
+  assert_utf8_error "copy to" (Operator.copy bo "keep.txt" bad);
+  assert_utf8_error "rename from" (Operator.rename bo bad "dst");
+  assert_utf8_error "rename to" (Operator.rename bo "keep.txt" bad);
+  assert_utf8_error "delete" (Operator.delete bo bad);
+  assert_utf8_error "remove" (Operator.remove bo [| "keep.txt"; bad |]);
+  assert_equal true (Operator.is_exist bo "keep.txt" |> test_check_result);
+  assert_utf8_error "remove_all" (Operator.remove_all bo bad)
+
+(** Test that duplicate config keys keep last-wins behavior *)
+let test_config_duplicate_key_last_wins _ =
+  let bo =
+    Operator.new_operator "memory" [ ("root", "/first"); ("root", "/second") ]
+    |> test_check_result
+  in
+  let info = Operator.info bo in
+  assert_equal "/second/" (Operator.OperatorInfo.root info)
+
 let suite =
   "OCaml OpenDAL Test Suite"
   >::: [
@@ -368,7 +487,13 @@ let suite =
          "test_create_dir_and_remove_all" >:: test_create_dir_and_remove_all;
          "test_block_write_and_read" >:: test_block_write_and_read;
          "test_operator_reader" >:: test_operator_reader;
+         "test_reader_pread_short_read" >:: test_reader_pread_short_read;
+         "test_reader_pread_eof" >:: test_reader_pread_eof;
+         "test_reader_pread_negative_offset"
+         >:: test_reader_pread_negative_offset;
          "test_operator_writer" >:: test_operator_writer;
+         "test_write_copies_caller_bytes" >:: test_write_copies_caller_bytes;
+         "test_writer_copies_caller_bytes" >:: test_writer_copies_caller_bytes;
          "test_operator_stat" >:: test_operator_stat;
          "test_list" >:: test_list;
          "test_lister" >:: test_lister;
@@ -380,6 +505,9 @@ let suite =
          "test_remove" >:: test_remove;
          "test_check" >:: test_check;
          "test_complex_workflow" >:: test_complex_workflow;
+         "test_invalid_utf8_rejected" >:: test_invalid_utf8_rejected;
+         "test_config_duplicate_key_last_wins"
+         >:: test_config_duplicate_key_last_wins;
        ]
 
 let () = run_test_tt_main suite

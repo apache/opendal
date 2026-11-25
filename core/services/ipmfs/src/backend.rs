@@ -124,7 +124,6 @@ impl Builder for IpmfsBuilder {
         let endpoint = self
             .config
             .endpoint
-            .clone()
             .unwrap_or_else(|| "http://localhost:5001".to_string());
 
         let info = ServiceInfo::new(IPMFS_SCHEME, &root, "");
@@ -147,8 +146,8 @@ impl Builder for IpmfsBuilder {
         let core = Arc::new(IpmfsCore {
             info: accessor_info,
             capability,
-            root: root.to_string(),
-            endpoint: endpoint.to_string(),
+            root,
+            endpoint,
         });
 
         Ok(IpmfsBackend { core })
@@ -270,7 +269,7 @@ impl Service for IpmfsBackend {
 
     fn list(&self, ctx: &OperationContext, path: &str, _: OpList) -> Result<Self::Lister> {
         let output: oio::PageLister<IpmfsLister> = {
-            let l = IpmfsLister::new(self.core.clone(), ctx.clone(), &self.core.root, path);
+            let l = IpmfsLister::new(self.core.clone(), ctx.clone(), path);
             Ok(oio::PageLister::new(l))
         }?;
 

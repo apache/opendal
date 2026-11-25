@@ -100,7 +100,7 @@ impl SmbCore {
     }
 
     pub fn path(&self, path: &str) -> Result<UncPath> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
         // SMB treats backslashes as separators; accepting them would bypass the
         // OpenDAL root boundary even though OpenDAL normalizes forward slashes.
         if path.contains(['\\', '\0']) || path.split('/').any(|part| matches!(part, "." | "..")) {

@@ -31,20 +31,24 @@ use crate::Result;
 use crate::convert::{bytes_to_jbytearray, jstring_to_string};
 use crate::error::ThrowException;
 use crate::make_metadata;
-use crate::{make_entry, make_list_options, make_stat_options, make_write_options};
+use crate::{
+    make_delete_options, make_entry, make_list_options, make_stat_options, make_write_options,
+};
 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_disposeInternal<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JObject<'local>,
     op: *mut blocking::Operator,
 ) {
-    unsafe {
-        drop(Box::from_raw(op));
-    }
+    env.with_env(|_| -> Result<()> {
+        unsafe { drop(Box::from_raw(op)) };
+        Ok(())
+    })
+    .resolve::<ThrowException>()
 }
 
 /// # Safety
@@ -52,12 +56,15 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_disposeInternal<'
 /// This function should not be called before the Operator is ready.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_duplicate<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JObject<'local>,
-    op: *mut blocking::Operator,
+    op: *const blocking::Operator,
 ) -> jlong {
-    let op = unsafe { &mut *op };
-    Box::into_raw(Box::new(op.clone())) as jlong
+    env.with_env(|_| -> Result<_> {
+        let op = unsafe { &*op };
+        Ok(Box::into_raw(Box::new(op.clone())) as jlong)
+    })
+    .resolve::<ThrowException>()
 }
 
 /// # Safety
@@ -67,12 +74,12 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_duplicate<'local>
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut blocking::Operator,
+    op: *const blocking::Operator,
     path: JString<'local>,
     read_options: JObject<'local>,
 ) -> JByteArray<'local> {
     env.with_env(|env| {
-        let op_ref = unsafe { &mut *op };
+        let op_ref = unsafe { &*op };
         intern_read(env, op_ref, path, read_options)
     })
     .resolve::<ThrowException>()
@@ -80,7 +87,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read<'local>(
 
 fn intern_read<'local>(
     env: &mut Env<'local>,
-    op: &mut blocking::Operator,
+    op: &blocking::Operator,
     path: JString<'local>,
     options: JObject<'local>,
 ) -> Result<JByteArray<'local>> {
@@ -100,13 +107,13 @@ fn intern_read<'local>(
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_write<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut blocking::Operator,
+    op: *const blocking::Operator,
     path: JString<'local>,
     content: JByteArray<'local>,
     write_options: JObject<'local>,
 ) {
     env.with_env(|env| {
-        let op_ref = unsafe { &mut *op };
+        let op_ref = unsafe { &*op };
         intern_write(env, op_ref, path, content, write_options)
     })
     .resolve::<ThrowException>()
@@ -114,7 +121,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_write<'local>(
 
 fn intern_write<'local>(
     env: &mut Env<'local>,
-    op: &mut blocking::Operator,
+    op: &blocking::Operator,
     path: JString<'local>,
     content: JByteArray<'local>,
     options: JObject<'local>,
@@ -134,12 +141,12 @@ fn intern_write<'local>(
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut blocking::Operator,
+    op: *const blocking::Operator,
     path: JString<'local>,
     stat_options: JObject<'local>,
 ) -> JObject<'local> {
     env.with_env(|env| {
-        let op_ref = unsafe { &mut *op };
+        let op_ref = unsafe { &*op };
         intern_stat(env, op_ref, path, stat_options)
     })
     .resolve::<ThrowException>()
@@ -147,7 +154,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat<'local>(
 
 fn intern_stat<'local>(
     env: &mut Env<'local>,
-    op: &mut blocking::Operator,
+    op: &blocking::Operator,
     path: JString<'local>,
     options: JObject<'local>,
 ) -> Result<JObject<'local>> {
@@ -164,23 +171,17 @@ fn intern_stat<'local>(
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_delete<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut blocking::Operator,
+    op: *const blocking::Operator,
     path: JString<'local>,
+    options: JObject<'local>,
 ) {
     env.with_env(|env| {
-        let op_ref = unsafe { &mut *op };
-        intern_delete(env, op_ref, path)
+        let op = unsafe { &*op };
+        let path = jstring_to_string(env, &path)?;
+        let options = make_delete_options(env, &options)?;
+        Ok(op.delete_options(&path, options)?)
     })
     .resolve::<ThrowException>()
-}
-
-fn intern_delete<'local>(
-    env: &mut Env<'local>,
-    op: &mut blocking::Operator,
-    path: JString<'local>,
-) -> Result<()> {
-    let path = jstring_to_string(env, &path)?;
-    Ok(op.delete(&path)?)
 }
 
 /// # Safety
@@ -190,11 +191,11 @@ fn intern_delete<'local>(
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_createDir<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut blocking::Operator,
+    op: *const blocking::Operator,
     path: JString<'local>,
 ) {
     env.with_env(|env| {
-        let op_ref = unsafe { &mut *op };
+        let op_ref = unsafe { &*op };
         intern_create_dir(env, op_ref, path)
     })
     .resolve::<ThrowException>()
@@ -202,7 +203,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_createDir<'local>
 
 fn intern_create_dir<'local>(
     env: &mut Env<'local>,
-    op: &mut blocking::Operator,
+    op: &blocking::Operator,
     path: JString<'local>,
 ) -> Result<()> {
     let path = jstring_to_string(env, &path)?;
@@ -216,12 +217,12 @@ fn intern_create_dir<'local>(
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_copy<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut blocking::Operator,
+    op: *const blocking::Operator,
     source_path: JString<'local>,
     target_path: JString<'local>,
 ) {
     env.with_env(|env| {
-        let op_ref = unsafe { &mut *op };
+        let op_ref = unsafe { &*op };
         intern_copy(env, op_ref, source_path, target_path)
     })
     .resolve::<ThrowException>()
@@ -229,7 +230,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_copy<'local>(
 
 fn intern_copy<'local>(
     env: &mut Env<'local>,
-    op: &mut blocking::Operator,
+    op: &blocking::Operator,
     source_path: JString<'local>,
     target_path: JString<'local>,
 ) -> Result<()> {
@@ -247,12 +248,12 @@ fn intern_copy<'local>(
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_rename<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut blocking::Operator,
+    op: *const blocking::Operator,
     source_path: JString<'local>,
     target_path: JString<'local>,
 ) {
     env.with_env(|env| {
-        let op_ref = unsafe { &mut *op };
+        let op_ref = unsafe { &*op };
         intern_rename(env, op_ref, source_path, target_path)
     })
     .resolve::<ThrowException>()
@@ -260,7 +261,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_rename<'local>(
 
 fn intern_rename<'local>(
     env: &mut Env<'local>,
-    op: &mut blocking::Operator,
+    op: &blocking::Operator,
     source_path: JString<'local>,
     target_path: JString<'local>,
 ) -> Result<()> {
@@ -277,11 +278,11 @@ fn intern_rename<'local>(
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_removeAll<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut blocking::Operator,
+    op: *const blocking::Operator,
     path: JString<'local>,
 ) {
     env.with_env(|env| {
-        let op_ref = unsafe { &mut *op };
+        let op_ref = unsafe { &*op };
         intern_remove_all(env, op_ref, path)
     })
     .resolve::<ThrowException>()
@@ -289,7 +290,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_removeAll<'local>
 
 fn intern_remove_all<'local>(
     env: &mut Env<'local>,
-    op: &mut blocking::Operator,
+    op: &blocking::Operator,
     path: JString<'local>,
 ) -> Result<()> {
     use opendal::options::DeleteOptions;
@@ -311,12 +312,12 @@ fn intern_remove_all<'local>(
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_list<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut blocking::Operator,
+    op: *const blocking::Operator,
     path: JString<'local>,
     options: JObject<'local>,
 ) -> JObjectArray<'local> {
     env.with_env(|env| {
-        let op_ref = unsafe { &mut *op };
+        let op_ref = unsafe { &*op };
         intern_list(env, op_ref, path, options)
     })
     .resolve::<ThrowException>()
@@ -324,7 +325,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_list<'local>(
 
 fn intern_list<'local>(
     env: &mut Env<'local>,
-    op: &mut blocking::Operator,
+    op: &blocking::Operator,
     path: JString<'local>,
     options: JObject<'local>,
 ) -> Result<JObjectArray<'local>> {
@@ -339,8 +340,14 @@ fn intern_list<'local>(
     )?;
 
     for (idx, entry) in entries.into_iter().enumerate() {
-        let entry = make_entry(env, entry)?;
-        jarray.set_element(env, idx, &entry)?;
+        // `make_entry` creates a dozen or more local references. Release them at
+        // the end of each iteration so a large listing cannot exhaust the JNI
+        // local reference table.
+        env.with_local_frame(16, |env| -> Result<()> {
+            let entry = make_entry(env, entry)?;
+            jarray.set_element(env, idx, &entry)?;
+            Ok(())
+        })?;
     }
 
     Ok(jarray)

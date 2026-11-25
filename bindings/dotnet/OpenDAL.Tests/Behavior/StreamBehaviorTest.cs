@@ -298,4 +298,106 @@ public sealed class StreamBehaviorTest : BehaviorTestBase
 
         Assert.Equal(ErrorCode.Unsupported, ex.Code);
     }
+
+    [Fact]
+    public void StreamBehavior_OpenReadStream_WithSuffixLength_ReturnsTail()
+    {
+        if (!Supports(c => c.Read && c.Write && c.ReadWithSuffix))
+        {
+            return;
+        }
+
+        var path = NewPath("stream-suffix");
+        var content = RandomBytes(1024);
+        Op.Write(path, content);
+
+        using var input = Op.OpenReadStream(path, new ReadOptions { SuffixLength = 100 });
+        using var output = new MemoryStream();
+        input.CopyTo(output);
+
+        Assert.Equal(content.AsSpan(content.Length - 100).ToArray(), output.ToArray());
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void StreamBehavior_OpenWriteStream_NonPositiveBufferSize_ThrowsArgumentOutOfRange(int bufferSize)
+    {
+        if (!Supports(c => c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("stream-invalid-buffer-size");
+        Assert.Throws<ArgumentOutOfRangeException>(() => Op.OpenWriteStream(path, bufferSize: bufferSize));
+    }
+
+    [Fact]
+    public void StreamBehavior_Complete_FailurePoisonsStreamAndDoesNotRetryOnDispose()
+    {
+        if (!Supports(c => c.Read && c.Write && c.Delete && c.WriteWithIfNotExists))
+        {
+            return;
+        }
+
+        var path = NewPath("stream-complete-fail");
+        Op.Write(path, RandomBytes(16));
+
+        var output = Op.OpenWriteStream(path, new WriteOptions { IfNotExists = true });
+        try
+        {
+            output.Write(RandomBytes(32));
+            var ex = Assert.Throws<OpenDALException>(output.Complete);
+            Assert.Equal(ErrorCode.ConditionNotMatch, ex.Code);
+            Assert.False(output.CanWrite);
+            Assert.Throws<InvalidOperationException>(() => output.Write(new byte[1]));
+            Assert.Throws<InvalidOperationException>(output.Flush);
+            Assert.Throws<InvalidOperationException>(output.Complete);
+
+            // Remove the existing object before disposal so a retry of close()
+            // during Dispose() would visibly recreate the path.
+            Op.Delete(path);
+        }
+        finally
+        {
+            output.Dispose();
+        }
+
+        Assert.False(Op.Exists(path));
+    }
+
+    [Fact]
+    public async Task StreamBehavior_CompleteAsync_FailurePoisonsStreamAndDoesNotRetryOnDisposeAsync()
+    {
+        if (!Supports(c => c.Read && c.Write && c.Delete && c.WriteWithIfNotExists))
+        {
+            return;
+        }
+
+        var path = NewPath("stream-complete-async-fail");
+        await Op.WriteAsync(path, RandomBytes(16), cancellationToken: CT);
+
+        var output = Op.OpenWriteStream(path, new WriteOptions { IfNotExists = true });
+        try
+        {
+            await output.WriteAsync(RandomBytes(32), CT);
+
+            var ex = await Assert.ThrowsAsync<OpenDALException>(() => output.CompleteAsync(CT));
+            Assert.Equal(ErrorCode.ConditionNotMatch, ex.Code);
+            Assert.False(output.CanWrite);
+            await Assert.ThrowsAsync<InvalidOperationException>(async () => await output.WriteAsync(new byte[1], CT));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => output.FlushAsync(CT));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => output.CompleteAsync(CT));
+
+            // Remove the existing object before disposal so a retry of close_async()
+            // during DisposeAsync() would visibly recreate the path.
+            await Op.DeleteAsync(path, cancellationToken: CT);
+        }
+        finally
+        {
+            await output.DisposeAsync();
+        }
+
+        Assert.False(await Op.ExistsAsync(path, CT));
+    }
 }

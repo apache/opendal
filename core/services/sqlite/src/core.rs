@@ -26,15 +26,41 @@ use opendal_core::*;
 
 #[derive(Debug, Clone)]
 pub struct SqliteCore {
-    pub pool: OnceCell<SqlitePool>,
-    pub config: SqliteConnectOptions,
+    pool: OnceCell<SqlitePool>,
+    config: SqliteConnectOptions,
 
-    pub table: String,
-    pub key_field: String,
-    pub value_field: String,
+    table: String,
+    key_field: String,
+    value_field: String,
 }
 
 impl SqliteCore {
+    pub fn new(
+        config: SqliteConnectOptions,
+        table: &str,
+        key_field: &str,
+        value_field: &str,
+    ) -> Self {
+        Self {
+            pool: OnceCell::new(),
+            config,
+            table: quote_identifier(table),
+            key_field: quote_identifier(key_field),
+            value_field: quote_identifier(value_field),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn with_pool(pool: SqlitePool, table: &str, key_field: &str, value_field: &str) -> Self {
+        Self {
+            pool: OnceCell::from_value(pool),
+            config: Default::default(),
+            table: quote_identifier(table),
+            key_field: quote_identifier(key_field),
+            value_field: quote_identifier(value_field),
+        }
+    }
+
     pub async fn get_client(&self) -> Result<&SqlitePool> {
         self.pool
             .get_or_try_init(|| async {
@@ -47,6 +73,9 @@ impl SqliteCore {
 
     pub async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let pool = self.get_client().await?;
+        let table = &self.table;
+        let key_field = &self.key_field;
+        let value_field = &self.value_field;
 
         // SQLite prefers using standard `"` for identifier quotes instead of
         // MySQL-compatible backtick ` or [] quotes.
@@ -54,12 +83,11 @@ impl SqliteCore {
         // Read more https://www.sqlite.org/quirks.html#double_quoted_string_literals_are_accepted
         //
         // We use:
-        // - formatted, quoted identifiers for trusted table and field configuration
+        // - pre-quoted, escaped identifiers for trusted table and field configuration
         // - bind parameters for values to avoid malformed SQL and SQL injection
         // to ensure correctness. `AssertSqlSafe` records this audit for sqlx.
         let value: Option<Vec<u8>> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
-            r#"SELECT "{}" FROM "{}" WHERE "{}" = $1 LIMIT 1"#,
-            self.value_field, self.table, self.key_field
+            "SELECT {value_field} FROM {table} WHERE {key_field} = $1 LIMIT 1",
         )))
         .bind(path)
         .fetch_optional(pool)
@@ -69,12 +97,14 @@ impl SqliteCore {
         Ok(value.map(Buffer::from))
     }
 
-    pub async fn get_length(&self, path: &str) -> Result<Option<usize>> {
+    pub async fn get_length(&self, path: &str) -> Result<Option<u64>> {
         let pool = self.get_client().await?;
+        let table = &self.table;
+        let key_field = &self.key_field;
+        let value_field = &self.value_field;
 
         let value: Option<i64> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
-            r#"SELECT LENGTH(CAST("{}" AS BLOB)) FROM "{}" WHERE "{}" = $1 LIMIT 1"#,
-            self.value_field, self.table, self.key_field
+            "SELECT LENGTH(CAST({value_field} AS BLOB)) FROM {table} WHERE {key_field} = $1 LIMIT 1",
         )))
         .bind(path)
         .fetch_optional(pool)
@@ -83,7 +113,7 @@ impl SqliteCore {
 
         value
             .map(|v| {
-                v.try_into().map_err(|err| {
+                u64::try_from(v).map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "sqlite value length is invalid")
                         .set_source(err)
                 })
@@ -93,12 +123,13 @@ impl SqliteCore {
 
     pub async fn count_under(&self, path: &str) -> Result<i64> {
         let pool = self.get_client().await?;
+        let table = &self.table;
+        let key_field = &self.key_field;
 
         sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
-            r#"SELECT COUNT(*) FROM "{}" WHERE instr("{}", $1) = 1 LIMIT 1"#,
-            self.table, self.key_field
+            "SELECT COUNT(*) FROM {table} WHERE instr({key_field}, $1) = 1 LIMIT 1",
         )))
-        .bind(path.to_string())
+        .bind(path)
         .fetch_one(pool)
         .await
         .map_err(parse_sqlite_error)
@@ -107,42 +138,30 @@ impl SqliteCore {
     pub async fn get_range(
         &self,
         path: &str,
-        start: isize,
-        limit: Option<isize>,
+        offset: u64,
+        limit: Option<u64>,
     ) -> Result<Option<(Buffer, u64)>> {
-        let pool = self.get_client().await?;
-        if start < 0 || limit.is_some_and(|v| v < 0) {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "sqlite range contains negative value",
-            ));
-        }
+        // SQLite BLOB/TEXT values are at most `i32::MAX` bytes and `SUBSTR`
+        // converts its start and length arguments to signed 32-bit integers.
+        // An offset >= `i32::MAX` is therefore always at or past EOF.
+        let Some(start) = offset.checked_add(1).and_then(|v| i32::try_from(v).ok()) else {
+            return Ok(self
+                .get_length(path)
+                .await?
+                .map(|length| (Buffer::new(), length)));
+        };
 
-        let start = start.checked_add(1).ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "sqlite range start exceeds supported value",
-            )
-        })?;
-        let start: i64 = start.try_into().map_err(|err| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "sqlite range start exceeds supported value",
-            )
-            .set_source(err)
-        })?;
-        let value = match limit {
+        let pool = self.get_client().await?;
+        let table = &self.table;
+        let key_field = &self.key_field;
+        let value_field = &self.value_field;
+        // Any requested length above `i32::MAX` exceeds SQLite's maximum value
+        // size, so omit the length argument to read through EOF without 32-bit
+        // truncation in `SUBSTR`.
+        let value = match limit.and_then(|v| i32::try_from(v).ok()) {
             Some(limit) => {
-                let limit: i64 = limit.try_into().map_err(|err| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "sqlite range size exceeds supported value",
-                    )
-                    .set_source(err)
-                })?;
                 sqlx::query_as(sqlx::AssertSqlSafe(format!(
-                    r#"SELECT SUBSTR(CAST("{}" AS BLOB), $1, $2), LENGTH(CAST("{}" AS BLOB)) FROM "{}" WHERE "{}" = $3 LIMIT 1"#,
-                    self.value_field, self.value_field, self.table, self.key_field
+                    "SELECT SUBSTR(CAST({value_field} AS BLOB), $1, $2), LENGTH(CAST({value_field} AS BLOB)) FROM {table} WHERE {key_field} = $3 LIMIT 1",
                 )))
                 .bind(start)
                 .bind(limit)
@@ -152,8 +171,7 @@ impl SqliteCore {
             }
             None => {
                 sqlx::query_as(sqlx::AssertSqlSafe(format!(
-                    r#"SELECT SUBSTR(CAST("{}" AS BLOB), $1), LENGTH(CAST("{}" AS BLOB)) FROM "{}" WHERE "{}" = $2 LIMIT 1"#,
-                    self.value_field, self.value_field, self.table, self.key_field
+                    "SELECT SUBSTR(CAST({value_field} AS BLOB), $1), LENGTH(CAST({value_field} AS BLOB)) FROM {table} WHERE {key_field} = $2 LIMIT 1",
                 )))
                 .bind(start)
                 .bind(path)
@@ -166,12 +184,54 @@ impl SqliteCore {
         Ok(value.map(|(bs, size)| (Buffer::from(bs), size as u64)))
     }
 
+    pub async fn get_suffix(&self, path: &str, size: u64) -> Result<Option<(Buffer, u64)>> {
+        if size == 0 {
+            return Ok(self
+                .get_length(path)
+                .await?
+                .map(|length| (Buffer::new(), length)));
+        }
+        // SQLite BLOB/TEXT values are at most `i32::MAX` bytes, so any suffix
+        // of `i32::MAX` or more bytes returns the full value.
+        if size >= i32::MAX as u64 {
+            return Ok(self.get(path).await?.map(|bs| {
+                let length = bs.len() as u64;
+                (bs, length)
+            }));
+        }
+
+        let pool = self.get_client().await?;
+        let table = &self.table;
+        let key_field = &self.key_field;
+        let value_field = &self.value_field;
+        let size = size as i64;
+        // Compute a 1-based start index in `1..=i32::MAX` using 64-bit SQL
+        // arithmetic so `SUBSTR` never receives a negative or out-of-range
+        // 32-bit index.
+        let value: Option<(Vec<u8>, i64)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+            "SELECT SUBSTR(CAST({value_field} AS BLOB), MAX(1, LENGTH(CAST({value_field} AS BLOB)) - $1 + 1)), LENGTH(CAST({value_field} AS BLOB)) FROM {table} WHERE {key_field} = $2 LIMIT 1",
+        )))
+        .bind(size)
+        .bind(path)
+        .fetch_optional(pool)
+        .await
+        .map_err(parse_sqlite_error)?;
+
+        Ok(value.map(|(bs, total_size)| (Buffer::from(bs), total_size as u64)))
+    }
+
     pub async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let pool = self.get_client().await?;
+        let table = &self.table;
+        let key_field = &self.key_field;
+        let value_field = &self.value_field;
 
+        // `INSERT OR REPLACE` deletes the conflicting row, which resets
+        // unrelated columns and can delete a different row when another unique
+        // constraint conflicts. Update only the value column on a key conflict.
         sqlx::query(sqlx::AssertSqlSafe(format!(
-            r#"INSERT OR REPLACE INTO "{}" ("{}", "{}") VALUES ($1, $2)"#,
-            self.table, self.key_field, self.value_field,
+            "INSERT INTO {table} ({key_field}, {value_field}) VALUES ($1, $2)
+            ON CONFLICT ({key_field}) DO UPDATE SET {value_field} = excluded.{value_field}",
         )))
         .bind(path)
         .bind(value.to_vec())
@@ -182,12 +242,121 @@ impl SqliteCore {
         Ok(())
     }
 
+    pub async fn rename(&self, from: &str, to: &str, if_not_exists: bool) -> Result<()> {
+        let pool = self.get_client().await?;
+        // Serialize competing writers before checking the destination.
+        let mut tx = pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(parse_sqlite_error)?;
+        let table = &self.table;
+        let key = &self.key_field;
+
+        let (source_exists, destination_exists): (bool, bool) =
+            sqlx::query_as(sqlx::AssertSqlSafe(format!(
+                "SELECT EXISTS (SELECT 1 FROM {table} WHERE {key} = $1),
+                        EXISTS (SELECT 1 FROM {table} WHERE {key} = $2)",
+            )))
+            .bind(from)
+            .bind(to)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(parse_sqlite_error)?;
+
+        if !source_exists {
+            return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite"));
+        }
+        if destination_exists {
+            if if_not_exists {
+                return Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    "destination key already exists in sqlite",
+                ));
+            }
+
+            // The key collation can make two different paths match the source row.
+            sqlx::query(sqlx::AssertSqlSafe(format!(
+                "DELETE FROM {table} WHERE {key} = $2 AND {key} <> $1",
+            )))
+            .bind(from)
+            .bind(to)
+            .execute(&mut *tx)
+            .await
+            .map_err(parse_sqlite_error)?;
+        }
+
+        // ABORT preserves rows that conflict through other constraints, even if
+        // the schema configures a different default conflict policy.
+        let result = sqlx::query(sqlx::AssertSqlSafe(format!(
+            "UPDATE OR ABORT {table} SET {key} = $2 WHERE {key} = $1",
+        )))
+        .bind(from)
+        .bind(to)
+        .execute(&mut *tx)
+        .await
+        .map_err(|err| {
+            if err
+                .as_database_error()
+                .is_some_and(|err| err.is_unique_violation())
+            {
+                Error::new(
+                    ErrorKind::Conflict,
+                    "sqlite rename violates a unique constraint",
+                )
+                .set_source(err)
+            } else {
+                parse_sqlite_error(err)
+            }
+        })?;
+        if result.rows_affected() == 0 {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "sqlite rename did not update the source key",
+            ));
+        }
+
+        tx.commit().await.map_err(parse_sqlite_error)
+    }
+
     pub async fn delete(&self, path: &str) -> Result<()> {
         let pool = self.get_client().await?;
+        let table = &self.table;
+        let key_field = &self.key_field;
+
+        if path.is_empty() || path.ends_with('/') {
+            // Serialize competing writers so a child cannot be inserted between
+            // the emptiness check and deleting the directory marker.
+            let mut tx = pool
+                .begin_with("BEGIN IMMEDIATE")
+                .await
+                .map_err(parse_sqlite_error)?;
+
+            let has_children: bool = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+                "SELECT EXISTS (SELECT 1 FROM {table} WHERE instr({key_field}, $1) = 1 AND {key_field} <> $1)",
+            )))
+            .bind(path)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(parse_sqlite_error)?;
+
+            if has_children {
+                tx.rollback().await.map_err(parse_sqlite_error)?;
+                return Err(Error::new(ErrorKind::Unexpected, "directory not empty"));
+            }
+
+            sqlx::query(sqlx::AssertSqlSafe(format!(
+                "DELETE FROM {table} WHERE {key_field} = $1",
+            )))
+            .bind(path)
+            .execute(&mut *tx)
+            .await
+            .map_err(parse_sqlite_error)?;
+
+            return tx.commit().await.map_err(parse_sqlite_error);
+        }
 
         sqlx::query(sqlx::AssertSqlSafe(format!(
-            r#"DELETE FROM "{}" WHERE "{}" = $1"#,
-            self.table, self.key_field
+            "DELETE FROM {table} WHERE {key_field} = $1",
         )))
         .bind(path)
         .execute(pool)
@@ -196,4 +365,10 @@ impl SqliteCore {
 
         Ok(())
     }
+}
+
+// SQLite escapes double quotes in identifiers by doubling them. Queries
+// interpolate only these quoted identifiers and bind paths and values.
+fn quote_identifier(identifier: &str) -> String {
+    format!("\"{}\"", identifier.replace('"', "\"\""))
 }

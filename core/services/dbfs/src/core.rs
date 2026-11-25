@@ -47,6 +47,16 @@ impl Debug for DbfsCore {
 }
 
 impl DbfsCore {
+    fn dbfs_path(&self, path: &str) -> String {
+        let p = build_rooted_absolute_path(&self.root, path);
+        let trimmed = p.trim_end_matches('/');
+        if trimmed.is_empty() {
+            "/".to_string()
+        } else {
+            trimmed.to_string()
+        }
+    }
+
     pub async fn dbfs_create_dir(
         &self,
         ctx: &OperationContext,
@@ -58,9 +68,7 @@ impl DbfsCore {
         let auth_header_content = format!("Bearer {}", self.token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        let p = build_rooted_abs_path(&self.root, path)
-            .trim_end_matches('/')
-            .to_string();
+        let p = self.dbfs_path(path);
 
         let req_body = &json!({
             "path": p,
@@ -87,9 +95,7 @@ impl DbfsCore {
         let auth_header_content = format!("Bearer {}", self.token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        let p = build_rooted_abs_path(&self.root, path)
-            .trim_end_matches('/')
-            .to_string();
+        let p = self.dbfs_path(path);
 
         let request_body = &json!({
             "path": p,
@@ -114,8 +120,8 @@ impl DbfsCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let source = build_rooted_abs_path(&self.root, from);
-        let target = build_rooted_abs_path(&self.root, to);
+        let source = build_rooted_absolute_path(&self.root, from);
+        let target = build_rooted_absolute_path(&self.root, to);
 
         let url = format!("{}/api/2.0/dbfs/move", self.endpoint);
         let mut req = Request::post(&url);
@@ -140,9 +146,7 @@ impl DbfsCore {
     }
 
     pub async fn dbfs_list(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path)
-            .trim_end_matches('/')
-            .to_string();
+        let p = self.dbfs_path(path);
 
         let url = format!(
             "{}/api/2.0/dbfs/list?path={}",
@@ -173,7 +177,7 @@ impl DbfsCore {
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
         let req_body = &json!({
-            "path": build_rooted_abs_path(&self.root, path),
+            "path": build_rooted_absolute_path(&self.root, path),
             "contents": contents,
             "overwrite": true,
         });
@@ -191,9 +195,7 @@ impl DbfsCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path)
-            .trim_end_matches('/')
-            .to_string();
+        let p = self.dbfs_path(path);
 
         let url = format!(
             "{}/api/2.0/dbfs/get-status?path={}",
@@ -216,21 +218,26 @@ impl DbfsCore {
     }
 
     pub async fn dbfs_ensure_parent_path(&self, ctx: &OperationContext, path: &str) -> Result<()> {
-        let resp = self.dbfs_get_status(ctx, path).await?;
+        let parent = get_parent(path);
+        let resp = self.dbfs_get_status(ctx, parent).await?;
 
         match resp.status() {
-            StatusCode::OK => return Ok(()),
+            StatusCode::OK => Ok(()),
             StatusCode::NOT_FOUND => {
-                self.dbfs_create_dir(ctx, path).await?;
+                let resp = self.dbfs_create_dir(ctx, parent).await?;
+                match resp.status() {
+                    StatusCode::CREATED | StatusCode::OK => Ok(()),
+                    _ => Err(parse_error(
+                        ErrorContext::new(ServiceOperation("Mkdirs")),
+                        resp,
+                    )),
+                }
             }
-            _ => {
-                return Err(parse_error(
-                    ErrorContext::new(ServiceOperation("GetStatus")),
-                    resp,
-                ));
-            }
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetStatus")),
+                resp,
+            )),
         }
-        Ok(())
     }
 }
 
@@ -294,4 +301,179 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     }
 
     err
+}
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use std::collections::VecDeque;
+    use std::sync::Arc;
+    use std::sync::Mutex;
+
+    use bytes::Bytes;
+    use futures::stream;
+    use http::Method;
+    use http::Request;
+    use http::Response;
+    use http::StatusCode;
+    use opendal_core::Buffer;
+    use opendal_core::Error;
+    use opendal_core::ErrorKind;
+    use opendal_core::HttpBody;
+    use opendal_core::HttpTransport;
+    use opendal_core::HttpTransporter;
+    use opendal_core::OperationContext;
+    use opendal_core::Result;
+    use opendal_core::raw::new_request_build_error;
+
+    #[derive(Debug, Clone)]
+    pub(crate) struct RecordedRequest {
+        pub(crate) method: Method,
+        pub(crate) uri: String,
+        pub(crate) body: Bytes,
+    }
+
+    #[derive(Clone)]
+    pub(crate) struct RecordingTransport {
+        requests: Arc<Mutex<Vec<RecordedRequest>>>,
+        responses: Arc<Mutex<VecDeque<(StatusCode, String)>>>,
+    }
+
+    impl RecordingTransport {
+        pub(crate) fn new(
+            responses: impl IntoIterator<Item = (StatusCode, impl Into<String>)>,
+        ) -> Self {
+            let queue = responses
+                .into_iter()
+                .map(|(status, body)| (status, body.into()))
+                .collect();
+            Self {
+                requests: Arc::new(Mutex::new(Vec::new())),
+                responses: Arc::new(Mutex::new(queue)),
+            }
+        }
+
+        pub(crate) fn requests(&self) -> Vec<RecordedRequest> {
+            self.requests.lock().unwrap().clone()
+        }
+
+        pub(crate) fn context(&self) -> OperationContext {
+            OperationContext::default().with_http_transport(HttpTransporter::new(self.clone()))
+        }
+    }
+
+    impl HttpTransport for RecordingTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let (parts, body) = req.into_parts();
+            self.requests.lock().unwrap().push(RecordedRequest {
+                method: parts.method,
+                uri: parts.uri.to_string(),
+                body: body.to_bytes(),
+            });
+
+            let (status, resp_body) =
+                self.responses.lock().unwrap().pop_front().ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "unexpected extra HTTP request in mock transport",
+                    )
+                })?;
+
+            let payload = Buffer::from(resp_body);
+            let len = payload.len() as u64;
+            Response::builder()
+                .status(status)
+                .body(HttpBody::new(stream::iter([Ok(payload)]), Some(len)))
+                .map_err(new_request_build_error)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use http::Method;
+    use serde_json::Value;
+
+    use super::test_support::RecordingTransport;
+    use super::*;
+
+    const TEST_TIMEOUT: Duration = Duration::from_secs(10);
+
+    #[tokio::test]
+    async fn root_path_operations_preserve_leading_slash() {
+        tokio::time::timeout(TEST_TIMEOUT, async {
+            let transport = RecordingTransport::new([
+                (StatusCode::OK, "{}"),
+                (StatusCode::OK, "{}"),
+                (StatusCode::OK, "{}"),
+                (StatusCode::OK, "{}"),
+            ]);
+            let ctx = transport.context();
+            let core = DbfsCore {
+                root: "/".to_string(),
+                endpoint: "https://example.databricks.com".to_string(),
+                token: "test-token".to_string(),
+            };
+
+            core.dbfs_create_dir(&ctx, "/").await.unwrap();
+            core.dbfs_delete(&ctx, "/").await.unwrap();
+            core.dbfs_list(&ctx, "/").await.unwrap();
+            core.dbfs_get_status(&ctx, "/").await.unwrap();
+
+            let reqs = transport.requests();
+            assert_eq!(reqs.len(), 4);
+
+            assert_eq!(reqs[0].method, Method::POST);
+            assert_eq!(
+                reqs[0].uri,
+                "https://example.databricks.com/api/2.0/dbfs/mkdirs"
+            );
+            let mkdir_body: Value = serde_json::from_slice(&reqs[0].body).unwrap();
+            assert_eq!(mkdir_body["path"], "/");
+
+            assert_eq!(reqs[1].method, Method::POST);
+            assert_eq!(
+                reqs[1].uri,
+                "https://example.databricks.com/api/2.0/dbfs/delete"
+            );
+            let delete_body: Value = serde_json::from_slice(&reqs[1].body).unwrap();
+            assert_eq!(delete_body["path"], "/");
+
+            assert_eq!(reqs[2].method, Method::GET);
+            assert_eq!(
+                reqs[2].uri,
+                "https://example.databricks.com/api/2.0/dbfs/list?path=/"
+            );
+
+            assert_eq!(reqs[3].method, Method::GET);
+            assert_eq!(
+                reqs[3].uri,
+                "https://example.databricks.com/api/2.0/dbfs/get-status?path=/"
+            );
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    #[test]
+    fn dbfs_path_trims_non_root_trailing_slashes() {
+        let root_core = DbfsCore {
+            root: "/".to_string(),
+            endpoint: "https://example.databricks.com".to_string(),
+            token: "test-token".to_string(),
+        };
+        assert_eq!(root_core.dbfs_path("/"), "/");
+        assert_eq!(root_core.dbfs_path("dir/"), "/dir");
+        assert_eq!(root_core.dbfs_path("dir/file.txt"), "/dir/file.txt");
+
+        let sub_core = DbfsCore {
+            root: "/workspace/".to_string(),
+            endpoint: "https://example.databricks.com".to_string(),
+            token: "test-token".to_string(),
+        };
+        assert_eq!(sub_core.dbfs_path("/"), "/workspace");
+        assert_eq!(sub_core.dbfs_path("dir/"), "/workspace/dir");
+        assert_eq!(sub_core.dbfs_path("file.txt"), "/workspace/file.txt");
+    }
 }

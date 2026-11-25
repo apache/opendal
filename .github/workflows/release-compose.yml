@@ -62,7 +62,7 @@ jobs:
           ref: ${{ inputs.candidate }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Validate reviewed candidate identity
@@ -106,7 +106,7 @@ jobs:
           ref: ${{ inputs.candidate }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - uses: actions/download-artifact@v8

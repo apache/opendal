@@ -133,8 +133,15 @@ impl Builder for SwiftBuilder {
 
         let endpoint = match self.config.endpoint {
             Some(endpoint) => {
-                if endpoint.starts_with("http") {
-                    endpoint
+                let endpoint = endpoint.trim_end_matches('/');
+                if endpoint.is_empty() {
+                    return Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "missing endpoint for Swift",
+                    ));
+                }
+                if endpoint.starts_with("http://") || endpoint.starts_with("https://") {
+                    endpoint.to_string()
                 } else {
                     format!("https://{endpoint}")
                 }
@@ -346,10 +353,20 @@ impl Service for SwiftBackend {
         args: OpPresign,
     ) -> Result<RpPresign> {
         let (expire, op) = args.into_parts();
+        let mut headers = http::HeaderMap::new();
 
-        let method = match &op {
+        let method = match op {
             PresignOperation::Stat(_) => http::Method::HEAD,
-            PresignOperation::Read(_, _) => http::Method::GET,
+            PresignOperation::Read(range, _) => {
+                if !range.is_full() {
+                    let value = range
+                        .to_header()
+                        .parse()
+                        .expect("byte range must be a valid HTTP header value");
+                    headers.insert(http::header::RANGE, value);
+                }
+                http::Method::GET
+            }
             PresignOperation::Write(_) => http::Method::PUT,
             _ => {
                 return Err(Error::new(
@@ -364,11 +381,7 @@ impl Service for SwiftBackend {
             Error::new(ErrorKind::Unexpected, "failed to parse presigned URL").set_source(e)
         })?;
 
-        Ok(RpPresign::new(PresignedRequest::new(
-            method,
-            uri,
-            http::HeaderMap::new(),
-        )))
+        Ok(RpPresign::new(PresignedRequest::new(method, uri, headers)))
     }
 
     fn copy(
@@ -435,5 +448,60 @@ impl Service for SwiftBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_handles_endpoint_scheme_prefix() {
+        let http_host = SwiftBuilder::default()
+            .endpoint("http-proxy.example.com/v1/AUTH_test/")
+            .container("photos")
+            .root("/albums")
+            .build()
+            .unwrap();
+        assert_eq!(http_host.info().scheme(), SWIFT_SCHEME);
+        assert_eq!(http_host.info().root().as_ref(), "/albums/");
+
+        let cfg = SwiftConfig {
+            endpoint: Some("http-proxy.example.com/v1/AUTH_test/".to_string()),
+            container: Some("photos".to_string()),
+            temp_url_key: Some("secret".to_string()),
+            ..Default::default()
+        };
+        let op = Operator::from_config(cfg).unwrap();
+
+        // Verify the built endpoint URL actually has https:// prepended via presign.
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let req = rt
+            .block_on(op.presign_read("pic.jpg", std::time::Duration::from_secs(60)))
+            .unwrap();
+        assert!(
+            req.uri()
+                .to_string()
+                .starts_with("https://http-proxy.example.com/v1/AUTH_test/photos/pic.jpg?")
+        );
+
+        let http_cfg = SwiftConfig {
+            endpoint: Some("http://127.0.0.1:8080/v1/AUTH_test/".to_string()),
+            container: Some("photos".to_string()),
+            temp_url_key: Some("secret".to_string()),
+            ..Default::default()
+        };
+        let http_op = Operator::from_config(http_cfg).unwrap();
+        let http_req = rt
+            .block_on(http_op.presign_read("pic.jpg", std::time::Duration::from_secs(60)))
+            .unwrap();
+        assert!(
+            http_req
+                .uri()
+                .to_string()
+                .starts_with("http://127.0.0.1:8080/v1/AUTH_test/photos/pic.jpg?")
+        );
     }
 }

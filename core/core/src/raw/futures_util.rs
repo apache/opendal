@@ -73,44 +73,10 @@ impl<T> MaybeSend for T {}
 /// - `I` represents the input type of the task.
 /// - `O` represents the output type of the task.
 ///
-/// # Implementation Notes
-///
-/// The code patterns below are intentional; please do not modify them unless you fully understand these notes.
-///
-/// ```skip
-///  let result = self
-///     .tasks
-///     .front_mut()                                        // Use `front_mut` instead of `pop_front`
-///     .expect("tasks must be available")
-///     .await;
-/// ...
-/// match result {
-///     Ok(o) => {
-///         let _ = self.tasks.pop_front();                 // `pop_front` after got `Ok(o)`
-///         self.results.push_back(o)
-///     }
-///     Err((i, err)) => {
-///         if err.is_temporary() {
-///             let task = self.spawn_task(i);
-///             self.tasks
-///                 .front_mut()
-///                 .expect("tasks must be available")
-///                 .replace(task)                          // Use replace here to instead of `push_front`
-///         } else {
-///             self.clear();
-///             self.errored = true;
-///         }
-///         return Err(err);
-///     }
-/// }
-/// ```
-///
-/// Please keep in mind that there is no guarantee the task will be `await`ed until completion. It's possible
-/// the task may be dropped before it resolves. Therefore, we should keep the `Task` in the `tasks` queue until
-/// it is resolved.
-///
-/// For example, users may have a timeout for the task, and the task will be dropped if it exceeds the timeout.
-/// If we `pop_front` the task before it resolves, the task will be canceled and the result will be lost.
+/// The queue leaves the front task in place while awaiting it. If the caller
+/// stops polling before the task completes, the next call can resume waiting
+/// without canceling the task. A temporary operation error replaces the failed
+/// task in place so results remain in submission order.
 pub struct ConcurrentTasks<I, O> {
     /// The executor to execute the tasks.
     ///
@@ -194,6 +160,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
     pub fn clear(&mut self) {
         self.tasks.clear();
         self.results.clear();
+        self.completed_but_unretrieved = Arc::default();
     }
 
     /// Check if there are remaining space to push new tasks.
@@ -210,7 +177,13 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
         !self.results.is_empty()
     }
 
-    fn spawn_task(&self, input: I) -> Task<Result<O, (I, Error)>> {
+    /// Check if concurrent tasks hit an unrecoverable error.
+    #[inline]
+    pub(crate) fn is_errored(&self) -> bool {
+        self.errored
+    }
+
+    fn spawn_task(&self, input: I) -> Result<Task<Result<O, (I, Error)>>> {
         let completed = self.completed_but_unretrieved.clone();
         let fut = (self.factory)(input)
             // Completed tasks can remain queued while the caller produces more work.
@@ -250,36 +223,15 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
         }
 
         if !self.has_remaining() {
-            let result = self
-                .tasks
-                .front_mut()
-                .expect("tasks must be available")
-                .await;
-            self.completed_but_unretrieved
-                .fetch_sub(1, Ordering::Relaxed);
-            match result {
-                Ok(o) => {
-                    let _ = self.tasks.pop_front();
-                    self.results.push_back(o)
-                }
-                Err((i, err)) => {
-                    // Retry this task if the error is temporary
-                    if err.is_temporary() {
-                        let task = self.spawn_task(i);
-                        self.tasks
-                            .front_mut()
-                            .expect("tasks must be available")
-                            .replace(task)
-                    } else {
-                        self.clear();
-                        self.errored = true;
-                    }
-                    return Err(err);
-                }
-            }
+            let output = self
+                .collect_task()
+                .await
+                .expect("tasks must be available")?;
+            self.results.push_back(output);
         }
 
-        self.tasks.push_back(self.spawn_task(input));
+        let task = self.spawn_task(input).inspect_err(|_| self.fail())?;
+        self.tasks.push_back(task);
         Ok(())
     }
 
@@ -296,33 +248,45 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
             return Some(Ok(result));
         }
 
-        if let Some(task) = self.tasks.front_mut() {
-            let result = task.await;
-            self.completed_but_unretrieved
-                .fetch_sub(1, Ordering::Relaxed);
-            return match result {
-                Ok(o) => {
-                    let _ = self.tasks.pop_front();
-                    Some(Ok(o))
-                }
-                Err((i, err)) => {
-                    // Retry this task if the error is temporary
-                    if err.is_temporary() {
-                        let task = self.spawn_task(i);
-                        self.tasks
-                            .front_mut()
-                            .expect("tasks must be available")
-                            .replace(task)
-                    } else {
-                        self.clear();
-                        self.errored = true;
-                    }
+        self.collect_task().await
+    }
+
+    async fn collect_task(&mut self) -> Option<Result<O>> {
+        let task = self.tasks.front_mut()?;
+        let result = match task.await {
+            Ok(result) => result,
+            Err(err) => {
+                self.fail();
+                return Some(Err(err));
+            }
+        };
+        self.completed_but_unretrieved
+            .fetch_sub(1, Ordering::Relaxed);
+        match result {
+            Ok(output) => {
+                self.tasks.pop_front();
+                Some(Ok(output))
+            }
+            Err((input, err)) if err.is_temporary() => match self.spawn_task(input) {
+                Ok(task) => {
+                    *self.tasks.front_mut().expect("tasks must be available") = task;
                     Some(Err(err))
                 }
-            };
+                Err(submit_err) => {
+                    self.fail();
+                    Some(Err(submit_err))
+                }
+            },
+            Err((_, err)) => {
+                self.fail();
+                Some(Err(err))
+            }
         }
+    }
 
-        None
+    fn fail(&mut self) {
+        self.clear();
+        self.errored = true;
     }
 }
 
@@ -337,7 +301,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_concurrent_tasks() {
-        let executor = Executor::new();
+        let executor = crate::test_executor();
 
         let mut tasks = ConcurrentTasks::new(executor, 16, 8, |(i, dur)| {
             Box::pin(async move {
@@ -380,7 +344,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_prefetch_backpressure() {
-        let executor = Executor::new();
+        let executor = crate::test_executor();
         let concurrent = 4;
         let prefetch = 2;
 
@@ -438,7 +402,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_prefetch_zero() {
-        let executor = Executor::new();
+        let executor = crate::test_executor();
         let concurrent = 4;
         let prefetch = 0; // No prefetching allowed
 
@@ -475,5 +439,59 @@ mod tests {
 
         // Should be full again
         assert!(!tasks.has_remaining(), "Should be full again");
+    }
+
+    #[tokio::test]
+    async fn test_clear_resets_and_detaches_completed_counter() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let executor = crate::test_executor();
+            let mut tasks = ConcurrentTasks::new(
+                executor,
+                2,
+                2,
+                |(id, gate): (usize, Option<futures::channel::oneshot::Receiver<()>>)| {
+                    Box::pin(async move {
+                        if let Some(rx) = gate {
+                            let _ = rx.await;
+                        }
+                        ((id, None), Ok(id))
+                    })
+                },
+            );
+
+            // Submit two fast tasks and wait until both record completion.
+            tasks.execute((0, None)).await.unwrap();
+            tasks.execute((1, None)).await.unwrap();
+            while tasks.completed_but_unretrieved.load(Ordering::Relaxed) < 2 {
+                tokio::task::yield_now().await;
+            }
+
+            let old_counter = tasks.completed_but_unretrieved.clone();
+            tasks.clear();
+
+            assert_eq!(tasks.completed_but_unretrieved.load(Ordering::Relaxed), 0);
+            assert!(!Arc::ptr_eq(&old_counter, &tasks.completed_but_unretrieved));
+
+            // A late completion on a canceled task from before `clear()` must not
+            // inflate the new epoch's counter.
+            old_counter.fetch_add(1, Ordering::Relaxed);
+            assert_eq!(tasks.completed_but_unretrieved.load(Ordering::Relaxed), 0);
+
+            // Submitting `concurrent` blocked tasks must fill all slots without
+            // leaking prefetch capacity from cleared tasks.
+            let (tx1, rx1) = futures::channel::oneshot::channel();
+            let (tx2, rx2) = futures::channel::oneshot::channel();
+            tasks.execute((2, Some(rx1))).await.unwrap();
+            tasks.execute((3, Some(rx2))).await.unwrap();
+            assert!(!tasks.has_remaining());
+
+            let _ = tx1.send(());
+            let _ = tx2.send(());
+            assert_eq!(tasks.next().await.unwrap().unwrap(), 2);
+            assert_eq!(tasks.next().await.unwrap().unwrap(), 3);
+            assert!(tasks.next().await.is_none());
+        })
+        .await
+        .expect("test_clear_resets_and_detaches_completed_counter timed out");
     }
 }

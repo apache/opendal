@@ -34,9 +34,13 @@ namespace OpenDAL.ServiceConfig
         [System.Obsolete("WebDAV copy capability is enabled by default and this option is no longer needed.")]
         public bool? DisableCopy { get; init; }
         /// <summary>
-        /// Disable automatic parent directory creation before write operations. By default, OpenDAL creates parent directories using MKCOL before writing files. This requires PROPFIND support to check directory existence. Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND or don't require explicit directory creation. Enable this option to skip the MKCOL calls and write files directly. Default: false
+        /// Disable automatic parent directory creation before writing files. By default, OpenDAL checks for parent directories using `PROPFIND` and creates missing directories using `MKCOL` before writing files. Enable this option to skip those checks and `MKCOL` calls for servers such as `bazel-remote`. Explicit `create_dir` calls are unaffected. Default: `false`
         /// </summary>
         public bool? DisableCreateDir { get; init; }
+        /// <summary>
+        /// Disable native recursive listing with WebDAV's `Depth: infinity`. Set this to `true` for servers that reject or ignore infinity depth. With capability simulation enabled, OpenDAL walks the directory tree using `Depth: 1` requests instead. The default is `false`.
+        /// </summary>
+        public bool? DisableDepthInfinity { get; init; }
         /// <summary>
         /// Deprecated: WebDAV conditional read capabilities are enabled by default.
         /// </summary>
@@ -90,6 +94,10 @@ namespace OpenDAL.ServiceConfig
             if (DisableCreateDir is not null)
             {
                 map["disable_create_dir"] = Utilities.ToOptionString(DisableCreateDir);
+            }
+            if (DisableDepthInfinity is not null)
+            {
+                map["disable_depth_infinity"] = Utilities.ToOptionString(DisableDepthInfinity);
             }
 #pragma warning disable CS0618
             if (EnableConditionalRead is not null)

@@ -51,8 +51,13 @@ module OpenDal
     # @return [Boolean]
     def eof
       position = tell
-      seek(0, ::IO::SEEK_END)
-      tell == position
+
+      begin
+        seek(0, ::IO::SEEK_END)
+        position >= tell
+      ensure
+        seek(position, ::IO::SEEK_SET)
+      end
     end
 
     alias_method :eof?, :eof

@@ -7,9 +7,8 @@ description: The OpenDAL Node.js binding — install it, see what it supports, a
 
 # Apache OpenDAL™ Node.js Binding
 
-A native Node.js binding for OpenDAL: access S3, GCS, Azure Blob, HDFS, the local
-filesystem, and [50+ more services](/services) through one API, with the
-performance of the Rust core underneath.
+A native Node.js binding for OpenDAL with one API for S3, GCS, Azure Blob,
+the local filesystem, and other [storage services](/services).
 
 New to the model behind the API? Read [Concepts](../../03-concepts.mdx) first —
 the shared storage semantics and path and operation concepts every binding
@@ -31,8 +30,8 @@ Released and stable, published to [npm](https://www.npmjs.com/package/opendal).
   `writeSync`, …) for blocking code.
 - **Streaming** reads and writes via Node `Readable`/`Writable` streams for data
   that does not fit in memory.
-- **All services included** — the package bundles every backend; there are no
-  build flags to enable.
+- **Services** — the [included services](./02-getting-started.md#build-with-additional-services)
+  depend on the platform of the npm native package.
 - **Composable layers** for retry, timeout, logging, throttle, and concurrency
   limits — see [Going to production](./05-production.md).
 - **Presigned URLs** for services that support them (S3, GCS, Azblob, …).

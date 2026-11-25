@@ -60,6 +60,20 @@ impl MonoiofsReader {
         // worker thread
         let file = match result {
             Ok(file) => {
+                match file.metadata().await {
+                    Ok(meta) if meta.is_dir() => {
+                        let _ = open_result_tx.send(Err(Error::new(
+                            ErrorKind::IsADirectory,
+                            "read path is a directory",
+                        )));
+                        return;
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        let _ = open_result_tx.send(Err(new_std_io_error(e)));
+                        return;
+                    }
+                }
                 let Ok(()) = open_result_tx.send(Ok(())) else {
                     // MonoiofsReader::new is cancelled, exit worker task
                     return;
@@ -187,5 +201,72 @@ impl oio::Write for MonoiofsLazyWriter {
                 "Monoiofs doesn't support abort",
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use opendal_core::raw::oio::Read;
+
+    use super::*;
+    use crate::Monoiofs;
+
+    #[tokio::test]
+    async fn test_read_directory_returns_is_a_directory() {
+        tokio::time::timeout(Duration::from_secs(30), async {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let root = temp_dir.path();
+            std::fs::create_dir(root.join("dir")).unwrap();
+            #[cfg(unix)]
+            std::os::unix::fs::symlink("dir", root.join("dir_link")).unwrap();
+
+            let service = Monoiofs::default()
+                .root(root.to_str().unwrap())
+                .build()
+                .unwrap();
+            let raw_reader = service
+                .read(&OperationContext::new(), "dir", OpRead::default())
+                .unwrap();
+            let err = raw_reader
+                .read(BytesRange::new(0, Some(1)))
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+
+            let direct_core = Arc::new(MonoiofsCore::new(root.to_path_buf(), 1, 1024));
+            let err = MonoiofsReader::new(direct_core, root.join("dir"))
+                .await
+                .err()
+                .unwrap();
+            assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+
+            let op = Operator::new(Monoiofs::default().root(root.to_str().unwrap())).unwrap();
+
+            let err = op.read("dir").await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+
+            let err = op.read_with("dir").range(0..1).await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+
+            let reader = op.reader("dir").await.unwrap();
+            let err = reader.read(..).await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+
+            #[cfg(unix)]
+            {
+                let err = op.read("dir_link").await.unwrap_err();
+                assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+                assert!(!err.is_temporary(), "{err:?}");
+            }
+        })
+        .await
+        .unwrap();
     }
 }

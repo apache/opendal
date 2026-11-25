@@ -19,9 +19,12 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <exception>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -281,7 +284,8 @@ class ReaderStream : public std::istream {
   class ReaderStreamBuf : public std::streambuf {
    public:
     ReaderStreamBuf(Reader &&reader)
-        : reader_(std::move(reader)), buffer_start_pos_(0) {
+        : reader_(std::move(reader)),
+          buffer_start_pos_(reader_.Seek(0, std::ios_base::cur)) {
       setg(buffer_, buffer_, buffer_);
     }
 
@@ -293,9 +297,9 @@ class ReaderStream : public std::istream {
         if (gptr() < egptr()) {
           std::streamsize available_bytes = egptr() - gptr();
           std::streamsize to_copy =
-              std::min(available_bytes, count - total_read);
+              (std::min)(available_bytes, count - total_read);
           std::memcpy(s + total_read, gptr(), to_copy);
-          gbump(to_copy);
+          gbump(static_cast<int>(to_copy));
           total_read += to_copy;
           continue;
         }
@@ -311,8 +315,10 @@ class ReaderStream : public std::istream {
         return traits_type::to_int_type(*gptr());
       }
 
-      // Update the buffer start position to current reader position
+      // Advance past the exhausted buffer before reading so EOF or a failed
+      // read leaves the buffer empty at the underlying reader position.
       buffer_start_pos_ += static_cast<std::streamoff>(egptr() - eback());
+      setg(buffer_, buffer_, buffer_);
 
       std::streamsize n = reader_.Read(buffer_, sizeof(buffer_));
       if (n <= 0) {
@@ -333,23 +339,73 @@ class ReaderStream : public std::istream {
 
     std::streampos seekoff(std::streamoff off, std::ios_base::seekdir dir,
                            std::ios_base::openmode which) override {
-      if (dir == std::ios_base::cur && off == 0) {
-        // tellg() case - return current position
-        return buffer_start_pos_ + static_cast<std::streamoff>(gptr() - eback());
+      if ((which & std::ios_base::in) == 0) {
+        return pos_type(off_type(-1));
       }
 
-      // Actual seek operation
-      std::streampos new_pos = reader_.Seek(off, dir);
-      if (new_pos != std::streampos(-1)) {
-        buffer_start_pos_ = new_pos;
-        setg(buffer_, buffer_, buffer_);
+      const std::streamoff buffer_start =
+          static_cast<std::streamoff>(buffer_start_pos_);
+      const std::streamoff buffer_len =
+          static_cast<std::streamoff>(egptr() - eback());
+      const std::streamoff cur_pos =
+          buffer_start + static_cast<std::streamoff>(gptr() - eback());
+
+      if (dir == std::ios_base::cur && off == 0) {
+        return pos_type(cur_pos);
       }
-      return new_pos;
+
+      if (dir == std::ios_base::beg || dir == std::ios_base::cur) {
+        std::streamoff target = 0;
+        if (dir == std::ios_base::beg) {
+          if (off < 0) {
+            return pos_type(off_type(-1));
+          }
+          target = off;
+        } else {
+          if (cur_pos < 0 ||
+              (off > 0 &&
+               off > (std::numeric_limits<std::streamoff>::max)() - cur_pos)) {
+            return pos_type(off_type(-1));
+          }
+          target = cur_pos + off;
+          if (target < 0) {
+            return pos_type(off_type(-1));
+          }
+        }
+
+        if (target >= buffer_start && target - buffer_start <= buffer_len) {
+          setg(eback(), eback() + (target - buffer_start), egptr());
+          return pos_type(target);
+        }
+
+        try {
+          std::streampos new_pos = reader_.Seek(target, std::ios_base::beg);
+          buffer_start_pos_ = new_pos;
+          setg(buffer_, buffer_, buffer_);
+          return new_pos;
+        } catch (const std::exception &) {
+          return pos_type(off_type(-1));
+        }
+      }
+
+      if (dir == std::ios_base::end) {
+        try {
+          std::streampos new_pos = reader_.Seek(off, std::ios_base::end);
+          buffer_start_pos_ = new_pos;
+          setg(buffer_, buffer_, buffer_);
+          return new_pos;
+        } catch (const std::exception &) {
+          return pos_type(off_type(-1));
+        }
+      }
+
+      return pos_type(off_type(-1));
     }
 
     std::streampos seekpos(std::streampos pos,
                            std::ios_base::openmode which) override {
-      return seekoff(pos, std::ios_base::beg, which);
+      return seekoff(static_cast<std::streamoff>(pos), std::ios_base::beg,
+                     which);
     }
 
    private:
@@ -410,9 +466,16 @@ class Lister {
       return *this;
     }
 
-    bool operator!=(const Iterator &other) const {
-      return current_entry_ != std::nullopt ||
-             other.current_entry_ != std::nullopt;
+    bool operator==(const Iterator &other) const noexcept {
+      if (!current_entry_.has_value() && !other.current_entry_.has_value()) {
+        return true;
+      }
+      return current_entry_.has_value() && other.current_entry_.has_value() &&
+             &lister_ == &other.lister_;
+    }
+
+    bool operator!=(const Iterator &other) const noexcept {
+      return !(*this == other);
     }
 
    protected:

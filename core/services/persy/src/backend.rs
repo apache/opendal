@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use super::PERSY_SCHEME;
 use super::config::PersyConfig;
@@ -63,23 +64,18 @@ impl Builder for PersyBuilder {
                 .with_context("service", PERSY_SCHEME)
         })?;
 
-        let segment_name = self.config.segment.ok_or_else(|| {
+        let segment = self.config.segment.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "segment is required but not set")
                 .with_context("service", PERSY_SCHEME)
         })?;
 
-        let segment = segment_name.clone();
-
-        let index_name = self.config.index.ok_or_else(|| {
+        let index = self.config.index.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "index is required but not set")
                 .with_context("service", PERSY_SCHEME)
         })?;
 
-        let index = index_name.clone();
-
         let persy = persy::OpenOptions::new()
             .create(true)
-            .prepare_with(move |p| init(p, &segment_name, &index_name))
             .open(&datafile_path)
             .map_err(|e| {
                 Error::new(ErrorKind::ConfigInvalid, "open db")
@@ -88,33 +84,22 @@ impl Builder for PersyBuilder {
                     .set_source(e)
             })?;
 
-        // This function will only be called on database creation
-        fn init(
-            persy: &persy::Persy,
-            segment_name: &str,
-            index_name: &str,
-        ) -> Result<(), Box<dyn std::error::Error>> {
-            let mut tx = persy.begin()?;
-
-            if !tx.exists_segment(segment_name)? {
-                tx.create_segment(segment_name)?;
-            }
-            if !tx.exists_index(index_name)? {
-                tx.create_index::<String, persy::PersyId>(index_name, persy::ValueMode::Replace)?;
-            }
-
-            let prepared = tx.prepare()?;
-            prepared.commit()?;
-
-            Ok(())
-        }
-
-        Ok(PersyBackend::new(PersyCore {
-            datafile: datafile_path,
+        let core = PersyCore {
+            datafile: datafile_path.clone(),
             segment,
             index,
             persy,
-        }))
+            write_lock: Arc::new(Mutex::new(())),
+        };
+
+        // `persy` only runs the initialization of a datafile while creating it, so an
+        // already existing datafile needs its segment and index created here.
+        core.init().map_err(|err| {
+            err.with_context("service", PERSY_SCHEME)
+                .with_context("datafile", datafile_path)
+        })?;
+
+        Ok(PersyBackend::new(core))
     }
 }
 
@@ -177,17 +162,21 @@ impl Service for PersyBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             let bs = self.core.get(&p)?;
             match bs {
-                Some(bs) => Ok(RpStat::new({
-                    let metadata = MetadataBuilder::file(bs.len() as u64);
-                    metadata.build()
-                })),
+                Some(bs) => {
+                    let metadata = if p.ends_with('/') {
+                        MetadataBuilder::dir()
+                    } else {
+                        MetadataBuilder::file(bs.len() as u64)
+                    };
+                    Ok(RpStat::new(metadata.build()))
+                }
                 None => Err(Error::new(ErrorKind::NotFound, "kv not found in persy")),
             }
         }
@@ -206,7 +195,7 @@ impl Service for PersyBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         let output: PersyWriter = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             Ok(PersyWriter::new(self.core.clone(), p))
         }?;
 
@@ -267,5 +256,115 @@ impl Service for PersyBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+    use std::path::PathBuf;
+    use std::sync::atomic::AtomicU64;
+    use std::sync::atomic::Ordering;
+
+    use super::*;
+    use opendal_core::raw::oio::Write as _;
+
+    struct TempDir {
+        path: PathBuf,
+    }
+
+    impl TempDir {
+        fn new() -> Self {
+            static NEXT: AtomicU64 = AtomicU64::new(0);
+
+            let path = std::env::temp_dir().join(format!(
+                "opendal-persy-unit-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::create_dir_all(&path).expect("create temporary directory");
+
+            Self { path }
+        }
+
+        fn path(&self) -> &Path {
+            &self.path
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_root_and_dir_marker_stat_and_writer_metadata() -> Result<()> {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let dir = TempDir::new();
+            let datafile = dir.path().join("db.persy");
+            let service = PersyBuilder::default()
+                .datafile(datafile.to_str().expect("valid utf-8 path"))
+                .segment("data")
+                .index("index")
+                .build()?;
+            let ctx = OperationContext::default();
+
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR
+            );
+
+            let mut root_writer = service.write(&ctx, "/", OpWrite::default())?;
+            root_writer.close().await?;
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR
+            );
+
+            let mut dir_writer = service.write(&ctx, "a/", OpWrite::default())?;
+            let dir_meta = dir_writer.close().await?;
+            assert_eq!(dir_meta.mode(), EntryMode::DIR);
+            assert_eq!(
+                service
+                    .stat(&ctx, "a/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR
+            );
+
+            let mut file_writer = service.write(&ctx, "a/file.txt", OpWrite::default())?;
+            file_writer.write(Buffer::from("hello")).await?;
+            let file_meta = file_writer.close().await?;
+            assert_eq!(file_meta.mode(), EntryMode::FILE);
+            assert_eq!(file_meta.content_length(), 5);
+
+            let stat_meta = service
+                .stat(&ctx, "a/file.txt", OpStat::default())
+                .await?
+                .into_metadata();
+            assert_eq!(stat_meta.mode(), EntryMode::FILE);
+            assert_eq!(stat_meta.content_length(), 5);
+
+            // Verify Operator with SimulateLayer::with_stat_dir(false) also observes DIR.
+            let srv: Servicer = Arc::new(service);
+            let op = Operator::from_parts(OperationContext::default(), srv)
+                .layer(layers::SimulateLayer::default().with_stat_dir(false));
+            assert_eq!(op.stat("/").await?.mode(), EntryMode::DIR);
+            assert_eq!(op.stat("a/").await?.mode(), EntryMode::DIR);
+            assert_eq!(op.stat("a/file.txt").await?.mode(), EntryMode::FILE);
+            Ok::<_, Error>(())
+        })
+        .await
+        .expect("test timed out")
     }
 }

@@ -125,14 +125,17 @@ impl opendal_operator_layers {
     /// \brief Add a retry layer.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_layers_add_retry(
-        &mut self,
+        layers: *mut opendal_operator_layers,
         jitter: bool,
         factor: f32,
         min_delay_ns: u64,
         max_delay_ns: u64,
         max_times: u64,
     ) {
-        self.add_retry(jitter, factor, min_delay_ns, max_delay_ns, max_times);
+        if layers.is_null() || (*layers).inner.is_null() {
+            return;
+        }
+        (*layers).add_retry(jitter, factor, min_delay_ns, max_delay_ns, max_times);
     }
 
     /// \brief Add a timeout layer.
@@ -146,11 +149,14 @@ impl opendal_operator_layers {
     /// \brief Add a timeout layer.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_layers_add_timeout(
-        &mut self,
+        layers: *mut opendal_operator_layers,
         timeout_ns: u64,
         io_timeout_ns: u64,
     ) {
-        self.add_timeout(timeout_ns, io_timeout_ns);
+        if layers.is_null() || (*layers).inner.is_null() {
+            return;
+        }
+        (*layers).add_timeout(timeout_ns, io_timeout_ns);
     }
 
     /// \brief Free the allocated memory used by opendal_operator_layers.
@@ -161,6 +167,56 @@ impl opendal_operator_layers {
                 drop(Box::from_raw((*ptr).inner as *mut Vec<OperatorLayer>));
                 drop(Box::from_raw(ptr));
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_operator_layers_add_null_guards() {
+        unsafe {
+            // NULL layers pointers must be no-ops without UB.
+            opendal_operator_layers::opendal_operator_layers_add_retry(
+                std::ptr::null_mut(),
+                true,
+                2.0,
+                1_000,
+                10_000,
+                3,
+            );
+            opendal_operator_layers::opendal_operator_layers_add_timeout(
+                std::ptr::null_mut(),
+                1_000,
+                2_000,
+            );
+
+            let mut empty_inner = opendal_operator_layers {
+                inner: std::ptr::null_mut(),
+            };
+            opendal_operator_layers::opendal_operator_layers_add_retry(
+                &mut empty_inner,
+                false,
+                2.0,
+                1_000,
+                10_000,
+                3,
+            );
+            opendal_operator_layers::opendal_operator_layers_add_timeout(
+                &mut empty_inner,
+                1_000,
+                2_000,
+            );
+
+            let layers = opendal_operator_layers::opendal_operator_layers_new();
+            opendal_operator_layers::opendal_operator_layers_add_retry(
+                layers, true, 2.0, 1_000, 10_000, 3,
+            );
+            opendal_operator_layers::opendal_operator_layers_add_timeout(layers, 1_000, 2_000);
+            assert_eq!((*layers).deref().len(), 2);
+            opendal_operator_layers::opendal_operator_layers_free(layers);
         }
     }
 }

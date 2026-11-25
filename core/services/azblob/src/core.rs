@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
@@ -35,8 +36,8 @@ use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use opendal_service_azure_common::with_azure_error_response_context;
 use quick_xml::de;
-use reqsign_azure_storage::Credential;
-use reqsign_core::{Context, Signer};
+use reqsign_azure_storage::{Credential, RequestSigner};
+use reqsign_core::{Context, ProvideCredentialDyn, Signer};
 use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
@@ -82,7 +83,10 @@ pub struct AzblobCore {
     pub encryption_key_sha256: Option<HeaderValue>,
     pub encryption_algorithm: Option<HeaderValue>,
     pub skip_signature: bool,
-    pub signer: Signer<Credential>,
+    pub sign_ctx: Context,
+    pub credential_provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
+    pub request_signer: Arc<RequestSigner>,
+    pub signers: HttpTransportCache<Signer<Credential>>,
 }
 
 impl Debug for AzblobCore {
@@ -97,11 +101,21 @@ impl Debug for AzblobCore {
 
 impl AzblobCore {
     fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
-        self.signer.clone().with_context(
-            Context::new()
-                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                .with_http_send(ctx.http_transport().clone())
-                .with_env(reqsign_core::OsEnv),
+        self.signers.get_or_init(ctx.http_transport(), |transport| {
+            Signer::new(
+                self.sign_ctx.clone().with_http_send(transport),
+                self.credential_provider.clone(),
+                self.request_signer.clone(),
+            )
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn signer_with_context(&self, ctx: Context) -> Signer<Credential> {
+        Signer::new(
+            ctx,
+            self.credential_provider.clone(),
+            self.request_signer.clone(),
         )
     }
 
@@ -109,6 +123,7 @@ impl AzblobCore {
         &self,
         ctx: &OperationContext,
         req: Request<T>,
+        duration: Duration,
     ) -> Result<Request<T>> {
         if self.skip_signature {
             return Ok(req);
@@ -117,7 +132,7 @@ impl AzblobCore {
         let (mut parts, body) = req.into_parts();
 
         self.signer(ctx)
-            .sign(&mut parts, Some(Duration::from_secs(3600)))
+            .sign(&mut parts, Some(duration))
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
 
@@ -213,7 +228,7 @@ impl AzblobCore {
             "{}/{}/{}",
             self.endpoint,
             self.container,
-            percent_encode_path(&build_abs_path(&self.root, path))
+            percent_encode_path(&build_absolute_path(&self.root, path))
         )
     }
 
@@ -305,8 +320,7 @@ impl AzblobCore {
         // the resource does not exist, and fail the operation if it does exist.
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
-        }
-        if let Some(v) = args.if_none_match() {
+        } else if let Some(v) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, v);
         }
 
@@ -362,6 +376,7 @@ impl AzblobCore {
     /// The following custom header could be set:
     /// - `content-type`
     /// - `x-ms-blob-cache-control`
+    /// - `x-ms-meta-*`
     ///
     /// # Reference
     ///
@@ -386,6 +401,8 @@ impl AzblobCore {
 
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
+        } else if let Some(v) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, v);
         }
 
         if let Some(ty) = args.content_type() {
@@ -394,6 +411,12 @@ impl AzblobCore {
 
         if let Some(cache_control) = args.cache_control() {
             req = req.header(constants::X_MS_BLOB_CACHE_CONTROL, cache_control);
+        }
+
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_MS_META_PREFIX}{key}"), value);
+            }
         }
 
         let req = req
@@ -432,6 +455,8 @@ impl AzblobCore {
         path: &str,
         position: u64,
         size: u64,
+        args: &OpWrite,
+        include_conditions: bool,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
         let url = format!("{}?comp=appendblock", self.build_path_url(path));
@@ -443,6 +468,15 @@ impl AzblobCore {
         // Set SSE headers.
         req = self.insert_sse_headers(req);
 
+        if include_conditions {
+            if let Some(v) = args.if_match() {
+                req = req.header(IF_MATCH, v);
+            }
+            if let Some(v) = args.if_none_match() {
+                req = req.header(IF_NONE_MATCH, v);
+            }
+        }
+
         let req = req
             .extension(Operation::Write)
             .extension(ServiceOperation("AppendBlock"))
@@ -452,15 +486,19 @@ impl AzblobCore {
         Ok(req)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn azblob_append_blob(
         &self,
         ctx: &OperationContext,
         path: &str,
         position: u64,
         size: u64,
+        args: &OpWrite,
+        include_conditions: bool,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let req = self.azblob_append_blob_request(path, position, size, body)?;
+        let req =
+            self.azblob_append_blob_request(path, position, size, args, include_conditions, body)?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
@@ -575,7 +613,9 @@ impl AzblobCore {
             .extension(ServiceOperation("GetBlob"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        let source = self.sign_query(ctx, source).await?;
+        let source = self
+            .sign_query(ctx, source, Duration::from_secs(3600))
+            .await?;
         let source = source.uri().to_string();
         let req = self.azblob_put_block_from_url_request(&source, to, block_id, range)?;
         let req = self.sign(ctx, req).await?;
@@ -613,9 +653,7 @@ impl AzblobCore {
         // write's preconditions have to be evaluated here rather than on Put Block.
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
-        }
-
-        if let Some(v) = args.if_none_match() {
+        } else if let Some(v) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, v);
         }
 
@@ -669,12 +707,11 @@ impl AzblobCore {
 
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
+        } else if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
         }
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
-        }
-        if let Some(if_none_match) = args.if_none_match() {
-            req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
         let content = quick_xml::se::to_string(&PutBlockListRequest {
@@ -777,6 +814,62 @@ impl AzblobCore {
         self.send(ctx, req).await
     }
 
+    pub async fn azblob_copy_blob_request(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: &OpCopy,
+    ) -> Result<Request<Buffer>> {
+        let mut source = self.build_path_url(from);
+        if let Some(version) = args.source_version() {
+            source = QueryPairsWriter::new(&source)
+                .push("versionid", &percent_encode_path(version))
+                .finish();
+        }
+        let mut source_header = build_header_value(&source)?;
+        if !self.skip_signature {
+            // Only a SAS credential changes the URI; shared key and bearer
+            // token authorize the source through the destination request.
+            let (mut parts, ()) = Request::get(&source)
+                .body(())
+                .map_err(new_request_build_error)?
+                .into_parts();
+            let unsigned = parts.uri.clone();
+            self.signer(ctx)
+                .sign(&mut parts, None)
+                .await
+                .map_err(|e| new_request_sign_error(e.into()))?;
+            if parts.uri != unsigned {
+                source_header = build_header_value(&parts.uri.to_string())?;
+                source_header.set_sensitive(true);
+            }
+        }
+        let target = self.build_path_url(to);
+
+        let mut req = Request::put(&target)
+            .header(constants::X_MS_COPY_SOURCE, source_header)
+            .header(CONTENT_LENGTH, 0);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req);
+
+        // Add if_not_exists condition using If-None-Match header
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        } else if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+
+        req.extension(Operation::Copy)
+            .extension(ServiceOperation("CopyBlob"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)
+    }
+
     pub async fn azblob_copy_blob(
         &self,
         ctx: &OperationContext,
@@ -784,35 +877,7 @@ impl AzblobCore {
         to: &str,
         args: OpCopy,
     ) -> Result<Response<Buffer>> {
-        let mut source = self.build_path_url(from);
-        if let Some(version) = args.source_version() {
-            source = QueryPairsWriter::new(&source)
-                .push("versionid", &percent_encode_path(version))
-                .finish();
-        }
-        let target = self.build_path_url(to);
-
-        let mut req = Request::put(&target)
-            .header(constants::X_MS_COPY_SOURCE, source)
-            .header(CONTENT_LENGTH, 0);
-
-        // Add if_not_exists condition using If-None-Match header
-        if args.if_not_exists() {
-            req = req.header(IF_NONE_MATCH, "*");
-        }
-        if let Some(if_match) = args.if_match() {
-            req = req.header(IF_MATCH, if_match);
-        }
-        if let Some(if_none_match) = args.if_none_match() {
-            req = req.header(IF_NONE_MATCH, if_none_match);
-        }
-
-        let req = req
-            .extension(Operation::Copy)
-            .extension(ServiceOperation("CopyBlob"))
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
+        let req = self.azblob_copy_blob_request(ctx, from, to, &args).await?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
@@ -825,7 +890,7 @@ impl AzblobCore {
         delimiter: &str,
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let mut url = QueryPairsWriter::new(&format!("{}/{}", self.endpoint, self.container))
             .push("restype", "container")
             .push("comp", "list");
@@ -941,7 +1006,6 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
-    use reqsign_azure_storage::RequestSigner;
     use reqsign_azure_storage::StaticCredentialProvider;
 
     fn test_core() -> AzblobCore {
@@ -955,12 +1019,58 @@ mod tests {
             encryption_key_sha256: None,
             encryption_algorithm: None,
             skip_signature: true,
-            signer: Signer::new(
-                Context::new(),
-                StaticCredentialProvider::new_shared_key("acc", "a2V5"),
-                RequestSigner::new(),
-            ),
+            sign_ctx: Context::new(),
+            credential_provider: Arc::new(StaticCredentialProvider::new_shared_key("acc", "a2V5")),
+            request_signer: Arc::new(RequestSigner::new()),
+            signers: HttpTransportCache::new(),
         }
+    }
+
+    #[tokio::test]
+    async fn test_copy_blob_source_carries_only_sas_credential() {
+        let copy_source = async |credential: StaticCredentialProvider, args: OpCopy| {
+            let core = AzblobCore {
+                skip_signature: false,
+                credential_provider: Arc::new(credential),
+                ..test_core()
+            };
+            let req = core
+                .azblob_copy_blob_request(&OperationContext::default(), "a", "b", &args)
+                .await
+                .expect("must build");
+            let source = &req.headers()[constants::X_MS_COPY_SOURCE];
+            (source.to_str().unwrap().to_string(), source.is_sensitive())
+        };
+        let sas = || StaticCredentialProvider::new_sas_token("sv=x&sig=y");
+        let url = "https://acc.blob.core.windows.net/c/a";
+
+        assert_eq!(
+            copy_source(
+                StaticCredentialProvider::new_shared_key("acc", "a2V5"),
+                OpCopy::new()
+            )
+            .await,
+            (url.to_string(), false)
+        );
+        assert_eq!(
+            copy_source(sas(), OpCopy::new()).await,
+            (format!("{url}?sv=x&sig=y"), true)
+        );
+        let versioned = OpCopy::from_options(
+            &Capability {
+                copy_with_source_version: true,
+                ..Default::default()
+            },
+            options::CopyOptions {
+                source_version: Some("v1".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            copy_source(sas(), versioned).await,
+            (format!("{url}?versionid=v1&sv=x&sig=y"), true)
+        );
     }
 
     #[test]
@@ -1207,6 +1317,174 @@ mod tests {
     }
 
     #[test]
+    fn init_appendable_blob_carries_user_metadata_and_if_none_match() {
+        let core = test_core();
+        let mut meta = HashMap::new();
+        meta.insert("author".to_string(), "alice".to_string());
+        let (args, _) = OpWrite::from_options(
+            &Capability {
+                write_with_if_none_match: true,
+                write_with_user_metadata: true,
+                ..Default::default()
+            },
+            options::WriteOptions {
+                if_none_match: Some("\"etag-1\"".to_owned()),
+                user_metadata: Some(meta),
+                ..Default::default()
+            },
+        )
+        .expect("options must lower");
+
+        let req = core
+            .azblob_init_appendable_blob_request("a.txt", &args)
+            .expect("request must build");
+
+        assert_eq!(
+            req.headers().get(IF_NONE_MATCH),
+            Some(&HeaderValue::from_static("\"etag-1\""))
+        );
+        assert_eq!(
+            req.headers().get("x-ms-meta-author"),
+            Some(&HeaderValue::from_static("alice"))
+        );
+    }
+
+    #[test]
+    fn append_blob_request_attaches_conditions_only_when_requested() {
+        let core = test_core();
+        let (args, _) = OpWrite::from_options(
+            &Capability {
+                write_with_if_match: true,
+                write_with_if_none_match: true,
+                ..Default::default()
+            },
+            options::WriteOptions {
+                if_match: Some("\"etag-1\"".to_owned()),
+                if_none_match: Some("\"etag-2\"".to_owned()),
+                ..Default::default()
+            },
+        )
+        .expect("options must lower");
+
+        let first = core
+            .azblob_append_blob_request("a.txt", 0, 5, &args, true, Buffer::from("hello"))
+            .expect("first append request must build");
+        assert_eq!(
+            first.headers().get(IF_MATCH),
+            Some(&HeaderValue::from_static("\"etag-1\""))
+        );
+        assert_eq!(
+            first.headers().get(IF_NONE_MATCH),
+            Some(&HeaderValue::from_static("\"etag-2\""))
+        );
+
+        let second = core
+            .azblob_append_blob_request("a.txt", 5, 5, &args, false, Buffer::from("world"))
+            .expect("second append request must build");
+        assert!(second.headers().get(IF_MATCH).is_none());
+        assert!(second.headers().get(IF_NONE_MATCH).is_none());
+    }
+
+    #[tokio::test]
+    async fn copy_blob_request_includes_sse_headers() {
+        let mut core = test_core();
+        core.encryption_key = Some(HeaderValue::from_static("dGVzdGtleQ=="));
+        core.encryption_key_sha256 = Some(HeaderValue::from_static("c2hhMjU2"));
+        core.encryption_algorithm = Some(HeaderValue::from_static("AES256"));
+
+        let req = core
+            .azblob_copy_blob_request(
+                &OperationContext::default(),
+                "src.txt",
+                "dst.txt",
+                &OpCopy::default(),
+            )
+            .await
+            .expect("copy request must build");
+
+        let key = req
+            .headers()
+            .get(constants::X_MS_ENCRYPTION_KEY)
+            .expect("encryption key header must be set");
+        assert_eq!(key, "dGVzdGtleQ==");
+        assert!(key.is_sensitive());
+
+        let sha = req
+            .headers()
+            .get(constants::X_MS_ENCRYPTION_KEY_SHA256)
+            .expect("encryption key sha256 header must be set");
+        assert_eq!(sha, "c2hhMjU2");
+        assert!(sha.is_sensitive());
+
+        let alg = req
+            .headers()
+            .get(constants::X_MS_ENCRYPTION_ALGORITHM)
+            .expect("encryption algorithm header must be set");
+        assert_eq!(alg, "AES256");
+        assert!(alg.is_sensitive());
+    }
+
+    #[tokio::test]
+    async fn if_not_exists_and_if_none_match_do_not_emit_duplicate_header() {
+        let core = test_core();
+        let (write_args, _) = OpWrite::from_options(
+            &Capability {
+                write_with_if_not_exists: true,
+                write_with_if_none_match: true,
+                ..Default::default()
+            },
+            options::WriteOptions {
+                if_not_exists: true,
+                if_none_match: Some("\"etag-1\"".to_owned()),
+                ..Default::default()
+            },
+        )
+        .expect("write options must lower");
+
+        for req in [
+            core.azblob_put_blob_request("a.txt", Some(0), &write_args, Buffer::new())
+                .expect("put blob request must build"),
+            core.azblob_init_appendable_blob_request("a.txt", &write_args)
+                .expect("init append request must build"),
+            core.azblob_complete_put_block_list_request("a.txt", vec![Uuid::nil()], &write_args)
+                .expect("put block list request must build"),
+        ] {
+            let values: Vec<_> = req.headers().get_all(IF_NONE_MATCH).iter().collect();
+            assert_eq!(values, vec![&HeaderValue::from_static("*")]);
+        }
+
+        let copy_args = OpCopy::from_options(
+            &Capability {
+                copy_with_if_not_exists: true,
+                copy_with_if_none_match: true,
+                ..Default::default()
+            },
+            options::CopyOptions {
+                if_not_exists: true,
+                if_none_match: Some("\"etag-1\"".to_owned()),
+                ..Default::default()
+            },
+        )
+        .expect("copy options must lower");
+
+        for req in [
+            core.azblob_copy_blob_request(
+                &OperationContext::default(),
+                "a.txt",
+                "b.txt",
+                &copy_args,
+            )
+            .await
+            .expect("copy blob request must build"),
+            core.azblob_complete_copy_block_list_request("b.txt", vec![Uuid::nil()], &copy_args)
+                .expect("copy block list request must build"),
+        ] {
+            let values: Vec<_> = req.headers().get_all(IF_NONE_MATCH).iter().collect();
+            assert_eq!(values, vec![&HeaderValue::from_static("*")]);
+        }
+    }
+
+    #[test]
     fn test_serialize_put_block_list_request() {
         let req = PutBlockListRequest {
             latest: vec!["1".to_string(), "2".to_string(), "3".to_string()],
@@ -1314,8 +1592,30 @@ impl ErrorContext {
     }
 }
 
+pub(crate) fn parse_blob_metadata(path: &str, headers: &http::HeaderMap) -> Result<Metadata> {
+    let mut meta = parse_into_metadata(path, headers)?.into_builder();
+    if let Some(version_id) = parse_header_to_str(headers, constants::X_MS_VERSION_ID)? {
+        meta.version(version_id);
+    }
+
+    let user_meta = parse_prefixed_headers(headers, X_MS_META_PREFIX);
+    if !user_meta.is_empty() {
+        meta.user_metadata(user_meta);
+    }
+
+    Ok(meta.build())
+}
+
 /// Parse error response into Error.
 pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    parse_error_with_code(ctx, resp).0
+}
+
+/// Parse error response into Error together with its Azure error code if present.
+pub(crate) fn parse_error_with_code(
+    ctx: ErrorContext,
+    resp: Response<Buffer>,
+) -> (Error, Option<String>) {
     let (parts, body) = resp.into_parts();
     let bs = body.to_bytes();
 
@@ -1333,10 +1633,13 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        // Azure answers a missing, expired or invalid credential with 401
+        // (e.g. `InvalidAuthenticationInfo`) and an insufficient one with 403.
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
@@ -1345,11 +1648,14 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    if let Some(azblob_error) = &azblob_error
-        && !azblob_error.code.is_empty()
-    {
-        if let Some(classification) = parse_azblob_error_code(ctx, &azblob_error.code, parts.status)
-        {
+    let error_code = azblob_error
+        .as_ref()
+        .map(|err| err.code.as_str())
+        .filter(|code| !code.is_empty())
+        .map(str::to_owned);
+
+    if let Some(code) = error_code.as_deref() {
+        if let Some(classification) = parse_azblob_error_code(ctx, code, parts.status) {
             (kind, retryable) = classification;
         } else if matches!(
             parts.status,
@@ -1372,7 +1678,7 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         err = err.set_temporary();
     }
 
-    err
+    (err, error_code)
 }
 
 /// Classify documented Blob Storage state errors by native code and status.
@@ -1472,6 +1778,18 @@ mod error_tests {
     use super::*;
 
     #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .header("x-ms-error-code", "InvalidRange")
+            .body(Buffer::new())
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("GetBlob")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
     fn append_blob_initialization_preserves_condition_and_retryability() {
         let conditional = ErrorContext::new(ServiceOperation("PutBlob"))
             .with_if_not_exists(true)
@@ -1487,5 +1805,22 @@ mod error_tests {
             parse_azblob_error_code(raced, "BlobAlreadyExists", StatusCode::CONFLICT),
             Some((ErrorKind::Conflict, true))
         );
+    }
+
+    #[test]
+    fn unauthorized_and_forbidden_are_permission_denied() {
+        for (status, code) in [
+            (StatusCode::UNAUTHORIZED, "InvalidAuthenticationInfo"),
+            (StatusCode::FORBIDDEN, "AuthorizationPermissionMismatch"),
+        ] {
+            let resp = Response::builder()
+                .status(status)
+                .header("x-ms-error-code", code)
+                .body(Buffer::new())
+                .unwrap();
+            let err = parse_error(ErrorContext::new(ServiceOperation("GetBlob")), resp);
+            assert_eq!(err.kind(), ErrorKind::PermissionDenied, "status {status}");
+            assert!(!err.is_temporary(), "status {status}");
+        }
     }
 }

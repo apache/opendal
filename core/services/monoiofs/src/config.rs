@@ -43,7 +43,7 @@ impl Configurator for MonoiofsConfig {
         if let Some(root) = uri.root()
             && !root.is_empty()
         {
-            map.insert("root".to_string(), root.to_string());
+            map.insert("root".to_string(), format!("/{root}"));
         }
 
         Self::from_iter(map)
@@ -63,7 +63,7 @@ mod tests {
         let uri = OperatorUri::new("monoiofs:///tmp", Vec::<(String, String)>::new())?;
 
         let cfg = MonoiofsConfig::from_uri(&uri)?;
-        assert_eq!(cfg.root.as_deref(), Some("tmp"));
+        assert_eq!(cfg.root.as_deref(), Some("/tmp"));
         Ok(())
     }
 }

@@ -35,6 +35,16 @@ pub struct ObsConfig {
     pub access_key_id: Option<String>,
     /// Secret access key for obs.
     pub secret_access_key: Option<String>,
+    /// Security token (a.k.a. session token) for obs.
+    ///
+    /// Temporary credentials sign with `access_key_id`, `secret_access_key` and
+    /// this token, and the signer attaches the token as the
+    /// `x-obs-security-token` header.
+    ///
+    /// If this field is not set, OpenDAL reads the token from the environment
+    /// variable `HUAWEI_CLOUD_SECURITY_TOKEN` (unless `disable_config_load` is
+    /// enabled).
+    pub security_token: Option<String>,
     /// Bucket for obs.
     pub bucket: Option<String>,
     /// Enable virtual host style so that OpenDAL addresses the bucket as
@@ -59,6 +69,15 @@ pub struct ObsConfig {
         alias = "enable_virtual_hosted_style"
     )]
     pub enable_virtual_host_style: bool,
+    /// Disable config load so that opendal will not load config from
+    /// environment.
+    ///
+    /// For examples:
+    ///
+    /// - envs like `HUAWEI_CLOUD_ACCESS_KEY_ID`
+    pub disable_config_load: bool,
+    /// Skip signature will skip loading credentials and signing requests.
+    pub skip_signature: bool,
     /// Deprecated: OBS versioning capability is not controlled by service config.
     #[deprecated(
         since = "0.57.0",
@@ -73,6 +92,12 @@ impl Debug for ObsConfig {
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
             .field("bucket", &self.bucket)
+            .field(
+                "security_token",
+                &self.security_token.as_ref().map(|_| "<redacted>"),
+            )
+            .field("disable_config_load", &self.disable_config_load)
+            .field("skip_signature", &self.skip_signature)
             .field("enable_virtual_host_style", &self.enable_virtual_host_style)
             .finish_non_exhaustive()
     }
@@ -105,6 +130,18 @@ mod tests {
     use super::*;
     use opendal_core::Configurator;
     use opendal_core::OperatorUri;
+
+    #[test]
+    fn debug_redacts_security_token() {
+        let cfg = ObsConfig {
+            security_token: Some("super-secret-token".to_string()),
+            ..Default::default()
+        };
+
+        let debug = format!("{cfg:?}");
+        assert!(!debug.contains("super-secret-token"), "{debug}");
+        assert!(debug.contains("<redacted>"), "{debug}");
+    }
 
     #[test]
     fn from_uri_extracts_bucket_and_root() {

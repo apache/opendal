@@ -19,10 +19,13 @@ package opendal
 
 import (
 	"context"
-	"unsafe"
-
-	"github.com/jupiterrider/ffi"
+	"errors"
+	"runtime"
+	"sync"
 )
+
+// ErrListerClosed reports that a Lister is used after Close released it.
+var ErrListerClosed = errors.New("opendal: lister is closed")
 
 // List returns a Lister to iterate over entries that start with the given path in the parent directory.
 //
@@ -90,6 +93,7 @@ type listOptions struct {
 //
 // # Parameters
 //
+//   - ctx: The context controlling cancellation and deadlines.
 //   - path: The starting path for listing entries.
 //   - opts: Optional functional options to configure the list operation.
 //
@@ -100,22 +104,22 @@ type listOptions struct {
 //
 // # Example
 //
-//	func exampleList(op *opendal.Operator) {
+//	func exampleList(ctx context.Context, op *opendal.Operator) {
 //		// List without options
-//		lister, err := op.List("test/")
+//		lister, err := op.List(ctx, "test/")
 //		if err != nil {
 //			log.Fatal(err)
 //		}
 //		defer lister.Close()
 //
 //		// List with recursive option
-//		lister, err = op.List("test/", opendal.ListWithRecursive(true))
+//		lister, err = op.List(ctx, "test/", opendal.ListWithRecursive(true))
 //		if err != nil {
 //			log.Fatal(err)
 //		}
 //		defer lister.Close()
 //
-//		for lister.Next() {
+//		for lister.Next(ctx) {
 //			entry := lister.Entry()
 //			fmt.Printf("Path: %s\n", entry.Path())
 //		}
@@ -126,23 +130,42 @@ type listOptions struct {
 //
 // Note: Always check lister.Error() after the loop to catch any errors that
 // occurred during iteration.
-func (op *Operator) List(path string, opts ...WithListFn) (*Lister, error) {
-	o := &listOptions{}
-	for _, opt := range opts {
-		opt(o)
+func (op *Operator) List(ctx context.Context, path string, opts ...WithListFn) (*Lister, error) {
+	opInner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
 	}
-	cOpts := ffiListOptionsNew.symbol(op.ctx)()
-	defer ffiListOptionsFree.symbol(op.ctx)(cOpts)
-	ffiListOptionsSetRecursive.symbol(op.ctx)(cOpts, o.recursive)
-	if o.limit > 0 {
-		ffiListOptionsSetLimit.symbol(op.ctx)(cOpts, o.limit)
+	defer release()
+	if err := checkContext(ctx); err != nil {
+		return nil, err
 	}
-	if o.startAfter != nil {
-		ffiListOptionsSetStartAfter.symbol(op.ctx)(cOpts, *o.startAfter)
+
+	var cOpts *opendalListOptions
+	if len(opts) > 0 {
+		o := &listOptions{}
+		for _, opt := range opts {
+			if opt == nil {
+				continue
+			}
+			opt(o)
+		}
+		cOpts = ffiListOptionsNew.symbol(op.ctx)()
+		defer ffiListOptionsFree.symbol(op.ctx)(cOpts)
+		ffiListOptionsSetRecursive.symbol(op.ctx)(cOpts, o.recursive)
+		if o.limit > 0 {
+			ffiListOptionsSetLimit.symbol(op.ctx)(cOpts, o.limit)
+		}
+		if o.startAfter != nil {
+			if err := ffiListOptionsSetStartAfter.symbol(op.ctx)(cOpts, *o.startAfter); err != nil {
+				return nil, err
+			}
+		}
+		ffiListOptionsSetVersions.symbol(op.ctx)(cOpts, o.versions)
+		ffiListOptionsSetDeleted.symbol(op.ctx)(cOpts, o.deleted)
 	}
-	ffiListOptionsSetVersions.symbol(op.ctx)(cOpts, o.versions)
-	ffiListOptionsSetDeleted.symbol(op.ctx)(cOpts, o.deleted)
-	listerInner, err := ffiOperatorListWith.symbol(op.ctx)(op.inner, path, cOpts)
+	listerInner, err := withCancelTokenValue(op.ctx, ctx, func(token *opendalCancelToken) (*opendalLister, error) {
+		return ffiOperatorListWith.symbol(op.ctx)(opInner, path, cOpts, token)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +177,7 @@ func (op *Operator) List(path string, opts ...WithListFn) (*Lister, error) {
 
 // Lister provides a mechanism for listing entries at a specified path.
 //
-// Lister is a wrapper around the C-binding function `opendal_operator_list`. It allows
+// Lister is a wrapper around the C-binding function `opendal_operator_list_with_cancel`. It allows
 // for efficient iteration over entries in a storage system.
 //
 // # Usage
@@ -170,17 +193,21 @@ func (op *Operator) List(path string, opts ...WithListFn) (*Lister, error) {
 //
 // # Example
 //
-//	lister, err := op.List("path/to/list")
+//	lister, err := op.List(ctx, "path/to/list")
 //	if err != nil {
 //		log.Fatal(err)
 //	}
 //
-//	for lister.Next() {
+//	for lister.Next(ctx) {
 //		entry := lister.Entry()
 //		// Process the entry
 //		fmt.Println(entry.Name())
 //	}
 type Lister struct {
+	// mu serializes access to inner. The C lister hands out a &mut to the
+	// underlying Rust lister, so two goroutines calling in at once would alias
+	// it, which is undefined behavior rather than merely a data race.
+	mu    sync.Mutex
 	inner *opendalLister
 	ctx   context.Context
 	entry *Entry
@@ -189,13 +216,31 @@ type Lister struct {
 
 // This method implements the io.Closer interface. It should be called when
 // the Lister is no longer needed to ensure proper resource cleanup.
+//
+// Close is safe to call more than once; further calls are no-ops returning
+// nil. Next on a closed Lister returns false and Error reports
+// ErrListerClosed.
 func (l *Lister) Close() error {
+	if l == nil {
+		return nil
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.inner == nil {
+		return nil
+	}
 	ffiListerFree.symbol(l.ctx)(l.inner)
-
+	l.inner = nil
 	return nil
 }
 
+// Error returns the error, if any, that stopped the last Next call.
 func (l *Lister) Error() error {
+	if l == nil {
+		return ErrListerClosed
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	return l.err
 }
 
@@ -214,7 +259,7 @@ func (l *Lister) Error() error {
 //
 // Next should be used in a loop condition to iterate through all entries:
 //
-//	for lister.Next() {
+//	for lister.Next(ctx) {
 //		entry := lister.Entry()
 //		// Process the entry
 //	}
@@ -222,21 +267,36 @@ func (l *Lister) Error() error {
 // # Error Handling
 //
 // If an error occurs during iteration, Next will return false. The error
-// can then be retrieved by calling the Err method on the Lister.
+// can then be retrieved by calling the Error method on the Lister.
 //
 // # Example
 //
-//	lister, err := op.List("path/to/list")
+//	lister, err := op.List(ctx, "path/to/list")
 //	if err != nil {
 //		log.Fatal(err)
 //	}
 //
-//	for lister.Next() {
+//	for lister.Next(ctx) {
 //		entry := lister.Entry()
 //		fmt.Println(entry.Name())
 //	}
-func (l *Lister) Next() bool {
-	inner, err := ffiListerNext.symbol(l.ctx)(l.inner)
+//
+// Next on a closed Lister returns false and reports ErrListerClosed through
+// Error.
+func (l *Lister) Next(ctx context.Context) bool {
+	if l == nil {
+		return false
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.inner == nil {
+		l.err = ErrListerClosed
+		l.entry = nil
+		return false
+	}
+	inner, err := withCancelTokenValue(l.ctx, ctx, func(token *opendalCancelToken) (*opendalEntry, error) {
+		return ffiListerNext.symbol(l.ctx)(l.inner, token)
+	})
 	if inner == nil || err != nil {
 		l.err = err
 		l.entry = nil
@@ -245,6 +305,7 @@ func (l *Lister) Next() bool {
 
 	entry := newEntry(l.ctx, inner)
 
+	l.err = nil
 	l.entry = entry
 	return true
 }
@@ -252,6 +313,11 @@ func (l *Lister) Next() bool {
 // Entry returns the current Entry in the list.
 // Returns nil if there are no more entries
 func (l *Lister) Entry() *Entry {
+	if l == nil {
+		return nil
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	return l.entry
 }
 
@@ -264,7 +330,7 @@ func (l *Lister) Entry() *Entry {
 //
 // Entries are typically obtained through iteration of a Lister:
 //
-//	for lister.Next() {
+//	for lister.Next(ctx) {
 //		entry := lister.Entry()
 //		// Process the entry
 //		fmt.Println(entry.Name())
@@ -323,232 +389,92 @@ func (e *Entry) Metadata() *Metadata {
 	return e.meta
 }
 
-var ffiListOptionsNew = newFFI(ffiOpts{
-	sym:   "opendal_list_options_new",
-	rType: &ffi.TypePointer,
-}, func(_ context.Context, ffiCall ffiCall) func() *opendalListOptions {
-	return func() *opendalListOptions {
-		var opts *opendalListOptions
-		ffiCall(unsafe.Pointer(&opts))
-		return opts
-	}
-})
+var ffiListOptionsNew = newDirectFFI[func() *opendalListOptions]("opendal_list_options_new")
 
-var ffiListOptionsSetRecursive = newFFI(ffiOpts{
-	sym:    "opendal_list_options_set_recursive",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint8},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalListOptions, recursive bool) {
-	return func(opts *opendalListOptions, recursive bool) {
-		var r uint8
-		if recursive {
-			r = 1
+var ffiListOptionsSetRecursive = newDirectFFI[func(opts *opendalListOptions, recursive bool)]("opendal_list_options_set_recursive")
+
+var ffiListOptionsSetLimit = newDirectFFI[func(opts *opendalListOptions, limit uint)]("opendal_list_options_set_limit")
+
+var ffiListOptionsSetStartAfter = newFFI(
+	"opendal_list_options_set_start_after",
+	func(_ context.Context, cFunc func(opts *opendalListOptions, startAfter *byte)) func(opts *opendalListOptions, startAfter string) error {
+		return func(opts *opendalListOptions, startAfter string) error {
+			bytePtr, err := BytePtrFromString(startAfter)
+			if err != nil {
+				return err
+			}
+			cFunc(opts, bytePtr)
+			runtime.KeepAlive(bytePtr)
+			return nil
 		}
-		ffiCall(
-			nil,
-			unsafe.Pointer(&opts),
-			unsafe.Pointer(&r),
-		)
-	}
-})
+	},
+)
 
-var ffiListOptionsSetLimit = newFFI(ffiOpts{
-	sym:    "opendal_list_options_set_limit",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalListOptions, limit uint) {
-	return func(opts *opendalListOptions, limit uint) {
-		l := uintptr(limit)
-		ffiCall(
-			nil,
-			unsafe.Pointer(&opts),
-			unsafe.Pointer(&l),
-		)
-	}
-})
+var ffiListOptionsSetVersions = newDirectFFI[func(opts *opendalListOptions, versions bool)]("opendal_list_options_set_versions")
 
-var ffiListOptionsSetStartAfter = newFFI(ffiOpts{
-	sym:    "opendal_list_options_set_start_after",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalListOptions, startAfter string) {
-	return func(opts *opendalListOptions, startAfter string) {
-		bytePtr, err := BytePtrFromString(startAfter)
-		if err != nil {
-			return
+var ffiListOptionsSetDeleted = newDirectFFI[func(opts *opendalListOptions, deleted bool)]("opendal_list_options_set_deleted")
+
+var ffiListOptionsFree = newDirectFFI[func(opts *opendalListOptions)]("opendal_list_options_free")
+
+var ffiOperatorListWith = newFFI(
+	"opendal_operator_list_with_cancel",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, opts *opendalListOptions, cancel *opendalCancelToken, lister **opendalLister) *opendalError) func(op *opendalOperator, path string, opts *opendalListOptions, cancel *opendalCancelToken) (*opendalLister, error) {
+		return func(op *opendalOperator, path string, opts *opendalListOptions, cancel *opendalCancelToken) (*opendalLister, error) {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return nil, err
+			}
+			var lister *opendalLister
+			e := cFunc(op, bytePath, opts, cancel, &lister)
+			runtime.KeepAlive(bytePath)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return lister, nil
 		}
-		ffiCall(
-			nil,
-			unsafe.Pointer(&opts),
-			unsafe.Pointer(&bytePtr),
-		)
-	}
-})
+	},
+)
 
-var ffiListOptionsSetVersions = newFFI(ffiOpts{
-	sym:    "opendal_list_options_set_versions",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint8},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalListOptions, versions bool) {
-	return func(opts *opendalListOptions, versions bool) {
-		var v uint8
-		if versions {
-			v = 1
+var ffiListerFree = newDirectFFI[func(l *opendalLister)]("opendal_lister_free")
+
+var ffiListerNext = newFFI(
+	"opendal_lister_next_with_cancel",
+	func(ctx context.Context, cFunc func(l *opendalLister, cancel *opendalCancelToken, entry **opendalEntry) *opendalError) func(l *opendalLister, cancel *opendalCancelToken) (*opendalEntry, error) {
+		return func(l *opendalLister, cancel *opendalCancelToken) (*opendalEntry, error) {
+			var entry *opendalEntry
+			e := cFunc(l, cancel, &entry)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return entry, nil
 		}
-		ffiCall(
-			nil,
-			unsafe.Pointer(&opts),
-			unsafe.Pointer(&v),
-		)
-	}
-})
+	},
+)
 
-var ffiListOptionsSetDeleted = newFFI(ffiOpts{
-	sym:    "opendal_list_options_set_deleted",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint8},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalListOptions, deleted bool) {
-	return func(opts *opendalListOptions, deleted bool) {
-		var d uint8
-		if deleted {
-			d = 1
-		}
-		ffiCall(
-			nil,
-			unsafe.Pointer(&opts),
-			unsafe.Pointer(&d),
-		)
-	}
-})
+var ffiEntryFree = newDirectFFI[func(e *opendalEntry)]("opendal_entry_free")
 
-var ffiListOptionsFree = newFFI(ffiOpts{
-	sym:    "opendal_list_options_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalListOptions) {
-	return func(opts *opendalListOptions) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&opts),
-		)
-	}
-})
-
-var ffiOperatorListWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_list_with",
-	rType:  &typeResultList,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, opts *opendalListOptions) (*opendalLister, error) {
-	return func(op *opendalOperator, path string, opts *opendalListOptions) (*opendalLister, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
-		}
-		var result opendalResultList
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&opts),
-		)
-		if result.err != nil {
-			return nil, parseError(ctx, result.err)
-		}
-		return result.lister, nil
-	}
-})
-
-var ffiListerFree = newFFI(ffiOpts{
-	sym:    "opendal_lister_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(l *opendalLister) {
-	return func(l *opendalLister) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&l),
-		)
-	}
-})
-
-var ffiListerNext = newFFI(ffiOpts{
-	sym:    "opendal_lister_next",
-	rType:  &typeResultListerNext,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(l *opendalLister) (*opendalEntry, error) {
-	return func(l *opendalLister) (*opendalEntry, error) {
-		var result opendalResultListerNext
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&l),
-		)
-		if result.err != nil {
-			return nil, parseError(ctx, result.err)
-		}
-		return result.entry, nil
-	}
-})
-
-var ffiEntryFree = newFFI(ffiOpts{
-	sym:    "opendal_entry_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(e *opendalEntry) {
-	return func(e *opendalEntry) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&e),
-		)
-	}
-})
-
-var ffiEntryName = func() *FFI[func(e *opendalEntry) string] {
+var ffiEntryName = func() *FFI[func(e *opendalEntry) string, func(e *opendalEntry) *byte] {
 	_ = ffiStringFree
-	return newFFI(ffiOpts{
-		sym:    "opendal_entry_name",
-		rType:  &ffi.TypePointer,
-		aTypes: []*ffi.Type{&ffi.TypePointer},
-	}, func(ctx context.Context, ffiCall ffiCall) func(e *opendalEntry) string {
-		return func(e *opendalEntry) string {
-			var bytePtr *byte
-			ffiCall(
-				unsafe.Pointer(&bytePtr),
-				unsafe.Pointer(&e),
-			)
-			return copyCStringAndFree(bytePtr, ffiStringFree.symbol(ctx))
-		}
-	})
+	return newFFI(
+		"opendal_entry_name",
+		func(ctx context.Context, cFunc func(e *opendalEntry) *byte) func(e *opendalEntry) string {
+			return func(e *opendalEntry) string {
+				return copyCStringAndFree(cFunc(e), ffiStringFree.symbol(ctx))
+			}
+		},
+	)
 }()
 
-var ffiEntryPath = func() *FFI[func(e *opendalEntry) string] {
+var ffiEntryPath = func() *FFI[func(e *opendalEntry) string, func(e *opendalEntry) *byte] {
 	_ = ffiStringFree
-	return newFFI(ffiOpts{
-		sym:    "opendal_entry_path",
-		rType:  &ffi.TypePointer,
-		aTypes: []*ffi.Type{&ffi.TypePointer},
-	}, func(ctx context.Context, ffiCall ffiCall) func(e *opendalEntry) string {
-		return func(e *opendalEntry) string {
-			var bytePtr *byte
-			ffiCall(
-				unsafe.Pointer(&bytePtr),
-				unsafe.Pointer(&e),
-			)
-			return copyCStringAndFree(bytePtr, ffiStringFree.symbol(ctx))
-		}
-	})
+	return newFFI(
+		"opendal_entry_path",
+		func(ctx context.Context, cFunc func(e *opendalEntry) *byte) func(e *opendalEntry) string {
+			return func(e *opendalEntry) string {
+				return copyCStringAndFree(cFunc(e), ffiStringFree.symbol(ctx))
+			}
+		},
+	)
 }()
 
-var ffiEntryMetadata = newFFI(ffiOpts{
-	sym:    "opendal_entry_metadata",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(e *opendalEntry) *opendalMetadata {
-	return func(e *opendalEntry) *opendalMetadata {
-		var meta *opendalMetadata
-		ffiCall(
-			unsafe.Pointer(&meta),
-			unsafe.Pointer(&e),
-		)
-		return meta
-	}
-})
+var ffiEntryMetadata = newDirectFFI[func(e *opendalEntry) *opendalMetadata]("opendal_entry_metadata")

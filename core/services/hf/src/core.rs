@@ -735,7 +735,7 @@ impl HfCore {
     /// Convert an operator-relative path to a repo-absolute path
     /// (no leading `/`) for use in commit/delete/batch payloads.
     pub(super) fn repo_path(&self, path: &str) -> String {
-        build_abs_path(&self.root, path)
+        build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string()
     }
@@ -1816,6 +1816,36 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_xet_token_request_encodes_slashed_revision() -> Result<()> {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let (mut core, ctx, mock_client) = create_test_core(
+                HfRepoType::Dataset,
+                "squad",
+                "refs/convert/parquet",
+                "https://huggingface.co",
+            );
+            core.token = Some("hf_dummy".to_string());
+            mock_client.set_xet_token_expires_at(u64::MAX);
+
+            core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+            assert_eq!(
+                mock_client.get_captured_url(),
+                "https://huggingface.co/api/datasets/squad/xet-read-token/refs%2Fconvert%2Fparquet"
+            );
+
+            core.cached_xet_token(&ctx, XetTokenScope::Write).await?;
+            assert_eq!(
+                mock_client.get_captured_url(),
+                "https://huggingface.co/api/datasets/squad/xet-write-token/refs%2Fconvert%2Fparquet"
+            );
+
+            Ok(())
+        })
+        .await
+        .expect("test timed out")
+    }
+
     #[test]
     fn test_parse_error_branch_update_conflict_is_temporary() {
         let (parts, _) = Response::builder()
@@ -1832,6 +1862,18 @@ mod tests {
 
         assert_eq!(err.kind(), ErrorKind::Conflict);
         assert!(err.is_temporary());
+    }
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let (parts, _) = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(())
+            .unwrap()
+            .into_parts();
+        let err = parse_error(ErrorContext::new(ServiceOperation("Resolve")), parts);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
     }
 
     #[test]
@@ -1894,6 +1936,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, mut parts: http::response::Parts) -
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::PRECONDITION_FAILED if branch_updated_conflict => (ErrorKind::Conflict, true),
         StatusCode::PRECONDITION_FAILED => (ErrorKind::Unexpected, false),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
@@ -1956,7 +1999,7 @@ mod uri {
         pub fn uri(&self, root: &str, path: &str) -> HfUri {
             HfUri {
                 repo: self.clone(),
-                path: build_abs_path(root, path)
+                path: build_absolute_path(root, path)
                     .trim_start_matches('/')
                     .trim_end_matches('/')
                     .to_string(),
@@ -1998,7 +2041,7 @@ mod uri {
                         self.repo_type.as_plural_str(),
                         self.repo_id,
                         token_type,
-                        self.revision(),
+                        percent_encode_revision(self.revision()),
                     )
                 }
             }
@@ -2073,7 +2116,7 @@ mod uri {
 
                 if first_two.contains('@') {
                     let (repo_id, rev_and_path) = path.split_once('@').unwrap();
-                    let rev_and_path = rev_and_path.replace("%2F", "/");
+                    let rev_and_path = rev_and_path.replace("%2F", "/").replace("%2f", "/");
                     let (revision, path_in_repo) = Self::parse_revision(&rev_and_path);
                     (repo_id.to_string(), Some(revision), path_in_repo)
                 } else {
@@ -2083,7 +2126,7 @@ mod uri {
                     (repo_id, None, path_in_repo)
                 }
             } else if let Some((repo_id, rev)) = path.split_once('@') {
-                let rev = rev.replace("%2F", "/");
+                let rev = rev.replace("%2F", "/").replace("%2f", "/");
                 (repo_id.to_string(), Some(rev), String::new())
             } else {
                 (path, None, String::new())
@@ -2532,6 +2575,68 @@ mod uri {
                 p.file_tree_url("https://huggingface.co", false, None),
                 "https://huggingface.co/api/buckets/user/bucket/tree/data?expand=True&recursive=false"
             );
+        }
+
+        #[test]
+        fn test_xet_token_url_encodes_slashed_revisions() {
+            let dataset = HfRepo::new(
+                HfRepoType::Dataset,
+                "squad".to_string(),
+                Some("refs/convert/parquet".to_string()),
+            );
+            assert_eq!(
+                dataset.xet_token_url("https://huggingface.co", XetTokenScope::Read),
+                "https://huggingface.co/api/datasets/squad/xet-read-token/refs%2Fconvert%2Fparquet"
+            );
+            assert_eq!(
+                dataset.xet_token_url("https://huggingface.co", XetTokenScope::Write),
+                "https://huggingface.co/api/datasets/squad/xet-write-token/refs%2Fconvert%2Fparquet"
+            );
+
+            let model = HfRepo::new(
+                HfRepoType::Model,
+                "org/model".to_string(),
+                Some("refs/pr/10".to_string()),
+            );
+            assert_eq!(
+                model.xet_token_url("https://huggingface.co", XetTokenScope::Read),
+                "https://huggingface.co/api/models/org/model/xet-read-token/refs%2Fpr%2F10"
+            );
+
+            let space = HfRepo::new(
+                HfRepoType::Space,
+                "org/space".to_string(),
+                Some("feature/v1.0".to_string()),
+            );
+            assert_eq!(
+                space.xet_token_url("https://huggingface.co", XetTokenScope::Write),
+                "https://huggingface.co/api/spaces/org/space/xet-write-token/feature%2Fv1%2E0"
+            );
+        }
+
+        #[test]
+        fn resolve_encoded_revision_lowercase() {
+            let p = resolve("username/my_model@refs%2fpr%2f10");
+            assert_eq!(p.repo.repo_type, HfRepoType::Model);
+            assert_eq!(p.repo.repo_id, "username/my_model");
+            assert_eq!(p.repo.revision.as_deref(), Some("refs/pr/10"));
+            assert_eq!(p.path, "");
+
+            let p =
+                resolve("datasets/username/my_dataset@refs%2fconvert%2fparquet/train/data.parquet");
+            assert_eq!(p.repo.repo_type, HfRepoType::Dataset);
+            assert_eq!(p.repo.repo_id, "username/my_dataset");
+            assert_eq!(p.repo.revision.as_deref(), Some("refs/convert/parquet"));
+            assert_eq!(p.path, "train/data.parquet");
+
+            let p = resolve("gpt2@refs%2fpr%2f10");
+            assert_eq!(p.repo.repo_type, HfRepoType::Model);
+            assert_eq!(p.repo.repo_id, "gpt2");
+            assert_eq!(p.repo.revision.as_deref(), Some("refs/pr/10"));
+            assert_eq!(p.path, "");
+
+            let p = resolve("username/my_model@refs%2Fpr%2f10");
+            assert_eq!(p.repo.revision.as_deref(), Some("refs/pr/10"));
         }
     }
 }

@@ -143,19 +143,22 @@ impl Builder for D1Builder {
             ));
         };
 
-        let Some(table) = config.table.clone() else {
+        let Some(table) = config.table else {
             return Err(Error::new(ErrorKind::ConfigInvalid, "table is required"));
         };
+        let _ = quote_ident(&table)?;
 
-        let key_field = config
-            .key_field
-            .clone()
-            .unwrap_or_else(|| "key".to_string());
+        let key_field = match config.key_field {
+            Some(v) => v,
+            None => "key".to_string(),
+        };
+        let _ = quote_ident(&key_field)?;
 
-        let value_field = config
-            .value_field
-            .clone()
-            .unwrap_or_else(|| "value".to_string());
+        let value_field = match config.value_field {
+            Some(v) => v,
+            None => "value".to_string(),
+        };
+        let _ = quote_ident(&value_field)?;
 
         let root = normalize_root(
             config
@@ -245,9 +248,9 @@ impl Service for D1Backend {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.get_length(ctx, &p).await? {
@@ -274,7 +277,7 @@ impl Service for D1Backend {
 
     fn write(&self, ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         let output: D1Writer = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             Ok(D1Writer::new(self.core.clone(), ctx.clone(), p))
         }?;
 
@@ -336,5 +339,34 @@ impl Service for D1Backend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_rejects_nul_in_identifiers() {
+        let valid = D1Config {
+            account_id: Some("acc123".to_string()),
+            database_id: Some("db456".to_string()),
+            table: Some("kv".to_string()),
+            ..Default::default()
+        };
+
+        let mut nul_table = valid.clone();
+        nul_table.table = Some("kv\0bad".to_string());
+
+        let mut nul_key_field = valid.clone();
+        nul_key_field.key_field = Some("k\0bad".to_string());
+
+        let mut nul_value_field = valid;
+        nul_value_field.value_field = Some("v\0bad".to_string());
+
+        for cfg in [nul_table, nul_key_field, nul_value_field] {
+            let err = cfg.into_builder().build().err().unwrap();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
     }
 }

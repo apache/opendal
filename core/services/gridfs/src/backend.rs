@@ -111,38 +111,33 @@ impl Builder for GridfsBuilder {
     type Config = GridfsConfig;
 
     fn build(self) -> Result<impl Service> {
-        let conn = match &self.config.connection_string.clone() {
-            Some(v) => v.clone(),
-            None => {
-                return Err(
-                    Error::new(ErrorKind::ConfigInvalid, "connection_string is required")
-                        .with_context("service", GRIDFS_SCHEME),
-                );
+        let Some(connection_string) = self.config.connection_string else {
+            return Err(
+                Error::new(ErrorKind::ConfigInvalid, "connection_string is required")
+                    .with_context("service", GRIDFS_SCHEME),
+            );
+        };
+        let Some(database) = self.config.database else {
+            return Err(Error::new(ErrorKind::ConfigInvalid, "database is required")
+                .with_context("service", GRIDFS_SCHEME));
+        };
+        let bucket = self.config.bucket.unwrap_or_else(|| "fs".to_string());
+        let chunk_size = match self.config.chunk_size {
+            Some(0) => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "chunk_size must be greater than 0",
+                )
+                .with_context("service", GRIDFS_SCHEME));
             }
+            Some(v) => v,
+            None => DEFAULT_CHUNK_SIZE_BYTES,
         };
-        let database = match &self.config.database.clone() {
-            Some(v) => v.clone(),
-            None => {
-                return Err(Error::new(ErrorKind::ConfigInvalid, "database is required")
-                    .with_context("service", GRIDFS_SCHEME));
-            }
-        };
-        let bucket = match &self.config.bucket.clone() {
-            Some(v) => v.clone(),
-            None => "fs".to_string(),
-        };
-        let chunk_size = self.config.chunk_size.unwrap_or(DEFAULT_CHUNK_SIZE_BYTES);
 
-        let root = normalize_root(
-            self.config
-                .root
-                .clone()
-                .unwrap_or_else(|| "/".to_string())
-                .as_str(),
-        );
+        let root = normalize_root(self.config.root.as_deref().unwrap_or("/"));
 
         Ok(GridfsBackend::new(GridfsCore {
-            connection_string: conn,
+            connection_string,
             database,
             bucket,
             chunk_size,
@@ -222,16 +217,20 @@ impl Service for GridfsBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.get_length(&p).await? {
-                Some(len) => Ok(RpStat::new({
-                    let metadata = MetadataBuilder::file(len as u64);
-                    metadata.build()
-                })),
+                Some(len) => {
+                    let metadata = if p.ends_with('/') {
+                        MetadataBuilder::dir()
+                    } else {
+                        MetadataBuilder::file(len)
+                    };
+                    Ok(RpStat::new(metadata.build()))
+                }
                 None => Err(Error::new(ErrorKind::NotFound, "kv not found in gridfs")),
             }
         }
@@ -250,7 +249,7 @@ impl Service for GridfsBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         let output: GridfsWriter = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             Ok(GridfsWriter::new(self.core.clone(), p))
         }?;
 
@@ -311,5 +310,38 @@ impl Service for GridfsBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_rejects_zero_chunk_size_from_iter() -> Result<()> {
+        let cfg = GridfsConfig::from_iter([
+            (
+                "connection_string".to_string(),
+                "mongodb://127.0.0.1:27017".to_string(),
+            ),
+            ("database".to_string(), "demo".to_string()),
+            ("chunk_size".to_string(), "0".to_string()),
+        ])?;
+        assert_eq!(
+            cfg.into_builder().build().err().unwrap().kind(),
+            ErrorKind::ConfigInvalid
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn builder_setter_ignores_zero_chunk_size() -> Result<()> {
+        let default_builder_service = GridfsBuilder::default()
+            .connection_string("mongodb://127.0.0.1:27017")
+            .database("demo")
+            .chunk_size(0)
+            .build()?;
+        assert_eq!(default_builder_service.info().name().as_ref(), "demo/fs");
+        Ok(())
     }
 }

@@ -19,7 +19,7 @@ core-foundation-sys@0.8.7	X			X
 cpufeatures@0.2.17	X			X				
 crypto-common@0.1.7	X			X				
 crypto-common@0.2.2	X			X				
-dav-server@0.11.0	X							
+dav-server@0.12.0	X							
 dav-server-opendalfs@0.7.11	X							
 derive-where@1.7.0	X			X				
 digest@0.10.7	X			X				

@@ -23,14 +23,14 @@ use super::core::parse_storage_error;
 pub struct RedbLister {
     root: String,
     prefix: String,
-    range: Option<redb::Range<'static, &'static str, &'static [u8]>>,
+    range: Option<redb::OwnedRange<&'static str, &'static [u8]>>,
 }
 
 impl RedbLister {
     pub fn new(
         root: String,
         prefix: String,
-        range: redb::Range<'static, &'static str, &'static [u8]>,
+        range: redb::OwnedRange<&'static str, &'static [u8]>,
     ) -> Self {
         Self {
             root,
@@ -57,7 +57,7 @@ impl oio::List for RedbLister {
             return Ok(None);
         }
 
-        let mut path = build_rel_path(&self.root, key);
+        let mut path = build_relative_path(&self.root, key);
         if path.is_empty() {
             path = "/".to_string();
         }

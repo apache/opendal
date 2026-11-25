@@ -78,8 +78,7 @@ impl WebhdfsBuilder {
     /// prepend `http://` to it.
     pub fn endpoint(mut self, endpoint: &str) -> Self {
         if !endpoint.is_empty() {
-            // trim tailing slash so we can accept `http://127.0.0.1:9870/`
-            self.config.endpoint = Some(endpoint.trim_end_matches('/').to_string());
+            self.config.endpoint = Some(endpoint.to_string());
         }
         self
     }
@@ -148,22 +147,12 @@ impl Builder for WebhdfsBuilder {
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
 
-        // check scheme
-        let endpoint = match self.config.endpoint {
-            Some(endpoint) => {
-                if endpoint.starts_with("http") {
-                    endpoint
-                } else {
-                    format!("http://{endpoint}")
-                }
-            }
-            None => WEBHDFS_DEFAULT_ENDPOINT.to_string(),
-        };
+        let endpoint = normalize_endpoint(self.config.endpoint)?;
         debug!("backend use endpoint {endpoint}");
 
-        let atomic_write_dir = self.config.atomic_write_dir;
-
-        let auth = self.config.delegation.map(|dt| format!("delegation={dt}"));
+        let atomic_write_dir = normalize_atomic_write_dir(self.config.atomic_write_dir)?;
+        let user_name = self.config.user_name.filter(|v| !v.is_empty());
+        let delegation = self.config.delegation.filter(|v| !v.is_empty());
 
         let info = ServiceInfo::new(WEBHDFS_SCHEME, &root, "");
         let capability = Capability {
@@ -177,6 +166,7 @@ impl Builder for WebhdfsBuilder {
 
             create_dir: true,
             delete: true,
+            delete_with_recursive: true,
 
             list: true,
 
@@ -191,14 +181,90 @@ impl Builder for WebhdfsBuilder {
             capability,
             root,
             endpoint,
-            user_name: self.config.user_name,
-            auth,
+            user_name,
+            delegation,
             root_checker: OnceCell::new(),
             atomic_write_dir,
             disable_list_batch: self.config.disable_list_batch,
         });
 
         Ok(WebhdfsBackend { core })
+    }
+}
+
+fn normalize_endpoint(endpoint: Option<String>) -> Result<String> {
+    let Some(endpoint) = endpoint else {
+        return Ok(WEBHDFS_DEFAULT_ENDPOINT.to_string());
+    };
+
+    let endpoint = endpoint.trim();
+    if endpoint.is_empty() {
+        return Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            "endpoint must not be empty",
+        ));
+    }
+
+    let normalized = if let Some((scheme, rest)) = endpoint.split_once("://") {
+        if !scheme.eq_ignore_ascii_case("http") && !scheme.eq_ignore_ascii_case("https") {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                format!("endpoint scheme must be http or https, got: {scheme}"),
+            ));
+        }
+        let rest = rest.trim_end_matches('/');
+        if rest.is_empty() {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "endpoint authority is missing",
+            ));
+        }
+        format!("{}://{rest}", scheme.to_ascii_lowercase())
+    } else {
+        let rest = endpoint.trim_end_matches('/');
+        if rest.is_empty() {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "endpoint must not be empty",
+            ));
+        }
+        format!("http://{rest}")
+    };
+
+    let uri = normalized.parse::<http::Uri>().map_err(|err| {
+        Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid").set_source(err)
+    })?;
+
+    if uri.host().is_none_or(str::is_empty) || uri.query().is_some() {
+        return Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            "endpoint must be a valid http or https base URI",
+        ));
+    }
+
+    Ok(normalized)
+}
+
+fn normalize_atomic_write_dir(dir: Option<String>) -> Result<Option<String>> {
+    let Some(dir) = dir else {
+        return Ok(None);
+    };
+    if dir.is_empty() {
+        return Ok(None);
+    }
+
+    let normalized = normalize_path(&dir);
+    if normalized == "/" {
+        return Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            "atomic_write_dir must be a subdirectory, not root",
+        ));
+    }
+
+    if normalized.ends_with('/') {
+        Ok(Some(normalized))
+    } else {
+        Ok(Some(format!("{normalized}/")))
     }
 }
 
@@ -319,6 +385,7 @@ impl Service for WebhdfsBackend {
                         )?);
                         metadata.build()
                     }
+                    FileStatusType::Symlink => MetadataBuilder::unknown().build(),
                 };
 
                 Ok(RpStat::new(meta))
@@ -432,5 +499,144 @@ impl Service for WebhdfsBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use http::{Request, Response};
+
+    use super::*;
+
+    #[test]
+    fn test_endpoint_normalization_and_validation() {
+        // Bare hostname starting with "http" must still get http:// prepended.
+        let endpoint = normalize_endpoint(Some("http-hdfs:9870".to_string())).unwrap();
+        assert_eq!(endpoint, "http://http-hdfs:9870");
+
+        // Uppercase scheme and trailing slash are normalized.
+        let endpoint = normalize_endpoint(Some("HTTPS://host:9870/".to_string())).unwrap();
+        assert_eq!(endpoint, "https://host:9870");
+
+        // Trailing slash from config/from_iter is trimmed.
+        let cfg = WebhdfsConfig::from_iter(vec![(
+            "endpoint".to_string(),
+            "http://127.0.0.1:9870/".to_string(),
+        )])
+        .unwrap();
+        assert_eq!(
+            normalize_endpoint(cfg.endpoint).unwrap(),
+            "http://127.0.0.1:9870"
+        );
+
+        // Empty endpoint via WebhdfsConfig or whitespace via from_iter is rejected with ConfigInvalid.
+        let cfg = WebhdfsConfig {
+            endpoint: Some(String::new()),
+            ..Default::default()
+        };
+        let err = cfg.into_builder().build().err().unwrap();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let cfg =
+            WebhdfsConfig::from_iter(vec![("endpoint".to_string(), "   ".to_string())]).unwrap();
+        let err = cfg.into_builder().build().err().unwrap();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        // Non-HTTP schemes and missing authority are rejected with ConfigInvalid.
+        for invalid in [
+            "",
+            "   ",
+            "ftp://host:9870",
+            "http://",
+            "http://host:9870?a=1",
+        ] {
+            let err = normalize_endpoint(Some(invalid.to_string())).unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "input: {invalid:?}");
+        }
+    }
+
+    #[test]
+    fn test_atomic_write_dir_normalization_and_validation() {
+        assert_eq!(
+            normalize_atomic_write_dir(Some(".opendal_tmp".to_string())).unwrap(),
+            Some(".opendal_tmp/".to_string())
+        );
+        assert_eq!(
+            normalize_atomic_write_dir(Some("/.opendal_tmp/".to_string())).unwrap(),
+            Some(".opendal_tmp/".to_string())
+        );
+        assert_eq!(
+            normalize_atomic_write_dir(Some("/.opendal_tmp".to_string())).unwrap(),
+            Some(".opendal_tmp/".to_string())
+        );
+        assert_eq!(
+            normalize_atomic_write_dir(Some(String::new())).unwrap(),
+            None
+        );
+        assert_eq!(normalize_atomic_write_dir(None).unwrap(), None);
+
+        // Root cannot be used as atomic_write_dir.
+        for invalid in ["/", "///", "."] {
+            let err = normalize_atomic_write_dir(Some(invalid.to_string())).unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "input: {invalid:?}");
+        }
+
+        // Verify capability and build_absolute_path safety through Builder / Config::from_iter.
+        let cfg = WebhdfsConfig::from_iter(vec![(
+            "atomic_write_dir".to_string(),
+            "/.opendal_tmp/".to_string(),
+        )])
+        .unwrap();
+        let service = cfg.into_builder().build().unwrap();
+        assert!(service.capability().write_can_multi);
+
+        // Empty atomic_write_dir via WebhdfsConfig disables write_can_multi.
+        let cfg = WebhdfsConfig {
+            atomic_write_dir: Some(String::new()),
+            ..Default::default()
+        };
+        let service = cfg.into_builder().build().unwrap();
+        assert!(!service.capability().write_can_multi);
+
+        // Normalized path must work with build_absolute_path without debug_assert panic.
+        let dir = normalize_atomic_write_dir(Some("/.opendal_tmp".to_string()))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            build_absolute_path("/root/", &format!("{dir}block-1")),
+            "root/.opendal_tmp/block-1"
+        );
+    }
+
+    struct SymlinkStatTransport;
+
+    impl HttpTransport for SymlinkStatTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let uri = req.uri().to_string();
+            let body = if uri.contains("/webhdfs/v1/?op=GETFILESTATUS") {
+                r#"{"FileStatus":{"length":0,"modificationTime":1700000000000,"pathSuffix":"","type":"DIRECTORY"}}"#
+            } else {
+                r#"{"FileStatus":{"length":0,"modificationTime":1700000000000,"pathSuffix":"link","type":"SYMLINK"}}"#
+            };
+            let body = Buffer::from(body);
+            let size = body.len() as u64;
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .body(HttpBody::new(futures::stream::iter([Ok(body)]), Some(size)))
+                .unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_stat_handles_symlink() -> Result<()> {
+        let backend = WebhdfsBuilder::default()
+            .endpoint("http-hdfs:9870")
+            .build()?;
+        let ctx = OperationContext::default()
+            .with_http_transport(HttpTransporter::new(SymlinkStatTransport));
+
+        let rp = backend.stat(&ctx, "link", OpStat::new()).await?;
+        assert_eq!(rp.into_metadata().mode(), EntryMode::Unknown);
+        Ok(())
     }
 }

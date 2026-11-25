@@ -18,6 +18,7 @@
 package opendal_test
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -66,37 +67,37 @@ func assertOptionalMetaString(assert *require.Assertions, name string, accessor 
 	}
 }
 
-func testStatFile(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testStatFile(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFile()
 
-	_, err := op.Write(path, content)
+	_, err := op.Write(ctx, path, content)
 	assert.Nil(err)
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(ctx, path)
 	assert.Nil(err)
 	assert.True(meta.IsFile())
 	assert.Equal(meta.ContentLength(), uint64(size))
 
 	if op.Info().GetCapability().CreateDir() {
-		_, err := op.Stat(fmt.Sprintf("%s/", path))
+		_, err := op.Stat(ctx, fmt.Sprintf("%s/", path))
 		assert.NotNil(err)
 		assert.Equal(opendal.CodeNotFound, assertErrorCode(err))
 	}
 }
 
-func testStatDir(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testStatDir(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	if !op.Info().GetCapability().CreateDir() {
 		return
 	}
 
 	path := fixture.NewDirPath()
-	assert.Nil(op.CreateDir(path))
+	assert.Nil(op.CreateDir(ctx, path))
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(ctx, path)
 	assert.Nil(err)
 	assert.True(meta.IsDir())
 
-	meta, err = op.Stat(strings.TrimSuffix(path, "/"))
+	meta, err = op.Stat(ctx, strings.TrimSuffix(path, "/"))
 	if err != nil {
 		assert.Equal(opendal.CodeNotFound, assertErrorCode(err))
 	} else {
@@ -104,7 +105,7 @@ func testStatDir(assert *require.Assertions, op *opendal.Operator, fixture *fixt
 	}
 }
 
-func testStatNestedParentDir(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testStatNestedParentDir(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	if !op.Info().GetCapability().CreateDir() {
 		return
 	}
@@ -112,64 +113,64 @@ func testStatNestedParentDir(assert *require.Assertions, op *opendal.Operator, f
 	parent := fixture.NewDirPath()
 	path, content, _ := fixture.NewFileWithPath(fmt.Sprintf("%s%s", parent, uuid.NewString()))
 
-	_, err := op.Write(path, content)
+	_, err := op.Write(ctx, path, content)
 	assert.Nil(err, "write must succeed")
 
-	meta, err := op.Stat(parent)
+	meta, err := op.Stat(ctx, parent)
 	assert.Nil(err)
 	assert.True(meta.IsDir())
 }
 
-func testStatWithSpecialChars(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testStatWithSpecialChars(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFileWithPath(uuid.NewString() + " !@#$%^&()_+-=;',.txt")
 
-	_, err := op.Write(path, content)
+	_, err := op.Write(ctx, path, content)
 	assert.Nil(err, "write must succeed")
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(ctx, path)
 	assert.Nil(err)
 	assert.True(meta.IsFile())
 	assert.Equal(uint64(size), meta.ContentLength())
 }
 
-func testStatNotCleanedPath(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testStatNotCleanedPath(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFile()
 
-	_, err := op.Write(path, content)
+	_, err := op.Write(ctx, path, content)
 	assert.Nil(err, "write must succeed")
 
-	meta, err := op.Stat(fmt.Sprintf("//%s", path))
+	meta, err := op.Stat(ctx, fmt.Sprintf("//%s", path))
 	assert.Nil(err)
 	assert.True(meta.IsFile())
 	assert.Equal(uint64(size), meta.ContentLength())
 }
 
-func testStatNotExist(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testStatNotExist(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path := fixture.NewFilePath()
 
-	_, err := op.Stat(path)
+	_, err := op.Stat(ctx, path)
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeNotFound, assertErrorCode(err))
 
 	if op.Info().GetCapability().CreateDir() {
-		_, err := op.Stat(fmt.Sprintf("%s/", path))
+		_, err := op.Stat(ctx, fmt.Sprintf("%s/", path))
 		assert.NotNil(err)
 		assert.Equal(opendal.CodeNotFound, assertErrorCode(err))
 	}
 }
 
-func testStatRoot(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	meta, err := op.Stat("")
+func testStatRoot(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+	meta, err := op.Stat(ctx, "")
 	assert.Nil(err)
 	assert.True(meta.IsDir())
 
-	meta, err = op.Stat("/")
+	meta, err = op.Stat(ctx, "/")
 	assert.Nil(err)
 	assert.True(meta.IsDir())
 
 }
 
-func testStatFileMetadata(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testStatFileMetadata(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, size := fixture.NewFile()
 	cap := op.Info().GetCapability()
 
@@ -203,14 +204,14 @@ func testStatFileMetadata(assert *require.Assertions, op *opendal.Operator, fixt
 	before := time.Now().Add(-time.Hour)
 	var err error
 	if len(writeOpts) == 0 {
-		_, err = op.Write(path, content)
+		_, err = op.Write(ctx, path, content)
 		assert.Nil(err, "write must succeed")
 	} else {
-		_, err = op.Write(path, content, writeOpts...)
+		_, err = op.Write(ctx, path, content, writeOpts...)
 		assert.Nil(err, "write with metadata must succeed")
 	}
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(ctx, path)
 	assert.Nil(err, "stat must succeed")
 
 	assert.True(meta.IsFile(), "written object must be a file")
@@ -266,7 +267,7 @@ func testStatFileMetadata(assert *require.Assertions, op *opendal.Operator, fixt
 	}
 }
 
-func testStatWithIfMatch(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testStatWithIfMatch(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	cap := op.Info().GetCapability()
 	if !isCapEnabled(cap.StatWithIfMatch, "stat_with_if_match") {
 		return
@@ -279,26 +280,26 @@ func testStatWithIfMatch(assert *require.Assertions, op *opendal.Operator, fixtu
 	if isCapEnabled(cap.WriteWithContentType, "write_with_content_type") {
 		writeOpts = append(writeOpts, opendal.WriteWithContentType("text/plain"))
 	}
-	_, err := op.Write(path, content, writeOpts...)
+	_, err := op.Write(ctx, path, content, writeOpts...)
 	assert.Nil(err, "write must succeed")
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(ctx, path)
 	assert.Nil(err, "stat must succeed")
 	etag, ok := meta.ETag()
 	assert.True(ok, "etag must exist")
 
 	// Stat with a matching ETag must succeed.
-	meta, err = op.Stat(path, opendal.StatWithIfMatch(etag))
+	meta, err = op.Stat(ctx, path, opendal.StatWithIfMatch(etag))
 	assert.Nil(err, "stat with matching if_match must succeed")
 	assert.Equal(uint64(len(content)), meta.ContentLength())
 
 	// Stat with a non-matching ETag must fail with ConditionNotMatch.
-	_, err = op.Stat(path, opendal.StatWithIfMatch("\"invalid_etag\""))
+	_, err = op.Stat(ctx, path, opendal.StatWithIfMatch("\"invalid_etag\""))
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeConditionNotMatch, assertErrorCode(err))
 }
 
-func testStatWithIfNoneMatch(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testStatWithIfNoneMatch(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	cap := op.Info().GetCapability()
 	if !isCapEnabled(cap.StatWithIfNoneMatch, "stat_with_if_none_match") {
 		return
@@ -306,26 +307,26 @@ func testStatWithIfNoneMatch(assert *require.Assertions, op *opendal.Operator, f
 
 	path, content, size := fixture.NewFile()
 
-	_, err := op.Write(path, content)
+	_, err := op.Write(ctx, path, content)
 	assert.Nil(err, "write must succeed")
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(ctx, path)
 	assert.Nil(err, "stat must succeed")
 	etag, ok := meta.ETag()
 	assert.True(ok, "etag must exist")
 
 	// Stat with a non-matching ETag must succeed and return metadata.
-	meta, err = op.Stat(path, opendal.StatWithIfNoneMatch("\"invalid_etag\""))
+	meta, err = op.Stat(ctx, path, opendal.StatWithIfNoneMatch("\"invalid_etag\""))
 	assert.Nil(err, "stat with non-matching if_none_match must succeed")
 	assert.Equal(uint64(size), meta.ContentLength())
 
 	// Stat with a matching ETag must fail with ConditionNotMatch.
-	_, err = op.Stat(path, opendal.StatWithIfNoneMatch(etag))
+	_, err = op.Stat(ctx, path, opendal.StatWithIfNoneMatch(etag))
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeConditionNotMatch, assertErrorCode(err))
 }
 
-func testStatWithIfModifiedSince(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testStatWithIfModifiedSince(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	cap := op.Info().GetCapability()
 	if !isCapEnabled(cap.StatWithIfModifiedSince, "stat_with_if_modified_since") {
 		return
@@ -333,10 +334,10 @@ func testStatWithIfModifiedSince(assert *require.Assertions, op *opendal.Operato
 
 	path, content, _ := fixture.NewFile()
 
-	_, err := op.Write(path, content)
+	_, err := op.Write(ctx, path, content)
 	assert.Nil(err, "write must succeed")
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(ctx, path)
 	assert.Nil(err, "stat must succeed")
 	assert.True(meta.IsFile(), "written object must be a file")
 	assert.Equal(uint64(len(content)), meta.ContentLength())
@@ -344,16 +345,16 @@ func testStatWithIfModifiedSince(assert *require.Assertions, op *opendal.Operato
 	lastModified := meta.LastModified()
 	assert.False(lastModified.IsZero(), "last_modified must exist")
 
-	meta, err = op.Stat(path, opendal.StatWithIfModifiedSince(lastModified.Add(-time.Second)))
+	meta, err = op.Stat(ctx, path, opendal.StatWithIfModifiedSince(lastModified.Add(-time.Second)))
 	assert.Nil(err, "stat with older if_modified_since must succeed")
 	assert.Equal(lastModified, meta.LastModified())
 
-	_, err = op.Stat(path, opendal.StatWithIfModifiedSince(lastModified))
+	_, err = op.Stat(ctx, path, opendal.StatWithIfModifiedSince(lastModified))
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeConditionNotMatch, assertErrorCode(err))
 }
 
-func testStatWithIfUnmodifiedSince(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testStatWithIfUnmodifiedSince(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	cap := op.Info().GetCapability()
 	if !isCapEnabled(cap.StatWithIfUnmodifiedSince, "stat_with_if_unmodified_since") {
 		return
@@ -361,10 +362,10 @@ func testStatWithIfUnmodifiedSince(assert *require.Assertions, op *opendal.Opera
 
 	path, content, _ := fixture.NewFile()
 
-	_, err := op.Write(path, content)
+	_, err := op.Write(ctx, path, content)
 	assert.Nil(err, "write must succeed")
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(ctx, path)
 	assert.Nil(err, "stat must succeed")
 	assert.True(meta.IsFile(), "written object must be a file")
 	assert.Equal(uint64(len(content)), meta.ContentLength())
@@ -372,24 +373,24 @@ func testStatWithIfUnmodifiedSince(assert *require.Assertions, op *opendal.Opera
 	lastModified := meta.LastModified()
 	assert.False(lastModified.IsZero(), "last_modified must exist")
 
-	_, err = op.Stat(path, opendal.StatWithIfUnmodifiedSince(lastModified.Add(-time.Second)))
+	_, err = op.Stat(ctx, path, opendal.StatWithIfUnmodifiedSince(lastModified.Add(-time.Second)))
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeConditionNotMatch, assertErrorCode(err))
 
-	meta, err = op.Stat(path, opendal.StatWithIfUnmodifiedSince(lastModified.Add(time.Second)))
+	meta, err = op.Stat(ctx, path, opendal.StatWithIfUnmodifiedSince(lastModified.Add(time.Second)))
 	assert.Nil(err, "stat with newer if_unmodified_since must succeed")
 	assert.Equal(lastModified, meta.LastModified())
 }
 
-func testStatDirMetadata(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testStatDirMetadata(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	if !op.Info().GetCapability().CreateDir() {
 		return
 	}
 
 	path := fixture.NewDirPath()
-	assert.Nil(op.CreateDir(path), "create dir must succeed")
+	assert.Nil(op.CreateDir(ctx, path), "create dir must succeed")
 
-	meta, err := op.Stat(path)
+	meta, err := op.Stat(ctx, path)
 	assert.Nil(err, "stat must succeed")
 
 	assert.True(meta.IsDir(), "created object must be a dir")

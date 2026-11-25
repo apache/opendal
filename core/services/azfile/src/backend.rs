@@ -20,21 +20,23 @@ use std::sync::Arc;
 
 use http::StatusCode;
 use log::debug;
+use reqsign_azure_storage::ClientSecretCredentialProvider;
+use reqsign_azure_storage::Credential;
 use reqsign_azure_storage::DefaultCredentialProvider;
 use reqsign_azure_storage::RequestSigner;
 use reqsign_azure_storage::StaticCredentialProvider;
+#[cfg(not(target_arch = "wasm32"))]
+use reqsign_command_execute_tokio::TokioCommandExecute;
 use reqsign_core::Context;
-use reqsign_core::Env as _;
 use reqsign_core::OsEnv;
-use reqsign_core::Signer;
-use reqsign_core::StaticEnv;
+use reqsign_core::ProvideCredentialChain;
 use reqsign_file_read_tokio::TokioFileRead;
 
 use super::AZFILE_SCHEME;
 use super::config::AzfileConfig;
 use super::core::X_MS_META_PREFIX;
 use super::core::parse_error;
-use super::core::{AzfileCore, ErrorContext};
+use super::core::{AzfileCore, ErrorContext, normalize_sas_token};
 use super::deleter::AzfileDeleter;
 use super::lister::AzfileLister;
 use super::reader::*;
@@ -54,8 +56,11 @@ impl From<AzureConnectionConfig> for AzfileConfig {
             account_key: config.account_key,
             sas_token: config.sas_token,
             endpoint: config.endpoint,
-            root: None,                // root is not part of AzureStorageConfig
-            share_name: String::new(), // share_name is not part of AzureStorageConfig
+            client_id: config.client_id,
+            client_secret: config.client_secret,
+            tenant_id: config.tenant_id,
+            authority_host: config.authority_host,
+            ..Default::default()
         }
     }
 }
@@ -65,6 +70,7 @@ impl From<AzureConnectionConfig> for AzfileConfig {
 #[derive(Default)]
 pub struct AzfileBuilder {
     pub(super) config: AzfileConfig,
+    pub(super) credential_providers: Option<ProvideCredentialChain<Credential>>,
 }
 
 impl Debug for AzfileBuilder {
@@ -135,6 +141,86 @@ impl AzfileBuilder {
         self
     }
 
+    /// Set sas_token of this backend.
+    ///
+    /// - If sas_token is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
+    pub fn sas_token(mut self, sas_token: &str) -> Self {
+        if !sas_token.is_empty() {
+            self.config.sas_token = Some(sas_token.to_string());
+        }
+
+        self
+    }
+
+    /// Set client_id of this backend.
+    ///
+    /// - If client_id is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
+    /// - Required for client_credentials authentication.
+    pub fn client_id(mut self, client_id: &str) -> Self {
+        if !client_id.is_empty() {
+            self.config.client_id = Some(client_id.to_string());
+        }
+
+        self
+    }
+
+    /// Set client_secret of this backend.
+    ///
+    /// - If client_secret is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
+    /// - Required for client_credentials authentication.
+    pub fn client_secret(mut self, client_secret: &str) -> Self {
+        if !client_secret.is_empty() {
+            self.config.client_secret = Some(client_secret.to_string());
+        }
+
+        self
+    }
+
+    /// Set tenant_id of this backend.
+    ///
+    /// - If tenant_id is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
+    /// - Required for client_credentials authentication.
+    pub fn tenant_id(mut self, tenant_id: &str) -> Self {
+        if !tenant_id.is_empty() {
+            self.config.tenant_id = Some(tenant_id.to_string());
+        }
+
+        self
+    }
+
+    /// Set authority_host of this backend.
+    ///
+    /// - If authority_host is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
+    /// - Defaults to `https://login.microsoftonline.com`.
+    pub fn authority_host(mut self, authority_host: &str) -> Self {
+        if !authority_host.is_empty() {
+            self.config.authority_host = Some(authority_host.to_string());
+        }
+
+        self
+    }
+
+    /// Replace the credential providers with a custom chain.
+    ///
+    /// Build the chain from [`opendal_core::reqsign_core`] and
+    /// [`crate::reqsign_azure_storage`] so that its types match the ones this
+    /// service is built with.
+    pub fn credential_provider_chain(mut self, chain: ProvideCredentialChain<Credential>) -> Self {
+        self.credential_providers = Some(chain);
+        self
+    }
+
+    /// Skip signature will skip loading credentials and signing requests.
+    pub fn skip_signature(mut self) -> Self {
+        self.config.skip_signature = true;
+        self
+    }
+
     /// Create a new `AfileBuilder` instance from an [Azure Storage connection string][1].
     ///
     /// [1]: https://learn.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string
@@ -164,70 +250,100 @@ impl Builder for AzfileBuilder {
     type Config = AzfileConfig;
 
     fn build(self) -> Result<impl Service> {
+        self.build_backend()
+    }
+}
+
+impl AzfileBuilder {
+    fn build_backend(self) -> Result<AzfileBackend> {
         debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
 
         let endpoint = match &self.config.endpoint {
-            Some(endpoint) => Ok(endpoint.clone()),
+            Some(endpoint) => Ok(endpoint.trim_end_matches('/').to_string()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
                 .with_context("service", AZFILE_SCHEME)),
         }?;
         debug!("backend use endpoint {}", endpoint);
 
-        let account_name_option = self
+        let account_name = self
             .config
             .account_name
             .clone()
             .or_else(|| azure_account_name_from_endpoint(endpoint.as_str()));
 
-        let account_name = match account_name_option {
-            Some(account_name) => Ok(account_name),
-            None => Err(
-                Error::new(ErrorKind::ConfigInvalid, "account_name is empty")
-                    .with_operation("Builder::build")
-                    .with_context("service", AZFILE_SCHEME),
-            ),
-        }?;
+        let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
+        #[cfg(not(target_arch = "wasm32"))]
+        let ctx = ctx.with_command_execute(TokioCommandExecute);
 
-        let mut envs = std::collections::HashMap::new();
-        envs.insert("AZBLOB_ACCOUNT_NAME".to_string(), account_name.clone());
-        envs.insert(
-            "AZURE_STORAGE_ACCOUNT_NAME".to_string(),
-            account_name.clone(),
-        );
+        let tenant_id = self.config.tenant_id.as_deref().filter(|v| !v.is_empty());
+        let client_id = self.config.client_id.as_deref().filter(|v| !v.is_empty());
+        let client_secret_value = self
+            .config
+            .client_secret
+            .as_deref()
+            .filter(|v| !v.is_empty());
+        let authority_host = self
+            .config
+            .authority_host
+            .as_deref()
+            .filter(|v| !v.is_empty());
 
-        if let Some(v) = &self.config.account_key {
-            envs.insert("AZBLOB_ACCOUNT_KEY".to_string(), v.clone());
-            envs.insert("AZURE_STORAGE_ACCOUNT_KEY".to_string(), v.clone());
+        let mut client_secret = ClientSecretCredentialProvider::new();
+        if let Some(v) = tenant_id {
+            client_secret = client_secret.with_tenant_id(v);
         }
-        if let Some(v) = &self.config.sas_token {
-            envs.insert("AZURE_STORAGE_SAS_TOKEN".to_string(), v.clone());
+        if let Some(v) = client_id {
+            client_secret = client_secret.with_client_id(v);
+        }
+        if let Some(v) = client_secret_value {
+            client_secret = client_secret.with_client_secret(v);
+        }
+        if let Some(v) = authority_host {
+            client_secret = client_secret.with_authority_host(v);
         }
 
-        let os_env = OsEnv;
-        let ctx = Context::new()
-            .with_file_read(TokioFileRead)
-            .with_env(StaticEnv {
-                home_dir: os_env.home_dir(),
-                envs,
-            });
+        let has_explicit_client_secret =
+            tenant_id.is_some() && client_id.is_some() && client_secret_value.is_some();
+        let mut credential_providers = if has_explicit_client_secret {
+            ProvideCredentialChain::new().push(client_secret).push(
+                DefaultCredentialProvider::builder()
+                    .no_client_secret()
+                    .build(),
+            )
+        } else {
+            ProvideCredentialChain::new().push(
+                DefaultCredentialProvider::builder()
+                    .client_secret(client_secret)
+                    .build(),
+            )
+        };
 
-        let mut credential = DefaultCredentialProvider::new();
-        if let Some(account_key) = self.config.account_key.as_deref() {
-            credential = credential.push_front(StaticCredentialProvider::new_shared_key(
-                &account_name,
-                account_key,
-            ));
+        if let (Some(account_name), Some(account_key)) = (
+            account_name.as_deref().filter(|v| !v.is_empty()),
+            self.config.account_key.as_deref().filter(|v| !v.is_empty()),
+        ) {
+            credential_providers = credential_providers.push_front(
+                StaticCredentialProvider::new_shared_key(account_name, account_key),
+            );
         }
-        if let Some(sas_token) = self.config.sas_token.as_deref() {
-            credential = credential.push_front(StaticCredentialProvider::new_sas_token(sas_token));
+
+        let sas_token = normalize_sas_token(self.config.sas_token.as_deref());
+        if let Some(sas_token) = sas_token {
+            credential_providers =
+                credential_providers.push_front(StaticCredentialProvider::new_sas_token(sas_token));
+        }
+
+        if let Some(customized_credential_chain) = self.credential_providers {
+            credential_providers = customized_credential_chain;
         }
 
         let sign_ctx = ctx;
-        let signer = Signer::new(sign_ctx.clone(), credential, RequestSigner::new());
+        let credential_provider = Arc::new(credential_providers);
+        let request_signer = Arc::new(RequestSigner::new());
 
         let info = ServiceInfo::new(AZFILE_SCHEME, &root, "");
         let capability = Capability {
@@ -258,9 +374,12 @@ impl Builder for AzfileBuilder {
                 capability,
                 root,
                 endpoint,
-                signer,
                 sign_ctx,
+                credential_provider,
+                request_signer,
+                signers: HttpTransportCache::new(),
                 share_name: self.config.share_name.clone(),
+                skip_signature: self.config.skip_signature,
             }),
         })
     }
@@ -452,5 +571,274 @@ impl Service for AzfileBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Clone, Default, Debug)]
+    struct MockTokenHttpSend {
+        captured: Arc<std::sync::Mutex<Vec<(String, String)>>>,
+    }
+
+    impl reqsign_core::HttpSend for MockTokenHttpSend {
+        async fn http_send(
+            &self,
+            req: http::Request<bytes::Bytes>,
+        ) -> reqsign_core::Result<http::Response<bytes::Bytes>> {
+            let uri = req.uri().to_string();
+            let body = String::from_utf8_lossy(req.body()).into_owned();
+            self.captured.lock().unwrap().push((uri, body));
+            Ok(http::Response::builder()
+                .status(StatusCode::OK)
+                .body(bytes::Bytes::from_static(
+                    br#"{"access_token":"azfile-bearer-token","expires_in":3600}"#,
+                ))
+                .unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn build_with_sas_token_without_account_name_signs_requests() {
+        let backend = AzfileBuilder::default()
+            .endpoint("http://127.0.0.1:10002")
+            .share_name("share")
+            .sas_token("?sv=2022-11-02&sig=abc")
+            .build_backend()
+            .unwrap();
+
+        let signer = backend
+            .core
+            .signer_with_context(Context::new().with_env(reqsign_core::StaticEnv::default()));
+        let (mut parts, _) = http::Request::get("http://127.0.0.1:10002/share/file.txt")
+            .body(())
+            .unwrap()
+            .into_parts();
+        signer.sign(&mut parts, None).await.unwrap();
+
+        assert_eq!(
+            parts.uri.to_string(),
+            "http://127.0.0.1:10002/share/file.txt?sv=2022-11-02&sig=abc"
+        );
+    }
+
+    #[tokio::test]
+    async fn skip_signature_builds_without_account_name_and_omits_auth() {
+        let backend = AzfileBuilder::default()
+            .endpoint("http://127.0.0.1:10002")
+            .share_name("share")
+            .sas_token("sv=2022-11-02&sig=abc")
+            .skip_signature()
+            .build_backend()
+            .unwrap();
+
+        assert!(backend.core.skip_signature);
+
+        let req = http::Request::get("http://127.0.0.1:10002/share/file.txt")
+            .body(Buffer::new())
+            .unwrap();
+        let signed = backend
+            .core
+            .sign(&OperationContext::new(), req)
+            .await
+            .unwrap();
+
+        assert_eq!(signed.headers()["x-ms-version"], "2022-11-02");
+        assert!(signed.headers().get(http::header::AUTHORIZATION).is_none());
+        assert_eq!(
+            signed.uri().to_string(),
+            "http://127.0.0.1:10002/share/file.txt"
+        );
+    }
+
+    #[tokio::test]
+    async fn credential_provider_chain_replaces_default_and_static_credentials() {
+        let chain = ProvideCredentialChain::new().push(StaticCredentialProvider::new_sas_token(
+            "sv=custom&sig=chain",
+        ));
+        let backend = AzfileBuilder::default()
+            .endpoint("http://127.0.0.1:10002")
+            .share_name("share")
+            .sas_token("sv=ignored&sig=ignored")
+            .credential_provider_chain(chain)
+            .build_backend()
+            .unwrap();
+
+        let signer = backend
+            .core
+            .signer_with_context(Context::new().with_env(reqsign_core::StaticEnv::default()));
+        let (mut parts, _) = http::Request::get("http://127.0.0.1:10002/share/file.txt")
+            .body(())
+            .unwrap()
+            .into_parts();
+        signer.sign(&mut parts, None).await.unwrap();
+
+        assert_eq!(
+            parts.uri.to_string(),
+            "http://127.0.0.1:10002/share/file.txt?sv=custom&sig=chain"
+        );
+    }
+
+    #[tokio::test]
+    async fn client_secret_credentials_use_configured_authority_and_tenant() {
+        let backend = AzfileBuilder::default()
+            .endpoint("http://127.0.0.1:10002")
+            .share_name("share")
+            .client_id("client-123")
+            .client_secret("secret-123")
+            .tenant_id("tenant-123")
+            .authority_host("https://custom.authority.example")
+            .build_backend()
+            .unwrap();
+
+        let http = MockTokenHttpSend::default();
+        let ctx = Context::new()
+            .with_env(reqsign_core::StaticEnv::default())
+            .with_http_send(http.clone());
+        let signer = backend.core.signer_with_context(ctx);
+
+        let (mut parts, _) = http::Request::get("http://127.0.0.1:10002/share/file.txt")
+            .body(())
+            .unwrap()
+            .into_parts();
+        signer.sign(&mut parts, None).await.unwrap();
+
+        assert_eq!(
+            parts.headers[http::header::AUTHORIZATION],
+            "Bearer azfile-bearer-token"
+        );
+        let captured = http.captured.lock().unwrap();
+        assert_eq!(captured.len(), 1);
+        assert_eq!(
+            captured[0].0,
+            "https://custom.authority.example/tenant-123/oauth2/v2.0/token"
+        );
+        assert!(captured[0].1.contains("client_id=client-123"));
+        assert!(captured[0].1.contains("client_secret=secret-123"));
+        assert!(captured[0].1.contains("grant_type=client_credentials"));
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[derive(Clone, Default, Debug)]
+    struct MockAzCli {
+        calls: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    impl reqsign_core::CommandExecute for MockAzCli {
+        async fn command_execute(
+            &self,
+            program: &str,
+            args: &[&str],
+        ) -> reqsign_core::Result<reqsign_core::CommandOutput> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            assert_eq!(program, "az");
+            assert_eq!(
+                args,
+                [
+                    "account",
+                    "get-access-token",
+                    "--resource",
+                    "https://storage.azure.com/",
+                    "--output",
+                    "json",
+                ]
+            );
+            Ok(reqsign_core::CommandOutput {
+                status: 0,
+                stdout: br#"{"accessToken":"az-cli-token","expires_on":4102444800,"tokenType":"Bearer"}"#
+                    .to_vec(),
+                stderr: Vec::new(),
+            })
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test]
+    async fn sign_ctx_wires_tokio_command_execute() {
+        let backend = AzfileBuilder::default()
+            .endpoint("http://127.0.0.1:10002")
+            .share_name("share")
+            .build_backend()
+            .unwrap();
+
+        #[cfg(unix)]
+        let (program, args) = ("/bin/sh", &["-c", "printf ok"][..]);
+        #[cfg(windows)]
+        let (program, args) = ("cmd", &["/C", "echo ok"][..]);
+
+        let output = backend
+            .core
+            .sign_ctx
+            .command_execute(program, args)
+            .await
+            .unwrap();
+        assert!(output.success());
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "ok");
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test]
+    async fn azure_cli_credential_signs_requests() {
+        let backend = AzfileBuilder::default()
+            .endpoint("http://127.0.0.1:10002")
+            .share_name("share")
+            .build_backend()
+            .unwrap();
+
+        let az_cli = MockAzCli::default();
+        let ctx = Context::new()
+            .with_env(reqsign_core::StaticEnv::default())
+            .with_command_execute(az_cli.clone());
+        let signer = backend.core.signer_with_context(ctx);
+
+        let (mut parts, _) = http::Request::get("http://127.0.0.1:10002/share/file.txt")
+            .body(())
+            .unwrap()
+            .into_parts();
+        signer.sign(&mut parts, None).await.unwrap();
+
+        assert_eq!(
+            parts.headers[http::header::AUTHORIZATION],
+            "Bearer az-cli-token"
+        );
+        assert_eq!(az_cli.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test]
+    async fn explicit_client_secret_precedes_azure_cli() {
+        let backend = AzfileBuilder::default()
+            .endpoint("http://127.0.0.1:10002")
+            .share_name("share")
+            .client_id("client-123")
+            .client_secret("secret-123")
+            .tenant_id("tenant-123")
+            .authority_host("https://custom.authority.example")
+            .build_backend()
+            .unwrap();
+
+        let http = MockTokenHttpSend::default();
+        let az_cli = MockAzCli::default();
+        let ctx = Context::new()
+            .with_env(reqsign_core::StaticEnv::default())
+            .with_http_send(http.clone())
+            .with_command_execute(az_cli.clone());
+        let signer = backend.core.signer_with_context(ctx);
+
+        let (mut parts, _) = http::Request::get("http://127.0.0.1:10002/share/file.txt")
+            .body(())
+            .unwrap()
+            .into_parts();
+        signer.sign(&mut parts, None).await.unwrap();
+
+        assert_eq!(
+            parts.headers[http::header::AUTHORIZATION],
+            "Bearer azfile-bearer-token"
+        );
+        assert_eq!(az_cli.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+        assert_eq!(http.captured.lock().unwrap().len(), 1);
     }
 }

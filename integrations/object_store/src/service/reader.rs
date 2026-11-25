@@ -20,6 +20,8 @@ use std::sync::Arc;
 use bytes::Bytes;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
+use object_store::GetOptions;
+use object_store::GetRange;
 use object_store::ObjectStore;
 use object_store::path::Path as ObjectStorePath;
 
@@ -45,17 +47,54 @@ impl ObjectStoreReader {
             args,
         }
     }
+
+    async fn parse_open_error(
+        &self,
+        path: &ObjectStorePath,
+        range: Option<&GetRange>,
+        err: object_store::Error,
+    ) -> Error {
+        // `object_store::Error` has no dedicated range variant and wraps
+        // unsatisfiable range failures in `Error::Generic`.
+        if let Some(range) = range
+            && matches!(err, object_store::Error::Generic { .. })
+            && !matches!(range, GetRange::Suffix(_))
+        {
+            if range.is_valid().is_err() {
+                return Error::new(ErrorKind::RangeNotSatisfied, "range is not satisfiable")
+                    .set_source(err);
+            }
+
+            let head_opts = GetOptions {
+                head: true,
+                version: self.args.version().map(str::to_string),
+                ..Default::default()
+            };
+            if let Ok(head) = self.store.get_opts(path, head_opts).await
+                && range.as_range(head.meta.size).is_err()
+            {
+                return Error::new(ErrorKind::RangeNotSatisfied, "range is not satisfiable")
+                    .set_source(err);
+            }
+        }
+
+        parse_error(err)
+    }
 }
 
 impl oio::StreamRead for ObjectStoreReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let path = ObjectStorePath::from(self.path.as_str());
         let opts = parse_op_read(&self.args, range)?;
-        let result = self
-            .store
-            .get_opts(&path, opts)
-            .await
-            .map_err(parse_error)?;
+        let requested_range = opts.range.clone();
+        let result = match self.store.get_opts(&path, opts).await {
+            Ok(result) => result,
+            Err(err) => {
+                return Err(self
+                    .parse_open_error(&path, requested_range.as_ref(), err)
+                    .await);
+            }
+        };
         let rp = RpRead::new(format_metadata(&result.meta));
         let stream = ObjectStoreReadStream::new(result.into_stream());
 

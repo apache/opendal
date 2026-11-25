@@ -16,12 +16,12 @@
 // under the License.
 
 use std::fmt::{Debug, Formatter};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use http::header::AUTHORIZATION;
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
-use reqsign_core::{Context, Signer};
-use reqsign_google::Credential;
+use reqsign_core::{Context, ProvideCredentialDyn, Signer};
+use reqsign_google::{Credential, RequestSigner};
 use tonic::metadata::MetadataValue;
 use tonic::transport::{Channel, Endpoint};
 
@@ -41,8 +41,10 @@ pub(crate) struct GcsGrpcCore {
     pub root: String,
     pub channel_endpoint: Endpoint,
     pub channel: OnceLock<Channel>,
-    pub signer: Signer<Credential>,
     pub sign_ctx: Context,
+    pub credential_provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
+    pub request_signer: Arc<RequestSigner>,
+    pub signers: HttpTransportCache<Signer<Credential>>,
     pub skip_signature: bool,
 }
 
@@ -57,12 +59,31 @@ impl Debug for GcsGrpcCore {
 }
 
 impl GcsGrpcCore {
+    fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
+        self.signers.get_or_init(ctx.http_transport(), |transport| {
+            Signer::new(
+                self.sign_ctx.clone().with_http_send(transport),
+                self.credential_provider.clone(),
+                self.request_signer.clone(),
+            )
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn signer_with_context(&self, ctx: Context) -> Signer<Credential> {
+        Signer::new(
+            ctx,
+            self.credential_provider.clone(),
+            self.request_signer.clone(),
+        )
+    }
+
     pub fn bucket_resource(&self) -> String {
         format!("projects/_/buckets/{}", self.bucket)
     }
 
     pub fn object_name(&self, path: &str) -> String {
-        build_abs_path(&self.root, path)
+        build_absolute_path(&self.root, path)
     }
 
     pub fn client(&self) -> StorageClient<Channel> {
@@ -98,12 +119,7 @@ impl GcsGrpcCore {
             .body(())
             .map_err(new_request_build_error)?;
         let (mut parts, _) = req.into_parts();
-        let signer = self.signer.clone().with_context(
-            self.sign_ctx
-                .clone()
-                .with_http_send(ctx.http_transport().clone()),
-        );
-        signer
+        self.signer(ctx)
             .sign(&mut parts, None)
             .await
             .map_err(|err| new_request_sign_error(err.into()))?;
@@ -200,16 +216,25 @@ pub(crate) fn parse_status(ctx: ErrorContext, status: tonic::Status) -> Error {
 }
 
 pub(crate) fn parse_generation(value: Option<&str>) -> Result<i64> {
-    value
-        .map(|v| {
-            v.parse::<i64>().map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "GCS generation must be an integer")
-                    .with_context("generation", v)
-                    .set_source(err)
-            })
-        })
-        .transpose()
-        .map(|v| v.unwrap_or_default())
+    let Some(v) = value else {
+        return Ok(0);
+    };
+    let generation = v.parse::<i64>().map_err(|err| {
+        Error::new(
+            ErrorKind::Unexpected,
+            "GCS generation must be a nonzero integer",
+        )
+        .with_context("generation", v)
+        .set_source(err)
+    })?;
+    if generation == 0 {
+        return Err(Error::new(
+            ErrorKind::Unexpected,
+            "GCS generation must be a nonzero integer",
+        )
+        .with_context("generation", v));
+    }
+    Ok(generation)
 }
 
 pub(crate) fn parse_object(object: &Object) -> Metadata {
@@ -294,5 +319,25 @@ mod tests {
         let err = parse_status(concurrent, tonic::Status::aborted("concurrent update"));
         assert_eq!(err.kind(), ErrorKind::Conflict);
         assert!(!err.is_temporary());
+    }
+
+    #[test]
+    fn parse_generation_rejects_zero() {
+        assert_eq!(parse_generation(None).unwrap(), 0);
+        assert_eq!(parse_generation(Some("1")).unwrap(), 1);
+        assert_eq!(parse_generation(Some("123")).unwrap(), 123);
+        assert_eq!(
+            parse_generation(Some("9223372036854775807")).unwrap(),
+            i64::MAX
+        );
+
+        for invalid in ["0", "-0", "", "abc", "9223372036854775808"] {
+            let err = parse_generation(Some(invalid)).unwrap_err();
+            assert_eq!(
+                err.kind(),
+                ErrorKind::Unexpected,
+                "generation {invalid:?} should fail with Unexpected"
+            );
+        }
     }
 }

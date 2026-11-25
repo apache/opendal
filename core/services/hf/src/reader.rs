@@ -33,13 +33,29 @@ pub enum HfReadStream {
 /// Converts an opendal byte range into the `Option<Range<u64>>` the `xet`
 /// crate expects: `None` for a full read, `Some(start..end)` otherwise, with
 /// an open-ended range (`size` unknown) mapped to `start..u64::MAX`.
-fn xet_range(range: BytesRange) -> Option<Range<u64>> {
-    if range.is_full() {
-        None
-    } else {
-        let start = range.offset();
-        let end = range.size().map(|s| start + s).unwrap_or(u64::MAX);
-        Some(start..end)
+///
+/// Rejects non-empty forward ranges starting at or beyond `file_size` with
+/// [`ErrorKind::RangeNotSatisfied`] before calling `xet`, which otherwise
+/// reports them as a generic parameter error.
+fn xet_range(range: BytesRange, file_size: u64) -> Result<Option<Range<u64>>> {
+    match range {
+        BytesRange::Range {
+            offset: 0,
+            size: None,
+        } => Ok(None),
+        BytesRange::Range { size: Some(0), .. } | BytesRange::Suffix { size: 0 } => Ok(Some(0..0)),
+        BytesRange::Range { offset, size } => {
+            if offset >= file_size {
+                return Err(Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "range starts at or beyond the end of the object",
+                )
+                .with_context("offset", offset));
+            }
+            let end = size.map(|s| offset.saturating_add(s)).unwrap_or(u64::MAX);
+            Ok(Some(offset..end))
+        }
+        BytesRange::Suffix { size } => Ok(Some(file_size.saturating_sub(size)..file_size)),
     }
 }
 
@@ -56,7 +72,7 @@ impl HfReadStream {
             let metadata = MetadataBuilder::file(size);
             metadata.build()
         };
-        let xet_range = xet_range(range);
+        let xet_range = xet_range(range, size)?;
 
         let mut stream = group
             .download_stream(XetFileInfo::new(hash.to_string(), size), xet_range)
@@ -210,9 +226,51 @@ mod tests {
 
     #[test]
     fn test_xet_range_conversion() {
-        assert_eq!(xet_range(BytesRange::default()), None);
-        assert_eq!(xet_range(BytesRange::new(4, Some(4))), Some(4..8));
-        assert_eq!(xet_range(BytesRange::new(4, None)), Some(4..u64::MAX));
+        assert_eq!(xet_range(BytesRange::default(), 6).unwrap(), None);
+        assert_eq!(xet_range(BytesRange::default(), 0).unwrap(), None);
+        assert_eq!(
+            xet_range(BytesRange::new(4, Some(4)), 10).unwrap(),
+            Some(4..8)
+        );
+        assert_eq!(
+            xet_range(BytesRange::new(4, Some(8)), 6).unwrap(),
+            Some(4..12)
+        );
+        assert_eq!(
+            xet_range(BytesRange::new(4, None), 10).unwrap(),
+            Some(4..u64::MAX)
+        );
+        assert_eq!(
+            xet_range(BytesRange::new(4, Some(u64::MAX)), 10).unwrap(),
+            Some(4..u64::MAX)
+        );
+        assert_eq!(
+            xet_range(BytesRange::new(6, Some(0)), 6).unwrap(),
+            Some(0..0)
+        );
+        assert_eq!(
+            xet_range(BytesRange::new(0, Some(0)), 0).unwrap(),
+            Some(0..0)
+        );
+        assert_eq!(xet_range(BytesRange::suffix(4), 6).unwrap(), Some(2..6));
+        assert_eq!(xet_range(BytesRange::suffix(10), 6).unwrap(), Some(0..6));
+        assert_eq!(xet_range(BytesRange::suffix(0), 6).unwrap(), Some(0..0));
+        assert_eq!(xet_range(BytesRange::suffix(4), 0).unwrap(), Some(0..0));
+
+        for (range, file_size) in [
+            (BytesRange::new(6, Some(2)), 6),
+            (BytesRange::new(7, Some(2)), 6),
+            (BytesRange::new(0, Some(2)), 0),
+            (BytesRange::new(6, None), 6),
+            (BytesRange::new(7, None), 6),
+        ] {
+            let err = xet_range(range, file_size).unwrap_err();
+            assert_eq!(
+                err.kind(),
+                ErrorKind::RangeNotSatisfied,
+                "range={range}, file_size={file_size}"
+            );
+        }
     }
 
     #[tokio::test]
@@ -616,6 +674,54 @@ mod tests {
         assert_eq!(&bytes, PARQUET_MAGIC);
     }
 
+    /// Exercises out-of-bounds and short-tail XET range reads against a public
+    /// XET file.
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn test_read_xet_range_out_of_bounds() {
+        let op = mbpp_operator();
+        let path = "full/train-00000-of-00001.parquet";
+        let size = op
+            .stat(path)
+            .await
+            .expect("stat public parquet file should succeed")
+            .content_length();
+        assert!(size >= 4);
+
+        let tail = op
+            .read_with(path)
+            .range((size - 4)..)
+            .limit(8)
+            .await
+            .expect("short limited read at tail should succeed");
+        assert_eq!(tail.to_vec(), PARQUET_MAGIC);
+
+        for offset in [size, size + 1] {
+            let err = op
+                .read_with(path)
+                .range(offset..)
+                .limit(2)
+                .await
+                .expect_err("out-of-bounds limited read must fail");
+            assert_eq!(
+                err.kind(),
+                ErrorKind::RangeNotSatisfied,
+                "offset={offset}, err={err:?}"
+            );
+
+            let err = op
+                .read_with(path)
+                .range(offset..)
+                .await
+                .expect_err("out-of-bounds unbounded read must fail");
+            assert_eq!(
+                err.kind(),
+                ErrorKind::RangeNotSatisfied,
+                "offset={offset}, err={err:?}"
+            );
+        }
+    }
+
     /// Read separated ranges through one Reader against a public XET file.
     #[tokio::test]
     #[ignore = "requires network access"]
@@ -646,7 +752,11 @@ mod tests {
         )
         .unwrap()
         .with_context(
-            OperationContext::new().with_http_transport(HttpTransporter::new(transport.clone())),
+            OperationContext::new()
+                .with_http_transport(HttpTransporter::new(transport.clone()))
+                .with_executor(opendal_core::Executor::with(
+                    opendal_executor_tokio::TokioExecutor::default(),
+                )),
         );
         let path = "full/train-00000-of-00001.parquet";
         let reader = op.reader_with(path).concurrent(3).gap(0).await.unwrap();

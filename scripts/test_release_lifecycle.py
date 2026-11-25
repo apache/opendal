@@ -17,6 +17,7 @@
 
 """Release lifecycle contracts at GitHub/ATR and Git boundaries."""
 
+import base64
 import json
 import os
 import subprocess
@@ -329,6 +330,29 @@ class LifecycleTests(unittest.TestCase):
     def test_new_announcement_uses_approved_atr_revision_and_waits_for_confirmation(
         self,
     ):
+        plan = {
+            "versions": [
+                {
+                    "package": "core",
+                    "previous": "0.59.2",
+                    "configured": "0.59.2",
+                    "target": "0.59.3",
+                    "breaking": False,
+                    "public_dependency_reason": None,
+                }
+            ],
+            "pulls": [
+                {
+                    "number": 7,
+                    "url": "https://github.com/apache/opendal/pull/7",
+                    "breaking": {
+                        "packages": ["bindings/zig"],
+                        "migration": "Update Zig imports.\n\nThen rebuild the application.",
+                    },
+                }
+            ],
+        }
+        content = {"content": base64.b64encode(json.dumps(plan).encode()).decode()}
         with (
             patch.object(
                 release.Candidate,
@@ -338,10 +362,7 @@ class LifecycleTests(unittest.TestCase):
             patch.object(release, "final_refs"),
             patch.object(release, "publish_builds", return_value=True),
             patch.object(release, "nexus_release", return_value=True),
-            patch.object(release, "api", return_value=None) as github,
-            patch.object(
-                release, "version_notes", return_value="Frozen migration instructions"
-            ),
+            patch.object(release, "api", side_effect=[None, content, None]) as github,
             patch.object(
                 release, "request_json", side_effect=[{"value": "test-jwt"}, {}]
             ) as http,
@@ -364,9 +385,10 @@ class LifecycleTests(unittest.TestCase):
             self.assertEqual(
                 http.call_args.args[0], f"{release.ATR}/api/publisher/release/announce"
             )
-            self.assertIn(
-                "Frozen migration instructions", github.call_args.args[1]["body"]
-            )
+            notes = github.call_args.args[1]["body"]
+            self.assertIn("`bindings/zig` (no standalone artifact in this release)", notes)
+            self.assertIn("Update Zig imports.\n\nThen rebuild the application.", notes)
+            self.assertIn("| core | 0.59.2 | 0.59.3 | Weekly patch |", notes)
             payload = http.call_args.args[1]
             self.assertEqual(payload["version"], self.candidate.rc)
             self.assertEqual(payload["revision"], "00003")

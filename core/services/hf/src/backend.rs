@@ -37,6 +37,7 @@ use opendal_core::*;
 #[derive(Debug, Default)]
 pub struct HfBuilder {
     pub(super) config: HfConfig,
+    pub(super) invalid_repo_type: Option<String>,
 }
 
 impl HfBuilder {
@@ -51,10 +52,17 @@ impl HfBuilder {
     ///
     /// [Reference](https://huggingface.co/docs/hub/repositories)
     pub fn repo_type(mut self, repo_type: &str) -> Self {
-        if !repo_type.is_empty()
-            && let Ok(rt) = HfRepoType::parse(repo_type)
-        {
-            self.config.repo_type = Some(rt);
+        if !repo_type.is_empty() {
+            match HfRepoType::parse(repo_type) {
+                Ok(rt) => {
+                    self.config.repo_type = Some(rt);
+                    self.invalid_repo_type = None;
+                }
+                Err(_) => {
+                    self.config.repo_type = None;
+                    self.invalid_repo_type = Some(repo_type.to_string());
+                }
+            }
         }
         self
     }
@@ -126,9 +134,9 @@ impl HfBuilder {
     /// See <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet>.
     pub fn download_mode(mut self, mode: &str) -> Self {
         if !mode.is_empty()
-            && let Ok(m) = HfDownloadMode::parse(mode)
+            && let Ok(mode) = HfDownloadMode::parse(mode)
         {
-            self.config.download_mode = Some(m);
+            self.config.download_mode = Some(mode);
         }
         self
     }
@@ -259,6 +267,12 @@ impl Builder for HfBuilder {
 
     fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", self);
+
+        if let Some(invalid_repo_type) = &self.invalid_repo_type {
+            return Err(HfRepoType::parse(invalid_repo_type)
+                .unwrap_err()
+                .with_operation("Builder::build"));
+        }
 
         let token = self.hf_token();
         let endpoint = self.hf_endpoint();
@@ -771,6 +785,34 @@ mod tests {
             .repo_type("space")
             .build()
             .expect("builder should accept space repo type");
+    }
+
+    #[test]
+    fn build_rejects_invalid_repo_type() {
+        let err = HfBuilder::default()
+            .repo_type("invalid")
+            .repo_id("org/repo")
+            .build()
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        assert!(err.to_string().contains("unknown repo type: invalid"));
+
+        let err = HfBuilder::default()
+            .repo_type("dataset")
+            .repo_type("invalid")
+            .repo_id("org/repo")
+            .build()
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        assert!(err.to_string().contains("unknown repo type: invalid"));
+
+        // Overwriting an invalid repo_type with a valid one recovers.
+        HfBuilder::default()
+            .repo_type("invalid")
+            .repo_type("dataset")
+            .repo_id("org/repo")
+            .build()
+            .expect("valid repo_type should clear prior invalid value");
     }
 
     #[test]

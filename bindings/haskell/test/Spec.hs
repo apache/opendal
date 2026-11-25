@@ -19,6 +19,7 @@ import BasicTest
 import WriterTest
 import ErrorTest
 import PerformanceTest
+import ResourceTest
 import Test.Tasty
 import Test.Tasty.Ingredients.Basic (consoleTestReporter)
 
@@ -31,5 +32,6 @@ main =
       [ basicTests,
         writerTests,
         errorTests,
-        performanceTests
+        performanceTests,
+        resourceTests
       ]

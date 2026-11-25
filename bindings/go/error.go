@@ -19,10 +19,8 @@ package opendal
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"unsafe"
-
-	"github.com/jupiterrider/ffi"
 )
 
 // ErrorCode is all kinds of ErrorCode of opendal
@@ -60,6 +58,8 @@ const (
 	//
 	// This error code does not indicate whether retrying the same operation is safe.
 	CodeConflict
+	// The operation was cancelled via a context.
+	CodeCancelled
 )
 
 func parseError(ctx context.Context, err *opendalError) error {
@@ -76,6 +76,7 @@ func parseError(ctx context.Context, err *opendalError) error {
 type Error struct {
 	code    ErrorCode
 	message string
+	cause   error
 }
 
 func (e *Error) Error() string {
@@ -90,15 +91,41 @@ func (e *Error) Message() string {
 	return e.message
 }
 
-var ffiErrorFree = newFFI(ffiOpts{
-	sym:    "opendal_error_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(e *opendalError) {
-	return func(e *opendalError) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&e),
-		)
+// Unwrap returns the underlying cause of the error, if any.
+//
+// For cancelled operations (CodeCancelled), Unwrap returns context.Canceled or
+// context.DeadlineExceeded so callers can match them with errors.Is.
+func (e *Error) Unwrap() error {
+	return e.cause
+}
+
+func newCanceledError(ctxErr error) error {
+	return &Error{
+		code:    CodeCancelled,
+		message: ctxErr.Error(),
+		cause:   ctxErr,
 	}
-})
+}
+
+func wrapCanceledError(ctx context.Context, err error) error {
+	if err == nil {
+		return nil
+	}
+	var opErr *Error
+	if !errors.As(err, &opErr) || opErr.code != CodeCancelled {
+		return err
+	}
+	cause := context.Canceled
+	if ctx != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			cause = ctxErr
+		}
+	}
+	return &Error{
+		code:    CodeCancelled,
+		message: opErr.message,
+		cause:   cause,
+	}
+}
+
+var ffiErrorFree = newDirectFFI[func(e *opendalError)]("opendal_error_free")

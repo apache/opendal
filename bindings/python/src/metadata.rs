@@ -143,7 +143,7 @@ impl Metadata {
     /// The last modified timestamp of this entry.
     #[getter]
     pub fn last_modified(&self) -> Option<jiff::Timestamp> {
-        self.0.last_modified().map(Into::into)
+        self.0.last_modified().map(utils::timestamp_to_jiff)
     }
 
     /// The version of this entry.
@@ -186,14 +186,7 @@ impl Metadata {
 /// EntryMode
 ///
 /// The mode of an entry, indicating if it is a file or a directory.
-#[pyclass(
-    eq,
-    eq_int,
-    hash,
-    frozen,
-    module = "opendal.types",
-    skip_from_py_object
-)]
+#[pyclass(eq, eq_int, hash, frozen, module = "opendal.types")]
 #[pyo3(rename_all = "PascalCase")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EntryMode {

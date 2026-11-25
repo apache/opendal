@@ -42,7 +42,7 @@ is always available; enable any other service — including `fs` — with its
 
 ```toml
 [dependencies]
-opendal = { version = "0.57", features = ["services-s3"] }
+opendal = { version = "0.59", features = ["services-s3"] }
 ```
 
 ## Useful Links
@@ -50,7 +50,7 @@ opendal = { version = "0.57", features = ["services-s3"] }
 - **API reference**: [docs.rs/opendal][docs.rs] (release) · [dev build][dev-docs]
 - **Specifications**: [current portable contracts][Specifications]
 - **Rust core guides**: [concepts, internals, and performance][Rust core guides] (rustdoc)
-- **Services & configuration**: [/services](/services)
+- **Services & configuration**: [/services](/services) · [capability matrix](/services/capabilities)
 - **Upgrade guide**: [dev documentation][Upgrade Guide]
 - **Changelog**: [dev documentation][Changelog]
 - **Source & examples**: [`core/`][source] · [`core/examples/`][examples]

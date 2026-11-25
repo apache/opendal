@@ -83,7 +83,11 @@ impl RedbBuilder {
 
     /// Set the table name for Redb. Will create if not exists.
     pub fn table(mut self, table: &str) -> Self {
-        self.config.table = Some(table.into());
+        self.config.table = if table.is_empty() {
+            None
+        } else {
+            Some(table.into())
+        };
         self
     }
 
@@ -98,7 +102,7 @@ impl Builder for RedbBuilder {
     type Config = RedbConfig;
 
     fn build(self) -> Result<impl Service> {
-        let table_name = self.config.table.ok_or_else(|| {
+        let table_name = self.config.table.filter(|v| !v.is_empty()).ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "table is required but not set")
                 .with_context("service", REDB_SCHEME)
         })?;
@@ -198,17 +202,21 @@ impl Service for RedbBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             let bs = self.core.get(&p)?;
             match bs {
-                Some(bs) => Ok(RpStat::new({
-                    let metadata = MetadataBuilder::file(bs.len() as u64);
-                    metadata.build()
-                })),
+                Some(bs) => {
+                    let metadata = if p.ends_with('/') {
+                        MetadataBuilder::dir()
+                    } else {
+                        MetadataBuilder::file(bs.len() as u64)
+                    };
+                    Ok(RpStat::new(metadata.build()))
+                }
                 None => Err(Error::new(ErrorKind::NotFound, "kv not found in redb")),
             }
         }
@@ -227,7 +235,7 @@ impl Service for RedbBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         let output: RedbWriter = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             Ok(RedbWriter::new(self.core.clone(), p))
         }?;
 
@@ -246,7 +254,7 @@ impl Service for RedbBackend {
     }
 
     fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        let prefix = build_abs_path(&self.root, path);
+        let prefix = build_absolute_path(&self.root, path);
         let range = self.core.scan(&prefix)?;
         let lister = RedbLister::new(self.root.clone(), prefix, range);
         Ok(oio::HierarchyLister::new(lister, path, args.recursive()))
@@ -288,5 +296,148 @@ impl Service for RedbBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opendal_core::raw::oio::Write as _;
+
+    #[tokio::test]
+    async fn test_create_dir_root_and_list() -> Result<()> {
+        for root in ["/", "/sub/"] {
+            let dir = tempfile::tempdir().expect("create tempdir");
+            let db_path = dir.path().join("test.redb");
+            let builder = RedbBuilder::default()
+                .datadir(db_path.to_str().expect("valid utf-8 path"))
+                .table("test");
+            let builder = if root == "/" {
+                builder
+            } else {
+                builder.root(root)
+            };
+            let op = Operator::new(builder)?.layer(layers::SimulateLayer::default());
+
+            op.create_dir("/").await?;
+
+            for entries in [
+                op.list("/").await?,
+                op.list_with("/").recursive(true).await?,
+            ] {
+                let actual: Vec<_> = entries
+                    .iter()
+                    .map(|e| (e.path(), e.metadata().mode()))
+                    .collect();
+                assert_eq!(actual, vec![("/", EntryMode::DIR)], "root {root}");
+            }
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_root_stat() -> Result<()> {
+        let ctx = OperationContext::default();
+        for root in ["/", "/sub/"] {
+            let dir = tempfile::tempdir().expect("create tempdir");
+            let db_path = dir.path().join("test.redb");
+            let builder = RedbBuilder::default()
+                .datadir(db_path.to_str().expect("valid utf-8 path"))
+                .table("test");
+            let builder = if root == "/" {
+                builder
+            } else {
+                builder.root(root)
+            };
+            let service = builder.build()?;
+
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR,
+                "root {root}"
+            );
+
+            let mut writer = service.write(&ctx, "/", OpWrite::default())?;
+            writer.close().await?;
+
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR,
+                "root {root}"
+            );
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dir_marker_stat_metadata() -> Result<()> {
+        for root in ["/", "/sub/"] {
+            let dir = tempfile::tempdir().expect("create tempdir");
+            let db_path = dir.path().join("test.redb");
+            let builder = RedbBuilder::default()
+                .datadir(db_path.to_str().expect("valid utf-8 path"))
+                .table("test");
+            let builder = if root == "/" {
+                builder
+            } else {
+                builder.root(root)
+            };
+            let srv: Servicer = Arc::new(builder.build()?);
+            let op = Operator::from_parts(OperationContext::default(), srv)
+                .layer(layers::SimulateLayer::default().with_stat_dir(false));
+
+            op.create_dir("a/").await?;
+            assert_eq!(op.stat("a/").await?.mode(), EntryMode::DIR, "root {root}");
+
+            op.write("a/file.txt", "hello").await?;
+            let meta = op.stat("a/file.txt").await?;
+            assert_eq!(meta.mode(), EntryMode::FILE, "root {root}");
+            assert_eq!(meta.content_length(), 5, "root {root}");
+
+            let err = op.stat("missing/").await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::NotFound, "root {root}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_empty_table() -> Result<()> {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let db_path = dir.path().join("test.redb");
+        let db_path = db_path.to_str().expect("valid utf-8 path");
+
+        let err = RedbBuilder::default()
+            .datadir(db_path)
+            .table("")
+            .build()
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = RedbBuilder::default()
+            .datadir(db_path)
+            .table("test")
+            .table("")
+            .build()
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = RedbConfig::from_iter([
+            ("datadir".to_string(), db_path.to_string()),
+            ("table".to_string(), String::new()),
+        ])?
+        .into_builder()
+        .build()
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        Ok(())
     }
 }

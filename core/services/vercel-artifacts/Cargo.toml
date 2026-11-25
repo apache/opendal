@@ -43,4 +43,10 @@ tokio = { workspace = true }
 
 [dev-dependencies]
 anyhow = { version = "1.0.100", features = ["std"] }
-tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }
+futures = { workspace = true }
+tokio = { workspace = true, features = [
+  "fs",
+  "macros",
+  "rt-multi-thread",
+  "time",
+] }

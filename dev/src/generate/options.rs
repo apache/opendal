@@ -28,7 +28,7 @@ use syn::{
 pub enum OptionType {
     /// `Option<String>`
     Str,
-    /// `Option<usize>`
+    /// `Option<usize>` or `Option<u64>`
     Int,
     /// `Option<bool>`
     Bool,
@@ -149,7 +149,7 @@ fn parse_type(ty: &Type) -> Result<OptionType> {
 
     Ok(match inner_segment.ident.to_string().as_str() {
         "String" => OptionType::Str,
-        "usize" => OptionType::Int,
+        "usize" | "u64" => OptionType::Int,
         "bool" => OptionType::Bool,
         // jiff::Timestamp
         "Timestamp" => OptionType::DateTime,
@@ -195,6 +195,8 @@ mod tests {
                 "WriteOptions",
                 "ListOptions",
                 "StatOptions",
+                "CopyOptions",
+                "RenameOptions",
                 "DeleteOptions"
             ]
         );
@@ -219,7 +221,18 @@ mod tests {
             "The user metadata to set on the file."
         );
 
-        let delete = &options[4];
+        for option in [&options[4], &options[5]] {
+            assert!(
+                option
+                    .fields
+                    .iter()
+                    .any(|field| field.name == "if_not_exists" && field.ty == OptionType::Bool),
+                "{} must have a boolean if_not_exists field",
+                option.name
+            );
+        }
+
+        let delete = &options[6];
         assert_eq!(delete.fields.len(), 3);
         assert_eq!(
             delete.fields[1].doc,

@@ -16,6 +16,7 @@
 // under the License.
 
 // ANCHOR: quickstart
+import Foundation
 import OpenDAL
 
 // Create an operator backed by the in-memory service.

@@ -23,15 +23,18 @@
 //
 // Key features:
 //   - Unified interface for multiple storage backends (e.g., S3, Azure Blob, local filesystem)
-//   - Native Go implementation using purego and libffi
+//   - Native Go implementation using purego (no CGO or libffi required)
 //   - No CGO dependency, ensuring better portability and easier cross-compilation
 //   - Supports common operations like read, write, delete, list, and metadata retrieval
 //
 // Basic usage:
 //
 //	import (
-//		"github.com/apache/opendal/bindings/go
-//		"github.com/apache/opendal-go-services/memory
+//		"context"
+//		"log"
+//
+//		"github.com/apache/opendal-go-services/memory"
+//		opendal "github.com/apache/opendal/bindings/go"
 //	)
 //
 //	func main() {
@@ -43,8 +46,9 @@
 //		}
 //		defer op.Close()
 //
+//		ctx := context.Background()
 //		// Perform operations using the operator
-//		_, err = op.Write("example.txt", []byte("Hello, OpenDAL!"))
+//		_, err = op.Write(ctx, "example.txt", []byte("Hello, OpenDAL!"))
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -57,7 +61,13 @@ package opendal
 
 import (
 	"context"
+	"errors"
+	"sync"
 )
+
+// ErrOperatorClosed reports that an Operator method ran after Close released
+// the operator.
+var ErrOperatorClosed = errors.New("opendal: operator is closed")
 
 // Scheme defines the interface for storage scheme implementations.
 //
@@ -119,13 +129,14 @@ type OperatorOptions map[string]string
 //		}
 //		defer op.Close() // Ensure the operator is closed when done
 //
+//		ctx := context.Background()
 //		// Perform operations using the operator
-//		_, err = op.Write("example.txt", []byte("Hello, OpenDAL!"))
+//		_, err = op.Write(ctx, "example.txt", []byte("Hello, OpenDAL!"))
 //		if err != nil {
 //			log.Fatal(err)
 //		}
 //
-//		data, err := op.Read("example.txt")
+//		data, err := op.Read(ctx, "example.txt")
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -149,6 +160,9 @@ type Operator struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	// mu guards inner. Operations hold a read lock while they cross into the
+	// native library, so Close cannot free the operator underneath them.
+	mu    sync.RWMutex
 	inner *opendalOperator
 }
 
@@ -227,13 +241,43 @@ func NewOperator(scheme Scheme, opts OperatorOptions, operatorOptions ...Operato
 	return
 }
 
+// acquire takes the operator read lock and returns the native handle, or an
+// error when the Operator is closed. The caller must invoke the returned
+// release function once the native call that uses the handle has returned.
+func (op *Operator) acquire() (*opendalOperator, func(), error) {
+	if op == nil {
+		return nil, nil, ErrOperatorClosed
+	}
+	op.mu.RLock()
+	if op.inner == nil {
+		op.mu.RUnlock()
+		return nil, nil, ErrOperatorClosed
+	}
+	return op.inner, op.mu.RUnlock, nil
+}
+
 // Close releases all resources associated with the Operator.
 //
 // It's important to call this method when the Operator is no longer needed
 // to ensure proper cleanup of underlying resources.
 //
 // Note: It's recommended to use defer op.Close() immediately after creating an Operator.
+//
+// Close is safe to call more than once and on a nil or zero-value Operator;
+// further calls are no-ops. Close waits for in-flight operations and blocks
+// later ones, which return ErrOperatorClosed.
 func (op *Operator) Close() {
+	if op == nil {
+		return
+	}
+	op.mu.Lock()
+	defer op.mu.Unlock()
+	if op.inner == nil {
+		return
+	}
 	ffiOperatorFree.symbol(op.ctx)(op.inner)
-	op.cancel()
+	op.inner = nil
+	if op.cancel != nil {
+		op.cancel()
+	}
 }

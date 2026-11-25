@@ -167,3 +167,177 @@ impl oio::MultipartWrite for SwiftWriter {
             .await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    use futures::stream;
+    use http::HeaderMap;
+    use http::Response;
+    use http::header;
+
+    use super::*;
+    use crate::core::TempUrlHashAlgorithm;
+    use opendal_core::raw::oio::MultipartWrite;
+
+    #[derive(Default)]
+    struct RecordingTransport {
+        requests: Mutex<Vec<(String, HeaderMap)>>,
+    }
+
+    impl HttpTransport for RecordingTransport {
+        async fn fetch(&self, req: http::Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.requests
+                .lock()
+                .unwrap()
+                .push((req.uri().to_string(), req.headers().clone()));
+            Response::builder()
+                .status(StatusCode::CREATED)
+                .header(header::ETAG, "\"manifest-etag\"")
+                .body(HttpBody::new(stream::empty(), Some(0)))
+                .map_err(new_request_build_error)
+        }
+    }
+
+    struct ArcTransport(Arc<RecordingTransport>);
+
+    impl HttpTransport for ArcTransport {
+        async fn fetch(&self, req: http::Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.0.fetch(req).await
+        }
+    }
+
+    fn build_writer(op: OpWrite) -> (SwiftWriter, Arc<RecordingTransport>) {
+        let core = Arc::new(SwiftCore {
+            info: ServiceInfo::new(crate::SWIFT_SCHEME, "/", "container"),
+            capability: Capability {
+                write: true,
+                write_can_multi: true,
+                write_with_content_type: true,
+                write_with_content_disposition: true,
+                write_with_content_encoding: true,
+                write_with_cache_control: true,
+                write_with_user_metadata: true,
+                ..Default::default()
+            },
+            root: "/".to_string(),
+            endpoint: "http://127.0.0.1:8080/v1/AUTH_test".to_string(),
+            container: "container".to_string(),
+            token: "test-token".to_string(),
+            temp_url_key: String::new(),
+            temp_url_hash_algorithm: TempUrlHashAlgorithm::Sha256,
+        });
+        let transport = Arc::new(RecordingTransport::default());
+        let ctx = OperationContext::default()
+            .with_http_transport(HttpTransporter::new(ArcTransport(transport.clone())));
+        let writer = SwiftWriter::new(core, ctx, op, "report.csv".to_string());
+        (writer, transport)
+    }
+
+    #[tokio::test]
+    async fn complete_part_forwards_object_metadata_headers_without_overwriting_content_type() {
+        let cap = Capability {
+            write: true,
+            write_can_multi: true,
+            write_with_content_type: true,
+            write_with_content_disposition: true,
+            write_with_content_encoding: true,
+            write_with_cache_control: true,
+            write_with_user_metadata: true,
+            ..Default::default()
+        };
+        let (op, _) = OpWrite::from_options(
+            &cap,
+            options::WriteOptions {
+                content_type: Some("text/csv".to_string()),
+                content_disposition: Some("attachment; filename=\"report.csv\"".to_string()),
+                content_encoding: Some("gzip".to_string()),
+                cache_control: Some("max-age=60".to_string()),
+                user_metadata: Some(HashMap::from([(
+                    "author".to_string(),
+                    "opendal".to_string(),
+                )])),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let (writer, transport) = build_writer(op);
+
+        writer
+            .complete_part(
+                "upload-1",
+                &[oio::MultipartPart {
+                    part_number: 1,
+                    etag: "\"abc123\"".to_string(),
+                    checksum: None,
+                    size: Some(12),
+                }],
+            )
+            .await
+            .unwrap();
+
+        let requests = transport.requests.lock().unwrap();
+        assert_eq!(requests.len(), 1);
+        assert!(
+            requests[0]
+                .0
+                .ends_with("/container/report.csv?multipart-manifest=put")
+        );
+
+        let headers = &requests[0].1;
+        assert_eq!(
+            headers
+                .get(header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok()),
+            Some("text/csv")
+        );
+        assert_eq!(
+            headers
+                .get(header::CONTENT_DISPOSITION)
+                .and_then(|v| v.to_str().ok()),
+            Some("attachment; filename=\"report.csv\"")
+        );
+        assert_eq!(
+            headers
+                .get(header::CONTENT_ENCODING)
+                .and_then(|v| v.to_str().ok()),
+            Some("gzip")
+        );
+        assert_eq!(
+            headers
+                .get(header::CACHE_CONTROL)
+                .and_then(|v| v.to_str().ok()),
+            Some("max-age=60")
+        );
+        assert_eq!(
+            headers
+                .get("x-object-meta-author")
+                .and_then(|v| v.to_str().ok()),
+            Some("opendal")
+        );
+    }
+
+    #[tokio::test]
+    async fn complete_part_omits_content_type_when_unset() {
+        let (writer, transport) = build_writer(OpWrite::default());
+
+        writer
+            .complete_part(
+                "upload-2",
+                &[oio::MultipartPart {
+                    part_number: 1,
+                    etag: "\"abc123\"".to_string(),
+                    checksum: None,
+                    size: Some(12),
+                }],
+            )
+            .await
+            .unwrap();
+
+        let requests = transport.requests.lock().unwrap();
+        assert_eq!(requests.len(), 1);
+        assert!(!requests[0].1.contains_key(header::CONTENT_TYPE));
+    }
+}

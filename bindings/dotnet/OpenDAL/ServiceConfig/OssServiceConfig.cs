@@ -60,6 +60,10 @@ namespace OpenDAL.ServiceConfig
         [System.Obsolete("OSS delete batch capability is enabled by default. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints.")]
         public long? DeleteMaxSize { get; init; }
         /// <summary>
+        /// Disable loading credentials from ambient sources. This removes the environment provider and the OSS profile, Alibaba Cloud shared credentials, Alibaba Cloud CLI config, and `ALIBABA_CLOUD_CREDENTIALS_URI` sources. Explicit access keys, OIDC options that are all set on the builder, and the `role_arn` AssumeRole flow remain enabled, and ECS instance RAM role credentials keep loading from instance metadata.
+        /// </summary>
+        public bool? DisableConfigLoad { get; init; }
+        /// <summary>
         /// Deprecated: OSS versioning capability is enabled by default.
         /// </summary>
         [System.Obsolete("OSS versioning capability is enabled by default and this option is no longer needed.")]
@@ -160,6 +164,10 @@ namespace OpenDAL.ServiceConfig
                 map["delete_max_size"] = Utilities.ToOptionString(DeleteMaxSize);
             }
 #pragma warning restore CS0618
+            if (DisableConfigLoad is not null)
+            {
+                map["disable_config_load"] = Utilities.ToOptionString(DisableConfigLoad);
+            }
 #pragma warning disable CS0618
             if (EnableVersioning is not null)
             {

@@ -214,9 +214,9 @@ impl Service for CloudflareKvBackend {
         path: &str,
         _args: OpCreateDir,
     ) -> Result<RpCreateDir> {
-        let path = build_abs_path(&self.core.info.root(), path);
+        let path = build_absolute_path(&self.core.info.root(), path);
 
-        if path == build_abs_path(&self.core.info.root(), "") {
+        if path == build_absolute_path(&self.core.info.root(), "") {
             return Ok(RpCreateDir::default());
         }
 
@@ -246,16 +246,23 @@ impl Service for CloudflareKvBackend {
             };
 
             // Set the directory entry
-            self.core
+            let resp = self
+                .core
                 .set(ctx, &current_path, Buffer::new(), cf_kv_metadata)
                 .await?;
+            if resp.status() != StatusCode::OK {
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("WriteValue")),
+                    resp,
+                ));
+            }
         }
 
         Ok(RpCreateDir::default())
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
-        let path = build_abs_path(&self.core.info.root(), path);
+        let path = build_absolute_path(&self.core.info.root(), path);
         let new_path = path.trim_end_matches('/');
 
         let resp = self.core.metadata(ctx, new_path).await?;
@@ -267,24 +274,36 @@ impl Service for CloudflareKvBackend {
                 // Try listing the path to check if it's a directory
                 let list_resp = self.core.list(ctx, &path, None, None).await?;
 
-                if list_resp.status() == StatusCode::OK {
-                    let list_body = list_resp.into_body();
-                    let list_result: CfKvListResponse = serde_json::from_reader(list_body.reader())
-                        .map_err(new_json_deserialize_error)?;
-
-                    // If listing returns results, treat as directory
-                    if let Some(entries) = list_result.result
-                        && !entries.is_empty()
-                    {
-                        return Ok(RpStat::new(MetadataBuilder::dir().build()));
-                    }
-
-                    // Empty or no results means not found
-                    return Err(Error::new(
-                        ErrorKind::NotFound,
-                        "key not found in CloudFlare KV",
+                if list_resp.status() != StatusCode::OK {
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("ListKeys")),
+                        list_resp,
                     ));
                 }
+
+                let list_body = list_resp.clone().into_body();
+                let list_result: CfKvListResponse = serde_json::from_reader(list_body.reader())
+                    .map_err(new_json_deserialize_error)?;
+
+                if !list_result.success {
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("ListKeys")),
+                        list_resp,
+                    ));
+                }
+
+                // If listing returns results, treat as directory
+                if let Some(entries) = list_result.result
+                    && !entries.is_empty()
+                {
+                    return Ok(RpStat::new(MetadataBuilder::dir().build()));
+                }
+
+                // Empty or no results means not found
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "key not found in CloudFlare KV",
+                ));
             }
 
             // For all other error cases, parse the error response
@@ -392,7 +411,7 @@ impl Service for CloudflareKvBackend {
 
     fn write(&self, ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         let output: oio::OneShotWriter<CloudflareWriter> = {
-            let path = build_abs_path(&self.core.info.root(), path);
+            let path = build_absolute_path(&self.core.info.root(), path);
             let writer = CloudflareWriter::new(self.core.clone(), ctx.clone(), path);
 
             let w = oio::OneShotWriter::new(writer);
@@ -416,7 +435,7 @@ impl Service for CloudflareKvBackend {
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let output: oio::PageLister<CloudflareKvLister> = {
-            let path = build_abs_path(&self.core.info.root(), path);
+            let path = build_absolute_path(&self.core.info.root(), path);
 
             let limit = match args.limit() {
                 Some(limit) => {
@@ -480,5 +499,156 @@ impl Service for CloudflareKvBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::VecDeque;
+    use std::sync::Mutex;
+    use std::time::Duration;
+
+    use futures::stream;
+    use http::Response;
+
+    use super::*;
+
+    struct SequenceTransport {
+        responses: Mutex<VecDeque<(StatusCode, String)>>,
+    }
+
+    impl SequenceTransport {
+        fn new(responses: Vec<(StatusCode, &str)>) -> Self {
+            Self {
+                responses: Mutex::new(
+                    responses
+                        .into_iter()
+                        .map(|(status, body)| (status, body.to_string()))
+                        .collect(),
+                ),
+            }
+        }
+    }
+
+    impl HttpTransport for SequenceTransport {
+        async fn fetch(&self, _req: http::Request<Buffer>) -> Result<Response<HttpBody>> {
+            let (status, body_str) = self
+                .responses
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("unexpected extra HTTP request");
+            let body = Buffer::from(body_str);
+            let len = body.len() as u64;
+            Response::builder()
+                .status(status)
+                .body(HttpBody::new(stream::iter([Ok(body)]), Some(len)))
+                .map_err(new_request_build_error)
+        }
+    }
+
+    fn test_backend() -> CloudflareKvBackend {
+        CloudflareKvBackend {
+            core: Arc::new(CloudflareKvCore {
+                api_token: "Bearer test-token".to_string(),
+                account_id: "acc123".to_string(),
+                namespace_id: "ns456".to_string(),
+                expiration_ttl: None,
+                info: ServiceInfo::new(CLOUDFLARE_KV_SCHEME, "/", ""),
+                capability: Capability::default(),
+            }),
+        }
+    }
+
+    #[test]
+    fn backend_debug_redacts_api_token() {
+        let sentinel = "cfkv-backend-secret-token";
+        let builder = CloudflareKvBuilder::default()
+            .api_token(sentinel)
+            .account_id("acc123")
+            .namespace_id("ns456");
+        assert!(!format!("{builder:?}").contains(sentinel));
+
+        let backend = builder.build().unwrap();
+        assert!(!format!("{backend:?}").contains(sentinel));
+    }
+
+    #[tokio::test]
+    async fn create_dir_propagates_http_errors() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let backend = test_backend();
+
+            let ctx_500 = OperationContext::default().with_http_transport(HttpTransporter::new(
+                SequenceTransport::new(vec![(StatusCode::INTERNAL_SERVER_ERROR, "server error")]),
+            ));
+            let err_500 = backend
+                .create_dir(&ctx_500, "a/b/", OpCreateDir::default())
+                .await
+                .unwrap_err();
+            assert_eq!(err_500.kind(), ErrorKind::Unexpected);
+            assert!(err_500.is_temporary());
+
+            let ctx_403 = OperationContext::default().with_http_transport(HttpTransporter::new(
+                SequenceTransport::new(vec![(StatusCode::FORBIDDEN, "forbidden")]),
+            ));
+            let err_403 = backend
+                .create_dir(&ctx_403, "a/", OpCreateDir::default())
+                .await
+                .unwrap_err();
+            assert_eq!(err_403.kind(), ErrorKind::PermissionDenied);
+            assert!(err_403.is_temporary());
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn stat_dir_propagates_fallback_list_errors() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let backend = test_backend();
+
+            let ctx_500 = OperationContext::default().with_http_transport(HttpTransporter::new(
+                SequenceTransport::new(vec![
+                    (StatusCode::NOT_FOUND, "not found"),
+                    (StatusCode::INTERNAL_SERVER_ERROR, "list failed"),
+                ]),
+            ));
+            let err_500 = backend
+                .stat(&ctx_500, "dir/", OpStat::default())
+                .await
+                .unwrap_err();
+            assert_eq!(err_500.kind(), ErrorKind::Unexpected);
+            assert!(err_500.is_temporary());
+
+            let ctx_429 = OperationContext::default().with_http_transport(HttpTransporter::new(
+                SequenceTransport::new(vec![
+                    (StatusCode::NOT_FOUND, "not found"),
+                    (StatusCode::TOO_MANY_REQUESTS, "rate limited"),
+                ]),
+            ));
+            let err_429 = backend
+                .stat(&ctx_429, "dir/", OpStat::default())
+                .await
+                .unwrap_err();
+            assert_eq!(err_429.kind(), ErrorKind::Unexpected);
+            assert!(!err_429.is_temporary());
+
+            let ctx_false = OperationContext::default().with_http_transport(HttpTransporter::new(
+                SequenceTransport::new(vec![
+                    (StatusCode::NOT_FOUND, "not found"),
+                    (
+                        StatusCode::OK,
+                        r#"{"success":false,"result":null,"errors":[{"code":10000}]}"#,
+                    ),
+                ]),
+            ));
+            let err_false = backend
+                .stat(&ctx_false, "dir/", OpStat::default())
+                .await
+                .unwrap_err();
+            assert_eq!(err_false.kind(), ErrorKind::PermissionDenied);
+        })
+        .await
+        .unwrap();
     }
 }

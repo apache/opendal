@@ -65,7 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       - name: Setup Rust toolchain
@@ -97,7 +97,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Setup dotnet toolchain
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
 
@@ -180,7 +180,7 @@ jobs:
 
     steps:
       - name: Setup dotnet toolchain
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
 

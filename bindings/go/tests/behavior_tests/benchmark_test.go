@@ -19,10 +19,13 @@ package opendal_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	opendal "github.com/apache/opendal/bindings/go"
 	"github.com/aws/aws-sdk-go/aws"
@@ -31,6 +34,196 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/google/uuid"
 )
+
+func BenchmarkOpenDALCopy(b *testing.B) {
+	for _, objectSize := range []int{16 << 20, 256 << 20} {
+		b.Run(fmt.Sprintf("%dMiB", objectSize>>20), func(b *testing.B) {
+			cap := op.Info().GetCapability()
+			if !cap.Read() || !cap.WriteCanMulti() {
+				b.Skip("service must support reading and streaming writes")
+			}
+			if limit := cap.WriteTotalMaxSize(); limit > 0 && limit < uint(objectSize) {
+				b.Skip("service write limit is smaller than the benchmark object")
+			}
+			ctx := context.Background()
+			source, destination := uuid.NewString(), uuid.NewString()
+			b.Cleanup(func() {
+				_ = op.Delete(ctx, source)
+				_ = op.Delete(ctx, destination)
+			})
+			if _, err := op.Write(ctx, source, make([]byte, objectSize)); err != nil {
+				b.Fatal(err)
+			}
+			b.SetBytes(int64(objectSize))
+			b.ReportAllocs()
+			for b.Loop() {
+				r, err := op.Reader(ctx, source)
+				if err != nil {
+					b.Fatal(err)
+				}
+				w, err := op.Writer(ctx, destination)
+				if err != nil {
+					_ = r.Close()
+					b.Fatal(err)
+				}
+				n, err := io.Copy(w, r)
+				readCloseErr := r.Close()
+				_, writeCloseErr := w.Close(ctx)
+				if err != nil || readCloseErr != nil || writeCloseErr != nil || n != int64(objectSize) {
+					b.Fatalf("copy = (%d, %v), close = (%v, %v)", n, err, readCloseErr, writeCloseErr)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkWriterReadFrom(b *testing.B) {
+	for _, objectSize := range []int{16 << 20, 256 << 20} {
+		b.Run(fmt.Sprintf("%dMiB", objectSize>>20), func(b *testing.B) {
+			cap := op.Info().GetCapability()
+			if !cap.WriteCanMulti() {
+				b.Skip("service does not support streaming writes")
+			}
+			if limit := cap.WriteTotalMaxSize(); limit > 0 && limit < uint(objectSize) {
+				b.Skip("service write limit is smaller than the benchmark object")
+			}
+			data := make([]byte, objectSize)
+			source := filepath.Join(b.TempDir(), "source")
+			if err := os.WriteFile(source, data, 0600); err != nil {
+				b.Fatal(err)
+			}
+			for _, size := range []int{0, 32 << 10, 64 << 10, 256 << 10, 1 << 20} {
+				name := "io.Copy"
+				if size != 0 {
+					name = fmt.Sprint(size)
+				}
+				b.Run(name, func(b *testing.B) {
+					file, err := os.Open(source)
+					if err != nil {
+						b.Fatal(err)
+					}
+					b.Cleanup(func() {
+						if err := file.Close(); err != nil {
+							b.Error(err)
+						}
+					})
+					ctx := context.Background()
+					path := uuid.NewString()
+					b.Cleanup(func() { _ = op.Delete(ctx, path) })
+					b.SetBytes(int64(len(data)))
+					b.ReportAllocs()
+					var copyTime, closeTime time.Duration
+					b.ResetTimer()
+					for i := 0; i < b.N; i++ {
+						if _, err := file.Seek(0, io.SeekStart); err != nil {
+							b.Fatal(err)
+						}
+						w, err := op.Writer(ctx, path)
+						if err != nil {
+							b.Fatal(err)
+						}
+						var copyErr error
+						copyStart := time.Now()
+						if size == 0 {
+							_, copyErr = io.Copy(w, file)
+						} else {
+							_, copyErr = io.CopyBuffer(struct{ io.Writer }{w}, struct{ io.Reader }{file}, make([]byte, size))
+						}
+						copyTime += time.Since(copyStart)
+						closeStart := time.Now()
+						_, closeErr := w.Close(ctx)
+						closeTime += time.Since(closeStart)
+						if copyErr != nil || closeErr != nil {
+							b.Fatalf("copy = %v, close = %v", copyErr, closeErr)
+						}
+					}
+					b.ReportMetric(float64(copyTime.Nanoseconds())/float64(b.N), "copy-ns/op")
+					b.ReportMetric(float64(closeTime.Nanoseconds())/float64(b.N), "close-ns/op")
+				})
+			}
+		})
+	}
+}
+
+func BenchmarkReaderWriteTo(b *testing.B) {
+	for _, objectSize := range []int{16 << 20, 256 << 20} {
+		b.Run(fmt.Sprintf("%dMiB", objectSize>>20), func(b *testing.B) {
+			cap := op.Info().GetCapability()
+			if !cap.Read() || !cap.Write() {
+				b.Skip("service must support reading and writing")
+			}
+			if limit := cap.WriteTotalMaxSize(); limit > 0 && limit < uint(objectSize) {
+				b.Skip("service write limit is smaller than the benchmark object")
+			}
+			ctx := context.Background()
+			path := uuid.NewString()
+			b.Cleanup(func() { _ = op.Delete(ctx, path) })
+			data := make([]byte, objectSize)
+			if _, err := op.Write(ctx, path, data); err != nil {
+				b.Fatal(err)
+			}
+			for _, size := range []int{0, 32 << 10} {
+				name := "io.Copy"
+				if size != 0 {
+					name = fmt.Sprint(size)
+				}
+				b.Run(name, func(b *testing.B) {
+					file, err := os.Create(filepath.Join(b.TempDir(), "download"))
+					if err != nil {
+						b.Fatal(err)
+					}
+					b.Cleanup(func() {
+						if err := file.Close(); err != nil {
+							b.Error(err)
+						}
+					})
+					writes := 0
+					var firstWrite, copyTime, closeTime time.Duration
+					b.SetBytes(int64(len(data)))
+					b.ReportAllocs()
+					b.ResetTimer()
+					for i := 0; i < b.N; i++ {
+						if _, err := file.Seek(0, io.SeekStart); err != nil {
+							b.Fatal(err)
+						}
+						r, err := op.Reader(ctx, path)
+						if err != nil {
+							b.Fatal(err)
+						}
+						first := true
+						copyStart := time.Now()
+						dst := copyWriterFunc(func(p []byte) (int, error) {
+							if first {
+								firstWrite += time.Since(copyStart)
+								first = false
+							}
+							writes++
+							return file.Write(p)
+						})
+						var n int64
+						var copyErr error
+						if size == 0 {
+							n, copyErr = io.Copy(dst, r)
+						} else {
+							n, copyErr = io.CopyBuffer(dst, struct{ io.Reader }{r}, make([]byte, size))
+						}
+						copyTime += time.Since(copyStart)
+						closeStart := time.Now()
+						closeErr := r.Close()
+						closeTime += time.Since(closeStart)
+						if copyErr != nil || closeErr != nil || n != int64(len(data)) {
+							b.Fatalf("copy = (%d, %v), close = %v", n, copyErr, closeErr)
+						}
+					}
+					b.ReportMetric(float64(writes)/float64(b.N), "writes/op")
+					b.ReportMetric(float64(firstWrite.Nanoseconds())/float64(b.N), "first-write-ns/op")
+					b.ReportMetric(float64(copyTime.Nanoseconds())/float64(b.N), "copy-ns/op")
+					b.ReportMetric(float64(closeTime.Nanoseconds())/float64(b.N), "close-ns/op")
+				})
+			}
+		})
+	}
+}
 
 type Size uint64
 
@@ -135,12 +328,12 @@ func NewOpenDALReadWriter(op *opendal.Operator) ReadWriter {
 }
 
 func (rw *OpenDALReadWriter) Write(path string, data []byte) error {
-	_, err := rw.Operator.Write(path, data)
+	_, err := rw.Operator.Write(context.Background(), path, data)
 	return err
 }
 
 func (rw *OpenDALReadWriter) Read(path string) ([]byte, error) {
-	return rw.Operator.Read(path)
+	return rw.Operator.Read(context.Background(), path)
 }
 
 func (rw *OpenDALReadWriter) Name() string {

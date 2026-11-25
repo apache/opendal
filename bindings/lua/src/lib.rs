@@ -110,7 +110,12 @@ fn operator_delete(_: &Lua, (operator, path): (LuaTable, String)) -> LuaResult<(
     }
 }
 
-fn operator_write(_: &Lua, (operator, path, bytes): (LuaTable, String, String)) -> LuaResult<()> {
+// `bytes` must stay `LuaString`: Lua strings are raw byte sequences and may
+// contain arbitrary binary data, which `String` rejects as invalid UTF-8.
+fn operator_write(
+    _: &Lua,
+    (operator, path, bytes): (LuaTable, String, LuaString),
+) -> LuaResult<()> {
     let op = operator.get::<ODOperator>("_operator")?;
     let op = op.operator;
 
@@ -119,7 +124,7 @@ fn operator_write(_: &Lua, (operator, path, bytes): (LuaTable, String, String)) 
     }
 
     let path = path.as_str();
-    let res = op.write(path, bytes);
+    let res = op.write(path, bytes.as_bytes().to_vec());
     match res {
         Ok(_) => Ok(()),
         Err(e) => Err(LuaError::external(e)),

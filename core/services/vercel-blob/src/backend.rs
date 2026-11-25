@@ -70,9 +70,11 @@ impl VercelBlobBuilder {
     /// Get from Vercel environment variable `BLOB_READ_WRITE_TOKEN`.
     /// It is required.
     pub fn token(mut self, token: &str) -> Self {
-        if !token.is_empty() {
-            self.config.token = Some(token.to_string());
-        }
+        self.config.token = if token.is_empty() {
+            None
+        } else {
+            Some(token.to_string())
+        };
         self
     }
 }
@@ -221,25 +223,33 @@ impl Service for VercelBlobBackend {
         let to = to.to_string();
         let source_content_length_hint = args.source_content_length_hint();
 
-        Ok(oio::OneShotCopier::new(async move {
-            let source_size = match source_content_length_hint {
-                Some(size) => size,
-                None => backend
-                    .stat(&ctx, &from, OpStat::default())
-                    .await?
-                    .into_metadata()
-                    .content_length(),
-            };
+        Ok(oio::OneShotCopier::new_with(move || {
+            let backend = backend.clone();
+            let core = core.clone();
+            let ctx = ctx.clone();
+            let from = from.clone();
+            let to = to.clone();
 
-            let resp = core.copy(&ctx, &from, &to).await?;
-            let status = resp.status();
+            async move {
+                let source_size = match source_content_length_hint {
+                    Some(size) => size,
+                    None => backend
+                        .stat(&ctx, &from, OpStat::default())
+                        .await?
+                        .into_metadata()
+                        .content_length(),
+                };
 
-            match status {
-                StatusCode::OK => Ok(MetadataBuilder::file(source_size).build()),
-                _ => Err(parse_error(
-                    ErrorContext::new(ServiceOperation("CopyBlob")),
-                    resp,
-                )),
+                let resp = core.copy(&ctx, &from, &to).await?;
+                let status = resp.status();
+
+                match status {
+                    StatusCode::OK => Ok(MetadataBuilder::file(source_size).build()),
+                    _ => Err(parse_error(
+                        ErrorContext::new(ServiceOperation("CopyBlob")),
+                        resp,
+                    )),
+                }
             }
         }))
     }
@@ -287,5 +297,94 @@ impl Service for VercelBlobBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+
+    use futures::stream;
+    use http::{Method, Request, Response, StatusCode};
+    use opendal_core::raw::oio::Copy;
+
+    use super::*;
+
+    #[derive(Clone, Default)]
+    struct RetryCopyTransport {
+        put_attempts: Arc<AtomicUsize>,
+    }
+
+    impl HttpTransport for RetryCopyTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let (status, body) = if req.method() == Method::GET {
+                if req.uri().query().unwrap_or_default().contains("url=") {
+                    (
+                        StatusCode::OK,
+                        r#"{"url":"https://store.public.blob.vercel-storage.com/src.txt","pathname":"src.txt","size":12,"uploadedAt":"2026-01-01T00:00:00Z","contentDisposition":"inline"}"#.to_string(),
+                    )
+                } else {
+                    (
+                        StatusCode::OK,
+                        r#"{"hasMore":false,"blobs":[{"url":"https://store.public.blob.vercel-storage.com/src.txt","pathname":"src.txt","size":12,"uploadedAt":"2026-01-01T00:00:00Z","contentDisposition":"inline"}]}"#.to_string(),
+                    )
+                }
+            } else if req.method() == Method::PUT {
+                let attempt = self.put_attempts.fetch_add(1, Ordering::SeqCst);
+                if attempt == 0 {
+                    (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        r#"{"error":{"code":"service_unavailable","message":"try again"}}"#
+                            .to_string(),
+                    )
+                } else {
+                    (StatusCode::OK, "{}".to_string())
+                }
+            } else {
+                (StatusCode::METHOD_NOT_ALLOWED, String::new())
+            };
+
+            let len = body.len() as u64;
+            Ok(Response::builder()
+                .status(status)
+                .body(HttpBody::new(
+                    stream::iter([Ok(Buffer::from(body))]),
+                    Some(len),
+                ))
+                .unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn copy_retries_after_transient_error() {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let transport = RetryCopyTransport::default();
+            let backend = VercelBlobBuilder::default()
+                .token("valid-token")
+                .build()
+                .unwrap();
+            let ctx = OperationContext::new()
+                .with_http_transport(HttpTransporter::new(transport.clone()));
+
+            let mut copier = backend
+                .copy(&ctx, "src.txt", "dst.txt", OpCopy::default())
+                .unwrap();
+
+            let first_err = copier
+                .close()
+                .await
+                .expect_err("first attempt must return transient 503");
+            assert!(first_err.is_temporary());
+
+            let meta = copier
+                .close()
+                .await
+                .expect("retry on same OneShotCopier must succeed");
+            assert_eq!(meta.content_length(), 12);
+            assert_eq!(transport.put_attempts.load(Ordering::SeqCst), 2);
+        })
+        .await
+        .expect("test timed out");
     }
 }

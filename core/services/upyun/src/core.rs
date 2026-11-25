@@ -70,12 +70,14 @@ pub struct UpyunCore {
 
 /// Build the folder key for a directory path, without its trailing slash.
 ///
-/// `build_abs_path` returns an empty string for the root of a service whose root is `/`, so
+/// `build_absolute_path` returns an empty string for the root of a service whose root is `/`, so
 /// slicing off the last byte underflows there. `Operator::create_dir` only checks that the path
 /// ends with `/`, and `/` does, so the root reaches this code and a library call panics instead of
 /// returning an error. `trim_end_matches` is what the sibling services use and is total.
 fn folder_path(root: &str, path: &str) -> String {
-    build_abs_path(root, path).trim_end_matches('/').to_string()
+    build_absolute_path(root, path)
+        .trim_end_matches('/')
+        .to_string()
 }
 
 impl Debug for UpyunCore {
@@ -105,9 +107,19 @@ impl UpyunCore {
             self.signer
                 .authorization(&date, req.method().as_str(), req.uri().path());
 
-        req.headers_mut()
-            .insert("Authorization", authorization.parse().unwrap());
-        req.headers_mut().insert("Date", date.parse().unwrap());
+        let auth_header = build_header_value(&authorization)?;
+        auth_header.to_str().map_err(|err| {
+            Error::new(
+                ErrorKind::ConfigInvalid,
+                "authorization header contains non-ASCII characters",
+            )
+            .with_operation("UpyunCore::sign")
+            .set_source(err)
+        })?;
+        let date_header = build_header_value(&date)?;
+
+        req.headers_mut().insert(header::AUTHORIZATION, auth_header);
+        req.headers_mut().insert(header::DATE, date_header);
 
         Ok(())
     }
@@ -120,7 +132,7 @@ impl UpyunCore {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -143,7 +155,7 @@ impl UpyunCore {
     }
 
     pub async fn info(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -171,7 +183,7 @@ impl UpyunCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -210,7 +222,7 @@ impl UpyunCore {
     }
 
     pub async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -237,8 +249,8 @@ impl UpyunCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = format!("/{}/{}", self.bucket, build_abs_path(&self.root, from));
-        let to = build_abs_path(&self.root, to);
+        let from = format!("/{}/{}", self.bucket, build_absolute_path(&self.root, from));
+        let to = build_absolute_path(&self.root, to);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -272,8 +284,8 @@ impl UpyunCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = format!("/{}/{}", self.bucket, build_abs_path(&self.root, from));
-        let to = build_abs_path(&self.root, to);
+        let from = format!("/{}/{}", self.bucket, build_absolute_path(&self.root, from));
+        let to = build_absolute_path(&self.root, to);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -333,7 +345,7 @@ impl UpyunCore {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -378,7 +390,7 @@ impl UpyunCore {
         size: u64,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -414,7 +426,7 @@ impl UpyunCore {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -446,7 +458,7 @@ impl UpyunCore {
         iter: &str,
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -647,39 +659,51 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
 #[cfg(test)]
 mod tests {
+
     use http::StatusCode;
 
     use super::*;
 
-    #[tokio::test]
-    async fn test_parse_error() {
-        let err_res = vec![
-            (
-                r#"{"code": 40100016, "msg": "invalid date value in header", "id": "f5b30c720ddcecc70abd2f5c1c64bde8"}"#,
-                ErrorKind::Unexpected,
-                StatusCode::UNAUTHORIZED,
-            ),
-            (
-                r#"{"code": 40300010, "msg": "file type error", "id": "f5b30c720ddcecc70abd2f5c1c64bde7"}"#,
-                ErrorKind::PermissionDenied,
-                StatusCode::FORBIDDEN,
-            ),
-        ];
+    #[test]
+    fn test_parse_error() {
+        let body = Buffer::from("<Error><Code>40300010</Code><Msg>file type error</Msg></Error>");
+        let resp = Response::builder()
+            .status(StatusCode::FORBIDDEN)
+            .body(body)
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("Test")), resp);
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+        assert!(err.to_string().contains("file type error"));
+    }
 
-        for res in err_res {
-            let bs = bytes::Bytes::from(res.0);
-            let body = Buffer::from(bs);
-            let resp = Response::builder().status(res.2).body(body).unwrap();
+    #[test]
+    fn sign_rejects_invalid_operator_without_panicking() {
+        for invalid_operator in ["op\r\n", "操作员"] {
+            let core = UpyunCore {
+                info: ServiceInfo::new(crate::UPYUN_SCHEME, "/", ""),
+                capability: Capability::default(),
+                root: "/".to_string(),
+                operator: invalid_operator.to_string(),
+                bucket: "bucket".to_string(),
+                signer: UpyunSigner {
+                    operator: invalid_operator.to_string(),
+                    password: "secret".to_string(),
+                },
+            };
 
-            let err = parse_error(ErrorContext::new(ServiceOperation("Test")), resp);
-
-            assert_eq!(err.kind(), res.1);
+            let mut req = Request::get("https://v0.api.upyun.com/bucket/a.txt")
+                .body(Buffer::new())
+                .unwrap();
+            let err = core
+                .sign(&mut req)
+                .expect_err("invalid operator must return an error instead of panicking");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
         }
     }
 
     #[test]
     fn folder_path_handles_the_service_root() {
-        // build_abs_path yields "" here; the previous `path[..path.len() - 1]` underflowed.
+        // build_absolute_path yields "" here; the previous `path[..path.len() - 1]` underflowed.
         assert_eq!(folder_path("/", "/"), "");
     }
 

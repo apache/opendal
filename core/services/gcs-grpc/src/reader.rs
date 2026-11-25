@@ -48,12 +48,15 @@ impl GcsGrpcReader {
 
 impl oio::Read for GcsGrpcReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let generation = parse_generation(self.args.version())?;
+        let Some((read_offset, read_limit)) = parse_read_range(range)? else {
+            return Ok((RpRead::default(), Box::new(Buffer::new())));
+        };
         let object = self.core.object_name(&self.path);
-        let (read_offset, read_limit) = parse_read_range(range)?;
         let request = ReadObjectRequest {
             bucket: self.core.bucket_resource(),
             object,
-            generation: parse_generation(self.args.version())?,
+            generation,
             read_offset,
             read_limit,
         };
@@ -89,19 +92,31 @@ impl oio::Read for GcsGrpcReader {
     }
 }
 
-fn parse_read_range(range: BytesRange) -> Result<(i64, i64)> {
-    let convert = |value: u64| {
-        i64::try_from(value).map_err(|err| {
-            Error::new(ErrorKind::RangeNotSatisfied, "GCS gRPC range exceeds i64").set_source(err)
-        })
-    };
-    if range.is_suffix() {
-        Ok((-convert(range.size().unwrap_or_default())?, 0))
-    } else {
-        Ok((
-            convert(range.offset())?,
-            convert(range.size().unwrap_or_default())?,
-        ))
+fn parse_read_range(range: BytesRange) -> Result<Option<(i64, i64)>> {
+    match range {
+        BytesRange::Suffix { size: 0 } | BytesRange::Range { size: Some(0), .. } => Ok(None),
+        BytesRange::Suffix { size } => match i64::try_from(size) {
+            Ok(size) => Ok(Some((-size, 0))),
+            // GCS object sizes fit in i64, so any suffix larger than i64::MAX
+            // reads the full object from offset 0.
+            Err(_) => Ok(Some((0, 0))),
+        },
+        BytesRange::Range { offset, size } => {
+            let read_offset = i64::try_from(offset).map_err(|err| {
+                Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "GCS gRPC read offset exceeds i64",
+                )
+                .set_source(err)
+            })?;
+            // GCS treats read_limit == 0 as "read to EOF", and object sizes fit
+            // in i64, so any size exceeding i64::MAX reads to EOF.
+            let read_limit = match size {
+                Some(size) => i64::try_from(size).unwrap_or(0),
+                None => 0,
+            };
+            Ok(Some((read_offset, read_limit)))
+        }
     }
 }
 
@@ -136,5 +151,82 @@ impl oio::ReadStream for GcsGrpcReadStream {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_read_range_handles_bounds_suffix_zero_and_overflow() {
+        assert_eq!(
+            parse_read_range(BytesRange::default()).unwrap(),
+            Some((0, 0))
+        );
+        assert_eq!(
+            parse_read_range(BytesRange::from(..)).unwrap(),
+            Some((0, 0))
+        );
+        assert_eq!(
+            parse_read_range(BytesRange::from(10..30)).unwrap(),
+            Some((10, 20))
+        );
+        assert_eq!(
+            parse_read_range(BytesRange::from(10..)).unwrap(),
+            Some((10, 0))
+        );
+        assert_eq!(
+            parse_read_range(BytesRange::new(0, Some(i64::MAX as u64))).unwrap(),
+            Some((0, i64::MAX))
+        );
+
+        // Ranges whose size exceeds i64::MAX read to EOF (read_limit = 0).
+        assert_eq!(
+            parse_read_range(BytesRange::from(0..=u64::MAX)).unwrap(),
+            Some((0, 0))
+        );
+        assert_eq!(
+            parse_read_range(BytesRange::from(1..=u64::MAX)).unwrap(),
+            Some((1, 0))
+        );
+        assert_eq!(
+            parse_read_range(BytesRange::new(5, Some(i64::MAX as u64 + 1))).unwrap(),
+            Some((5, 0))
+        );
+
+        // Suffix ranges.
+        assert_eq!(
+            parse_read_range(BytesRange::suffix(4)).unwrap(),
+            Some((-4, 0))
+        );
+        assert_eq!(
+            parse_read_range(BytesRange::suffix(i64::MAX as u64)).unwrap(),
+            Some((-i64::MAX, 0))
+        );
+        assert_eq!(
+            parse_read_range(BytesRange::suffix(i64::MAX as u64 + 1)).unwrap(),
+            Some((0, 0))
+        );
+        assert_eq!(
+            parse_read_range(BytesRange::suffix(u64::MAX)).unwrap(),
+            Some((0, 0))
+        );
+
+        // Zero-length ranges short-circuit to empty instead of unbounded reads.
+        assert_eq!(parse_read_range(BytesRange::suffix(0)).unwrap(), None);
+        assert_eq!(parse_read_range(BytesRange::new(0, Some(0))).unwrap(), None);
+        assert_eq!(parse_read_range(BytesRange::new(5, Some(0))).unwrap(), None);
+        assert_eq!(
+            parse_read_range(BytesRange::new(u64::MAX, Some(0))).unwrap(),
+            None
+        );
+
+        // Offsets exceeding i64::MAX are rejected as RangeNotSatisfied.
+        let err = parse_read_range(BytesRange::from(u64::MAX..)).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+
+        let err = parse_read_range(BytesRange::new(i64::MAX as u64 + 1, Some(1))).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
     }
 }

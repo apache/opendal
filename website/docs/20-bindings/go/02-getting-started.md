@@ -12,8 +12,7 @@ This program builds an operator, writes a file, reads it back, inspects its
 metadata, and deletes it. It runs against the in-memory service with no
 credentials, so you can run it right after installing.
 
-The binding requires **libffi** to be installed. Then add the binding and the
-scheme package for the service you want:
+Add the binding and the scheme package for the service you want:
 
 ```shell
 go get github.com/apache/opendal/bindings/go@latest
@@ -38,6 +37,9 @@ go get github.com/apache/opendal-go-services/s3
 
 ```go
 import (
+	"context"
+	"log"
+
 	"github.com/apache/opendal-go-services/s3"
 	opendal "github.com/apache/opendal/bindings/go"
 )
@@ -51,7 +53,8 @@ if err != nil {
 }
 defer op.Close()
 
-if err := op.Write("hello.txt", []byte("Hello from S3!")); err != nil {
+ctx := context.Background()
+if _, err := op.Write(ctx, "hello.txt", []byte("Hello from S3!")); err != nil {
 	log.Fatal(err)
 }
 ```

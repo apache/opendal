@@ -38,7 +38,7 @@ impl opendal_core::Configurator for CompfsConfig {
         if let Some(root) = uri.root()
             && !root.is_empty()
         {
-            map.insert("root".to_string(), root.to_string());
+            map.insert("root".to_string(), uri_path_to_root(root));
         }
 
         Self::from_iter(map)
@@ -46,6 +46,29 @@ impl opendal_core::Configurator for CompfsConfig {
 
     fn into_builder(self) -> Self::Builder {
         CompfsBuilder { config: self }
+    }
+}
+
+/// Turn the path of a `compfs:///` uri, without its leading `/`, into an
+/// absolute root.
+///
+/// On Windows, `compfs:///C:/data` carries the drive in its path, and
+/// `/C:/data` is not a valid path, so keep `C:/data` as is.
+fn uri_path_to_root(path: &str) -> String {
+    let bytes = path.as_bytes();
+    let has_drive = bytes.len() >= 2
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && (bytes.len() == 2 || bytes[2] == b'/');
+    if cfg!(windows) && has_drive {
+        // A bare `C:` means the current directory of drive C, not its root.
+        if bytes.len() == 2 {
+            format!("{path}/")
+        } else {
+            path.to_string()
+        }
+    } else {
+        format!("/{path}")
     }
 }
 
@@ -60,6 +83,20 @@ mod tests {
         let uri = OperatorUri::new("compfs:///workdir", Vec::<(String, String)>::new()).unwrap();
 
         let cfg = CompfsConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.root.as_deref(), Some("workdir"));
+        assert_eq!(cfg.root.as_deref(), Some("/workdir"));
+    }
+
+    #[test]
+    fn from_uri_with_windows_drive() {
+        let uri = OperatorUri::new("compfs:///C:/data", Vec::<(String, String)>::new()).unwrap();
+
+        let cfg = CompfsConfig::from_uri(&uri).unwrap();
+        let expected = if cfg!(windows) { "C:/data" } else { "/C:/data" };
+        assert_eq!(cfg.root.as_deref(), Some(expected));
+
+        let uri = OperatorUri::new("compfs:///C:/", Vec::<(String, String)>::new()).unwrap();
+        let cfg = CompfsConfig::from_uri(&uri).unwrap();
+        let expected = if cfg!(windows) { "C:/" } else { "/C:" };
+        assert_eq!(cfg.root.as_deref(), Some(expected));
     }
 }

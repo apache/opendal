@@ -208,14 +208,10 @@ impl GcsGrpcWriter {
             {
                 match self.query_write_status().await? {
                     QueryOutcome::NotFound => {
-                        let pending = self.pending.as_mut().expect("pending upload must exist");
-                        if pending.write_offset != 0 {
-                            return Err(Error::new(
-                                ErrorKind::Unexpected,
-                                "GCS resumable upload disappeared after data was persisted",
-                            ));
-                        }
-                        pending.in_flight = false;
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            "GCS resumable upload no longer exists",
+                        ));
                     }
                     QueryOutcome::Persisted(size) => {
                         if let Some(outcome) = self.reconcile_persisted_size(size)? {
@@ -272,14 +268,23 @@ impl GcsGrpcWriter {
 
             match response.write_status {
                 Some(write_object_response::WriteStatus::PersistedSize(size)) => {
+                    if let Some(outcome) = self.reconcile_persisted_size(size)? {
+                        return Ok(outcome);
+                    }
                     if finish_write && body.is_empty() {
                         return Err(Error::new(
                             ErrorKind::Unexpected,
                             "GCS did not finalize an empty final write",
                         ));
                     }
-                    if let Some(outcome) = self.reconcile_persisted_size(size)? {
-                        return Ok(outcome);
+                    if size == write_offset {
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            "GCS write made no progress",
+                        )
+                        .with_context("write_offset", write_offset.to_string())
+                        .with_context("persisted_size", size.to_string())
+                        .set_temporary());
                     }
                 }
                 Some(write_object_response::WriteStatus::Resource(object)) => {
@@ -375,6 +380,12 @@ impl oio::Write for GcsGrpcWriter {
                     "writer is already finishing",
                 ));
             }
+            if !buffers_equal(&pending.incoming, &bs) {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "writer has an unacknowledged pending write with different data; retry with the same buffer or abort",
+                ));
+            }
             self.finish_pending().await?;
             return Ok(());
         }
@@ -386,7 +397,7 @@ impl oio::Write for GcsGrpcWriter {
 
         self.start_resumable_write().await?;
 
-        let combined = merge_buffers(self.buffer.clone().unwrap_or_default(), bs);
+        let combined = merge_buffers(self.buffer.clone().unwrap_or_default(), bs.clone());
         let upload_size = combined.len() / WRITE_CHUNK_ALIGNMENT * WRITE_CHUNK_ALIGNMENT;
         if upload_size == 0 {
             self.buffer = Some(combined);
@@ -396,6 +407,7 @@ impl oio::Write for GcsGrpcWriter {
         let mut body = combined;
         let tail = body.split_off(upload_size);
         self.pending = Some(PendingUpload {
+            incoming: bs,
             body,
             tail,
             write_offset: self.write_offset,
@@ -409,9 +421,19 @@ impl oio::Write for GcsGrpcWriter {
     async fn close(&mut self) -> Result<Metadata> {
         self.ensure_open()?;
 
-        if self.pending.is_some()
-            && let Some(object) = self.finish_pending().await?
-        {
+        if let Some(pending) = self.pending.as_ref() {
+            if !pending.finish_write {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "writer has an unacknowledged pending write; retry write or abort before close",
+                ));
+            }
+            let object = self.finish_pending().await?.ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "GCS write finalized without object metadata",
+                )
+            })?;
             return Ok(parse_object(&object));
         }
 
@@ -424,6 +446,7 @@ impl oio::Write for GcsGrpcWriter {
         }
 
         self.pending = Some(PendingUpload {
+            incoming: Buffer::new(),
             body: self.buffer.clone().unwrap_or_default(),
             tail: Buffer::new(),
             write_offset: self.write_offset,
@@ -470,6 +493,7 @@ impl oio::Write for GcsGrpcWriter {
 }
 
 struct PendingUpload {
+    incoming: Buffer,
     body: Buffer,
     tail: Buffer,
     write_offset: i64,
@@ -507,6 +531,27 @@ enum QueryOutcome {
 
 fn merge_buffers(left: Buffer, right: Buffer) -> Buffer {
     left.into_iter().chain(right).collect()
+}
+
+fn buffers_equal(left: &Buffer, right: &Buffer) -> bool {
+    use bytes::Buf as _;
+
+    if left.len() != right.len() {
+        return false;
+    }
+    let mut left = left.clone();
+    let mut right = right.clone();
+    while left.has_remaining() {
+        let left_chunk = left.chunk();
+        let right_chunk = right.chunk();
+        let common = left_chunk.len().min(right_chunk.len());
+        if left_chunk[..common] != right_chunk[..common] {
+            return false;
+        }
+        left.advance(common);
+        right.advance(common);
+    }
+    true
 }
 
 struct WriteObjectRequestState {
@@ -583,7 +628,7 @@ mod tests {
     use futures::StreamExt;
     use futures::executor::block_on;
     use opendal_core::raw::oio::Write as _;
-    use reqsign_core::{Context, ProvideCredentialChain, Signer};
+    use reqsign_core::{Context, ProvideCredentialChain};
     use reqsign_google::RequestSigner;
     use tonic::transport::Endpoint;
 
@@ -600,12 +645,10 @@ mod tests {
             root: "/".to_string(),
             channel_endpoint: Endpoint::from_static("http://127.0.0.1:1"),
             channel: Default::default(),
-            signer: Signer::new(
-                sign_ctx.clone(),
-                ProvideCredentialChain::new(),
-                RequestSigner::new("storage"),
-            ),
             sign_ctx,
+            credential_provider: Arc::new(ProvideCredentialChain::new()),
+            request_signer: Arc::new(RequestSigner::new("storage")),
+            signers: HttpTransportCache::new(),
             skip_signature: true,
         });
         GcsGrpcWriter::new(
@@ -749,6 +792,7 @@ mod tests {
     fn persisted_size_advances_only_the_pending_range() {
         let mut writer = test_writer();
         writer.pending = Some(PendingUpload {
+            incoming: Buffer::new(),
             body: Buffer::from(vec![1; MAX_WRITE_CHUNK_SIZE * 2]),
             tail: Buffer::from(Bytes::from_static(b"tail")),
             write_offset: 17,
@@ -776,5 +820,34 @@ mod tests {
                 if size == 17 + (MAX_WRITE_CHUNK_SIZE * 2) as i64
         ));
         assert!(writer.pending.as_ref().unwrap().body.is_empty());
+    }
+
+    #[test]
+    fn buffers_equal_compares_logical_bytes_across_chunk_boundaries() {
+        assert!(buffers_equal(&Buffer::new(), &Buffer::new()));
+
+        let contiguous = Buffer::from(Bytes::from_static(b"abcdefgh"));
+        let fragmented = Buffer::from(vec![
+            Bytes::from_static(b"ab"),
+            Bytes::from_static(b"cde"),
+            Bytes::from_static(b"fgh"),
+        ]);
+        let differently_fragmented = Buffer::from(vec![
+            Bytes::from_static(b"abcd"),
+            Bytes::from_static(b"efgh"),
+        ]);
+        assert!(buffers_equal(&contiguous, &fragmented));
+        assert!(buffers_equal(&fragmented, &differently_fragmented));
+
+        let different_byte = Buffer::from(vec![
+            Bytes::from_static(b"ab"),
+            Bytes::from_static(b"cXe"),
+            Bytes::from_static(b"fgh"),
+        ]);
+        assert!(!buffers_equal(&contiguous, &different_byte));
+        assert!(!buffers_equal(
+            &contiguous,
+            &Buffer::from(Bytes::from_static(b"abcdefg"))
+        ));
     }
 }

@@ -410,7 +410,7 @@ export function run(op) {
       expect(await memory.read('encoded.bin')).toEqual(expected)
     })
 
-    test('write stream destroy releases writer without closing', async () => {
+    test('write stream destroy waits for a pending write and aborts the writer', async () => {
       const memory = new Operator('memory')
       const writer = await memory.writer('aborted.bin')
       let closeCalled = false
@@ -419,15 +419,28 @@ export function run(op) {
         closeCalled = true
         return originalClose()
       }
+      let releaseWrite
+      const blocked = new Promise((resolve) => {
+        releaseWrite = resolve
+      })
+      const originalWrite = writer.write.bind(writer)
+      writer.write = (chunk) => blocked.then(() => originalWrite(chunk))
 
       const ws = writer.createWriteStream()
       const closed = once(ws, 'close')
+      ws.write(Buffer.from('unfinished data'))
       ws.destroy()
+      ws.destroy()
+      await setImmediate()
+      const closedBeforeWrite = ws.closed
+      releaseWrite()
       await closed
 
+      expect(closedBeforeWrite).toBe(false)
       expect(ws.destroyed).toBe(true)
       expect(closeCalled).toBe(false)
       expect(await memory.exists('aborted.bin')).toBe(false)
+      await expect(originalClose()).rejects.toThrow('writer has been closed or aborted')
     })
 
     test.each(['index.mjs', 'index.cjs'])(

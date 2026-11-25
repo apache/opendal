@@ -83,36 +83,50 @@ class WriteStream extends Writable {
   constructor(writer, options) {
     super(options)
     this.writer = writer
+    this.pending = null
+    this.committed = false
   }
 
-  _write(chunk, encoding, callback) {
-    let data
+  async _write(chunk, encoding, callback) {
     try {
-      data = toWriterInput(chunk, encoding)
+      this.pending = this.writer.write(toWriterInput(chunk, encoding))
+      await this.pending
     } catch (error) {
       callback(error)
       return
     }
-
-    this.writer
-      .write(data)
-      .then(() => {
-        callback()
-      })
-      .catch((error) => {
-        callback(error)
-      })
+    callback()
   }
 
-  _final(callback) {
-    this.writer
-      .close()
-      .then(() => {
-        callback()
-      })
-      .catch((error) => {
-        callback(error)
-      })
+  async _final(callback) {
+    try {
+      this.pending = this.writer.close()
+      await this.pending
+    } catch (error) {
+      callback(error)
+      return
+    }
+    this.committed = true
+    callback()
+  }
+
+  async _destroy(error, callback) {
+    // Wait for construction and any I/O before deciding whether to abort.
+    // A pending write may start a multipart upload, and a pending close may commit it.
+    try {
+      await this.pending
+    } catch (operationError) {
+      error = error || operationError
+    }
+
+    if (!this.committed) {
+      try {
+        await this.writer.abort()
+      } catch (abortError) {
+        error = error || abortError
+      }
+    }
+    callback(error)
   }
 }
 

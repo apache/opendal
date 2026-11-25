@@ -1097,6 +1097,13 @@ export declare class Writer {
    * ```
    */
   close(): Promise<void>
+  /**
+   * Abort an unfinished write and release resources held by the service.
+   *
+   * A successful abort ends the writer. Services that write directly to the
+   * destination may leave partial data.
+   */
+  abort(): Promise<void>
 }
 
 export interface DeleteOptions {

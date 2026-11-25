@@ -17,12 +17,13 @@
 
 use std::fmt::Debug;
 use std::net::Ipv4Addr;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use anyhow::{Context, Result};
 use libunftp::ServerBuilder;
 use opendal::{Operator, services};
 use suppaftp::Status;
+use suppaftp::list::File;
 use suppaftp::tokio::AsyncFtpStream;
 use suppaftp::types::{FileType, FtpError, FtpResult};
 use tempfile::tempdir;
@@ -33,10 +34,11 @@ use unftp_sbe_opendal::OpendalStorage;
 
 const SESSION_TIMEOUT: Duration = Duration::from_secs(15);
 
-async fn with_ftp_client(test: impl AsyncFnOnce(&mut AsyncFtpStream) -> Result<()>) -> Result<()> {
-    let root = tempdir()?;
-    let fs = services::Fs::default().root(root.path().to_str().context("non-UTF-8 test root")?);
-    let storage = OpendalStorage::new(Operator::new(fs)?);
+async fn with_ftp_client_for(
+    op: Operator,
+    test: impl AsyncFnOnce(&mut AsyncFtpStream) -> Result<()>,
+) -> Result<()> {
+    let storage = OpendalStorage::new(op);
     let server = ServerBuilder::new(Box::new(move || storage.clone()))
         .passive_ports(0..=0)
         .build()?;
@@ -68,6 +70,31 @@ async fn with_ftp_client(test: impl AsyncFnOnce(&mut AsyncFtpStream) -> Result<(
     );
     client_result.context("FTP client session timed out")??;
     server_result.context("FTP server session timed out")?
+}
+
+async fn with_ftp_client(test: impl AsyncFnOnce(&mut AsyncFtpStream) -> Result<()>) -> Result<()> {
+    let root = tempdir()?;
+    let fs = services::Fs::default().root(root.path().to_str().context("non-UTF-8 test root")?);
+    with_ftp_client_for(Operator::new(fs)?, test).await
+}
+
+/// A modification time counts as real when it is within the last hour: the
+/// entry was just written, so a clock far from now means the server invented
+/// the time.
+fn is_recent(modified: SystemTime) -> bool {
+    SystemTime::now()
+        .duration_since(modified)
+        .is_ok_and(|elapsed| elapsed < Duration::from_secs(3600))
+}
+
+fn parse_list_lines(lines: &[String]) -> Result<Vec<File>> {
+    lines
+        .iter()
+        .map(|line| {
+            line.parse::<File>()
+                .with_context(|| format!("parse LIST line {line:?}"))
+        })
+        .collect()
 }
 
 async fn retrieve(ftp: &mut AsyncFtpStream, path: &str) -> Result<Vec<u8>> {
@@ -226,6 +253,158 @@ async fn restart_is_unsupported() -> Result<()> {
             ftp.resume_transfer(1).await,
             Status::NotImplemented,
             "REST 1",
+        );
+        Ok(())
+    })
+    .await
+}
+
+/// STAT replies frame each listing line with the reply code (`200-` on the
+/// first line, `200 ` on the last). Strip that framing so the lines parse
+/// like the raw LIST output on the data connection.
+fn stat_lines(body: &str) -> Vec<String> {
+    body.lines()
+        .map(|l| {
+            let b = l.as_bytes();
+            if b.len() >= 4
+                && b[..3].iter().all(|c| c.is_ascii_digit())
+                && (b[3] == b'-' || b[3] == b' ')
+            {
+                l[4..].to_string()
+            } else {
+                l.to_string()
+            }
+        })
+        .filter(|l| !l.is_empty())
+        .collect()
+}
+
+/// Entries without a modification time stay listable on Memory: files and
+/// directories written there carry no `last_modified`, so `LIST` and `STAT`
+/// must still parse, while `MDTM` and `MLST` must not invent a time.
+#[tokio::test]
+async fn missing_mtime_entries_on_memory() -> Result<()> {
+    let op = Operator::new(services::Memory::default())?;
+    op.write("f.txt", "hello").await?;
+    op.create_dir("d/").await?;
+    with_ftp_client_for(op, async |ftp| {
+        let lines = ftp.list(None).await.context("LIST")?;
+        let files = parse_list_lines(&lines)?;
+        assert_eq!(files.len(), 2, "LIST lines: {lines:?}");
+        let file = files
+            .iter()
+            .find(|f| f.name() == "f.txt")
+            .context("f.txt in LIST")?;
+        assert!(file.is_file());
+        assert_eq!(file.size(), 5);
+        let dir = files
+            .iter()
+            .find(|f| f.name() == "d")
+            .context("d in LIST")?;
+        assert!(dir.is_directory());
+        assert!(
+            lines
+                .iter()
+                .all(|line| !line.contains("1970") && !line.contains("--- -- --:--")),
+            "LIST lines must neither invent a time nor use the unparseable placeholder: {lines:?}"
+        );
+
+        for path in ["f.txt", "d"] {
+            let response = ftp
+                .custom_command(format!("STAT /{path}"), &[Status::CommandOk])
+                .await
+                .with_context(|| format!("STAT /{path}"))?;
+            let body = String::from_utf8_lossy(&response.body);
+            let name = path.trim_end_matches('/');
+            assert!(
+                stat_lines(&body)
+                    .iter()
+                    .any(|line| line.parse::<File>().is_ok_and(|f| f.name() == name)),
+                "STAT /{path} must return a parseable line for {name}: {body}"
+            );
+            assert!(
+                !body.contains("1970"),
+                "STAT /{path} must not invent a time: {body}"
+            );
+        }
+
+        assert_reply(ftp.mdtm("f.txt").await, Status::ActionAborted, "MDTM f.txt");
+        assert_reply(ftp.mdtm("d").await, Status::ActionAborted, "MDTM d");
+
+        for (path, kind) in [("f.txt", "type=file"), ("d", "type=dir")] {
+            let facts = ftp
+                .mlst(Some(path))
+                .await
+                .with_context(|| format!("MLST {path}"))?;
+            assert!(facts.contains(kind), "MLST {path} must say {kind}: {facts}");
+            assert!(
+                !facts.contains("modify="),
+                "MLST {path} must not invent a time: {facts}"
+            );
+        }
+
+        ftp.cwd("d").await.context("CWD d")?;
+        Ok(())
+    })
+    .await
+}
+
+/// Entries with a known modification time keep the `ls`-style listing and
+/// report their real time through `MDTM` and `MLST`.
+#[tokio::test]
+async fn known_mtime_entries_on_fs() -> Result<()> {
+    with_ftp_client(async |ftp| {
+        ftp.put_file("f.txt", &mut "hello".as_bytes())
+            .await
+            .context("STOR f.txt")?;
+        ftp.mkdir("d").await.context("MKD d")?;
+
+        let lines = ftp.list(None).await.context("LIST")?;
+        let files = parse_list_lines(&lines)?;
+        let file = files
+            .iter()
+            .find(|f| f.name() == "f.txt")
+            .context("f.txt in LIST")?;
+        assert!(file.is_file());
+        assert!(is_recent(file.modified()), "f.txt mtime must be recent");
+        let dir = files
+            .iter()
+            .find(|f| f.name() == "d")
+            .context("d in LIST")?;
+        assert!(dir.is_directory());
+        assert!(is_recent(dir.modified()), "d mtime must be recent");
+
+        let response = ftp
+            .custom_command("STAT /f.txt", &[Status::CommandOk])
+            .await
+            .context("STAT /f.txt")?;
+        let body = String::from_utf8_lossy(&response.body);
+        assert!(
+            stat_lines(&body).iter().any(|line| line
+                .parse::<File>()
+                .is_ok_and(|f| { f.name() == "f.txt" && is_recent(f.modified()) })),
+            "STAT /f.txt must return a parseable line with a recent time: {body}"
+        );
+
+        let mdtm = ftp.mdtm("f.txt").await.context("MDTM f.txt")?;
+        let mdtm_ts = mdtm.and_utc().timestamp() as u64;
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .context("system time before epoch")?
+            .as_secs();
+        assert!(
+            now - mdtm_ts < 3600,
+            "MDTM f.txt must be recent, got {mdtm}"
+        );
+
+        let facts = ftp.mlst(Some("f.txt")).await.context("MLST f.txt")?;
+        assert!(
+            facts.contains("modify="),
+            "MLST f.txt must carry modify: {facts}"
+        );
+        assert!(
+            !facts.contains("modify=19700101000000"),
+            "MLST f.txt must not report the epoch: {facts}"
         );
         Ok(())
     })

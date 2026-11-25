@@ -60,7 +60,7 @@ use std::path::{Path, PathBuf};
 
 use opendal::Operator;
 use unftp_core::auth::UserDetail;
-use unftp_core::storage::{self, Error, StorageBackend};
+use unftp_core::storage::{self, Error, Metadata, StorageBackend};
 
 use futures::StreamExt;
 use tokio::io::AsyncReadExt;
@@ -99,15 +99,12 @@ impl storage::Metadata for OpendalMetadata {
     }
 
     fn modified(&self) -> storage::Result<std::time::SystemTime> {
-        // Without a time, libunftp lists the entry with a `--- -- --:--`
-        // placeholder that `ls`-style parsers cannot read, so clients drop the
-        // entry or take the whole line as its name. Report the Unix epoch
-        // instead, as the object_store integration does.
-        Ok(self
-            .0
+        // A backend that reports no modification time stays unknown here.
+        // Listing output renders such entries without a timestamp instead.
+        self.0
             .last_modified()
             .map(Into::into)
-            .unwrap_or(std::time::UNIX_EPOCH))
+            .ok_or_else(|| storage::ErrorKind::LocalError.into())
     }
 
     fn gid(&self) -> u32 {
@@ -128,6 +125,30 @@ fn convert_err(err: opendal::Error) -> Error {
         _ => storage::ErrorKind::LocalError,
     };
     Error::new(kind, err)
+}
+
+/// Format one listing entry for `LIST` and `STAT`.
+///
+/// Entries with a known modification time use the `ls`-style line from
+/// [`storage::Fileinfo`]. Entries without one use the MLST fact line instead
+/// (`type=file;size=5; f.txt`, with `modify` omitted), so the line stays
+/// parseable without inventing a timestamp.
+fn format_entry(fi: &storage::Fileinfo<PathBuf, OpendalMetadata>) -> String {
+    if fi.metadata.modified().is_ok() {
+        return fi.to_string();
+    }
+
+    let kind = if fi.metadata.is_dir() {
+        "type=dir"
+    } else {
+        "type=file"
+    };
+    let name = fi
+        .path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    format!("{kind};size={}; {name}", fi.metadata.len())
 }
 
 /// Convert an FTP path into a lexically normalized OpenDAL path.
@@ -306,6 +327,49 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
             })
             .collect();
         Ok(ret)
+    }
+
+    async fn list_fmt<P: AsRef<Path> + Send + Debug>(
+        &self,
+        user: &User,
+        path: P,
+    ) -> storage::Result<std::io::Cursor<Vec<u8>>>
+    where
+        Self::Metadata: storage::Metadata + 'static,
+    {
+        let list = self.list(user, path).await?;
+        let mut buffer = String::new();
+        for fi in &list {
+            buffer.push_str(&format_entry(fi));
+            buffer.push_str("\r\n");
+        }
+        Ok(std::io::Cursor::new(buffer.into_bytes()))
+    }
+
+    async fn list_vec<P: AsRef<Path> + Send + Debug>(
+        &self,
+        user: &User,
+        path: P,
+    ) -> storage::Result<Vec<String>>
+    where
+        Self::Metadata: storage::Metadata + 'static,
+    {
+        let list = self.list(user, path.as_ref()).await?;
+        if !list.is_empty() {
+            return Ok(list.iter().map(format_entry).collect());
+        }
+        // `STAT` can name a single entry. An empty listing means the path
+        // names an empty directory, whose own entry `list` filters out.
+        // Fall back to the entry itself so the client can stat it.
+        if path.as_ref().file_name().is_none() {
+            return Ok(vec![]);
+        }
+        let metadata = self.metadata(user, path.as_ref()).await?;
+        let entry = storage::Fileinfo {
+            path: path.as_ref().to_path_buf(),
+            metadata,
+        };
+        Ok(vec![format_entry(&entry)])
     }
 
     async fn get<P: AsRef<Path> + Send + Debug>(
@@ -548,12 +612,22 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use unftp_core::storage::Metadata as _;
 
     #[test]
-    fn missing_last_modified_reports_unix_epoch() {
+    fn missing_last_modified_returns_error() {
         let dir = OpendalMetadata(opendal::MetadataBuilder::dir().build());
-        assert_eq!(dir.modified().unwrap(), std::time::UNIX_EPOCH);
+        assert!(dir.modified().is_err());
+        let file = OpendalMetadata(opendal::MetadataBuilder::file(5).build());
+        assert!(file.modified().is_err());
+    }
+
+    #[test]
+    fn known_last_modified_returns_time() {
+        let ts = opendal::raw::Timestamp::new(1_700_000_000, 0).unwrap();
+        let mut builder = opendal::MetadataBuilder::file(5);
+        builder.last_modified(ts);
+        let file = OpendalMetadata(builder.build());
+        assert_eq!(file.modified().unwrap(), std::time::SystemTime::from(ts));
     }
 
     #[test]

@@ -269,7 +269,11 @@ async fn recursive_listing_returns_each_directory_once() -> Result<()> {
 async fn services_without_recursive_listing_keep_the_walk() -> Result<()> {
     let inner = Arc::new(ListFixture {
         recursive: true,
-        ..ListFixture::new(&["t/a.parquet"])
+        entries: vec![
+            oio::Entry::new("t/", MetadataBuilder::dir().build()),
+            oio::Entry::new("t/a.parquet", MetadataBuilder::file(0).build()),
+        ],
+        ..ListFixture::new(&[])
     });
     let no_recursion = crate::layers::CapabilityOverrideLayer::new(|mut capability| {
         capability.list_with_recursive = false;
@@ -279,8 +283,35 @@ async fn services_without_recursive_listing_keep_the_walk() -> Result<()> {
         .layer(no_recursion)
         .layer(GlobLayer);
     op.list_with("/").glob("t/**/*.parquet").await?;
+    op.list_with("/").glob("t/**").await?;
     let requests = inner.requests.lock().unwrap();
     assert!(requests.iter().all(|(_, args)| !args.recursive()));
+    Ok(())
+}
+
+#[tokio::test]
+async fn walk_filters_one_recursive_listing_below_a_matched_directory() -> Result<()> {
+    let inner = Arc::new(ListFixture {
+        recursive: true,
+        entries: vec![
+            oio::Entry::new("logs/", MetadataBuilder::dir().build()),
+            oio::Entry::new("logs/a/x.json", MetadataBuilder::file(0).build()),
+            oio::Entry::new("t/", MetadataBuilder::dir().build()),
+        ],
+        ..ListFixture::new(&[])
+    });
+    let op = Operator::from_parts(OperationContext::default(), inner.clone()).layer(GlobLayer);
+    let entries = op.list_with("/").glob("logs/**").await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        ["logs/", "logs/a/", "logs/a/x.json"]
+    );
+    let requests = inner.requests.lock().unwrap();
+    let requests: Vec<_> = requests
+        .iter()
+        .map(|(path, args)| (path.as_str(), args.recursive()))
+        .collect();
+    assert_eq!(requests, [("/", false), ("logs/", true)]);
     Ok(())
 }
 

@@ -16,11 +16,25 @@
 // under the License.
 
 use std::collections::HashSet;
+use std::collections::VecDeque;
+use std::pin::pin;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+
+use futures::FutureExt;
+use futures::future::Either;
+use futures::future::select;
 
 use crate::raw::oio::{self, List};
 use crate::raw::*;
 use crate::*;
+
+/// Child directories that the walk lists ahead.
+const LIST_AHEAD: usize = 8;
+/// Entries that the walk reads from a listing at a time if the caller sets no
+/// page size. S3 returns up to 1,000 keys per request.
+const BATCH: usize = 1000;
 
 /// Provide client-side glob support for services that support listing.
 ///
@@ -32,6 +46,8 @@ use crate::*;
 /// recursive listing of that directory instead. With a cursor, versions, or
 /// delete markers, it filters an underlying listing to preserve the service's
 /// cursor and entries.
+/// With an executor, the walk lists up to 8 child directories of the current
+/// directory in the background and returns entries in the same order.
 /// For a custom stack, install it before layers that resolve symbolic links
 /// when completing entry metadata.
 ///
@@ -212,24 +228,55 @@ impl Service for GlobService {
 
         args.set_recursive(false);
         let directories = if can_match {
-            vec![Directory {
-                path: directory,
-                positions: vec![position],
-                lister: None,
-                discovered: false,
-                recursive: false,
-            }]
+            vec![Directory::new(directory, vec![position], false, false)]
         } else {
             Vec::new()
         };
         Ok(Box::new(GuidedLister {
-            ctx: ctx.clone(),
-            inner: self.inner.clone(),
-            pattern,
-            args,
-            base: base.to_owned(),
+            walk: Arc::new(Walk {
+                ctx: ctx.clone(),
+                inner: self.inner.clone(),
+                pattern,
+                batch: args.limit().unwrap_or(BATCH).max(1),
+                args,
+                base: base.to_owned(),
+            }),
             prefix: prefix.to_owned(),
             directories,
+            // Tokio runs background tasks on wasm32 only inside a `LocalSet`.
+            background: cfg!(not(target_arch = "wasm32")),
+        }))
+    }
+}
+
+/// What a listing needs to read a directory.
+struct Walk {
+    ctx: OperationContext,
+    inner: Servicer,
+    pattern: Arc<GlobPattern>,
+    args: OpList,
+    base: String,
+    /// Entries to read from a listing at a time.
+    batch: usize,
+}
+
+impl Walk {
+    /// Open the listing of `path`. A recursive listing is filtered.
+    fn list(&self, path: &str, recursive: bool) -> Result<oio::Lister> {
+        let mut args = self.args.clone();
+        args.set_recursive(recursive);
+        let lister = self.inner.list(&self.ctx, path, args)?;
+        if !recursive {
+            return Ok(lister);
+        }
+        Ok(Box::new(FilteredLister {
+            inner: lister,
+            pattern: self.pattern.clone(),
+            base: self.base.clone(),
+            root: path.to_owned(),
+            start_after: None,
+            implied: Some(ImpliedDirectories::default()),
+            pending: None,
         }))
     }
 }
@@ -237,128 +284,271 @@ impl Service for GlobService {
 struct Directory {
     path: String,
     positions: Vec<usize>,
-    lister: Option<oio::Lister>,
     /// Found while listing a parent rather than requested by the caller.
     discovered: bool,
     /// Filter one recursive listing instead of walking the directory.
     recursive: bool,
+    lister: Option<oio::Lister>,
+    ahead: Option<Ahead>,
+    /// An error to return after the queued entries.
+    error: Option<Error>,
+    done: bool,
+    /// Entries to return in order. `true` enters the next directory in `children`.
+    steps: VecDeque<(Option<oio::Entry>, bool)>,
+    children: VecDeque<Directory>,
 }
 
 impl Directory {
-    async fn next(
-        &mut self,
-        ctx: &OperationContext,
-        inner: &Servicer,
-        args: &OpList,
-        pattern: &Arc<GlobPattern>,
-        base: &str,
-    ) -> Result<Option<oio::Entry>> {
-        if self.lister.is_none() {
-            let mut args = args.clone();
-            args.set_recursive(self.recursive);
-            let lister = inner.list(ctx, &self.path, args)?;
-            self.lister = Some(if self.recursive {
-                Box::new(FilteredLister {
-                    inner: lister,
-                    pattern: pattern.clone(),
-                    base: base.to_owned(),
-                    root: self.path.clone(),
-                    start_after: None,
-                    implied: Some(ImpliedDirectories::default()),
-                    pending: None,
-                })
-            } else {
-                lister
-            });
+    fn new(path: String, positions: Vec<usize>, discovered: bool, recursive: bool) -> Self {
+        Self {
+            path,
+            positions,
+            discovered,
+            recursive,
+            lister: None,
+            ahead: None,
+            error: None,
+            done: false,
+            steps: VecDeque::new(),
+            children: VecDeque::new(),
         }
-        self.lister
-            .as_mut()
-            .expect("directory listing is open")
-            .next()
-            .await
+    }
+
+    /// Queue `entry` if the walk returns or enters it.
+    fn push(&mut self, walk: &Walk, prefix: &str, entry: oio::Entry) {
+        if self.recursive {
+            self.steps.push_back((Some(entry), false));
+            return;
+        }
+        if !entry.path().starts_with(prefix) {
+            return;
+        }
+        let Some(name) = relative_child(entry.path(), &self.path) else {
+            return;
+        };
+        let name = name.trim_end_matches('/');
+        if name.contains('/') {
+            return;
+        }
+        let pattern = &walk.pattern;
+        let positions = pattern.advance(&self.positions, name);
+        let is_dir = entry.mode().is_dir();
+        let matches = pattern.accepts(&positions, is_dir);
+        // All viable positions travel with the same child. Overlapping
+        // recursive matches therefore visit and emit each entry only once.
+        let enter = is_dir && pattern.can_descend(&positions);
+        if enter {
+            // As in `list`, this costs no more requests than the walk.
+            let recursive = walk.inner.capability().list_with_recursive
+                && positions
+                    .iter()
+                    .any(|&position| pattern.walks_whole_subtree(position));
+            let path = entry.path().to_owned();
+            self.children
+                .push_back(Directory::new(path, positions, true, recursive));
+        }
+        if enter || matches {
+            self.steps.push_back((matches.then_some(entry), enter));
+        }
     }
 }
 
+/// A background listing of the first entries of a directory.
+struct Ahead {
+    task: Task<Batch>,
+    /// Set by the task or the walk, whichever starts the listing first.
+    started: Arc<AtomicBool>,
+}
+
+/// Entries that a background listing read.
+#[derive(Default)]
+struct Batch {
+    /// `None` if the listing ended or did not open.
+    lister: Option<oio::Lister>,
+    entries: Vec<oio::Entry>,
+    /// Returned after `entries`.
+    error: Option<Error>,
+}
+
+/// Read the first entries of the directory at `path` unless the walk started
+/// the listing first.
+async fn list_batch(
+    walk: Arc<Walk>,
+    path: String,
+    recursive: bool,
+    started: Arc<AtomicBool>,
+) -> Batch {
+    let mut batch = Batch::default();
+    if started.swap(true, Ordering::AcqRel) {
+        return batch;
+    }
+    let mut lister = match walk.list(&path, recursive) {
+        Ok(lister) => lister,
+        Err(err) => {
+            batch.error = Some(err);
+            return batch;
+        }
+    };
+    while batch.entries.len() < walk.batch {
+        let mut next = pin!(lister.next());
+        // `TimeoutLayer` bounds the walk, not a background listing. Most entries
+        // come from a fetched page, so start a timer only for a request.
+        let next = match next.as_mut().now_or_never() {
+            Some(next) => next,
+            None => match walk.ctx.executor().timeout() {
+                Some(timeout) => match select(next, timeout).await {
+                    Either::Left((next, _)) => next,
+                    Either::Right(_) => Err(Error::new(ErrorKind::Unexpected, "list timeout")
+                        .with_context("path", &path)
+                        .set_temporary()),
+                },
+                None => next.await,
+            },
+        };
+        match next {
+            Ok(Some(entry)) => batch.entries.push(entry),
+            Ok(None) => return batch,
+            Err(err) => {
+                batch.error = Some(err);
+                break;
+            }
+        }
+    }
+    batch.lister = Some(lister);
+    batch
+}
+
 struct GuidedLister {
-    ctx: OperationContext,
-    inner: Servicer,
-    pattern: Arc<GlobPattern>,
-    args: OpList,
-    base: String,
+    walk: Arc<Walk>,
     prefix: String,
     directories: Vec<Directory>,
+    /// Whether the executor accepts background listings.
+    background: bool,
+}
+
+impl GuidedLister {
+    /// List the next child directories of the current directory in the background.
+    fn list_ahead(&mut self) {
+        if !self.background {
+            return;
+        }
+        let Some(directory) = self.directories.last_mut() else {
+            return;
+        };
+        for child in directory.children.iter_mut().take(LIST_AHEAD) {
+            if child.ahead.is_some() {
+                continue;
+            }
+            let started = Arc::new(AtomicBool::new(false));
+            let listing = list_batch(
+                self.walk.clone(),
+                child.path.clone(),
+                child.recursive,
+                started.clone(),
+            );
+            match self.walk.ctx.executor().execute(listing) {
+                Ok(task) => child.ahead = Some(Ahead { task, started }),
+                // Without an executor, the walk lists each directory when it enters it.
+                Err(_) => {
+                    self.background = false;
+                    return;
+                }
+            }
+        }
+    }
+
+    /// Queue the next entries of the current directory. Return `false` at the
+    /// end of its listing.
+    async fn fill(&mut self) -> Result<bool> {
+        let walk = &self.walk;
+        let directory = self.directories.last_mut().expect("directory is queued");
+        if let Some(err) = directory.error.take() {
+            return Err(err);
+        }
+        if let Some(ahead) = &mut directory.ahead {
+            // A task may never start, for example on a current-thread runtime
+            // that no thread drives. Then the walk lists the directory itself.
+            if ahead.started.swap(true, Ordering::AcqRel) {
+                let batch = (&mut ahead.task).await;
+                directory.ahead = None;
+                let Batch {
+                    lister,
+                    entries,
+                    error,
+                } = batch?;
+                directory.done = lister.is_none() && error.is_none();
+                directory.lister = lister;
+                directory.error = error;
+                for entry in entries {
+                    directory.push(walk, &self.prefix, entry);
+                }
+                return Ok(true);
+            }
+            directory.ahead = None;
+        }
+        if directory.done {
+            return Ok(false);
+        }
+        if directory.lister.is_none() {
+            directory.lister = Some(walk.list(&directory.path, directory.recursive)?);
+        }
+        for _ in 0..walk.batch {
+            let lister = directory.lister.as_mut().expect("listing is open");
+            match lister.next().await {
+                Ok(Some(entry)) => directory.push(walk, &self.prefix, entry),
+                Ok(None) => {
+                    directory.done = true;
+                    break;
+                }
+                Err(err) => {
+                    directory.error = Some(err);
+                    break;
+                }
+            }
+            // Only background listings need the entries after the next step.
+            if !self.background && !directory.steps.is_empty() {
+                break;
+            }
+        }
+        Ok(true)
+    }
 }
 
 impl List for GuidedLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        while let Some(directory) = self.directories.last_mut() {
-            let entry = match directory
-                .next(
-                    &self.ctx,
-                    &self.inner,
-                    &self.args,
-                    &self.pattern,
-                    &self.base,
-                )
-                .await
-            {
-                Ok(Some(entry)) => entry,
-                Ok(None) => {
-                    self.directories.pop();
-                    continue;
+        loop {
+            self.list_ahead();
+            let Some(directory) = self.directories.last_mut() else {
+                return Ok(None);
+            };
+            if let Some((entry, enter)) = directory.steps.pop_front() {
+                if enter {
+                    let child = directory.children.pop_front().expect("child is queued");
+                    self.directories.push(child);
                 }
+                if entry.is_some() {
+                    return Ok(entry);
+                }
+                continue;
+            }
+            match self.fill().await {
+                Ok(true) => continue,
+                Ok(false) => {}
                 Err(err)
-                    if matches!(err.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) =>
-                {
-                    self.directories.pop();
-                    continue;
-                }
+                    if matches!(err.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) => {}
                 // Like recursive listings, skip discovered directories that cannot
                 // be read. The starting directory still reports the error.
-                Err(err) if err.kind() == ErrorKind::PermissionDenied && directory.discovered => {
-                    log::warn!("glob listing skipped directory {}: {err}", directory.path);
-                    self.directories.pop();
-                    continue;
+                Err(err)
+                    if err.kind() == ErrorKind::PermissionDenied
+                        && self.directories.last().is_some_and(|d| d.discovered) =>
+                {
+                    let path = &self.directories.last().expect("directory is queued").path;
+                    log::warn!("glob listing skipped directory {path}: {err}");
                 }
                 Err(err) => return Err(err),
-            };
-            if directory.recursive {
-                return Ok(Some(entry));
             }
-            if !entry.path().starts_with(&self.prefix) {
-                continue;
-            }
-            let Some(name) = relative_child(entry.path(), &directory.path) else {
-                continue;
-            };
-            let name = name.trim_end_matches('/');
-            if name.contains('/') {
-                continue;
-            }
-            let positions = self.pattern.advance(&directory.positions, name);
-            let is_dir = entry.mode().is_dir();
-            let matches = self.pattern.accepts(&positions, is_dir);
-            // All viable positions travel with the same child. Overlapping
-            // recursive matches therefore visit and emit each entry only once.
-            if is_dir && self.pattern.can_descend(&positions) {
-                // As in `list`, this costs no more requests than the walk.
-                let recursive = self.inner.capability().list_with_recursive
-                    && positions
-                        .iter()
-                        .any(|&position| self.pattern.walks_whole_subtree(position));
-                self.directories.push(Directory {
-                    path: entry.path().to_owned(),
-                    positions,
-                    lister: None,
-                    discovered: true,
-                    recursive,
-                });
-            }
-            if matches {
-                return Ok(Some(entry));
-            }
+            self.directories.pop();
         }
-        Ok(None)
     }
 }
 

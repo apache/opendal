@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -75,7 +76,47 @@ impl oio::BatchDelete for S3Deleter {
         }
     }
 
-    async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
+    async fn delete_batch(&self, mut batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
+        // DeleteObjects errors identify only the key and version. Keep one entry per
+        // identity in the native batch and send the remaining entries individually.
+        let collisions = {
+            let mut seen = HashSet::with_capacity(batch.len());
+            batch
+                .iter()
+                .enumerate()
+                .filter_map(|(index, (path, op))| {
+                    (!seen.insert((path.as_str(), op.version()))).then_some(index)
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut individual = Vec::with_capacity(collisions.len());
+        for index in collisions.into_iter().rev() {
+            individual.push(batch.swap_remove(index));
+        }
+
+        let mut result = if batch.len() == 1 {
+            individual.append(&mut batch);
+            BatchDeleteResult::default()
+        } else {
+            self.delete_distinct_batch(batch).await?
+        };
+
+        for (path, op) in individual {
+            // Retain the native batch's progress even if this request fails.
+            match self.delete_once(path.clone(), op.clone()).await {
+                Ok(()) => result.succeeded.push((path, op)),
+                Err(err) => result.failed.push((path, op, err)),
+            }
+        }
+        Ok(result)
+    }
+}
+
+impl S3Deleter {
+    async fn delete_distinct_batch(
+        &self,
+        batch: Vec<(String, OpDelete)>,
+    ) -> Result<BatchDeleteResult> {
         let resp = self.core.s3_delete_objects(&self.ctx, &batch).await?;
 
         let status = resp.status();

@@ -17,7 +17,11 @@
 
 """Unit tests for the nightly CI status reporter."""
 
+import json
 import unittest
+from io import BytesIO
+from unittest import mock
+from urllib.error import HTTPError, URLError
 
 import report
 
@@ -70,6 +74,127 @@ class FakeGitHub:
 
     def close_issue(self, number: int, comment: str) -> None:
         self.closed.append((number, comment))
+
+
+class GitHubTests(unittest.TestCase):
+    def setUp(self):
+        self.github = report.GitHub("apache/opendal", "unused-token")
+        self.jobs_url = "https://api.github.com/repos/apache/opendal/actions/runs/10/jobs"
+        self.urlopen = self.enterContext(mock.patch("report.urllib.request.urlopen"))
+        self.sleep = self.enterContext(mock.patch("report.time.sleep"))
+
+    @staticmethod
+    def job_page(total_count, ids):
+        jobs = [{"id": job_id} for job_id in ids]
+        return BytesIO(json.dumps({"total_count": total_count, "jobs": jobs}).encode())
+
+    def test_run_jobs_stops_at_reported_total(self):
+        for total in (0, 50, 384, 3100):
+            with self.subTest(total=total):
+                offsets = range(0, max(1, total), 25)
+                self.urlopen.reset_mock()
+                self.urlopen.side_effect = [
+                    self.job_page(total, range(offset, min(offset + 25, total)))
+                    for offset in offsets
+                ]
+
+                self.assertEqual(
+                    self.github.list_run_jobs(10),
+                    [{"id": job_id} for job_id in range(total)],
+                )
+                self.assertEqual(
+                    [args.args[0].full_url for args in self.urlopen.call_args_list],
+                    [
+                        f"{self.jobs_url}?per_page=25&page={page}"
+                        for page in range(1, len(offsets) + 1)
+                    ],
+                )
+
+    def test_run_jobs_retries_timeouts_on_the_same_page(self):
+        stalled_response = BytesIO()
+        stalled_response.read = mock.Mock(side_effect=TimeoutError("read timed out"))
+        self.urlopen.side_effect = [
+            self.job_page(26, range(25)),
+            URLError(TimeoutError("connect timed out")),
+            stalled_response,
+            self.job_page(26, [25]),
+        ]
+
+        self.assertEqual(
+            self.github.list_run_jobs(10), [{"id": job_id} for job_id in range(26)]
+        )
+        self.assertEqual(
+            [args.args[0].full_url for args in self.urlopen.call_args_list],
+            [f"{self.jobs_url}?per_page=25&page={page}" for page in (1, 2, 2, 2)],
+        )
+        self.assertEqual(self.sleep.call_args_list, [mock.call(1), mock.call(2)])
+
+    def test_run_jobs_shares_retry_budget_for_http_errors_and_timeouts(self):
+        last_error = TimeoutError("last attempt timed out")
+        page_url = f"{self.jobs_url}?per_page=25&page=2"
+        self.urlopen.side_effect = [
+            self.job_page(26, range(25)),
+            HTTPError(page_url, 502, "Bad Gateway", {}, None),
+            TimeoutError("read timed out"),
+            last_error,
+        ]
+
+        with self.assertRaises(TimeoutError) as raised:
+            self.github.list_run_jobs(10)
+        self.assertIs(raised.exception, last_error)
+        self.assertEqual(self.urlopen.call_count, 4)
+        self.assertEqual(self.sleep.call_args_list, [mock.call(1), mock.call(2)])
+
+    def test_run_jobs_rejects_inconsistent_pages(self):
+        first_ids = range(25)
+        for total, ids in ((27, [25]), (27, [24, 25]), (27, [25, 25]), (28, [25, 26])):
+            with self.subTest(total=total, ids=ids):
+                self.urlopen.side_effect = [
+                    self.job_page(27, first_ids), self.job_page(total, ids)
+                ]
+                with self.assertRaisesRegex(RuntimeError, "incomplete job listing .* at page 2"):
+                    self.github.list_run_jobs(10)
+
+    def test_run_jobs_rejects_totals_over_the_limit(self):
+        self.urlopen.return_value = self.job_page(3101, [])
+
+        with self.assertRaisesRegex(RuntimeError, "pagination limit exceeded .*3101 jobs"):
+            self.github.list_run_jobs(10)
+        self.urlopen.assert_called_once()
+
+    def test_other_transport_errors_are_not_retried(self):
+        timeout = TimeoutError("read timed out")
+        wrapped_timeout = URLError(TimeoutError("connect timed out"))
+        refused = URLError(ConnectionRefusedError("connection refused"))
+        for operation, args, error in (
+            (self.github.create_issue, ("title", "body", ["ci/nightly"]), timeout),
+            (self.github.close_issue, (42, "comment"), wrapped_timeout),
+            (self.github.list_open_issues, ("ci/nightly",), timeout),
+            (self.github.ensure_labels, (["ci/nightly"],), timeout),
+            (self.github.list_run_jobs, (10,), refused),
+        ):
+            with self.subTest(operation=operation.__name__):
+                self.urlopen.reset_mock()
+                self.urlopen.side_effect = error
+                with self.assertRaises(type(error)) as raised:
+                    operation(*args)
+                self.assertIs(raised.exception, error)
+                self.urlopen.assert_called_once()
+        self.sleep.assert_not_called()
+
+    def test_create_issue_posts_the_original_payload(self):
+        self.urlopen.return_value = BytesIO(b'{"number": 42}')
+
+        self.assertEqual(
+            self.github.create_issue("title", "body", ["ci/nightly"]), {"number": 42}
+        )
+        self.urlopen.assert_called_once()
+        request = self.urlopen.call_args.args[0]
+        self.assertEqual(request.full_url, "https://api.github.com/repos/apache/opendal/issues")
+        self.assertEqual(request.get_method(), "POST")
+        self.assertEqual(
+            json.loads(request.data), {"title": "title", "body": "body", "labels": ["ci/nightly"]}
+        )
 
 
 class NightlyReportTests(unittest.TestCase):

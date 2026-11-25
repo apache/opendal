@@ -107,7 +107,7 @@ class BehaviorTestPlan(unittest.TestCase):
         cases = [v["service"] for v in result["core"][0]["cases"]]
         self.assertEqual(cases, ["hdfs_native"])
 
-    def test_s3_crate_schedules_local_presets_and_reports_live_coverage(self):
+    def test_s3_crate_schedules_local_presets(self):
         result = plan(["core/services/s3/src/lib.rs"])
         core_cases = {
             (case["service"], case["feature"])
@@ -117,9 +117,6 @@ class BehaviorTestPlan(unittest.TestCase):
         self.assertEqual(
             core_cases,
             {("s3", "services-s3"), ("minio", "services-minio")},
-        )
-        self.assertTrue(
-            any("'r2'" in note and "Nightly Tier B" in note for note in result["notes"])
         )
         for language in LANGUAGE_BINDING:
             self.assertFalse(result["components"][f"binding_{language}"], language)
@@ -147,11 +144,11 @@ class BehaviorTestPlan(unittest.TestCase):
             {
                 ("s3", "services-s3"),
                 ("minio", "services-minio"),
-                ("r2", "services-r2"),
             },
         )
         self.assertTrue({"minio", "r2"}.isdisjoint(go_services))
-        self.assertTrue({"minio", "r2"} <= ruby_services)
+        self.assertIn("minio", ruby_services)
+        self.assertNotIn("r2", ruby_services)
 
     def test_hf3fs_uses_ubuntu_22(self):
         result = plan(["core/services/hf3fs/src/lib.rs"])

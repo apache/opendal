@@ -3097,6 +3097,7 @@
       "scheme": "oss",
       "native": {
         "copy": true,
+        "copy_can_multi": true,
         "delete": true,
         "delete_with_version": true,
         "list": true,
@@ -3133,12 +3134,19 @@
         "write_with_user_metadata": true
       },
       "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (4,294,967,295 B on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "100 KiB"
+        },
         "delete_max_size": {
           "display": "1,000"
         },
         "write_multi_max_size": {
           "display": "5 GiB",
-          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+          "condition": "64-bit targets (4,294,967,295 B on 32-bit)"
         },
         "write_multi_min_size": {
           "display": "100 KiB"

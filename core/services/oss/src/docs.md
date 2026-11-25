@@ -49,6 +49,16 @@ RAM Role settings do not override a custom chain. Set
 [`reqsign_aliyun_oss::Credential::expires_in`] for temporary credentials so that
 the reqsign signer can cache them and refresh them before expiration.
 
+## Copy operations
+
+OSS uses `CopyObject` by default. Set a copy chunk size to request server-side
+multipart copy. Multipart copy reads the source metadata and uses its ETag as
+an `UploadPartCopy` precondition on every part. It reads source tags through
+`GetObjectTagging` when HEAD does not report a tag count of zero. If OSS denies
+tag reads, OpenDAL uses `CopyObject` so OSS can apply its own tag-copy rules.
+Copying tags through multipart initiation also requires permission to write
+object tags.
+
 ## Example
 
 ### Via Builder

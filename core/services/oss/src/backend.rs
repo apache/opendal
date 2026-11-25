@@ -35,6 +35,7 @@ use reqsign_file_read_tokio::TokioFileRead;
 
 use super::OSS_SCHEME;
 use super::config::OssConfig;
+use super::copier::OssCopier;
 use super::core::parse_error;
 use super::core::*;
 use super::deleter::OssDeleter;
@@ -48,6 +49,12 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
+// OSS multipart uploads use 100 KiB to 5 GiB parts, with a smaller final part allowed.
+const MIN_MULTIPART_PART_SIZE: usize = 100 * 1024;
+#[cfg(target_pointer_width = "64")]
+const MAX_MULTIPART_PART_SIZE: usize = 5 * 1024 * 1024 * 1024;
+#[cfg(not(target_pointer_width = "64"))]
+const MAX_MULTIPART_PART_SIZE: usize = usize::MAX;
 
 /// Aliyun Object Storage Service (OSS) support
 #[doc = include_str!("docs.md")]
@@ -624,18 +631,8 @@ impl Builder for OssBuilder {
             write_with_content_encoding: true,
             write_with_if_not_exists: true,
 
-            // The min multipart size of OSS is 100 KiB.
-            //
-            // ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
-            write_multi_min_size: Some(100 * 1024),
-            // The max multipart size of OSS is 5 GiB.
-            //
-            // ref: <https://www.alibabacloud.com/help/en/oss/user-guide/multipart-upload-12>
-            write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                Some(5 * 1024 * 1024 * 1024)
-            } else {
-                Some(usize::MAX)
-            },
+            write_multi_min_size: Some(MIN_MULTIPART_PART_SIZE),
+            write_multi_max_size: Some(MAX_MULTIPART_PART_SIZE),
             write_with_user_metadata: true,
 
             delete: true,
@@ -643,6 +640,9 @@ impl Builder for OssBuilder {
             delete_max_size: Some(DEFAULT_BATCH_MAX_OPERATIONS),
 
             copy: true,
+            copy_can_multi: true,
+            copy_multi_min_size: Some(MIN_MULTIPART_PART_SIZE),
+            copy_multi_max_size: Some(MAX_MULTIPART_PART_SIZE),
 
             list: true,
             list_with_limit: true,
@@ -693,7 +693,7 @@ impl Service for OssBackend {
     type Writer = OssWriters;
     type Lister = OssListers;
     type Deleter = oio::BatchDeleter<OssDeleter>;
-    type Copier = oio::OneShotCopier;
+    type Copier = OssCopier;
     type Composer = ();
 
     fn info(&self) -> ServiceInfo {
@@ -807,44 +807,17 @@ impl Service for OssBackend {
         to: &str,
         args: OpCopy,
     ) -> Result<Self::Copier> {
-        let core = self.core.clone();
-        let ctx = ctx.clone();
-        let from = from.to_string();
-        let to = to.to_string();
-        Ok(oio::OneShotCopier::new(async move {
-            let source_size = match args.source_content_length_hint() {
-                Some(size) => size,
-                None => {
-                    let stat_args: OpStat = options::StatOptions {
-                        version: args.source_version().map(str::to_owned),
-                        ..Default::default()
-                    }
-                    .into();
-                    let resp = core.oss_head_object(&ctx, &from, &stat_args).await?;
-                    match resp.status() {
-                        StatusCode::OK => {
-                            parse_into_metadata(&from, resp.headers())?.content_length()
-                        }
-                        _ => {
-                            return Err(parse_error(
-                                ErrorContext::new(ServiceOperation("HeadObject")),
-                                resp,
-                            ));
-                        }
-                    }
-                }
-            };
-            let resp = core.oss_copy_object(&ctx, &from, &to).await?;
-            let status = resp.status();
-
-            match status {
-                StatusCode::OK => Ok(MetadataBuilder::file(source_size).build()),
-                _ => Err(parse_error(
-                    ErrorContext::new(ServiceOperation("CopyObject")),
-                    resp,
-                )),
-            }
-        }))
+        let part_size = args
+            .chunk()
+            .map(|chunk| chunk.clamp(MIN_MULTIPART_PART_SIZE, MAX_MULTIPART_PART_SIZE) as u64);
+        Ok(OssCopier::new(
+            self.core.clone(),
+            ctx.clone(),
+            from,
+            to,
+            args,
+            part_size,
+        ))
     }
 
     async fn rename(

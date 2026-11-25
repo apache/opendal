@@ -22,6 +22,7 @@
 
 mod backend;
 mod config;
+mod copier;
 mod core;
 mod deleter;
 mod lister;

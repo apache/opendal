@@ -1674,6 +1674,7 @@ dependencies = [
  "http",
  "log",
  "opendal-core",
+ "percent-encoding",
  "quick-xml",
  "reqsign-aliyun-oss",
  "reqsign-core",

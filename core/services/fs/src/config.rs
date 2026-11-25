@@ -39,10 +39,20 @@ impl opendal_core::Configurator for FsConfig {
     type Builder = FsBuilder;
 
     fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(root) = uri.root().filter(|v| !v.is_empty()) {
+            map.entry("root".to_string())
+                .or_insert_with(|| uri_path_to_root(root));
+        }
+
         // A local path has no host. Ignoring one would silently move the root:
         // `fs://tmp/data` would become `/data`, and `fs://C:/data` would become
-        // `/data` on the current drive.
-        if let Some(host) = uri.name()
+        // `/data` on the current drive. When the caller already gave an
+        // explicit root, the host is ignored instead: `fs://name/data` with
+        // `root=/srv/cache` uses `/srv/cache`.
+        if !uri.options().contains_key("root")
+            && let Some(host) = uri.name()
             && !host.eq_ignore_ascii_case("localhost")
         {
             return Err(opendal_core::Error::new(
@@ -50,13 +60,6 @@ impl opendal_core::Configurator for FsConfig {
                 "fs uri must not contain a host, use fs:///path or file:///path",
             )
             .with_context("host", host));
-        }
-
-        let mut map = uri.options().clone();
-
-        if let Some(root) = uri.root().filter(|v| !v.is_empty()) {
-            map.entry("root".to_string())
-                .or_insert_with(|| uri_path_to_root(root));
         }
 
         Self::from_iter(map)
@@ -125,6 +128,28 @@ mod tests {
             let err = FsConfig::from_uri(&uri).unwrap_err();
             assert_eq!(err.kind(), opendal_core::ErrorKind::ConfigInvalid, "{base}");
         }
+    }
+
+    #[test]
+    fn from_uri_ignores_host_with_explicit_root() {
+        // An explicit root wins over the host: `fs://name/data` with
+        // `root=/srv/cache` uses `/srv/cache`.
+        let uri = OperatorUri::new(
+            "fs://name/data",
+            vec![("root".to_string(), "/srv/cache".to_string())],
+        )
+        .unwrap();
+        let cfg = FsConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("/srv/cache"));
+
+        // The same root given in the query string works too.
+        let uri = OperatorUri::new(
+            "fs://name/data?root=/srv/cache",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = FsConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("/srv/cache"));
     }
 
     #[test]

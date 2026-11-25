@@ -46,6 +46,20 @@ impl opendal_core::Configurator for RedbConfig {
                 .or_insert_with(|| format!("/{path}"));
         }
 
+        // A local path has no host. Ignoring one would silently move the
+        // datadir: `redb://tmp/data` would become `/data`. An explicit
+        // `datadir` option takes precedence, as for fs.
+        if !uri.options().contains_key("datadir")
+            && let Some(host) = uri.name()
+            && !host.eq_ignore_ascii_case("localhost")
+        {
+            return Err(opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
+                "redb uri must not contain a host, use redb:///path",
+            )
+            .with_context("host", host));
+        }
+
         Self::from_iter(map)
     }
 
@@ -75,5 +89,30 @@ mod tests {
         assert_eq!(cfg.datadir.as_deref(), Some("/tmp/redb"));
         assert_eq!(cfg.table.as_deref(), Some("op_table"));
         assert_eq!(cfg.root.as_deref(), Some("cache"));
+    }
+
+    #[test]
+    fn from_uri_rejects_host() {
+        let no_opts = Vec::<(String, String)>::new;
+        let uri = OperatorUri::new("redb://tmp/data", no_opts()).unwrap();
+        let err = RedbConfig::from_uri(&uri).unwrap_err();
+        assert_eq!(err.kind(), opendal_core::ErrorKind::ConfigInvalid);
+
+        let uri = OperatorUri::new("redb://localhost/data", no_opts()).unwrap();
+        assert_eq!(
+            RedbConfig::from_uri(&uri).unwrap().datadir.as_deref(),
+            Some("/data")
+        );
+
+        // An explicit `datadir` option takes precedence over the host.
+        let uri = OperatorUri::new(
+            "redb://tmp/data",
+            [("datadir".to_string(), "/explicit".to_string())],
+        )
+        .unwrap();
+        assert_eq!(
+            RedbConfig::from_uri(&uri).unwrap().datadir.as_deref(),
+            Some("/explicit")
+        );
     }
 }

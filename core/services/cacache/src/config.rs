@@ -39,6 +39,20 @@ impl opendal_core::Configurator for CacacheConfig {
                 .or_insert_with(|| format!("/{root}"));
         }
 
+        // A local path has no host. Ignoring one would silently move the
+        // datadir: `cacache://tmp/data` would become `/data`. An explicit
+        // `datadir` option takes precedence, as for fs.
+        if !uri.options().contains_key("datadir")
+            && let Some(host) = uri.name()
+            && !host.eq_ignore_ascii_case("localhost")
+        {
+            return Err(opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
+                "cacache uri must not contain a host, use cacache:///path",
+            )
+            .with_context("host", host));
+        }
+
         Self::from_iter(map)
     }
 
@@ -71,5 +85,30 @@ mod tests {
 
         let cfg = CacacheConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.datadir.as_deref(), Some("/tmp/cache"));
+    }
+
+    #[test]
+    fn from_uri_rejects_host() {
+        let no_opts = Vec::<(String, String)>::new;
+        let uri = OperatorUri::new("cacache://tmp/data", no_opts()).unwrap();
+        let err = CacacheConfig::from_uri(&uri).unwrap_err();
+        assert_eq!(err.kind(), opendal_core::ErrorKind::ConfigInvalid);
+
+        let uri = OperatorUri::new("cacache://localhost/data", no_opts()).unwrap();
+        assert_eq!(
+            CacacheConfig::from_uri(&uri).unwrap().datadir.as_deref(),
+            Some("/data")
+        );
+
+        // An explicit `datadir` option takes precedence over the host.
+        let uri = OperatorUri::new(
+            "cacache://tmp/data",
+            [("datadir".to_string(), "/explicit".to_string())],
+        )
+        .unwrap();
+        assert_eq!(
+            CacacheConfig::from_uri(&uri).unwrap().datadir.as_deref(),
+            Some("/explicit")
+        );
     }
 }

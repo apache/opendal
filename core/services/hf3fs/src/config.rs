@@ -46,10 +46,56 @@ impl Configurator for Hf3fsConfig {
                 .entry("root".into())
                 .or_insert_with(|| format!("/{root}"));
         }
+        // A local path has no host. Ignoring one would silently move the
+        // root: `hf3fs://tmp/data` would become `/data`. An explicit
+        // `root` option takes precedence, as for fs.
+        if !uri.options().contains_key("root")
+            && let Some(host) = uri.name()
+            && !host.eq_ignore_ascii_case("localhost")
+        {
+            return Err(opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
+                "hf3fs uri must not contain a host, use hf3fs:///path",
+            )
+            .with_context("host", host));
+        }
+
         Self::from_iter(options)
     }
 
     fn into_builder(self) -> Self::Builder {
         Hf3fs { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
+
+    #[test]
+    fn from_uri_rejects_host() {
+        let no_opts = Vec::<(String, String)>::new;
+        let uri = OperatorUri::new("hf3fs://tmp/data", no_opts()).unwrap();
+        let err = Hf3fsConfig::from_uri(&uri).unwrap_err();
+        assert_eq!(err.kind(), opendal_core::ErrorKind::ConfigInvalid);
+
+        let uri = OperatorUri::new("hf3fs://localhost/data", no_opts()).unwrap();
+        assert_eq!(
+            Hf3fsConfig::from_uri(&uri).unwrap().root.as_deref(),
+            Some("/data")
+        );
+
+        // An explicit `root` option takes precedence over the host.
+        let uri = OperatorUri::new(
+            "hf3fs://tmp/data",
+            [("root".to_string(), "/explicit".to_string())],
+        )
+        .unwrap();
+        assert_eq!(
+            Hf3fsConfig::from_uri(&uri).unwrap().root.as_deref(),
+            Some("/explicit")
+        );
     }
 }

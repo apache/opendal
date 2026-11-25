@@ -49,6 +49,7 @@ use reqsign_aws_v4::RequestSigner as AwsV4Signer;
 use reqsign_aws_v4::S3ExpressSessionProvider;
 use reqsign_core::{Context, ErrorKind as ReqsignErrorKind, ProvideCredentialDyn, Signer};
 use serde::Deserialize;
+use serde::Deserializer;
 use serde::Serialize;
 
 use opendal_core::raw::*;
@@ -1761,7 +1762,16 @@ pub struct DeleteObjectsResultError {
     pub code: String,
     pub key: String,
     pub message: String,
+    #[serde(deserialize_with = "deserialize_delete_error_version_id")]
     pub version_id: Option<String>,
+}
+
+fn deserialize_delete_error_version_id<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    // Ceph RGW emits an empty VersionId element for unversioned delete errors.
+    Ok(Option::<String>::deserialize(deserializer)?.filter(|version| !version.is_empty()))
 }
 
 /// Output of ListBucket/ListObjects (a.k.a ListObjectsV1).
@@ -2067,6 +2077,28 @@ mod tests {
         assert_eq!(out.error[0].key, "sample2.txt");
         assert_eq!(out.error[0].code, "AccessDenied");
         assert_eq!(out.error[0].message, "Access Denied");
+        assert_eq!(out.error[0].version_id, None);
+    }
+
+    #[test]
+    fn test_deserialize_delete_objects_error_version_id() {
+        for (version_xml, expected) in [
+            ("<VersionId></VersionId>", None),
+            ("<VersionId/>", None),
+            ("<VersionId>null</VersionId>", Some("null")),
+            ("<VersionId>abc123</VersionId>", Some("abc123")),
+        ] {
+            let xml = format!(
+                "<DeleteResult><Error><Key>sample.txt</Key>{version_xml}\
+                 <Code>PreconditionFailed</Code></Error></DeleteResult>"
+            );
+            let result: DeleteObjectsResult = quick_xml::de::from_str(&xml).expect("must succeed");
+            assert_eq!(
+                result.error[0].version_id.as_deref(),
+                expected,
+                "{version_xml}"
+            );
+        }
     }
 
     /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjects.html#API_ListObjects_Examples

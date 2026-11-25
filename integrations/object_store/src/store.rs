@@ -1171,24 +1171,49 @@ impl ObjectStore for OpendalStore {
 /// `put_part` queues its data in call order. Whichever part future holds the
 /// writer lock writes every queued part in that order, so the lock both
 /// serializes and orders the writes, and the futures can be awaited in any
-/// order. A part that fails or is dropped before it succeeds poisons the
-/// upload.
+/// order. Each future returns only its own part's outcome: a part whose write
+/// failed keeps its original error, and the payloads still queued are
+/// released when the upload is poisoned. A part that fails or is dropped
+/// before it succeeds poisons the upload.
 struct OpendalMultipartUpload {
     writer: Arc<Mutex<Writer>>,
     location: Path,
     state: Arc<std::sync::Mutex<MultipartUploadState>>,
 }
 
-#[derive(Default)]
 struct MultipartUploadState {
     /// A part failed or was cancelled, or the upload was aborted.
     failed: bool,
-    /// `complete` or `abort` has started.
-    finished: bool,
-    /// Parts registered by `put_part` that have not finished or been dropped.
-    pending: usize,
-    /// Part data in `put_part` call order that has not been written yet.
-    queued: VecDeque<PutPayload>,
+    /// Part payloads in `put_part` call order that have not been written yet.
+    queued: VecDeque<QueuedPart>,
+    /// Location of the object being uploaded, for poison errors.
+    location: Path,
+}
+
+/// One registered part: its payload plus the outcome of its write, filled in
+/// by whichever part future drains the queue.
+struct QueuedPart {
+    data: PutPayload,
+    outcome: Arc<std::sync::Mutex<Option<object_store::Result<()>>>>,
+}
+
+impl MultipartUploadState {
+    /// Mark the upload failed and release every payload still queued.
+    /// Released parts record the poison error as their outcome, so their
+    /// futures return instead of waiting for a payload that will never arrive.
+    fn poison(&mut self) {
+        self.failed = true;
+        let location = self.location.clone();
+        for part in self.queued.drain(..) {
+            let mut outcome = part.outcome.lock().unwrap();
+            if outcome.is_none() {
+                *outcome = Some(Err(format_multipart_error(
+                    &location,
+                    "previous multipart part failed or was cancelled",
+                )));
+            }
+        }
+    }
 }
 
 /// Poisons the upload unless the part
@@ -1200,17 +1225,27 @@ struct PutPartGuard {
 }
 
 impl PutPartGuard {
-    /// Queue the part data in call order and register the part as pending.
-    fn register(state: Arc<std::sync::Mutex<MultipartUploadState>>, data: PutPayload) -> Self {
-        {
-            let mut state = state.lock().unwrap();
-            state.pending += 1;
-            state.queued.push_back(data);
-        }
-        Self {
-            state,
-            succeeded: false,
-        }
+    /// Queue the part data in call order and return the cell that will hold
+    /// this part's outcome once its write is driven.
+    fn register(
+        state: Arc<std::sync::Mutex<MultipartUploadState>>,
+        data: PutPayload,
+    ) -> (
+        Self,
+        Arc<std::sync::Mutex<Option<object_store::Result<()>>>>,
+    ) {
+        let outcome = Arc::new(std::sync::Mutex::new(None));
+        state.lock().unwrap().queued.push_back(QueuedPart {
+            data,
+            outcome: outcome.clone(),
+        });
+        (
+            Self {
+                state,
+                succeeded: false,
+            },
+            outcome,
+        )
     }
 
     fn ensure_active(&self, location: &Path) -> object_store::Result<()> {
@@ -1232,7 +1267,7 @@ impl PutPartGuard {
 impl Drop for PutPartGuard {
     fn drop(&mut self) {
         if !self.succeeded {
-            self.state.lock().unwrap().failed = true;
+            self.state.lock().unwrap().poison();
         }
     }
 }
@@ -1248,8 +1283,12 @@ impl OpendalMultipartUpload {
     fn new(writer: Writer, location: Path) -> Self {
         Self {
             writer: Arc::new(Mutex::new(writer)),
-            location,
-            state: Arc::new(std::sync::Mutex::new(MultipartUploadState::default())),
+            location: location.clone(),
+            state: Arc::new(std::sync::Mutex::new(MultipartUploadState {
+                failed: false,
+                queued: VecDeque::new(),
+                location,
+            })),
         }
     }
 }
@@ -1260,28 +1299,70 @@ impl MultipartUpload for OpendalMultipartUpload {
         let writer = self.writer.clone();
         let location = self.location.clone();
         let state = self.state.clone();
-        let mut guard = PutPartGuard::register(self.state.clone(), data);
+        let (mut guard, outcome) = PutPartGuard::register(self.state.clone(), data);
 
         async move {
+            // Return this part's recorded outcome before the poison check:
+            // a part whose own write failed must report its original error,
+            // not the generic poison error.
+            if let Some(outcome) = outcome.lock().unwrap().take() {
+                if outcome.is_ok() {
+                    guard.succeed();
+                }
+                return outcome;
+            }
+
             guard.ensure_active(&location)?;
+
             let mut writer = writer.lock().await;
+            guard.ensure_active(&location)?;
+
+            // Another future may already have written this part while
+            // draining the queue; return its outcome instead of writing
+            // it again.
+            if let Some(outcome) = outcome.lock().unwrap().take() {
+                if outcome.is_ok() {
+                    guard.succeed();
+                }
+                return outcome;
+            }
 
             // Write every queued part in call order, including this one.
             // Whichever part future runs first also writes the parts queued
-            // before it, so the futures can be awaited in any order.
+            // before it, so the futures can be awaited in any order. Each
+            // future returns only its own part's outcome.
             loop {
-                guard.ensure_active(&location)?;
-                let Some(data) = state.lock().unwrap().queued.pop_front() else {
+                let Some(entry) = state.lock().unwrap().queued.pop_front() else {
                     break;
                 };
-                writer
-                    .write(Buffer::from_iter(data))
+                let result = writer
+                    .write(Buffer::from_iter(entry.data))
                     .await
-                    .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+                    .map_err(|err| format_object_store_error(err, location.as_ref()));
+                match result {
+                    Ok(()) => {
+                        *entry.outcome.lock().unwrap() = Some(Ok(()));
+                    }
+                    Err(err) => {
+                        *entry.outcome.lock().unwrap() = Some(Err(err));
+                        // Poison the upload and release the payloads still
+                        // queued: their futures must fail instead of waiting
+                        // for writes that will never happen.
+                        state.lock().unwrap().poison();
+                        break;
+                    }
+                }
             }
 
-            guard.succeed();
-            Ok(())
+            let outcome = outcome
+                .lock()
+                .unwrap()
+                .take()
+                .expect("own part outcome is recorded by the drain");
+            if outcome.is_ok() {
+                guard.succeed();
+            }
+            outcome
         }
         .into_send()
         .boxed()
@@ -1312,7 +1393,7 @@ impl MultipartUpload for OpendalMultipartUpload {
     }
 
     async fn abort(&mut self) -> object_store::Result<()> {
-        self.state.lock().unwrap().failed = true;
+        self.state.lock().unwrap().poison();
         let mut writer = self.writer.lock().await;
         writer
             .abort()
@@ -2179,6 +2260,38 @@ mod tests {
         let completed = upload.complete().await;
 
         assert!(part2.is_err());
+        assert!(completed.is_err());
+        assert!(matches!(
+            object_store.head(&path).await,
+            Err(object_store::Error::NotFound { .. })
+        ));
+        upload.abort().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_multipart_second_part_failure_keeps_first_part_outcome() {
+        let op = Operator::new(services::Memory::default())
+            .unwrap()
+            .layer(fail_write::FailWriteLayer::new(2));
+        let object_store = OpendalStore::new(op);
+        let path: Path = "data/second-part-failed.txt".into();
+        let mut upload = object_store.put_multipart(&path).await.unwrap();
+
+        // Register both parts before awaiting either, so the first polled
+        // future drains the queue and writes both payloads.
+        let part1 = upload.put_part(vec![1; 4].into());
+        let part2 = upload.put_part(vec![2; 4].into());
+
+        assert!(part1.await.is_ok());
+        let error = part2.await.unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("injected multipart part failure"),
+            "second part must return its own write error, got: {error}"
+        );
+
+        let completed = upload.complete().await;
         assert!(completed.is_err());
         assert!(matches!(
             object_store.head(&path).await,

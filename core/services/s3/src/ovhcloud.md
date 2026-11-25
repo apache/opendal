@@ -1,4 +1,4 @@
-Builds a OVHcloud Object Storage operator using the shared S3 implementation.
+Builds an OVHcloud Object Storage operator using the shared S3 implementation.
 
 The preset uses `https://s3.<region>.io.cloud.ovh.net` by default. Set
 `endpoint` to override the base URL.

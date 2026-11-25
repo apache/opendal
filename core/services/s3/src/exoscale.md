@@ -1,4 +1,4 @@
-Builds a Exoscale Simple Object Storage operator using the shared S3 implementation.
+Builds an Exoscale Simple Object Storage operator using the shared S3 implementation.
 
 The preset uses `https://sos-<zone>.exo.io` by default. Set `endpoint` to
 override the base URL.

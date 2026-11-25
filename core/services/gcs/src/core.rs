@@ -555,6 +555,10 @@ impl GcsCore {
             req = req.header(CONTENT_ENCODING, content_encoding);
         }
 
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(CACHE_CONTROL, cache_control);
+        }
+
         if let Some(acl) = &self.predefined_acl {
             if let Some(predefined_acl_in_xml_spec) = predefined_acl_to_xml_header(acl) {
                 req = req.header(X_GOOG_ACL, predefined_acl_in_xml_spec);
@@ -2029,6 +2033,22 @@ mod tests {
             )
             .expect("create request must build");
         assert_eq!(create.headers()["x-goog-if-generation-match"], "0");
+    }
+
+    #[test]
+    fn test_gcs_insert_object_xml_request_with_cache_control() {
+        let request = test_core()
+            .gcs_insert_object_xml_request(
+                "object",
+                &write_args(options::WriteOptions {
+                    cache_control: Some("private, max-age=137".to_owned()),
+                    ..Default::default()
+                }),
+                Buffer::new(),
+            )
+            .expect("request must build");
+
+        assert_eq!(request.headers()[CACHE_CONTROL], "private, max-age=137");
     }
 
     #[test]

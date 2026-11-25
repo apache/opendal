@@ -306,7 +306,7 @@ async fn missing_mtime_entries_on_memory() -> Result<()> {
             lines
                 .iter()
                 .all(|line| !line.contains("1970") && !line.contains("--- -- --:--")),
-            "LIST lines must neither invent a time nor use the unparseable placeholder: {lines:?}"
+            "LIST lines must neither invent a time nor use the unparsable placeholder: {lines:?}"
         );
 
         for path in ["f.txt", "d"] {

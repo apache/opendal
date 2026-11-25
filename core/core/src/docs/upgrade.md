@@ -26,11 +26,17 @@ and accept EOF after a valid starting byte.
 
 ## Automatic capability simulation
 
-The `auto-simulate` feature in `opendal` and `opendal-core` now controls
-whether `Operator::new` installs `SimulateLayer` automatically. The feature
-is enabled by default. If you previously disabled default features and rely
-on automatic simulation, add `auto-simulate` to your dependency features.
-To apply simulation to individual operators, see the runnable
+The `auto-simulate` feature in `opendal` and `opendal-core` controls whether
+`Operator::new` installs `SimulateLayer` automatically. Both crates currently
+enable the feature by default. A future release will remove `auto-simulate`
+from the default feature set.
+
+If you rely on automatic simulation, add `"auto-simulate"` to your dependency's
+`features` list now, even if you use default features.
+
+To opt out of automatic simulation today, set `default-features = false` and
+ensure that no dependency enables `auto-simulate`. To apply simulation to
+individual operators, see the runnable
 [`SimulateLayer` example][crate::layers::SimulateLayer#examples].
 
 ## WebDAV recursive listing

@@ -72,5 +72,6 @@ docs/_build/
 
 # Generated docs
 docs/examples/*.md
+!docs/examples/index.md
 docs/examples/*_files/
 Cargo.lock

@@ -1,3 +1,6 @@
+<!-- Preserve the heading fragment used by the published Zensical reference. -->
+<div id="apache-opendaltm-python-binding"></div>
+
 # Apache OpenDAL™ Python binding
 
 The Python binding exposes Apache OpenDAL's unified storage API to Python
@@ -225,26 +228,8 @@ asyncio.run(main())
 
 ```{toctree}
 :hidden:
-:caption: Examples
-:maxdepth: 1
-
-Basic <examples/basic>
-Pandas <examples/pandas>
-Polars <examples/polars>
-```
-
-```{toctree}
-:hidden:
-:caption: API reference
 :maxdepth: 2
 
-api/async_file
-api/async_operator
-api/capability
-api/config
-api/exceptions
-api/file
-api/layers
-api/operator
-api/types
+examples/index
+api/index
 ```

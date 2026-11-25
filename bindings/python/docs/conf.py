@@ -18,8 +18,14 @@
 """Build the Apache OpenDAL Python API documentation."""
 
 from importlib.metadata import version as package_version
+from pathlib import Path
+from typing import Any
 
+from docutils import nodes
+from sphinx.addnodes import pending_xref
 from sphinx.application import Sphinx
+from sphinx.environment import BuildEnvironment
+from sphinx.ext.intersphinx import resolve_reference_in_inventory
 
 project = "Apache OpenDAL™ Python"
 author = "The Apache Software Foundation"
@@ -56,6 +62,8 @@ intersphinx_mapping = {
 
 html_theme = "pydata_sphinx_theme"
 html_title = "Apache OpenDAL™ Python"
+html_static_path = ["_static"]
+html_js_files = ["scroll-page-toc.js"]
 html_baseurl = "https://opendal.apache.org/docs/python/"
 html_theme_options = {
     "external_links": [
@@ -70,6 +78,7 @@ html_theme_options = {
     "use_edit_page_button": True,
 }
 html_context = {
+    "default_mode": "auto",
     "github_user": "apache",
     "github_repo": "opendal",
     "github_version": "main",
@@ -92,6 +101,36 @@ def remove_pyo3_hidden_parameters(
     return signature, return_annotation
 
 
+def edit_notebook_source(
+    app: Sphinx,
+    pagename: str,
+    _templatename: str,
+    context: dict[str, Any],
+    _doctree: object,
+) -> None:
+    """Point the theme’s edit link at the notebook behind a generated page."""
+    if pagename.startswith("examples/"):
+        notebook = Path(app.env.doc2path(pagename)).with_suffix(".ipynb")
+        if notebook.is_file():
+            context["page_source_suffix"] = ".ipynb"
+
+
+def resolve_config_timedelta(
+    _app: Sphinx,
+    env: BuildEnvironment,
+    node: pending_xref,
+    content: nodes.Element,
+) -> nodes.reference | None:
+    """Resolve the short timedelta annotation in generated service configs."""
+    if node.get("py:module") == "opendal.config" and node["reftarget"] == "timedelta":
+        qualified = node.copy()
+        qualified["reftarget"] = "datetime.timedelta"
+        return resolve_reference_in_inventory(env, "python", qualified, content)
+    return None
+
+
 def setup(app: Sphinx) -> None:
     """Register documentation build hooks."""
     app.connect("autodoc-process-signature", remove_pyo3_hidden_parameters, priority=0)
+    app.connect("html-page-context", edit_notebook_source)
+    app.connect("missing-reference", resolve_config_timedelta)

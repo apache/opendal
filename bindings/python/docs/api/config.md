@@ -12,6 +12,9 @@ from opendal.config import S3Config
 op = Operator.from_config(S3Config(scheme="s3", bucket="my-bucket"))
 ```
 
+<!-- Preserve the module fragment used by the published Zensical reference. -->
+<div id="opendal.config"></div>
+
 ```{eval-rst}
 .. automodule:: opendal.config
    :members:

@@ -17,6 +17,9 @@ Depending on its configuration and the backing system, this service can expose:
 - [ ] rename
 - [ ] ~~presign~~
 
+Reads support `if_match` and `if_none_match` with an ETag returned by lakeFS.
+The `if_match` check uses the download response ETag before exposing the body.
+
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 

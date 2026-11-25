@@ -1524,8 +1524,9 @@ impl S3Core {
 
         let resp = self.send(ctx, req).await?;
         match resp.status() {
+            StatusCode::NO_CONTENT => Ok(()),
             // Supabase Storage returns an empty 200 after aborting the upload.
-            StatusCode::NO_CONTENT | StatusCode::OK if resp.body().is_empty() => Ok(()),
+            StatusCode::OK if resp.body().is_empty() => Ok(()),
             _ => Err(parse_error(ErrorContext::new(service_operation), resp)),
         }
     }
@@ -1892,6 +1893,10 @@ mod tests {
             .unwrap();
         let cases = [
             (Some((StatusCode::NO_CONTENT, "")), None),
+            (
+                Some((StatusCode::NO_CONTENT, "custom transport body")),
+                None,
+            ),
             (Some((StatusCode::OK, "")), None),
             (
                 Some((

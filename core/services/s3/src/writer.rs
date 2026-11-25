@@ -320,18 +320,9 @@ impl oio::MultipartWrite for S3Writer {
     }
 
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
-        let resp = self
-            .core
-            .s3_abort_multipart_upload(&self.ctx, &self.path, upload_id)
-            .await?;
-        match resp.status() {
-            // s3 returns code 204 if abort succeeds.
-            StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("AbortMultipartUpload")),
-                resp,
-            )),
-        }
+        self.core
+            .s3_abort_multipart_upload(&self.ctx, &self.path, upload_id, Operation::Write)
+            .await
     }
 }
 

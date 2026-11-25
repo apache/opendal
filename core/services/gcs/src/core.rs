@@ -26,6 +26,7 @@ use constants::*;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header::ACCEPT_ENCODING;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
@@ -204,7 +205,8 @@ impl GcsCore {
         }
         let url = url.finish();
 
-        let mut req = Request::get(&url);
+        // Request the stored gzip bytes so GCS honors Range and agrees with stat.
+        let mut req = Request::get(&url).header(ACCEPT_ENCODING, "gzip");
 
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
@@ -1771,6 +1773,19 @@ mod tests {
             stat.uri().to_string(),
             "https://storage.googleapis.com/test-bucket/object?generation=123"
         );
+    }
+
+    #[test]
+    fn test_media_get_accepts_stored_gzip() {
+        let core = test_core();
+        let args = read_args(options::ReadOptions::default());
+
+        for range in [BytesRange::default(), BytesRange::new(5, Some(8))] {
+            let request = core
+                .gcs_get_object_request("object", range, &args)
+                .expect("media request must build");
+            assert_eq!(request.headers()[ACCEPT_ENCODING], "gzip");
+        }
     }
 
     #[test]

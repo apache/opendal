@@ -153,13 +153,18 @@ impl Service for GlobService {
         if args.start_after().is_some() || args.versions() || args.deleted() {
             // A recursive service listing can return versions of directory markers
             // that a delimiter listing would fold into a common prefix.
-            args.set_recursive(pattern.spans_directories());
+            let recursive = pattern.spans_directories();
+            let start_after = args.start_after().map(str::to_owned);
+            let implied = (recursive && !args.versions() && !args.deleted())
+                .then(ImpliedDirectories::default);
+            args.set_recursive(recursive);
             return Ok(Box::new(FilteredLister {
                 inner: self.inner.list(ctx, path, args)?,
                 pattern,
                 base: base.to_owned(),
                 root: base.to_owned(),
-                implied: None,
+                start_after,
+                implied,
                 pending: None,
             }));
         }
@@ -198,6 +203,7 @@ impl Service for GlobService {
                 pattern,
                 base: base.to_owned(),
                 root,
+                start_after: None,
                 implied: Some(ImpliedDirectories::default()),
                 pending: None,
             }));
@@ -322,6 +328,7 @@ struct FilteredLister {
     /// The listed path. As in the guided listing, a listed directory is not
     /// returned.
     root: String,
+    start_after: Option<String>,
     implied: Option<ImpliedDirectories>,
     pending: Option<oio::Entry>,
 }
@@ -356,7 +363,13 @@ impl FilteredLister {
         let start = shared_directory_len(&implied.checked, path).min(end);
         for (index, _) in path[start..end].match_indices('/') {
             let parent = &path[..=start + index];
-            if parent.len() > listed && !implied.returned.contains(parent) && accepts(parent, true)
+            if parent.len() > listed
+                && self
+                    .start_after
+                    .as_deref()
+                    .is_none_or(|marker| parent > marker)
+                && !implied.returned.contains(parent)
+                && accepts(parent, true)
             {
                 implied.returned.insert(parent.to_owned());
                 implied.checked.clear();

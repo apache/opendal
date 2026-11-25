@@ -437,7 +437,7 @@ impl Service for B2Backend {
                     parts.headers,
                 )))
             }
-            PresignOperation::Write(_) => {
+            PresignOperation::Write(write) => {
                 let resp = self.core.get_upload_url(ctx).await?;
 
                 let mut req = Request::post(&resp.upload_url);
@@ -447,7 +447,8 @@ impl Service for B2Backend {
                     "X-Bz-File-Name",
                     percent_encode_path(&build_absolute_path(&self.core.root, path)),
                 );
-                req = req.header(http::header::CONTENT_TYPE, "b2/x-auto");
+                let content_type = write.content_type().unwrap_or("b2/x-auto");
+                req = req.header(http::header::CONTENT_TYPE, content_type);
                 req = req.header(constants::X_BZ_CONTENT_SHA1, "do_not_verify");
 
                 let req = req.body(Buffer::new()).map_err(new_request_build_error)?;

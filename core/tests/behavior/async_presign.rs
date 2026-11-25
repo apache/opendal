@@ -50,6 +50,10 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         tests.extend(async_trials!(op, test_presign_write_with_metadata));
     }
 
+    if op.info().scheme() == "b2" && cap.presign_write {
+        tests.extend(async_trials!(op, test_presign_write_b2_content_type));
+    }
+
     if op.info().scheme() == "swift" && cap.write && cap.presign_read {
         tests.extend(async_trials!(op, test_presign_read_with_range));
     }
@@ -151,6 +155,26 @@ async fn test_presign_write_with_metadata(op: Operator) -> Result<()> {
     assert_eq!(metadata.content_language(), Some(content_language));
     assert_eq!(metadata.content_disposition(), Some(content_disposition));
     assert_eq!(metadata.cache_control(), Some(cache_control));
+    Ok(())
+}
+
+async fn test_presign_write_b2_content_type(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    let expire = Duration::from_secs(60);
+    let default_request = op.presign_write(&path, expire).await?;
+    assert_eq!(default_request.header()[header::CONTENT_TYPE], "b2/x-auto");
+
+    let request = op
+        .presign_write_options(
+            &path,
+            expire,
+            options::WriteOptions {
+                content_type: Some("application/json".to_owned()),
+                ..Default::default()
+            },
+        )
+        .await?;
+    assert_eq!(request.header()[header::CONTENT_TYPE], "application/json");
     Ok(())
 }
 

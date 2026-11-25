@@ -153,6 +153,58 @@ Existing databases need no data migration. `redb` 5 changed the encoding of `Opt
 `Option<String>`, `Option<bool>`, and `Option<char>` only, and the Redb service stores entries
 in a `TableDefinition<&str, &[u8]>` table.
 
+## Zig binding
+
+`Operator.read()` returns `Bytes`. Use `slice()` to borrow the data and defer
+`deinit()` to release the allocation. The scheme passed to `Operator.init()`
+and paths passed to operator methods, including both paths for `copy()` and
+`rename()`, now use `[:0]const u8`. String literals still work directly.
+
+```diff
+-fn printObject(op: *const opendal.Operator, path: []const u8) !void {
+-    const data = try op.read(path);
+-    std.debug.print("{s}\n", .{data});
++fn printObject(op: *const opendal.Operator, path: [:0]const u8) !void {
++    var data = try op.read(path);
++    defer data.deinit();
++    std.debug.print("{s}\n", .{data.slice()});
+ }
+```
+
+Use `std.fmt.allocPrintZ` in place of `std.fmt.allocPrint` to format a path at
+runtime. Use `allocator.dupeZ(u8, input)` for an existing slice, such as a
+scheme or path from application configuration. Free the allocated string with
+the same allocator.
+
+```diff
+-const path = try std.fmt.allocPrint(allocator, "/object-{d}.txt", .{id});
++const path = try std.fmt.allocPrintZ(allocator, "/object-{d}.txt", .{id});
+ defer allocator.free(path);
+ try printObject(op, path);
+```
+
+`Entry.path()` and `Entry.name()` return `OwnedString`. The same ownership
+rules apply to `OperatorInfo.scheme()`, `root()`, and `name()`, and to values
+returned by the optional metadata getters `contentType()` and `etag()`. Keep
+each result in a single owner and use its slice before calling `deinit()`.
+`OwnedString.slice()` preserves the NUL sentinel, so an entry path can be
+passed directly to another operator method while the owner is alive.
+
+```diff
+-const path = entry.path();
+-const name = entry.name();
+-std.debug.print("{s}: {s}\n", .{ path, name });
++var path = entry.path();
++defer path.deinit();
++var name = entry.name();
++defer name.deinit();
++std.debug.print("{s}: {s}\n", .{ path.slice(), name.slice() });
+```
+
+`lastModified()` returns an `i64` timestamp in milliseconds since the Unix
+epoch, or `-1` when absent. Update exhaustive switches for `Code.CANCELLED`
+and `error.Cancelled` in `OpendalError`.
+
 # Upgrade to v0.59
 
 ## Public API

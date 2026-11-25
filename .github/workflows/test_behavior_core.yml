@@ -58,15 +58,6 @@ jobs:
           need-rocksdb: ${{ matrix.cases.service != 'hf3fs' }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup 1Password Connect
-        if: inputs.enable_secrets
-        shell: bash
-        run: |
-          echo "::add-mask::${{ secrets.OP_CONNECT_HOST }}"
-          echo "::add-mask::${{ secrets.OP_CONNECT_TOKEN }}"
-          echo "OP_CONNECT_HOST=${{ secrets.OP_CONNECT_HOST }}" >> "$GITHUB_ENV"
-          echo "OP_CONNECT_TOKEN=${{ secrets.OP_CONNECT_TOKEN }}" >> "$GITHUB_ENV"
-
       - name: Test Core
         id: test
         continue-on-error: ${{ inputs.retry_attempts > 1 }}
@@ -75,6 +66,8 @@ jobs:
           setups: ${{ join(matrix.cases.setups, ',') }}
           service: ${{ matrix.cases.service }}
           feature: ${{ matrix.cases.feature }}
+          op-connect-host: ${{ inputs.enable_secrets && secrets.OP_CONNECT_HOST || '' }}
+          op-connect-token: ${{ inputs.enable_secrets && secrets.OP_CONNECT_TOKEN || '' }}
         env:
           # Forward the workflow token only for live/secret-enabled runs so
           # deterministic local runs never inject external API tokens.
@@ -87,6 +80,8 @@ jobs:
           setups: ${{ join(matrix.cases.setups, ',') }}
           service: ${{ matrix.cases.service }}
           feature: ${{ matrix.cases.feature }}
+          op-connect-host: ${{ inputs.enable_secrets && secrets.OP_CONNECT_HOST || '' }}
+          op-connect-token: ${{ inputs.enable_secrets && secrets.OP_CONNECT_TOKEN || '' }}
         env:
           GITHUB_TOKEN: ${{ inputs.enable_secrets && secrets.GITHUB_TOKEN || '' }}
 

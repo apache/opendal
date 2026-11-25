@@ -24,6 +24,12 @@ inputs:
     description: "The service to test"
   feature:
     description: "The feature to test"
+  op-connect-host:
+    description: "The 1Password Connect server URL"
+    required: false
+  op-connect-token:
+    description: "The 1Password Connect access token"
+    required: false
 
 runs:
   using: "composite"
@@ -36,7 +42,15 @@ runs:
         TEST_SETUPS: ${{ inputs.setups }}
       run: |
         mkdir -p ./dynamic_test_core
-        cat <<'EOF' >./dynamic_test_core/action.yml
+        connect_inputs='inputs:
+          op-connect-host: {}
+          op-connect-token: {}'
+        # Assemble literal expressions for the generated actions to evaluate.
+        dollar='$'
+        connect_host_ref="${dollar}{{ inputs.op-connect-host }}"
+        connect_token_ref="${dollar}{{ inputs.op-connect-token }}"
+        cat <<EOF >./dynamic_test_core/action.yml
+        $connect_inputs
         runs:
           using: composite
           steps:
@@ -46,8 +60,24 @@ runs:
         IFS=',' read -r -a setups <<<"$TEST_SETUPS"
         for setup in "${setups[@]}"; do
           setup_action="./dynamic_test_core/setup_$index"
+          fixture_action="./.github/services/$TEST_SERVICE/$setup"
+          setup_inputs=
+          setup_with=
+          fixture_env=
+          # Match the planner's 1Password reference check for this fixture.
+          if grep -Fq 'op://services' "$fixture_action/action.yml"; then
+            setup_inputs="$connect_inputs"
+            setup_with="    with:
+              op-connect-host: $connect_host_ref
+              op-connect-token: $connect_token_ref"
+            fixture_env="    env:
+              OP_CONNECT_HOST: $connect_host_ref
+              OP_CONNECT_TOKEN: $connect_token_ref"
+          fi
+
           mkdir -p "$setup_action"
           cat <<EOF >"$setup_action/action.yml"
+        $setup_inputs
         runs:
           using: composite
           steps:
@@ -66,7 +96,8 @@ runs:
           - name: Setup Test Core - $setup
             id: setup_$index
             if: always()
-            uses: ./.github/services/$TEST_SERVICE/$setup
+            uses: $fixture_action
+        $fixture_env
           - name: Run Test Core - $setup
             if: always() && steps.setup_$index.outcome == 'success'
             shell: bash
@@ -113,8 +144,12 @@ runs:
           - name: Test Core - $setup
             if: always()
             uses: ./dynamic_test_core/setup_$index
+        $setup_with
         EOF
           index=$((index + 1))
         done
     - name: Run
       uses: ./dynamic_test_core
+      with:
+        op-connect-host: ${{ inputs.op-connect-host }}
+        op-connect-token: ${{ inputs.op-connect-token }}

@@ -34,12 +34,36 @@ mod r2_config;
 mod reader;
 mod writer;
 
+mod exoscale_config;
+mod hetzner_config;
+mod oci_config;
+mod ovhcloud_config;
+mod qingstor_config;
+mod scaleway_config;
+mod spaces_config;
+mod supabase_config;
+mod tigris_config;
+mod wasabi_config;
+
+#[cfg(test)]
+mod preset_tests;
+
 pub use backend::S3Builder as S3;
 pub use config::S3Config;
+pub use exoscale_config::{EXOSCALE_SCHEME, Exoscale, ExoscaleConfig, register_exoscale_service};
+pub use hetzner_config::{HETZNER_SCHEME, Hetzner, HetznerConfig, register_hetzner_service};
 pub use minio::MinioBuilder as Minio;
 pub use minio_config::MinioConfig;
+pub use oci_config::{OCI_SCHEME, Oci, OciConfig, register_oci_service};
+pub use ovhcloud_config::{OVHCLOUD_SCHEME, Ovhcloud, OvhcloudConfig, register_ovhcloud_service};
+pub use qingstor_config::{QINGSTOR_SCHEME, Qingstor, QingstorConfig, register_qingstor_service};
 pub use r2::R2Builder as R2;
 pub use r2_config::R2Config;
+pub use scaleway_config::{SCALEWAY_SCHEME, Scaleway, ScalewayConfig, register_scaleway_service};
+pub use spaces_config::{SPACES_SCHEME, Spaces, SpacesConfig, register_spaces_service};
+pub use supabase_config::{SUPABASE_SCHEME, Supabase, SupabaseConfig, register_supabase_service};
+pub use tigris_config::{TIGRIS_SCHEME, Tigris, TigrisConfig, register_tigris_service};
+pub use wasabi_config::{WASABI_SCHEME, Wasabi, WasabiConfig, register_wasabi_service};
 
 /// Re-export of the [`reqsign_aws_v4`] crate that this service signs requests
 /// with.

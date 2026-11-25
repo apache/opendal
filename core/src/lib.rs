@@ -274,6 +274,36 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-minio")]
     opendal_service_s3::register_minio_service(registry);
 
+    #[cfg(feature = "services-exoscale")]
+    opendal_service_s3::register_exoscale_service(registry);
+
+    #[cfg(feature = "services-hetzner")]
+    opendal_service_s3::register_hetzner_service(registry);
+
+    #[cfg(feature = "services-oci")]
+    opendal_service_s3::register_oci_service(registry);
+
+    #[cfg(feature = "services-ovhcloud")]
+    opendal_service_s3::register_ovhcloud_service(registry);
+
+    #[cfg(feature = "services-qingstor")]
+    opendal_service_s3::register_qingstor_service(registry);
+
+    #[cfg(feature = "services-scaleway")]
+    opendal_service_s3::register_scaleway_service(registry);
+
+    #[cfg(feature = "services-spaces")]
+    opendal_service_s3::register_spaces_service(registry);
+
+    #[cfg(feature = "services-supabase")]
+    opendal_service_s3::register_supabase_service(registry);
+
+    #[cfg(feature = "services-tigris")]
+    opendal_service_s3::register_tigris_service(registry);
+
+    #[cfg(feature = "services-wasabi")]
+    opendal_service_s3::register_wasabi_service(registry);
+
     #[cfg(feature = "services-seafile")]
     opendal_service_seafile::register_seafile_service(registry);
 
@@ -447,12 +477,44 @@ pub mod services {
     pub use opendal_service_redis::*;
     #[cfg(feature = "services-rocksdb")]
     pub use opendal_service_rocksdb::*;
+    #[cfg(feature = "services-exoscale")]
+    pub use opendal_service_s3::{
+        EXOSCALE_SCHEME, Exoscale, ExoscaleConfig, register_exoscale_service,
+    };
+    #[cfg(feature = "services-hetzner")]
+    pub use opendal_service_s3::{
+        HETZNER_SCHEME, Hetzner, HetznerConfig, register_hetzner_service,
+    };
     #[cfg(feature = "services-minio")]
     pub use opendal_service_s3::{MINIO_SCHEME, Minio, MinioConfig, register_minio_service};
+    #[cfg(feature = "services-oci")]
+    pub use opendal_service_s3::{OCI_SCHEME, Oci, OciConfig, register_oci_service};
+    #[cfg(feature = "services-ovhcloud")]
+    pub use opendal_service_s3::{
+        OVHCLOUD_SCHEME, Ovhcloud, OvhcloudConfig, register_ovhcloud_service,
+    };
+    #[cfg(feature = "services-qingstor")]
+    pub use opendal_service_s3::{
+        QINGSTOR_SCHEME, Qingstor, QingstorConfig, register_qingstor_service,
+    };
     #[cfg(feature = "services-r2")]
     pub use opendal_service_s3::{R2, R2_SCHEME, R2Config, register_r2_service};
     #[cfg(feature = "services-s3")]
     pub use opendal_service_s3::{S3, S3_SCHEME, S3Config, register_s3_service, reqsign_aws_v4};
+    #[cfg(feature = "services-scaleway")]
+    pub use opendal_service_s3::{
+        SCALEWAY_SCHEME, Scaleway, ScalewayConfig, register_scaleway_service,
+    };
+    #[cfg(feature = "services-spaces")]
+    pub use opendal_service_s3::{SPACES_SCHEME, Spaces, SpacesConfig, register_spaces_service};
+    #[cfg(feature = "services-supabase")]
+    pub use opendal_service_s3::{
+        SUPABASE_SCHEME, Supabase, SupabaseConfig, register_supabase_service,
+    };
+    #[cfg(feature = "services-tigris")]
+    pub use opendal_service_s3::{TIGRIS_SCHEME, Tigris, TigrisConfig, register_tigris_service};
+    #[cfg(feature = "services-wasabi")]
+    pub use opendal_service_s3::{WASABI_SCHEME, Wasabi, WasabiConfig, register_wasabi_service};
     #[cfg(feature = "services-seafile")]
     pub use opendal_service_seafile::*;
     #[cfg(feature = "services-sftp")]
@@ -521,6 +583,29 @@ mod service_feature_tests {
         }
         #[cfg(not(feature = "services-minio"))]
         assert!(!schemes.contains("minio"));
+
+        for (scheme, enabled) in [
+            ("exoscale", cfg!(feature = "services-exoscale")),
+            ("hetzner", cfg!(feature = "services-hetzner")),
+            ("oci", cfg!(feature = "services-oci")),
+            ("ovhcloud", cfg!(feature = "services-ovhcloud")),
+            ("qingstor", cfg!(feature = "services-qingstor")),
+            ("scaleway", cfg!(feature = "services-scaleway")),
+            ("spaces", cfg!(feature = "services-spaces")),
+            ("supabase", cfg!(feature = "services-supabase")),
+            ("tigris", cfg!(feature = "services-tigris")),
+            ("wasabi", cfg!(feature = "services-wasabi")),
+        ] {
+            assert_eq!(schemes.contains(scheme), enabled, "{scheme}");
+        }
+
+        #[cfg(feature = "services-tigris")]
+        {
+            let op = Operator::from_uri("tigris://example-bucket/root").unwrap();
+            assert_eq!(op.info().scheme(), "tigris");
+            assert_eq!(op.info().name(), "example-bucket");
+            assert_eq!(op.info().root(), "/root/");
+        }
     }
 }
 

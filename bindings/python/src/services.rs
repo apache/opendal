@@ -49,6 +49,8 @@ pub enum Scheme {
     Dashmap,
     #[cfg(feature = "services-dropbox")]
     Dropbox,
+    #[cfg(feature = "services-exoscale")]
+    Exoscale,
     #[cfg(feature = "services-foyer")]
     Foyer,
     #[cfg(feature = "services-fs")]
@@ -69,6 +71,8 @@ pub enum Scheme {
     Gridfs,
     #[cfg(feature = "services-hdfs-native")]
     HdfsNative,
+    #[cfg(feature = "services-hetzner")]
+    Hetzner,
     #[cfg(feature = "services-hf")]
     Hf,
     #[cfg(feature = "services-http")]
@@ -95,14 +99,20 @@ pub enum Scheme {
     Mysql,
     #[cfg(feature = "services-obs")]
     Obs,
+    #[cfg(feature = "services-oci")]
+    Oci,
     #[cfg(feature = "services-onedrive")]
     Onedrive,
     #[cfg(feature = "services-oss")]
     Oss,
+    #[cfg(feature = "services-ovhcloud")]
+    Ovhcloud,
     #[cfg(feature = "services-persy")]
     Persy,
     #[cfg(feature = "services-postgresql")]
     Postgresql,
+    #[cfg(feature = "services-qingstor")]
+    Qingstor,
     #[cfg(feature = "services-r2")]
     R2,
     #[cfg(feature = "services-redb")]
@@ -111,22 +121,32 @@ pub enum Scheme {
     Redis,
     #[cfg(feature = "services-s3")]
     S3,
+    #[cfg(feature = "services-scaleway")]
+    Scaleway,
     #[cfg(feature = "services-seafile")]
     Seafile,
     #[cfg(feature = "services-sftp")]
     Sftp,
     #[cfg(feature = "services-sled")]
     Sled,
+    #[cfg(feature = "services-spaces")]
+    Spaces,
     #[cfg(feature = "services-sqlite")]
     Sqlite,
+    #[cfg(feature = "services-supabase")]
+    Supabase,
     #[cfg(feature = "services-swift")]
     Swift,
+    #[cfg(feature = "services-tigris")]
+    Tigris,
     #[cfg(feature = "services-tos")]
     Tos,
     #[cfg(feature = "services-upyun")]
     Upyun,
     #[cfg(feature = "services-vercel-artifacts")]
     VercelArtifacts,
+    #[cfg(feature = "services-wasabi")]
+    Wasabi,
     #[cfg(feature = "services-webdav")]
     Webdav,
     #[cfg(feature = "services-webhdfs")]
@@ -195,6 +215,8 @@ impl_enum_to_str!(
         Dashmap => "dashmap",
         #[cfg(feature = "services-dropbox")]
         Dropbox => "dropbox",
+        #[cfg(feature = "services-exoscale")]
+        Exoscale => "exoscale",
         #[cfg(feature = "services-foyer")]
         Foyer => "foyer",
         #[cfg(feature = "services-fs")]
@@ -215,6 +237,8 @@ impl_enum_to_str!(
         Gridfs => "gridfs",
         #[cfg(feature = "services-hdfs-native")]
         HdfsNative => "hdfs-native",
+        #[cfg(feature = "services-hetzner")]
+        Hetzner => "hetzner",
         #[cfg(feature = "services-hf")]
         Hf => "hf",
         #[cfg(feature = "services-http")]
@@ -241,14 +265,20 @@ impl_enum_to_str!(
         Mysql => "mysql",
         #[cfg(feature = "services-obs")]
         Obs => "obs",
+        #[cfg(feature = "services-oci")]
+        Oci => "oci",
         #[cfg(feature = "services-onedrive")]
         Onedrive => "onedrive",
         #[cfg(feature = "services-oss")]
         Oss => "oss",
+        #[cfg(feature = "services-ovhcloud")]
+        Ovhcloud => "ovhcloud",
         #[cfg(feature = "services-persy")]
         Persy => "persy",
         #[cfg(feature = "services-postgresql")]
         Postgresql => "postgresql",
+        #[cfg(feature = "services-qingstor")]
+        Qingstor => "qingstor",
         #[cfg(feature = "services-r2")]
         R2 => "r2",
         #[cfg(feature = "services-redb")]
@@ -257,22 +287,32 @@ impl_enum_to_str!(
         Redis => "redis",
         #[cfg(feature = "services-s3")]
         S3 => "s3",
+        #[cfg(feature = "services-scaleway")]
+        Scaleway => "scaleway",
         #[cfg(feature = "services-seafile")]
         Seafile => "seafile",
         #[cfg(feature = "services-sftp")]
         Sftp => "sftp",
         #[cfg(feature = "services-sled")]
         Sled => "sled",
+        #[cfg(feature = "services-spaces")]
+        Spaces => "spaces",
         #[cfg(feature = "services-sqlite")]
         Sqlite => "sqlite",
+        #[cfg(feature = "services-supabase")]
+        Supabase => "supabase",
         #[cfg(feature = "services-swift")]
         Swift => "swift",
+        #[cfg(feature = "services-tigris")]
+        Tigris => "tigris",
         #[cfg(feature = "services-tos")]
         Tos => "tos",
         #[cfg(feature = "services-upyun")]
         Upyun => "upyun",
         #[cfg(feature = "services-vercel-artifacts")]
         VercelArtifacts => "vercel-artifacts",
+        #[cfg(feature = "services-wasabi")]
+        Wasabi => "wasabi",
         #[cfg(feature = "services-webdav")]
         Webdav => "webdav",
         #[cfg(feature = "services-webhdfs")]

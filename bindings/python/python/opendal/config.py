@@ -251,6 +251,27 @@ class DropboxConfig(TypedDict):
     """root path for dropbox."""
 
 
+class ExoscaleConfig(TypedDict):
+    """Configuration for the `exoscale` service."""
+
+    scheme: Required[Literal["exoscale"]]
+    """The service scheme; fixed to `"exoscale"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style bucket addressing."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is `https://sos-<zone>.exo.io`."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+    zone: Required[str]
+    """Bucket zone, used as the signing region."""
+
+
 class FoyerConfig(TypedDict):
     """Configuration for the `foyer` service."""
 
@@ -445,6 +466,29 @@ class HdfsNativeConfig(TypedDict):
     """other options for hdfs client"""
     root: NotRequired[str | os.PathLike[str]]
     """work dir of this backend"""
+
+
+class HetznerConfig(TypedDict):
+    """Configuration for the `hetzner` service."""
+
+    scheme: Required[Literal["hetzner"]]
+    """The service scheme; fixed to `"hetzner"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style bucket addressing."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is `https://<location>.your-objectstorage.com`."""
+    location: NotRequired[str]
+    """Bucket location. Required unless `endpoint` is set."""
+    region: NotRequired[str]
+    """Signing region. Defaults to `location`."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
 
 
 class HfConfig(TypedDict):
@@ -672,6 +716,27 @@ class ObsConfig(TypedDict):
     """Skip signature will skip loading credentials and signing requests."""
 
 
+class OciConfig(TypedDict):
+    """Configuration for the `oci` service."""
+
+    scheme: Required[Literal["oci"]]
+    """The service scheme; fixed to `"oci"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is `https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com`."""
+    namespace: NotRequired[str]
+    """Object Storage namespace. Required unless `endpoint` is set."""
+    region: Required[str]
+    """Bucket region, used as the signing region."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+
+
 class OnedriveConfig(TypedDict):
     """Configuration for the `onedrive` service."""
 
@@ -744,6 +809,27 @@ class OssConfig(TypedDict):
     """`sts_endpoint` will be loaded from  - this field if it's `is_some` - env value: `ALIBABA_CLOUD_STS_ENDPOINT`"""
 
 
+class OvhcloudConfig(TypedDict):
+    """Configuration for the `ovhcloud` service."""
+
+    scheme: Required[Literal["ovhcloud"]]
+    """The service scheme; fixed to `"ovhcloud"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style bucket addressing."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is `https://s3.<region>.io.cloud.ovh.net`."""
+    region: Required[str]
+    """Bucket region, used as the signing region."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+
+
 class PersyConfig(TypedDict):
     """Configuration for the `persy` service."""
 
@@ -772,6 +858,27 @@ class PostgresqlConfig(TypedDict):
     """the table of postgresql"""
     value_field: NotRequired[str]
     """the value field of postgresql"""
+
+
+class QingstorConfig(TypedDict):
+    """Configuration for the `qingstor` service."""
+
+    scheme: Required[Literal["qingstor"]]
+    """The service scheme; fixed to `"qingstor"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style bucket addressing."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is `https://s3.<zone>.qsstor.com`."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+    zone: Required[str]
+    """Bucket zone, used as the signing region."""
 
 
 class R2Config(TypedDict):
@@ -924,6 +1031,27 @@ class S3Config(TypedDict):
     """Skip signature will skip loading credentials and signing requests."""
 
 
+class ScalewayConfig(TypedDict):
+    """Configuration for the `scaleway` service."""
+
+    scheme: Required[Literal["scaleway"]]
+    """The service scheme; fixed to `"scaleway"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style bucket addressing."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is `https://s3.<region>.scw.cloud`."""
+    region: Required[str]
+    """Bucket region, used as the signing region."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+
+
 class SeafileConfig(TypedDict):
     """Configuration for the `seafile` service."""
 
@@ -979,6 +1107,29 @@ class SledConfig(TypedDict):
     """The tree for sled."""
 
 
+class SpacesConfig(TypedDict):
+    """Configuration for the `spaces` service."""
+
+    scheme: Required[Literal["spaces"]]
+    """The service scheme; fixed to `"spaces"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    datacenter: NotRequired[str]
+    """Spaces datacenter slug. Required unless `endpoint` is set."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style bucket addressing."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is `https://<datacenter>.digitaloceanspaces.com`."""
+    region: NotRequired[str]
+    """Signing region, independent of the Spaces datacenter."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+
+
 class SqliteConfig(TypedDict):
     """Configuration for the `sqlite` service."""
 
@@ -994,6 +1145,29 @@ class SqliteConfig(TypedDict):
     """Set the table name of the sqlite service to read/write."""
     value_field: NotRequired[str]
     """Set the value field name of the sqlite service to read/write.  Default to `value` if not specified."""
+
+
+class SupabaseConfig(TypedDict):
+    """Configuration for the `supabase` service."""
+
+    scheme: Required[Literal["supabase"]]
+    """The service scheme; fixed to `"supabase"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is `https://<project_ref>.storage.supabase.co/storage/v1/s3`."""
+    project_ref: NotRequired[str]
+    """Supabase project reference. Required unless `endpoint` is set."""
+    region: Required[str]
+    """Region from the project’s S3 settings, used for signing."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+    session_token: NotRequired[str]
+    """User JWT for Supabase session authentication. Requires `access_key_id` and `secret_access_key`."""
 
 
 class SwiftConfig(TypedDict):
@@ -1013,6 +1187,29 @@ class SwiftConfig(TypedDict):
     """The TempURL key for generating presigned URLs.  This corresponds to the `X-Account-Meta-Temp-URL-Key` or `X-Container-Meta-Temp-URL-Key` header value configured on the Swift account or container."""
     token: NotRequired[str]
     """The token for Swift."""
+
+
+class TigrisConfig(TypedDict):
+    """Configuration for the `tigris` service."""
+
+    scheme: Required[Literal["tigris"]]
+    """The service scheme; fixed to `"tigris"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style bucket addressing."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is `https://t3.storage.dev`."""
+    region: NotRequired[str]
+    """Signing region."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+    session_token: NotRequired[str]
+    """Session token for temporary credentials. Requires both access keys."""
 
 
 class TosConfig(TypedDict):
@@ -1068,6 +1265,29 @@ class VercelArtifactsConfig(TypedDict):
     """The Vercel team ID. When set, the `teamId` query parameter is appended to all API requests."""
     team_slug: NotRequired[str]
     """The Vercel team slug. When set, the `slug` query parameter is appended to all API requests."""
+
+
+class WasabiConfig(TypedDict):
+    """Configuration for the `wasabi` service."""
+
+    scheme: Required[Literal["wasabi"]]
+    """The service scheme; fixed to `"wasabi"`."""
+    access_key_id: NotRequired[str]
+    """Access key ID. Set this field together with `secret_access_key`."""
+    bucket: Required[str]
+    """Bucket name."""
+    enable_virtual_host_style: NotRequired[bool]
+    """Use virtual-hosted-style bucket addressing."""
+    endpoint: NotRequired[str]
+    """Explicit HTTP(S) base endpoint. The default is the published service URL for the bucket region."""
+    region: Required[str]
+    """Bucket region, used as the signing region."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Secret access key. Set this field together with `access_key_id`."""
+    session_token: NotRequired[str]
+    """Session token for temporary credentials. Requires both access keys."""
 
 
 class WebdavConfig(TypedDict):
@@ -1142,6 +1362,7 @@ ServiceConfig = (
     | CosConfig
     | DashmapConfig
     | DropboxConfig
+    | ExoscaleConfig
     | FoyerConfig
     | FsConfig
     | FtpConfig
@@ -1152,6 +1373,7 @@ ServiceConfig = (
     | GithubConfig
     | GridfsConfig
     | HdfsNativeConfig
+    | HetznerConfig
     | HfConfig
     | HttpConfig
     | IpfsConfig
@@ -1165,22 +1387,30 @@ ServiceConfig = (
     | MongodbConfig
     | MysqlConfig
     | ObsConfig
+    | OciConfig
     | OnedriveConfig
     | OssConfig
+    | OvhcloudConfig
     | PersyConfig
     | PostgresqlConfig
+    | QingstorConfig
     | R2Config
     | RedbConfig
     | RedisConfig
     | S3Config
+    | ScalewayConfig
     | SeafileConfig
     | SftpConfig
     | SledConfig
+    | SpacesConfig
     | SqliteConfig
+    | SupabaseConfig
     | SwiftConfig
+    | TigrisConfig
     | TosConfig
     | UpyunConfig
     | VercelArtifactsConfig
+    | WasabiConfig
     | WebdavConfig
     | WebhdfsConfig
     | YandexDiskConfig
@@ -1199,6 +1429,7 @@ __all__ = [
     "CosConfig",
     "DashmapConfig",
     "DropboxConfig",
+    "ExoscaleConfig",
     "FoyerConfig",
     "FsConfig",
     "FtpConfig",
@@ -1209,6 +1440,7 @@ __all__ = [
     "GithubConfig",
     "GridfsConfig",
     "HdfsNativeConfig",
+    "HetznerConfig",
     "HfConfig",
     "HttpConfig",
     "IpfsConfig",
@@ -1222,22 +1454,30 @@ __all__ = [
     "MongodbConfig",
     "MysqlConfig",
     "ObsConfig",
+    "OciConfig",
     "OnedriveConfig",
     "OssConfig",
+    "OvhcloudConfig",
     "PersyConfig",
     "PostgresqlConfig",
+    "QingstorConfig",
     "R2Config",
     "RedbConfig",
     "RedisConfig",
     "S3Config",
+    "ScalewayConfig",
     "SeafileConfig",
     "SftpConfig",
     "SledConfig",
+    "SpacesConfig",
     "SqliteConfig",
+    "SupabaseConfig",
     "SwiftConfig",
+    "TigrisConfig",
     "TosConfig",
     "UpyunConfig",
     "VercelArtifactsConfig",
+    "WasabiConfig",
     "WebdavConfig",
     "WebhdfsConfig",
     "YandexDiskConfig",

@@ -44,6 +44,16 @@ default = [
   "services-obs",
   "services-oss",
   "services-r2",
+  "services-exoscale",
+  "services-hetzner",
+  "services-oci",
+  "services-ovhcloud",
+  "services-qingstor",
+  "services-scaleway",
+  "services-spaces",
+  "services-supabase",
+  "services-tigris",
+  "services-wasabi",
   "services-s3",
   "services-webdav",
   "services-webhdfs",
@@ -122,6 +132,7 @@ services-dropbox = ["opendal/services-dropbox"]
 services-etcd = [
   "opendal/services-etcd",
 ] # FIXME EXCLUDED: this service needs protoc
+services-exoscale = ["opendal/services-exoscale"]
 services-foundationdb = [
   "opendal/services-foundationdb",
 ] # FIXME EXCLUDED: this service needs preinstalled fdb library
@@ -141,6 +152,7 @@ services-hdfs = [
   "opendal/services-hdfs",
 ] # FIXME EXCLUDED: how to support HDFS services in bindings?
 services-hdfs-native = ["opendal/services-hdfs-native"]
+services-hetzner = ["opendal/services-hetzner"]
 services-hf = ["opendal/services-hf"]
 services-http = ["opendal/services-http"]
 services-huggingface = ["services-hf"]
@@ -161,16 +173,19 @@ services-monoiofs = [
 ] # FIXME EXCLUDED: Needs tests/ maintenance
 services-mysql = ["opendal/services-mysql"]
 services-obs = ["opendal/services-obs"]
+services-oci = ["opendal/services-oci"]
 services-onedrive = ["opendal/services-onedrive"]
 services-opfs = [
   "opendal/services-opfs",
 ] # FIXME EXCLUDED: Needs tests/ maintenance
 services-oss = ["opendal/services-oss"]
+services-ovhcloud = ["opendal/services-ovhcloud"]
 services-pcloud = [
   "opendal/services-pcloud",
 ] # FIXME EXCLUDED: Needs tests/ maintenance
 services-persy = ["opendal/services-persy"]
 services-postgresql = ["opendal/services-postgresql"]
+services-qingstor = ["opendal/services-qingstor"]
 services-r2 = ["opendal/services-r2"]
 services-redb = ["opendal/services-redb"]
 services-redis = ["opendal/services-redis"]
@@ -178,14 +193,18 @@ services-rocksdb = [
   "opendal/services-rocksdb",
 ] # FIXME EXCLUDED: how to support rocksdb services in bindings?
 services-s3 = ["opendal/services-s3"]
+services-scaleway = ["opendal/services-scaleway"]
 services-seafile = ["opendal/services-seafile"]
 services-sftp = ["opendal/services-sftp"]
 services-sled = ["opendal/services-sled"]
+services-spaces = ["opendal/services-spaces"]
 services-sqlite = ["opendal/services-sqlite"]
+services-supabase = ["opendal/services-supabase"]
 services-surrealdb = [
   "opendal/services-surrealdb",
 ] # FIXME EXCLUDED: Needs tests/ maintenance
 services-swift = ["opendal/services-swift"]
+services-tigris = ["opendal/services-tigris"]
 services-tikv = [
   "opendal/services-tikv",
 ] # FIXME EXCLUDED: this service needs protoc
@@ -195,6 +214,7 @@ services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-vercel-blob = [
   "opendal/services-vercel-blob",
 ] # FIXME EXCLUDED: Needs tests/ maintenance
+services-wasabi = ["opendal/services-wasabi"]
 services-webdav = ["opendal/services-webdav"]
 services-webhdfs = ["opendal/services-webhdfs"]
 services-yandex-disk = ["opendal/services-yandex-disk"]

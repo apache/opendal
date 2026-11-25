@@ -99,13 +99,15 @@ impl storage::Metadata for OpendalMetadata {
     }
 
     fn modified(&self) -> storage::Result<std::time::SystemTime> {
-        match self.0.last_modified() {
-            Some(ts) => Ok(ts.into()),
-            None => Err(Error::new(
-                storage::ErrorKind::LocalError,
-                "no last modified time",
-            )),
-        }
+        // Without a time, libunftp lists the entry with a `--- -- --:--`
+        // placeholder that `ls`-style parsers cannot read, so clients drop the
+        // entry or take the whole line as its name. Report the Unix epoch
+        // instead, as the object_store integration does.
+        Ok(self
+            .0
+            .last_modified()
+            .map(Into::into)
+            .unwrap_or(std::time::UNIX_EPOCH))
     }
 
     fn gid(&self) -> u32 {
@@ -546,6 +548,13 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use unftp_core::storage::Metadata as _;
+
+    #[test]
+    fn missing_last_modified_reports_unix_epoch() {
+        let dir = OpendalMetadata(opendal::MetadataBuilder::dir().build());
+        assert_eq!(dir.modified().unwrap(), std::time::UNIX_EPOCH);
+    }
 
     #[test]
     fn convert_err_maps_opendal_error_kinds() {

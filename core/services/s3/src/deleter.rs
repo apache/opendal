@@ -184,14 +184,17 @@ fn parse_delete_objects_result_error(err: DeleteObjectsResultError, conditional:
 mod tests {
     use std::error::Error as _;
     use std::sync::Arc;
+    use std::sync::Mutex;
     use std::sync::atomic::AtomicUsize;
     use std::sync::atomic::Ordering;
 
     use bytes::Bytes;
+    use http::HeaderValue;
     use http::Method;
     use http::Request;
     use http::Response;
     use http::StatusCode;
+    use http::header::IF_MATCH;
     use opendal_core::*;
 
     use crate::backend::S3Builder;
@@ -250,7 +253,11 @@ mod tests {
     ) -> (Operator, Arc<AtomicUsize>) {
         let transport = StaticDeleteTransport::new(status, body);
         let requests = transport.requests.clone();
-        let op = Operator::new(
+        (operator_with_transport(transport), requests)
+    }
+
+    fn operator_with_transport(transport: impl HttpTransport) -> Operator {
+        Operator::new(
             S3Builder::default()
                 .bucket("missing-bucket")
                 .region("us-east-1")
@@ -259,8 +266,7 @@ mod tests {
                 .disable_ec2_metadata(),
         )
         .expect("S3 operator must build")
-        .with_context(OperationContext::new().with_http_transport(HttpTransporter::new(transport)));
-        (op, requests)
+        .with_context(OperationContext::new().with_http_transport(HttpTransporter::new(transport)))
     }
 
     #[tokio::test]
@@ -305,6 +311,71 @@ mod tests {
 
             assert_eq!(requests.load(Ordering::Relaxed), 2);
         }
+    }
+
+    #[derive(Default)]
+    struct SplitDeleteTransport {
+        failed_condition: Mutex<Option<HeaderValue>>,
+    }
+
+    impl HttpTransport for SplitDeleteTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let (status, body) = match *req.method() {
+                Method::POST => {
+                    assert!(self.failed_condition.lock().unwrap().is_none());
+                    let body = req.body().to_bytes();
+                    let xml = std::str::from_utf8(&body).unwrap();
+                    assert_eq!(xml.matches("<Key>shared</Key>").count(), 1);
+                    assert_eq!(xml.matches("<Key>other</Key>").count(), 1);
+                    (StatusCode::OK, "<DeleteResult/>")
+                }
+                Method::DELETE => {
+                    assert_eq!(req.uri().path(), "/missing-bucket/shared");
+                    assert_eq!(req.uri().query(), Some("versionId=v1"));
+                    let condition = req.headers()[IF_MATCH].clone();
+                    let mut failed_condition = self.failed_condition.lock().unwrap();
+                    if let Some(previous) = failed_condition.as_ref() {
+                        assert_eq!(&condition, previous);
+                        (StatusCode::NO_CONTENT, "")
+                    } else {
+                        *failed_condition = Some(condition);
+                        return Err(Error::new(ErrorKind::PermissionDenied, "failed request"));
+                    }
+                }
+                _ => panic!("unexpected delete request: {req:?}"),
+            };
+            let size = body.len() as u64;
+            Ok(Response::builder()
+                .status(status)
+                .body(HttpBody::new(
+                    futures::stream::iter([Ok(Buffer::from(body))]),
+                    Some(size),
+                ))
+                .unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn delete_batch_retries_only_the_failed_request_after_a_collision() {
+        let op = operator_with_transport(SplitDeleteTransport::default());
+        let mut deleter = op.deleter().await.unwrap();
+        for (path, etag) in [("shared", "\"a\""), ("shared", "\"b\""), ("other", "\"a\"")] {
+            deleter
+                .delete((
+                    path.to_string(),
+                    options::DeleteOptions {
+                        version: Some("v1".to_string()),
+                        if_match: Some(etag.to_string()),
+                        ..Default::default()
+                    },
+                ))
+                .await
+                .unwrap();
+        }
+
+        let err = deleter.close().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+        deleter.close().await.unwrap();
     }
 
     #[tokio::test]

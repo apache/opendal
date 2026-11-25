@@ -95,6 +95,23 @@ fn intern_dispose_write(writer: &mut blocking::Writer, commit: bool) -> crate::R
 
 /// # Safety
 ///
+/// `writer` must be a live pointer from `Box::into_raw` and must not be used after this call.
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_abortWriter<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    writer: *mut blocking::Writer,
+) {
+    env.with_env(|_env| -> crate::Result<()> {
+        let mut writer = unsafe { Box::from_raw(writer) };
+        writer.abort()?;
+        Ok(())
+    })
+    .resolve::<ThrowException>()
+}
+
+/// # Safety
+///
 /// `writer` must point to a live writer with exclusive access, and `offset` and
 /// `length` must describe a valid range of `content`.
 #[unsafe(no_mangle)]

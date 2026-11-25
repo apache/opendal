@@ -136,6 +136,43 @@ try (OutputStream out = op.createOutputStream("big.bin")) {
 }
 ```
 
+When copying from an input stream, a source failure still leaves the output
+stream open. Try-with-resources then closes it and can commit the prefix
+already written. To abandon the upload, catch the failure inside the resource
+block and call `OperatorOutputStream.abort()` before automatic close. Keep the
+original failure, including unchecked cancellation exceptions, and attach any
+abort failure as a suppressed exception. This example uses `transferTo` from
+JDK 9.
+
+```java
+import java.io.InputStream;
+import java.nio.file.Files;
+import org.apache.opendal.OperatorOutputStream;
+
+try (InputStream in = Files.newInputStream(source);
+        OperatorOutputStream out = op.createOutputStream("big.bin")) {
+    try {
+        in.transferTo(out);
+    } catch (Throwable failure) {
+        try {
+            out.abort();
+        } catch (Throwable cleanupFailure) {
+            if (cleanupFailure != failure) {
+                failure.addSuppressed(cleanupFailure);
+            }
+        }
+        throw failure;
+    }
+}
+```
+
+`abort()` discards Java-side buffered bytes and asks the storage backend to
+clean up the unfinished write. The stream closes even if cleanup fails, so
+automatic `close()` never commits after abort. Inspect suppressed exceptions
+for cleanup failures. Cleanup depends on the backend and can leave already
+visible data in place. Restoring a previous object requires backend-specific
+support.
+
 ## Check metadata
 
 ```java

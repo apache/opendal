@@ -25,11 +25,14 @@ import java.util.Objects;
 
 public class OperatorOutputStream extends OutputStream {
     private static class Writer extends NativeObject {
-        /**
-         * Whether disposing this object commits it. Guarded by the owning
-         * {@link OperatorOutputStream}, which owns the only reference.
-         */
-        private boolean commitOnDispose = true;
+        private enum Disposition {
+            COMMIT,
+            DISCARD,
+            ABORT
+        }
+
+        /** Guarded by the owning {@link OperatorOutputStream}. */
+        private Disposition disposition = Disposition.COMMIT;
 
         private Writer(long nativeHandle) {
             super(nativeHandle);
@@ -39,13 +42,22 @@ public class OperatorOutputStream extends OutputStream {
          * Releases the native writer without committing the object it was writing.
          */
         private void discard() {
-            commitOnDispose = false;
+            disposition = Disposition.DISCARD;
+            close();
+        }
+
+        private void abort() {
+            disposition = Disposition.ABORT;
             close();
         }
 
         @Override
         protected void disposeInternal(long handle) {
-            disposeWriter(handle, commitOnDispose);
+            if (disposition == Disposition.ABORT) {
+                abortWriter(handle);
+            } else {
+                disposeWriter(handle, disposition == Disposition.COMMIT);
+            }
         }
     }
 
@@ -129,6 +141,8 @@ public class OperatorOutputStream extends OutputStream {
                         recordFailure(t);
                         OperatorOutputStream.<RuntimeException>sneakyThrow(t);
                     }
+                    // A flush override may close or abort this stream before returning.
+                    ensureOpen();
                 }
             }
             off += count;
@@ -142,6 +156,23 @@ public class OperatorOutputStream extends OutputStream {
         if (offset != 0) {
             flushBuffer();
         }
+    }
+
+    /**
+     * Discards buffered bytes and asks the backend to clean up the unfinished write.
+     *
+     * <p>Call this before {@link #close()} to abandon an upload, for example when reading
+     * the source fails. Cleanup depends on the backend. Data already visible may remain,
+     * and a previous object may not be restored.
+     *
+     * <p>This releases the native writer even if cleanup fails. Subsequent writes and
+     * flushes throw {@link IllegalStateException}. Subsequent calls to {@code abort()} or
+     * {@code close()} do nothing.
+     *
+     * @throws OpenDALException if backend cleanup fails or is unsupported
+     */
+    public synchronized void abort() {
+        writer.abort();
     }
 
     @Override
@@ -275,6 +306,8 @@ public class OperatorOutputStream extends OutputStream {
     private static native long constructWriter(long op, String path, WriteOptions options);
 
     private static native void disposeWriter(long writer, boolean commit);
+
+    private static native void abortWriter(long writer);
 
     private static native void writeByteRange(long writer, byte[] bytes, int off, int len);
 }

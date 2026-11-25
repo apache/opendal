@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Random;
@@ -508,6 +509,69 @@ public class OperatorInputOutputStreamTest {
                     .as("close after failure")
                     .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RateLimited));
             assertNotExist(layeredOp, path);
+        }
+    }
+
+    @Test
+    void testOutputStreamAbortDiscardsStagedWriteWithoutFlushing() throws Exception {
+        final Path staging = Files.createTempDirectory(tempDir, "abort-staging");
+        final ServiceConfig.Fs fs = ServiceConfig.Fs.builder()
+                .root(tempDir.toString())
+                .atomicWriteDir(staging.toString())
+                .build();
+        final String path = "abort-staged";
+        final byte[] original = {1, 2, 3};
+        try (final Operator op = Operator.of(fs)) {
+            op.write(path, original);
+            try (final OperatorOutputStream out =
+                    new OperatorOutputStream(op, path, 8, WriteOptions.builder().build()) {
+                        @Override
+                        public synchronized void flush() {
+                            throw new AssertionError("abort or automatic close called flush");
+                        }
+                    }) {
+                out.write(new byte[16]);
+                out.write(1);
+                assertThat(staging).isNotEmptyDirectory();
+
+                out.abort();
+                assertThat(staging).isEmptyDirectory();
+                assertThatThrownBy(() -> out.write(1)).isInstanceOf(IllegalStateException.class);
+                out.abort();
+            }
+            assertThat(op.read(path)).isEqualTo(original);
+        }
+    }
+
+    @Test
+    void testBulkWriteStopsWhenFlushAbortsStream() throws Exception {
+        final String path = "abort-during-flush";
+        try (final Operator op = Operator.of(ServiceConfig.Memory.builder().build())) {
+            try (final OperatorOutputStream out =
+                    new OperatorOutputStream(op, path, 8, WriteOptions.builder().build()) {
+                        @Override
+                        public synchronized void flush() {
+                            super.flush();
+                            abort();
+                        }
+                    }) {
+                out.write(1);
+                assertThatThrownBy(() -> out.write(new byte[8])).isInstanceOf(IllegalStateException.class);
+            }
+            assertNotExist(op, path);
+        }
+    }
+
+    @Test
+    void testOutputStreamAbortFailureStillClosesStream() throws Exception {
+        final ServiceConfig.Fs fs =
+                ServiceConfig.Fs.builder().root(tempDir.toString()).build();
+        try (final Operator op = Operator.of(fs);
+                final OperatorOutputStream out = op.createOutputStream("abort-unstaged", 8)) {
+            out.write(new byte[16]);
+            assertThatThrownBy(out::abort).is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.Unsupported));
+            assertThatThrownBy(() -> out.write(1)).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(out::flush).isInstanceOf(IllegalStateException.class);
         }
     }
 

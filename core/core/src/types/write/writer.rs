@@ -281,12 +281,13 @@ impl Writer {
             .await
     }
 
-    /// Abort the writer and clean up all written data.
+    /// Abort the writer, discarding buffered data and asking the backend to
+    /// clean up the unfinished write.
     ///
-    /// ## Notes
-    ///
-    /// Abort should only be called when the writer is not closed or
-    /// aborted, otherwise an unexpected error could be returned.
+    /// Cleanup depends on the backend. In particular, abort cannot guarantee
+    /// that already visible data is removed or that a previous object is restored.
+    /// Backend cleanup errors are returned and abort can be retried. Once abort
+    /// starts, writes and close return [`ErrorKind::Unexpected`].
     pub async fn abort(&mut self) -> Result<()> {
         self.inner.abort().await
     }

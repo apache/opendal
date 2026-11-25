@@ -315,7 +315,7 @@ mod tests {
 
     #[derive(Default)]
     struct SplitDeleteTransport {
-        failed_condition: Mutex<Option<HeaderValue>>,
+        failed_condition: Arc<Mutex<Option<HeaderValue>>>,
     }
 
     impl HttpTransport for SplitDeleteTransport {
@@ -334,8 +334,8 @@ mod tests {
                     assert_eq!(req.uri().query(), Some("versionId=v1"));
                     let condition = req.headers()[IF_MATCH].clone();
                     let mut failed_condition = self.failed_condition.lock().unwrap();
-                    if let Some(previous) = failed_condition.as_ref() {
-                        assert_eq!(&condition, previous);
+                    if let Some(previous) = failed_condition.take() {
+                        assert_eq!(condition, previous);
                         (StatusCode::NO_CONTENT, "")
                     } else {
                         *failed_condition = Some(condition);
@@ -357,7 +357,9 @@ mod tests {
 
     #[tokio::test]
     async fn delete_batch_retries_only_the_failed_request_after_a_collision() {
-        let op = operator_with_transport(SplitDeleteTransport::default());
+        let transport = SplitDeleteTransport::default();
+        let failed_condition = transport.failed_condition.clone();
+        let op = operator_with_transport(transport);
         let mut deleter = op.deleter().await.unwrap();
         for (path, etag) in [("shared", "\"a\""), ("shared", "\"b\""), ("other", "\"a\"")] {
             deleter
@@ -375,7 +377,9 @@ mod tests {
 
         let err = deleter.close().await.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+        assert!(failed_condition.lock().unwrap().is_some());
         deleter.close().await.unwrap();
+        assert!(failed_condition.lock().unwrap().is_none());
     }
 
     #[tokio::test]

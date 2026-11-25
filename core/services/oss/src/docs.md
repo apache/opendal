@@ -49,6 +49,12 @@ RAM Role settings do not override a custom chain. Set
 [`reqsign_aliyun_oss::Credential::expires_in`] for temporary credentials so that
 the reqsign signer can cache them and refresh them before expiration.
 
+## Copy operations
+
+OSS uses `CopyObject` by default. Set a copy chunk size to request server-side
+multipart copy. Multipart copy reads the source metadata and uses its ETag as
+an `UploadPartCopy` precondition on every part.
+
 ## Example
 
 ### Via Builder

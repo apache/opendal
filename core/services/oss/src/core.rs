@@ -30,6 +30,7 @@ use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::header::EXPIRES;
 use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
@@ -668,6 +669,13 @@ impl OssCore {
         }
     }
 
+    fn initiate_upload_request(&self, path: &str, is_presign: bool) -> http::request::Builder {
+        let path = build_absolute_path(&self.root, path);
+        let endpoint = self.get_endpoint(is_presign);
+        let url = format!("{}/{}?uploads", endpoint, percent_encode_path(&path));
+        self.insert_sse_headers(Request::post(&url))
+    }
+
     pub async fn oss_initiate_upload(
         &self,
         ctx: &OperationContext,
@@ -675,10 +683,7 @@ impl OssCore {
         args: &OpWrite,
         is_presign: bool,
     ) -> Result<Response<Buffer>> {
-        let path = build_absolute_path(&self.root, path);
-        let endpoint = self.get_endpoint(is_presign);
-        let url = format!("{}/{}?uploads", endpoint, percent_encode_path(&path));
-        let mut req = Request::post(&url);
+        let mut req = self.initiate_upload_request(path, is_presign);
         if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime);
         }
@@ -698,13 +703,38 @@ impl OssCore {
         if args.if_not_exists() {
             req = req.header(X_OSS_FORBID_OVERWRITE, "true");
         }
-        req = self.insert_sse_headers(req);
 
         let req = req
             .extension(Operation::Write)
             .extension(ServiceOperation("InitiateMultipartUpload"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
+    }
+
+    pub async fn oss_initiate_copy(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        source_headers: &HeaderMap,
+    ) -> Result<Response<Buffer>> {
+        let mut req = self.initiate_upload_request(path, false);
+        // UploadPartCopy copies bytes. Set the source's object metadata on initiation.
+        for (name, value) in source_headers {
+            if matches!(
+                *name,
+                CACHE_CONTROL | CONTENT_DISPOSITION | CONTENT_ENCODING | CONTENT_TYPE | EXPIRES
+            ) || name.as_str().starts_with(X_OSS_META_PREFIX)
+            {
+                req = req.header(name, value);
+            }
+        }
+        let req = req
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("InitiateMultipartUpload"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
@@ -740,6 +770,39 @@ impl OssCore {
             .extension(ServiceOperation("UploadPart"));
 
         let req = req.body(body).map_err(new_request_build_error)?;
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn oss_upload_part_copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        upload_id: &str,
+        part_number: usize,
+        range: BytesRange,
+        etag: &str,
+    ) -> Result<Response<Buffer>> {
+        let source = build_absolute_path(&self.root, from);
+        let target = build_absolute_path(&self.root, to);
+        let url = format!(
+            "{}/{}?partNumber={}&uploadId={}",
+            self.get_endpoint(false),
+            percent_encode_path(&target),
+            part_number,
+            percent_encode_path(upload_id),
+        );
+        let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
+        let req = Request::put(&url)
+            .header("x-oss-copy-source", source)
+            .header("x-oss-copy-source-range", range.to_header())
+            .header("x-oss-copy-source-if-match", etag)
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("UploadPartCopy"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }

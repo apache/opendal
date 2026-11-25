@@ -31,10 +31,17 @@ use opendal_core::*;
 use super::core::OpfsCore;
 use super::core::*;
 
+enum WriterState {
+    Idle,
+    Open(SendWrapper<FileSystemWritableFileStream>),
+    Closed,
+    Aborted,
+}
+
 pub struct OpfsWriter {
     core: Arc<OpfsCore>,
     path: String,
-    stream: Option<SendWrapper<FileSystemWritableFileStream>>,
+    state: WriterState,
     bytes_written: u64,
 }
 
@@ -43,41 +50,45 @@ impl OpfsWriter {
         Self {
             core,
             path,
-            stream: None,
+            state: WriterState::Idle,
             bytes_written: 0,
         }
     }
 
-    async fn init_stream(&mut self) -> Result<()> {
-        if self.stream.is_some() {
-            return Ok(());
+    async fn stream(&mut self) -> Result<&FileSystemWritableFileStream> {
+        if matches!(self.state, WriterState::Idle) {
+            let path = build_absolute_path(&self.core.root, &self.path);
+            let handle = get_file_handle(&path, true).await?;
+            let stream = JsFuture::from(handle.create_writable())
+                .await
+                .and_then(JsCast::dyn_into)
+                .map_err(parse_js_error)?;
+            self.state = WriterState::Open(SendWrapper::new(stream));
         }
 
-        let p = build_absolute_path(&self.core.root, &self.path);
-        let handle = get_file_handle(&p, true).await?;
-        let stream: FileSystemWritableFileStream = JsFuture::from(handle.create_writable())
-            .await
-            .and_then(JsCast::dyn_into)
-            .map_err(parse_js_error)?;
-        self.stream = Some(SendWrapper::new(stream));
-
-        Ok(())
+        match &self.state {
+            WriterState::Idle => unreachable!("opfs writable stream must be initialized"),
+            WriterState::Open(stream) => Ok(stream),
+            WriterState::Closed => Err(Error::new(
+                ErrorKind::Unexpected,
+                "writer is already closed",
+            )),
+            WriterState::Aborted => Err(Error::new(
+                ErrorKind::Unexpected,
+                "writer is already aborted",
+            )),
+        }
     }
 }
 
 impl oio::Write for OpfsWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.init_stream().await?;
-
+        let stream = self.stream().await?;
         let bytes = bs.to_bytes();
         let params = WriteParams::new(WriteCommandType::Write);
         params.set_size(Some(bytes.len() as f64));
         let data: JsValue = js_sys::Uint8Array::from(bytes.as_ref()).into();
         params.set_data(&data);
-        let stream = self
-            .stream
-            .as_ref()
-            .expect("opfs writable stream must be initialized");
         JsFuture::from(
             stream
                 .write_with_write_params(&params)
@@ -91,24 +102,33 @@ impl oio::Write for OpfsWriter {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        self.init_stream().await?;
+        let stream = self.stream().await?;
+        // Keep the original handle if close fails or is canceled. Opening a
+        // fresh writable stream could truncate the file on a subsequent close.
+        JsFuture::from(stream.close())
+            .await
+            .map_err(parse_js_error)?;
+        self.state = WriterState::Closed;
 
-        if let Some(stream) = self.stream.take() {
-            JsFuture::from(stream.close())
-                .await
-                .map_err(parse_js_error)?;
-        }
-
-        // We cannot set LastModified here - stream does not have such metadata
         Ok(MetadataBuilder::file(self.bytes_written).build())
     }
 
     async fn abort(&mut self) -> Result<()> {
-        if let Some(stream) = self.stream.take() {
-            JsFuture::from(stream.abort())
-                .await
-                .map_err(parse_js_error)?;
+        match &self.state {
+            WriterState::Idle | WriterState::Aborted => (),
+            WriterState::Open(stream) => {
+                JsFuture::from(stream.abort())
+                    .await
+                    .map_err(parse_js_error)?;
+            }
+            WriterState::Closed => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "writer is already closed",
+                ));
+            }
         }
+        self.state = WriterState::Aborted;
         Ok(())
     }
 }

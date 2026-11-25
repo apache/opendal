@@ -362,5 +362,5 @@ pub mod rfc_8145_conflict_error_kind {}
 pub mod rfc_8569_chunked_cache_layer {}
 
 /// Unified Operator Configuration
-#[doc = include_str!("0000_unified_operator_config.md")]
-pub mod rfc_0000_unified_operator_config {}
+#[doc = include_str!("9061_unified_operator_config.md")]
+pub mod rfc_9061_unified_operator_config {}

@@ -186,10 +186,23 @@ public sealed class ListBehaviorTest : BehaviorTestBase
         var path = $"{dir}file.txt";
 
         Op.Write(path, RandomBytes(8));
+        var options = new ListOptions { Deleted = true };
+        Assert.Contains(Op.List(dir, options), e => e.Path == path && !e.Metadata.IsDeleted);
+
+        var generation = IsService("gcs") ? Op.Stat(path).Version : null;
+        if (IsService("gcs"))
+        {
+            Assert.False(string.IsNullOrEmpty(generation));
+        }
         Op.Delete(path);
+        if (generation != null && Op.List(path, new ListOptions { Versions = true })
+                .Any(e => e.Path == path && e.Metadata.Version == generation))
+        {
+            Op.Delete(path, new DeleteOptions { Version = generation });
+        }
 
-        var entries = Op.List(dir, new ListOptions { Deleted = true });
-
-        Assert.Contains(entries, e => e.Path == path && e.Metadata.IsDeleted);
+        var entries = Op.List(dir, options);
+        Assert.Contains(entries, e => e.Path == path && e.Metadata.IsDeleted
+            && (generation == null || e.Metadata.Version == generation));
     }
 }

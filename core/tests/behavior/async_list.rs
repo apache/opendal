@@ -855,17 +855,47 @@ pub async fn test_list_files_with_deleted(op: Operator) -> Result<()> {
     );
 
     op.write(file_path.as_str(), "2").await?;
+    let gcs_generation = if op.info().scheme() == "gcs" {
+        let metadata = op.stat(&file_path).await?;
+        Some(metadata.version().expect("GCS generation").to_string())
+    } else {
+        None
+    };
     op.delete(file_path.as_str()).await?;
 
-    // This file has been deleted, list with deleted should contain its versions and delete marker.
+    let mut gcs_archives = Vec::new();
+    if let Some(generation) = &gcs_generation {
+        // A versioned GCS bucket archives a name-deleted generation. Delete
+        // it explicitly only when the ordinary version listing still finds it.
+        for entry in op.list_with(&file_path).versions(true).await? {
+            if entry.path() == file_path {
+                let version = entry.metadata().version().expect("GCS generation");
+                if version == generation {
+                    op.delete_with(&file_path).version(version).await?;
+                } else {
+                    gcs_archives.push(version.to_string());
+                }
+            }
+        }
+    }
+
     let mut ds = op.list_with(&file_path).deleted(true).await?;
-    ds.retain(|de| de.path() == file_path && de.metadata().is_deleted());
+    ds.retain(|de| {
+        de.path() == file_path
+            && de.metadata().is_deleted()
+            && gcs_generation
+                .as_deref()
+                .is_none_or(|generation| de.metadata().version() == Some(generation))
+    });
 
     assert_eq!(
         ds.len(),
         1,
         "deleted file should be found and only have one"
     );
+    for version in gcs_archives {
+        op.delete_with(&file_path).version(&version).await?;
+    }
 
     Ok(())
 }

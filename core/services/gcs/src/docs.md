@@ -22,6 +22,20 @@ Use [`crate::GcsConfig`] for serializable configuration and this builder's
 methods for direct construction. The field and method documentation defines
 accepted values, defaults, and environment interaction.
 
+## Listing deleted objects
+
+`deleted(true)` includes retained soft-deleted generations alongside live
+objects. Add `versions(true)` to include readable noncurrent generations as
+well. In a versioned bucket, deleting by name can leave a readable noncurrent
+generation. It appears in version listings until it is soft-deleted or purged.
+
+The option uses the authenticated default Google Cloud Storage JSON endpoint
+and requires a bucket with a soft-delete policy. Without that policy, the list
+returns the GCS request error. Soft-deleted objects that require a hierarchical
+namespace restore token return `Unsupported`. Each listed soft-deleted object
+has its generation and `is_deleted` flag. Listing does not determine its
+`is_current` status.
+
 ## Restore
 
 Restore uses the authenticated Google Cloud Storage JSON API. A path-only

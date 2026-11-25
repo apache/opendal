@@ -903,12 +903,15 @@ impl GcsCore {
         path: &str,
         page_token: &str,
         args: &OpList,
+        soft_deleted: bool,
     ) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path);
         let url = format!("{}/storage/v1/b/{}/o", self.endpoint, self.bucket);
         let mut url = QueryPairsWriter::new(&url);
         url = url.push("prefix", &gcs_percent_encode_path(&p));
-        if args.versions() {
+        if soft_deleted {
+            url = url.push("softDeleted", "true");
+        } else if args.versions() {
             url = url.push("versions", "true");
         }
         if !args.recursive() {
@@ -939,8 +942,9 @@ impl GcsCore {
         path: &str,
         page_token: &str,
         args: &OpList,
+        soft_deleted: bool,
     ) -> Result<Response<Buffer>> {
-        let req = self.gcs_build_list_objects_request(path, page_token, args)?;
+        let req = self.gcs_build_list_objects_request(path, page_token, args, soft_deleted)?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
@@ -1433,7 +1437,7 @@ mod tests {
     fn test_list_request_defaults() {
         let core = test_core();
         let request = core
-            .gcs_build_list_objects_request("dir/", "", &OpList::default())
+            .gcs_build_list_objects_request("dir/", "", &OpList::default(), false)
             .unwrap();
         let query = request.uri().query().unwrap();
         assert!(query.contains(&format!("prefix={}", gcs_percent_encode_path("dir/"))));
@@ -1455,7 +1459,7 @@ mod tests {
             ..Default::default()
         });
         let first = core
-            .gcs_build_list_objects_request("dir/", "", &args)
+            .gcs_build_list_objects_request("dir/", "", &args, false)
             .unwrap();
         let query = first.uri().query().unwrap();
         assert!(query.contains("versions=true"));
@@ -1468,7 +1472,7 @@ mod tests {
         assert!(!query.contains("pageToken="));
 
         let next = core
-            .gcs_build_list_objects_request("dir/", "page+/=", &args)
+            .gcs_build_list_objects_request("dir/", "page+/=", &args, false)
             .unwrap();
         let query = next.uri().query().unwrap();
         assert!(query.contains(&format!("prefix={}", gcs_percent_encode_path("dir/"))));

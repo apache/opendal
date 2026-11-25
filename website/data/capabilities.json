@@ -913,6 +913,29 @@
       }
     },
     {
+      "name": "baidu-netdisk",
+      "scheme": "baidu-netdisk",
+      "native": {
+        "copy": true,
+        "create_dir": true,
+        "delete": true,
+        "delete_with_recursive": true,
+        "list": true,
+        "list_with_limit": true,
+        "read": true,
+        "read_with_suffix": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      },
+      "limits": {
+        "write_total_max_size": {
+          "display": "16 MiB"
+        }
+      }
+    },
+    {
       "name": "cacache",
       "scheme": "cacache",
       "native": {

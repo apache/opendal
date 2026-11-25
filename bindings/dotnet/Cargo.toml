@@ -106,6 +106,7 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-alluxio",
   "services-goosefs",
   "services-b2",
+  "services-baidu-netdisk",
   "services-seafile",
   "services-upyun",
   "services-yandex-disk",

@@ -152,7 +152,7 @@ describe('entrypoint exports parity', () => {
         }
         assert.equal(await op.exists('cjs-abort-async.bin'), false)
         assert.equal(op.existsSync('cjs-abort-sync.bin'), false)
-        await assert.rejects(abortedWriter.close(), /writer has been closed or aborted/)
+        await assert.rejects(abortedWriter.close(), { message: /^Unexpected\\b.*\\bafter abort has started\\b/ })
       })().catch((err) => {
         console.error(err)
         process.exit(1)

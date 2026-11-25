@@ -27,10 +27,11 @@ use crate::*;
 /// OpenDAL installs this layer by default. Services that advertise native glob
 /// support receive list requests unchanged. Otherwise the layer uses the pattern
 /// to skip unrelated directories. If the walk would list every directory below
-/// the leading literal directories of the pattern, as for `t/**/*.parquet`, and
-/// the service supports recursive listing, the layer filters one recursive
-/// listing instead. With a cursor, versions, or delete markers, it filters an
-/// underlying listing to preserve the service's cursor and entries.
+/// a directory, as below `t/` for `t/**/*.parquet` or below `logs/` for
+/// `logs/**`, and the service supports recursive listing, the layer filters one
+/// recursive listing of that directory instead. With a cursor, versions, or
+/// delete markers, it filters an underlying listing to preserve the service's
+/// cursor and entries.
 /// For a custom stack, install it before layers that resolve symbolic links
 /// when completing entry metadata.
 ///
@@ -142,7 +143,7 @@ impl Service for GlobService {
         let Some(glob) = args.glob() else {
             return self.inner.list(ctx, path, args);
         };
-        let pattern = GlobPattern::new(glob)?;
+        let pattern = Arc::new(GlobPattern::new(glob)?);
         args.clear_glob();
         let base = if path.ends_with('/') {
             path
@@ -216,6 +217,7 @@ impl Service for GlobService {
                 positions: vec![position],
                 lister: None,
                 discovered: false,
+                recursive: false,
             }]
         } else {
             Vec::new()
@@ -225,6 +227,7 @@ impl Service for GlobService {
             inner: self.inner.clone(),
             pattern,
             args,
+            base: base.to_owned(),
             prefix: prefix.to_owned(),
             directories,
         }))
@@ -237,6 +240,8 @@ struct Directory {
     lister: Option<oio::Lister>,
     /// Found while listing a parent rather than requested by the caller.
     discovered: bool,
+    /// Filter one recursive listing instead of walking the directory.
+    recursive: bool,
 }
 
 impl Directory {
@@ -245,9 +250,26 @@ impl Directory {
         ctx: &OperationContext,
         inner: &Servicer,
         args: &OpList,
+        pattern: &Arc<GlobPattern>,
+        base: &str,
     ) -> Result<Option<oio::Entry>> {
         if self.lister.is_none() {
-            self.lister = Some(inner.list(ctx, &self.path, args.clone())?);
+            let mut args = args.clone();
+            args.set_recursive(self.recursive);
+            let lister = inner.list(ctx, &self.path, args)?;
+            self.lister = Some(if self.recursive {
+                Box::new(FilteredLister {
+                    inner: lister,
+                    pattern: pattern.clone(),
+                    base: base.to_owned(),
+                    root: self.path.clone(),
+                    start_after: None,
+                    implied: Some(ImpliedDirectories::default()),
+                    pending: None,
+                })
+            } else {
+                lister
+            });
         }
         self.lister
             .as_mut()
@@ -260,8 +282,9 @@ impl Directory {
 struct GuidedLister {
     ctx: OperationContext,
     inner: Servicer,
-    pattern: GlobPattern,
+    pattern: Arc<GlobPattern>,
     args: OpList,
+    base: String,
     prefix: String,
     directories: Vec<Directory>,
 }
@@ -269,7 +292,16 @@ struct GuidedLister {
 impl List for GuidedLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         while let Some(directory) = self.directories.last_mut() {
-            let entry = match directory.next(&self.ctx, &self.inner, &self.args).await {
+            let entry = match directory
+                .next(
+                    &self.ctx,
+                    &self.inner,
+                    &self.args,
+                    &self.pattern,
+                    &self.base,
+                )
+                .await
+            {
                 Ok(Some(entry)) => entry,
                 Ok(None) => {
                     self.directories.pop();
@@ -290,6 +322,9 @@ impl List for GuidedLister {
                 }
                 Err(err) => return Err(err),
             };
+            if directory.recursive {
+                return Ok(Some(entry));
+            }
             if !entry.path().starts_with(&self.prefix) {
                 continue;
             }
@@ -306,11 +341,17 @@ impl List for GuidedLister {
             // All viable positions travel with the same child. Overlapping
             // recursive matches therefore visit and emit each entry only once.
             if is_dir && self.pattern.can_descend(&positions) {
+                // As in `list`, this costs no more requests than the walk.
+                let recursive = self.inner.capability().list_with_recursive
+                    && positions
+                        .iter()
+                        .any(|&position| self.pattern.walks_whole_subtree(position));
                 self.directories.push(Directory {
                     path: entry.path().to_owned(),
                     positions,
                     lister: None,
                     discovered: true,
+                    recursive,
                 });
             }
             if matches {
@@ -323,7 +364,7 @@ impl List for GuidedLister {
 
 struct FilteredLister {
     inner: oio::Lister,
-    pattern: GlobPattern,
+    pattern: Arc<GlobPattern>,
     base: String,
     /// The listed path. As in the guided listing, a listed directory is not
     /// returned.

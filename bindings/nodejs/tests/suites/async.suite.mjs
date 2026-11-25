@@ -440,7 +440,7 @@ export function run(op) {
       expect(ws.destroyed).toBe(true)
       expect(closeCalled).toBe(false)
       expect(await memory.exists('aborted.bin')).toBe(false)
-      await expect(originalClose()).rejects.toThrow('writer has been closed or aborted')
+      await expect(originalClose()).rejects.toThrow(/^Unexpected\b.*\bafter abort has started\b/)
     })
 
     test.each(['index.mjs', 'index.cjs'])(

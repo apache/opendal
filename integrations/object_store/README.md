@@ -240,6 +240,11 @@ implementations (such as `InMemory`, `LocalFileSystem`, `AmazonS3`,
     `Error::Precondition` when the backend does not populate `e_tag`.
   - `OpendalStore` always returns `GetResultPayload::Stream`, never
     `GetResultPayload::File`.
+- **Paths**:
+  - `OpendalStore` percent-decodes an `object_store::path::Path` before passing
+    it to OpenDAL. A path part that contains `/` (encoded as `%2F`) cannot be
+    represented, because OpenDAL treats `/` as its separator. Operations on such
+    paths return `Error::NotSupported` instead of addressing another object.
 - **Deletes**:
   - OpenDAL's `delete` is idempotent: deleting a missing object succeeds rather
     than returning `Error::NotFound` (unlike native `LocalFileSystem`).

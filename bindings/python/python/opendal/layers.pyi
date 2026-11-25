@@ -204,16 +204,10 @@ class TimeoutLayer(Layer):
         ----------
         timeout : Optional[float]
             Timeout (in seconds) for control operations like ``stat`` and
-            ``delete``. Must be a positive, finite number. A value of ``0`` or
-            a sub-nanosecond duration that rounds to zero is rejected because
-            it would make every operation time out immediately. Defaults to
-            ``60.0``.
+            ``delete``. Must be a positive, finite number. Defaults to ``60.0``.
         io_timeout : Optional[float]
             Timeout (in seconds) for IO operations like ``read`` and
-            ``write``. Must be a positive, finite number. A value of ``0`` or
-            a sub-nanosecond duration that rounds to zero is rejected because
-            it would make every operation time out immediately. Defaults to
-            ``10.0``.
+            ``write``. Must be a positive, finite number. Defaults to ``10.0``.
 
         Returns
         -------
@@ -222,5 +216,5 @@ class TimeoutLayer(Layer):
         Raises
         ------
         ConfigInvalid
-            If ``timeout`` or ``io_timeout`` is out of range or rounds to zero.
+            If ``timeout`` or ``io_timeout`` is out of range.
         """

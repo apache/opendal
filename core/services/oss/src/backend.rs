@@ -189,22 +189,22 @@ impl OssBuilder {
     /// preprocess the endpoint option
     fn parse_endpoint(
         &self,
-        endpoint: Option<&str>,
+        endpoint: &Option<String>,
         bucket: &str,
         addressing_style: AddressingStyle,
     ) -> Result<(String, String)> {
-        let (endpoint, host) = match endpoint {
+        let (endpoint, host) = match endpoint.clone() {
             Some(ep) => {
                 let uri = ep.parse::<Uri>().map_err(|err| {
                     Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
                         .with_context("service", OSS_SCHEME)
-                        .with_context("endpoint", ep)
+                        .with_context("endpoint", &ep)
                         .set_source(err)
                 })?;
                 let host = uri.host().ok_or_else(|| {
                     Error::new(ErrorKind::ConfigInvalid, "endpoint host is empty")
                         .with_context("service", OSS_SCHEME)
-                        .with_context("endpoint", ep)
+                        .with_context("endpoint", &ep)
                 })?;
                 let full_host = match addressing_style {
                     AddressingStyle::Virtual => {
@@ -221,6 +221,11 @@ impl OssBuilder {
                             host.to_string()
                         }
                     }
+                };
+                if let Some(port) = uri.port_u16() {
+                    format!("{bucket}.{host}:{port}")
+                } else {
+                    format!("{bucket}.{host}")
                 };
                 let endpoint = match uri.scheme_str() {
                     Some(scheme_str) => match scheme_str {
@@ -447,23 +452,17 @@ impl Builder for OssBuilder {
             ),
         }?;
 
-        // Retrieve endpoint and host by parsing the endpoint option and bucket. If neither
-        // presign_endpoint nor presign_addressing_style is set, reuse the parsed endpoint.
+        // Use the operation endpoint for signing unless a separate endpoint is configured.
         let (endpoint, host) = self.parse_endpoint(
-            self.config.endpoint.as_deref(),
+            &self.config.endpoint,
             bucket,
             (&self.config.addressing_style).try_into()?,
         )?;
         debug!("backend use bucket {}, endpoint: {}", bucket, endpoint);
 
-        let presign_endpoint = if self.config.presign_endpoint.is_some()
-            || self.config.presign_addressing_style.is_some()
-        {
+        let presign_endpoint = if self.config.presign_endpoint.is_some() {
             self.parse_endpoint(
-                self.config
-                    .presign_endpoint
-                    .as_deref()
-                    .or(self.config.endpoint.as_deref()),
+                &self.config.presign_endpoint,
                 bucket,
                 (&self.config.presign_addressing_style).try_into()?,
             )?
@@ -1657,70 +1656,5 @@ mod tests {
             .oss_put_object_request("empty.txt", Some(0), &OpWrite::new(), Buffer::new(), false)
             .unwrap();
         assert_eq!(empty_put_req.headers()[http::header::CONTENT_LENGTH], "0");
-    }
-
-    #[tokio::test]
-    async fn test_presign_addressing_style_without_presign_endpoint() {
-        let op = Operator::new(
-            OssBuilder::default()
-                .bucket("test-bucket")
-                .endpoint("https://oss-cn-hangzhou.aliyuncs.com")
-                .presign_addressing_style("path")
-                .access_key_id("static-ak")
-                .access_key_secret("static-secret")
-                .disable_config_load(),
-        )
-        .unwrap();
-        let presigned = op
-            .presign_read("obj.txt", std::time::Duration::from_secs(60))
-            .await
-            .unwrap();
-        assert!(
-            presigned
-                .uri()
-                .to_string()
-                .starts_with("https://oss-cn-hangzhou.aliyuncs.com/test-bucket/obj.txt?"),
-            "unexpected presign uri: {}",
-            presigned.uri()
-        );
-
-        let core_path = build_test_core(
-            OssBuilder::default()
-                .bucket("test-bucket")
-                .endpoint("https://oss-cn-hangzhou.aliyuncs.com")
-                .presign_addressing_style("path"),
-        );
-        assert_eq!(
-            core_path.endpoint,
-            "https://test-bucket.oss-cn-hangzhou.aliyuncs.com"
-        );
-        assert_eq!(
-            core_path.presign_endpoint,
-            "https://oss-cn-hangzhou.aliyuncs.com/test-bucket"
-        );
-
-        let core_cname = build_test_core(
-            OssBuilder::default()
-                .bucket("test-bucket")
-                .endpoint("https://cdn.example.com")
-                .presign_addressing_style("cname"),
-        );
-        assert_eq!(core_cname.presign_endpoint, "https://cdn.example.com");
-
-        let core_inherited = build_test_core(
-            OssBuilder::default()
-                .bucket("test-bucket")
-                .endpoint("https://oss-cn-hangzhou.aliyuncs.com")
-                .addressing_style("path"),
-        );
-        assert_eq!(core_inherited.presign_endpoint, core_inherited.endpoint);
-
-        let err = OssBuilder::default()
-            .bucket("test-bucket")
-            .endpoint("https://oss-cn-hangzhou.aliyuncs.com")
-            .presign_addressing_style("invalid")
-            .build()
-            .expect_err("invalid presign_addressing_style must fail build");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
 }

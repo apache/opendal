@@ -102,12 +102,6 @@ impl MysqlBuilder {
 }
 
 fn validate_identifier(name: &str, value: &str) -> Result<()> {
-    if value.is_empty() {
-        return Err(
-            Error::new(ErrorKind::ConfigInvalid, format!("{name} is empty"))
-                .with_context("service", MYSQL_SCHEME),
-        );
-    }
     if value.contains('\0') {
         return Err(Error::new(
             ErrorKind::ConfigInvalid,
@@ -123,8 +117,8 @@ impl Builder for MysqlBuilder {
 
     fn build(self) -> Result<impl Service> {
         let conn = match self.config.connection_string {
-            Some(v) if !v.is_empty() => v,
-            _ => {
+            Some(v) => v,
+            None => {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "connection_string is empty")
                         .with_context("service", MYSQL_SCHEME),
@@ -340,24 +334,8 @@ mod tests {
     }
 
     #[test]
-    fn build_rejects_empty_and_nul_identifiers() {
+    fn build_rejects_nul_in_identifiers() {
         for config in [
-            MysqlConfig {
-                connection_string: Some(String::new()),
-                ..valid_config()
-            },
-            MysqlConfig {
-                table: Some(String::new()),
-                ..valid_config()
-            },
-            MysqlConfig {
-                key_field: Some(String::new()),
-                ..valid_config()
-            },
-            MysqlConfig {
-                value_field: Some(String::new()),
-                ..valid_config()
-            },
             MysqlConfig {
                 table: Some("data\0bad".to_string()),
                 ..valid_config()

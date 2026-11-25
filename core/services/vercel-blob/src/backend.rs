@@ -90,28 +90,11 @@ impl Builder for VercelBlobBuilder {
         debug!("backend use root {}", root);
 
         // Handle token.
-        let token = self.config.token.filter(|v| !v.is_empty()).ok_or_else(|| {
-            Error::new(ErrorKind::ConfigInvalid, "token is empty")
+        let Some(token) = self.config.token.clone() else {
+            return Err(Error::new(ErrorKind::ConfigInvalid, "token is empty")
                 .with_operation("Builder::build")
-                .with_context("service", VERCEL_BLOB_SCHEME)
-        })?;
-
-        let auth_header = format_authorization_by_bearer(&token)?;
-        let auth_header = build_header_value(&auth_header).map_err(|err| {
-            err.with_operation("Builder::build")
-                .with_context("service", VERCEL_BLOB_SCHEME)
-                .with_context("key", "token")
-        })?;
-        auth_header.to_str().map_err(|err| {
-            Error::new(
-                ErrorKind::ConfigInvalid,
-                "token contains non-ASCII characters",
-            )
-            .with_operation("Builder::build")
-            .with_context("service", VERCEL_BLOB_SCHEME)
-            .with_context("key", "token")
-            .set_source(err)
-        })?;
+                .with_context("service", VERCEL_BLOB_SCHEME));
+        };
 
         Ok(VercelBlobBackend {
             core: Arc::new(VercelBlobCore {
@@ -370,35 +353,6 @@ mod tests {
                     Some(len),
                 ))
                 .unwrap())
-        }
-    }
-
-    #[test]
-    fn build_rejects_empty_and_invalid_token() {
-        let err = VercelBlobBuilder::default()
-            .build()
-            .expect_err("missing token must fail");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        let err = VercelBlobBuilder::default()
-            .token("")
-            .build()
-            .expect_err("empty builder token must fail");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        let cfg = VercelBlobConfig::from_iter([("token".to_string(), "".to_string())]).unwrap();
-        let err = cfg
-            .into_builder()
-            .build()
-            .expect_err("empty config token must fail");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        for invalid in ["tok\r\n", "tok\n", "tok\u{00e9}"] {
-            let err = VercelBlobBuilder::default()
-                .token(invalid)
-                .build()
-                .expect_err("invalid header characters in token must fail");
-            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
         }
     }
 

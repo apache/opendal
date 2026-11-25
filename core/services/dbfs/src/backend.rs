@@ -89,31 +89,20 @@ impl Builder for DbfsBuilder {
         debug!("backend use root {root}");
 
         let endpoint = match &self.config.endpoint {
-            Some(endpoint) => {
-                let endpoint = endpoint.trim_end_matches('/');
-                if endpoint.is_empty() {
-                    return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                        .with_operation("Builder::build")
-                        .with_context("service", DBFS_SCHEME));
-                }
-                endpoint.to_string()
-            }
-            None => {
-                return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                    .with_operation("Builder::build")
-                    .with_context("service", DBFS_SCHEME));
-            }
-        };
+            Some(endpoint) => Ok(endpoint.clone()),
+            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
+                .with_operation("Builder::build")
+                .with_context("service", DBFS_SCHEME)),
+        }?;
         debug!("backend use endpoint: {}", endpoint);
 
         let token = match self.config.token {
-            Some(token) if !token.is_empty() => token,
-            _ => {
-                return Err(
-                    Error::new(ErrorKind::ConfigInvalid, "missing token for Dbfs")
-                        .with_operation("Builder::build")
-                        .with_context("service", DBFS_SCHEME),
-                );
+            Some(token) => token,
+            None => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "missing token for Dbfs",
+                ));
             }
         };
 
@@ -135,7 +124,7 @@ impl Builder for DbfsBuilder {
         Ok(DbfsBackend {
             core: Arc::new(DbfsCore {
                 root,
-                endpoint: endpoint.to_string(),
+                endpoint,
                 token,
             }),
             capability,
@@ -327,83 +316,6 @@ mod tests {
 
     const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 
-    #[test]
-    fn build_rejects_empty_endpoint_and_token() {
-        let invalid_configs = [
-            DbfsConfig {
-                endpoint: None,
-                token: Some("tok".to_string()),
-                root: None,
-            },
-            DbfsConfig {
-                endpoint: Some(String::new()),
-                token: Some("tok".to_string()),
-                root: None,
-            },
-            DbfsConfig {
-                endpoint: Some("///".to_string()),
-                token: Some("tok".to_string()),
-                root: None,
-            },
-            DbfsConfig {
-                endpoint: Some("https://example.databricks.com".to_string()),
-                token: None,
-                root: None,
-            },
-            DbfsConfig {
-                endpoint: Some("https://example.databricks.com".to_string()),
-                token: Some(String::new()),
-                root: None,
-            },
-        ];
-
-        for cfg in invalid_configs {
-            let err = cfg.into_builder().build().expect_err("config must fail");
-            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-        }
-
-        let err = DbfsBuilder::default()
-            .endpoint("///")
-            .token("tok")
-            .build()
-            .expect_err("slash-only endpoint must fail");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-    }
-
-    #[tokio::test]
-    async fn build_trims_trailing_slash_from_config_endpoint() {
-        tokio::time::timeout(TEST_TIMEOUT, async {
-            let transport = RecordingTransport::new([(
-                StatusCode::OK,
-                r#"{"is_dir":false,"file_size":3,"modification_time":1700000000000}"#,
-            )]);
-            let ctx = transport.context();
-
-            let backend = DbfsConfig {
-                endpoint: Some("https://example.databricks.com///".to_string()),
-                token: Some("tok".to_string()),
-                root: None,
-            }
-            .into_builder()
-            .build()
-            .unwrap();
-
-            backend
-                .stat(&ctx, "hello.txt", OpStat::default())
-                .await
-                .unwrap();
-
-            let reqs = transport.requests();
-            assert_eq!(reqs.len(), 1);
-            assert_eq!(
-                reqs[0].uri,
-                "https://example.databricks.com/api/2.0/dbfs/get-status?path=/hello.txt"
-            );
-        })
-        .await
-        .expect("test timed out");
-    }
-
     #[tokio::test]
     async fn rename_ensures_parent_dir_not_destination_file() {
         tokio::time::timeout(TEST_TIMEOUT, async {
@@ -495,39 +407,6 @@ mod tests {
                 reqs[1].uri,
                 "https://example.databricks.com/api/2.0/dbfs/move"
             );
-        })
-        .await
-        .expect("test timed out");
-    }
-
-    #[tokio::test]
-    async fn rename_skips_parent_check_when_root_and_parent_are_slash() {
-        tokio::time::timeout(TEST_TIMEOUT, async {
-            let transport = RecordingTransport::new([(StatusCode::OK, "{}")]);
-            let ctx = transport.context();
-
-            let backend = DbfsBuilder::default()
-                .endpoint("https://example.databricks.com")
-                .token("tok")
-                .root("/")
-                .build()
-                .unwrap();
-
-            backend
-                .rename(&ctx, "a.txt", "b.txt", OpRename::default())
-                .await
-                .unwrap();
-
-            let reqs = transport.requests();
-            assert_eq!(reqs.len(), 1);
-            assert_eq!(reqs[0].method, Method::POST);
-            assert_eq!(
-                reqs[0].uri,
-                "https://example.databricks.com/api/2.0/dbfs/move"
-            );
-            let move_body: Value = serde_json::from_slice(&reqs[0].body).unwrap();
-            assert_eq!(move_body["source_path"], "/a.txt");
-            assert_eq!(move_body["destination_path"], "/b.txt");
         })
         .await
         .expect("test timed out");

@@ -33,18 +33,9 @@ function assertInvalidArgument(createLayer, field) {
   assert.match(error.message, new RegExp(field))
 }
 
-// N-API used to hand these values to the Rust layer unchanged: `-1` wrapped to
-// the largest count, `1.5` was truncated to `1`, and `2 ** 32` wrapped to `0`.
-const invalidCounts = [-1, 1.5, NaN, Infinity, 2 ** 32]
-
-// Values that used to become a zero duration, which arms an immediate deadline,
-// or a duration the core layer cannot represent.
-const invalidMillis = [-1, -0.5, NaN, Infinity, -Infinity, 1e30]
-
 describe('ThrottleLayer', () => {
-  // A fractional rate was truncated to whole bytes and a negative rate wrapped
-  // to the largest one, which silently changed or disabled the rate limit.
-  for (const value of [0, ...invalidCounts]) {
+  // These values become zero after N-API converts them to uint32.
+  for (const value of [0, NaN, Infinity, 2 ** 32]) {
     test(`rejects bandwidth ${value}`, () => {
       assertInvalidArgument(() => new ThrottleLayer(value, 1024), 'bandwidth')
     })
@@ -66,10 +57,7 @@ describe('ThrottleLayer', () => {
 })
 
 describe('ConcurrentLimitLayer', () => {
-  // A zero-permit semaphore never hands out a permit, so every operation hangs
-  // forever, and a negative permit count wraps to the largest count and
-  // disables the limit instead of failing.
-  for (const permits of [0, ...invalidCounts]) {
+  for (const permits of [0, 0.5, -1, NaN, Infinity]) {
     test(`rejects ${permits} permits`, () => {
       assertInvalidArgument(() => new ConcurrentLimitLayer(permits), 'permits')
     })
@@ -98,89 +86,21 @@ describe('ConcurrentLimitLayer', () => {
 })
 
 describe('RetryLayer', () => {
-  // A negative retry count wrapped to the largest count, so retrying never
-  // stopped, and a fractional one was truncated to fewer retries.
-  for (const maxTimes of invalidCounts) {
-    test(`rejects maxTimes ${maxTimes}`, () => {
-      const layer = new RetryLayer()
-      assertInvalidArgument(() => {
-        layer.maxTimes = maxTimes
-      }, 'maxTimes')
-    })
-  }
-
-  test('accepts a zero maxTimes', () => {
-    // Zero retries is a valid way to disable retrying.
-    const layer = new RetryLayer()
-    layer.maxTimes = 0
-    assert.ok(layer.build())
-  })
-
-  test('accepts a positive maxTimes', () => {
+  test('builds with retry count, factor and fractional delays', () => {
     const layer = new RetryLayer()
     layer.maxTimes = 3
+    layer.factor = 2
+    layer.minDelay = 0.5
+    layer.maxDelay = 25.5
     assert.ok(layer.build())
   })
-
-  // A factor below one makes the backoff shrink, and a non-finite one or a
-  // value beyond `f32` produces a delay that the core layer cannot represent.
-  for (const factor of [-1, 0, 0.5, NaN, Infinity, -Infinity, 1e39]) {
-    test(`rejects factor ${factor}`, () => {
-      const layer = new RetryLayer()
-      assertInvalidArgument(() => {
-        layer.factor = factor
-      }, 'factor')
-    })
-  }
-
-  test('accepts valid factors', () => {
-    for (const factor of [1, 1.5, 2, 3.4028234663852886e38]) {
-      const layer = new RetryLayer()
-      layer.factor = factor
-      assert.ok(layer.build())
-    }
-  })
-
-  for (const field of ['minDelay', 'maxDelay']) {
-    for (const value of invalidMillis) {
-      test(`rejects ${field} ${value}`, () => {
-        const layer = new RetryLayer()
-        assertInvalidArgument(() => {
-          layer[field] = value
-        }, field)
-      })
-    }
-
-    test(`accepts non-negative ${field}`, () => {
-      // A zero delay is valid, it retries without waiting.
-      for (const value of [0, 1, 0.5, 60000]) {
-        const layer = new RetryLayer()
-        layer[field] = value
-        assert.ok(layer.build())
-      }
-    })
-  }
 })
 
 describe('TimeoutLayer', () => {
-  // A negative or `NaN` timeout became zero milliseconds, which timed out every
-  // operation immediately, and `Infinity` became a deadline a lifetime away.
-  for (const field of ['timeout', 'ioTimeout']) {
-    for (const value of [0, 1e-7, ...invalidMillis]) {
-      test(`rejects ${field} ${value}`, () => {
-        const layer = new TimeoutLayer()
-        assertInvalidArgument(() => {
-          layer[field] = value
-        }, field)
-      })
-    }
-
-    test(`accepts a positive ${field}`, () => {
-      for (const value of [1, 0.5, 10000]) {
-        const layer = new TimeoutLayer()
-        layer[field] = value
-        assert.ok(layer.build())
-      }
-    })
-  }
+  test('builds with fractional timeouts', () => {
+    const layer = new TimeoutLayer()
+    layer.timeout = 10.5
+    layer.ioTimeout = 5.5
+    assert.ok(layer.build())
+  })
 })

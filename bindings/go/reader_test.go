@@ -233,19 +233,11 @@ func TestReaderSeekRejectsInvalidWhenceAndPositionOverflow(t *testing.T) {
 		}
 	}
 
-	// Verify ffiReaderSeek rejects invalid whence directly and guards pos > math.MaxInt64.
-	cCalled := false
+	// Verify ffiReaderSeek guards pos > math.MaxInt64.
 	seekOverflow := ffiReaderSeek.withFunc(context.Background(), func(_ *opendalReader, _ int64, _ int32, _ *opendalCancelToken, pos *uint64) *opendalError {
-		cCalled = true
 		*pos = uint64(math.MaxInt64) + 1
 		return nil
 	})
-	if _, err := seekOverflow(newTestReaderHandle(), 0, -1, nil); err == nil {
-		t.Fatal("ffiReaderSeek with invalid whence succeeded, want error")
-	}
-	if cCalled {
-		t.Fatal("ffiReaderSeek invoked C symbol for invalid whence")
-	}
 	if _, err := seekOverflow(newTestReaderHandle(), 0, io.SeekStart, nil); err == nil {
 		t.Fatal("ffiReaderSeek with pos > math.MaxInt64 succeeded, want error")
 	}

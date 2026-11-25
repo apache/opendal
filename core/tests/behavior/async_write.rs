@@ -365,7 +365,7 @@ pub async fn test_write_returns_metadata(op: Operator) -> Result<()> {
     let meta = op.write(&path, content).await?;
     let stat_meta = op.stat(&path).await?;
 
-    assert_metadata(stat_meta, meta);
+    assert_metadata(stat_meta, meta, op.info().capability().stat_with_version);
 
     Ok(())
 }
@@ -798,7 +798,7 @@ pub async fn test_writer_return_metadata(op: Operator) -> Result<()> {
 
     let stat_meta = op.stat(&path).await.expect("stat must succeed");
 
-    assert_metadata(stat_meta, meta);
+    assert_metadata(stat_meta, meta, cap.stat_with_version);
 
     Ok(())
 }
@@ -854,12 +854,12 @@ pub async fn test_write_with_append_returns_metadata(op: Operator) -> Result<()>
         .expect("append to an existing file must success");
 
     let stat_meta = op.stat(&path).await.expect("stat must succeed");
-    assert_metadata(stat_meta, meta);
+    assert_metadata(stat_meta, meta, cap.stat_with_version);
 
     Ok(())
 }
 
-fn assert_metadata(stat_meta: Metadata, meta: Metadata) {
+fn assert_metadata(stat_meta: Metadata, meta: Metadata, stat_with_version: bool) {
     assert_eq!(stat_meta.content_length(), meta.content_length());
     if meta.etag().is_some() {
         assert_eq!(stat_meta.etag(), meta.etag());
@@ -867,8 +867,9 @@ fn assert_metadata(stat_meta: Metadata, meta: Metadata) {
     if meta.last_modified().is_some() {
         assert_eq!(stat_meta.last_modified(), meta.last_modified());
     }
-    if meta.version().is_some() {
-        assert_eq!(stat_meta.version(), meta.version());
+    // Some fixtures return a version from write but omit it from stat.
+    if meta.version().is_some() && (stat_with_version || stat_meta.version().is_some()) {
+        assert_eq!(stat_meta.version(), meta.version(), "version ID mismatch");
     }
     if meta.content_md5().is_some() {
         assert_eq!(stat_meta.content_md5(), meta.content_md5());

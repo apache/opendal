@@ -15,12 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::time::Duration;
+
 use futures::AsyncReadExt;
 use futures::TryStreamExt;
+use opendal_core::Builder;
 use opendal_core::Configurator;
 use opendal_core::ErrorKind;
+use opendal_core::OperationContext;
 use opendal_core::Operator;
 use opendal_core::OperatorRegistry;
+use opendal_core::raw::OpList;
+use opendal_core::raw::Service;
+use opendal_core::raw::oio::List;
 use opendal_service_smb::SmbConfig;
 use opendal_service_smb::register_smb_service;
 
@@ -210,4 +217,66 @@ fn resources_can_be_dropped_after_runtime_shutdown() {
     drop(reader);
     drop(writer);
     drop(op);
+}
+
+#[tokio::test]
+#[ignore = "requires the Samba fixture and OPENDAL_SMB_* configuration"]
+async fn list_without_trailing_slash_preserves_separator() {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        let cfg = config("list-no-slash");
+        let op = Operator::new(cfg.clone().into_builder()).unwrap();
+        op.write("sub/file.txt", "data").await.unwrap();
+        op.write("sub/child/nested.txt", "nested").await.unwrap();
+
+        let op_entries = op.list("sub").await.unwrap();
+        assert!(op_entries.iter().any(|entry| entry.path() == "sub/"));
+
+        let service = cfg.into_builder().build().unwrap();
+        let mut lister = service
+            .list(&OperationContext::default(), "sub", OpList::default())
+            .unwrap();
+        let mut paths = Vec::new();
+        while let Some(entry) = lister.next().await.unwrap() {
+            paths.push(entry.path().to_string());
+        }
+        paths.sort();
+        assert_eq!(paths, vec!["sub/", "sub/child/", "sub/file.txt"]);
+
+        op.delete("sub/child/nested.txt").await.unwrap();
+        op.delete("sub/child/").await.unwrap();
+        op.delete("sub/file.txt").await.unwrap();
+        op.delete("sub/").await.unwrap();
+        op.delete("/").await.unwrap();
+    })
+    .await
+    .expect("list_without_trailing_slash_preserves_separator timed out");
+}
+
+#[tokio::test]
+#[ignore = "requires the Samba fixture and OPENDAL_SMB_* configuration"]
+async fn rename_does_not_create_destination_parent_when_source_invalid() {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        let op = Operator::new(config("rename-parent").into_builder()).unwrap();
+        op.create_dir("/").await.unwrap();
+
+        let err = op
+            .rename("missing", "new-parent/nested/target")
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+        assert!(!op.exists("new-parent/").await.unwrap());
+
+        op.create_dir("existing-dir/").await.unwrap();
+        let err = op
+            .rename("existing-dir", "dir-parent/target")
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory);
+        assert!(!op.exists("dir-parent/").await.unwrap());
+
+        op.delete("existing-dir/").await.unwrap();
+        op.delete("/").await.unwrap();
+    })
+    .await
+    .expect("rename_does_not_create_destination_parent_when_source_invalid timed out");
 }

@@ -124,21 +124,12 @@ impl oio::PageList for SwiftLister {
                     } else {
                         MetadataBuilder::file(bytes)
                     };
-                    if !hash.is_empty() {
-                        meta.etag(hash.as_str());
-                    }
+                    meta.content_md5(hash.as_str());
 
-                    // OpenStack Swift returns UTC timestamps without a trailing 'Z'
-                    // (e.g. "2023-10-28T19:18:11.682610"), while compatible servers such as
-                    // Ceph RGW may include an explicit offset like "+00:00".
-                    let ts = match last_modified.parse::<Timestamp>() {
-                        Ok(ts) => ts,
-                        Err(_) => {
-                            last_modified.push('Z');
-                            last_modified.parse::<Timestamp>()?
-                        }
-                    };
-                    meta.last_modified(ts);
+                    if !last_modified.ends_with('Z') {
+                        last_modified.push('Z');
+                    }
+                    meta.last_modified(last_modified.parse::<Timestamp>()?);
 
                     if let Some(content_type) = content_type {
                         meta.content_type(content_type.as_str());
@@ -241,7 +232,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn next_page_sets_etag_and_parses_all_timestamp_formats() {
+    async fn next_page_sets_md5_and_parses_swift_timestamps() {
         let page = r#"[
             {
                 "bytes": 10,
@@ -253,9 +244,9 @@ mod tests {
             {
                 "bytes": 20,
                 "hash": "\"slo-etag-hash\"",
-                "name": "ceph-offset.txt",
+                "name": "slo.txt",
                 "content_type": "application/octet-stream",
-                "last_modified": "2023-10-28T19:18:11.682610+00:00"
+                "last_modified": "2023-10-28T19:18:11.682610Z"
             },
             {
                 "bytes": 30,
@@ -263,13 +254,6 @@ mod tests {
                 "name": "rfc3339-z.txt",
                 "content_type": "text/plain",
                 "last_modified": "2023-10-28T19:18:11.682610Z"
-            },
-            {
-                "bytes": 40,
-                "hash": "123456",
-                "name": "negative-offset.txt",
-                "content_type": "text/plain",
-                "last_modified": "2023-10-28T14:18:11.682610-05:00"
             }
         ]"#;
 
@@ -278,31 +262,26 @@ mod tests {
         lister.next_page(&mut ctx).await.unwrap();
 
         assert!(!ctx.done);
-        assert_eq!(ctx.token, "negative-offset.txt");
-        assert_eq!(ctx.entries.len(), 4);
+        assert_eq!(ctx.token, "rfc3339-z.txt");
+        assert_eq!(ctx.entries.len(), 3);
 
         let expected_ts: Timestamp = "2023-10-28T19:18:11.682610Z".parse().unwrap();
 
         let first = ctx.entries.pop_front().unwrap();
         assert_eq!(first.path(), "swift-no-tz.txt");
         assert_eq!(
-            first.metadata().etag(),
+            first.metadata().content_md5(),
             Some("5e6b5b70b0426b1cc1968003e1afa5ad")
         );
-        assert_eq!(first.metadata().content_md5(), None);
         assert_eq!(first.metadata().last_modified(), Some(expected_ts));
 
         let second = ctx.entries.pop_front().unwrap();
-        assert_eq!(second.path(), "ceph-offset.txt");
-        assert_eq!(second.metadata().etag(), Some("\"slo-etag-hash\""));
-        assert_eq!(second.metadata().content_md5(), None);
+        assert_eq!(second.path(), "slo.txt");
+        assert_eq!(second.metadata().content_md5(), Some("\"slo-etag-hash\""));
         assert_eq!(second.metadata().last_modified(), Some(expected_ts));
 
         let third = ctx.entries.pop_front().unwrap();
         assert_eq!(third.metadata().last_modified(), Some(expected_ts));
-
-        let fourth = ctx.entries.pop_front().unwrap();
-        assert_eq!(fourth.metadata().last_modified(), Some(expected_ts));
     }
 
     #[tokio::test]

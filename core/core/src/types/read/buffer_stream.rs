@@ -208,7 +208,7 @@ pub struct ChunkedReader {
     remaining: Option<u64>,
     suffix_revalidation: Option<SuffixRevalidation>,
     revalidated_range: Option<Range<u64>>,
-    opened: Option<Box<OpenedChunk>>,
+    opened: Option<OpenedChunk>,
     tasks: ConcurrentTasks<ChunkedReadInput, Buffer>,
     done: bool,
 }
@@ -311,7 +311,7 @@ impl ChunkedReader {
                 self.revalidated_range = Some(full_range);
                 self.suffix_revalidation = None;
                 self.ctx.observe_read_response(rp);
-                self.opened = Some(Box::new(OpenedChunk {
+                self.opened = Some(OpenedChunk {
                     input: ChunkedReadInput {
                         ctx: self.ctx.clone(),
                         range: first_range,
@@ -322,7 +322,7 @@ impl ChunkedReader {
                         next_offset: self.offset + read_size,
                         next_remaining: Some(total - read_size),
                     },
-                }));
+                });
                 Ok(())
             }
             Ok(None) => {
@@ -356,14 +356,14 @@ impl ChunkedReader {
                 let range = planned.range;
                 let (rp, reader) = self.ctx.reader().open(range).await?;
                 self.ctx.observe_read_response(rp);
-                self.opened = Some(Box::new(OpenedChunk {
+                self.opened = Some(OpenedChunk {
                     input: ChunkedReadInput {
                         ctx: self.ctx.clone(),
                         range,
                         reader: Some(reader),
                     },
                     planned,
-                }));
+                });
             } else {
                 self.done = true;
             }
@@ -425,7 +425,7 @@ impl oio::ReadStream for ChunkedReader {
 
         while self.tasks.has_remaining() && !self.done {
             if let Some(opened) = self.opened.take() {
-                let OpenedChunk { input, planned } = *opened;
+                let OpenedChunk { input, planned } = opened;
                 self.tasks.execute(input).await?;
                 self.commit_range(planned);
             } else if let Some(planned) = self.plan_next_range() {
@@ -709,39 +709,21 @@ impl Stream for BufferStream {
                             };
                             if let Some(max_size) = max_size {
                                 let chunk_len = buf.len() as u64;
-                                match this.read.checked_add(chunk_len) {
-                                    Some(next_read) if next_read <= max_size => {
-                                        this.state = State::Idle(Some(reader));
-                                        this.read = next_read;
-                                        return Poll::Ready(Some(Ok(buf)));
-                                    }
-                                    Some(next_read) => {
-                                        this.state = State::Done;
-                                        return Poll::Ready(Some(Err(check_complete(
-                                            Some(max_size),
-                                            next_read,
-                                        )
-                                        .unwrap_err())));
-                                    }
-                                    None => {
-                                        this.state = State::Done;
-                                        return Poll::Ready(Some(Err(Error::new(
-                                            ErrorKind::Unexpected,
-                                            "reader got too much data",
-                                        )
-                                        .with_context("expect", max_size)
-                                        .with_context(
-                                            "actual",
-                                            u128::from(this.read) + u128::from(chunk_len),
-                                        ))));
-                                    }
+                                if chunk_len > max_size.saturating_sub(this.read) {
+                                    this.state = State::Done;
+                                    let actual = this.read.saturating_add(chunk_len);
+                                    return Poll::Ready(Some(Err(Error::new(
+                                        ErrorKind::Unexpected,
+                                        "reader got too much data",
+                                    )
+                                    .with_context("expect", max_size)
+                                    .with_context("actual", actual))));
                                 }
-                            }
-                            this.state = State::Idle(Some(reader));
-                            if let Some(remaining) = remaining {
+                            } else if let Some(remaining) = remaining {
                                 buf.truncate((buf.len() as u64).min(remaining) as usize);
                             }
-                            this.read = this.read.saturating_add(buf.len() as u64);
+                            this.state = State::Idle(Some(reader));
+                            this.read += buf.len() as u64;
                             Poll::Ready(Some(Ok(buf)))
                         }
                         Err(err) => {

@@ -109,25 +109,19 @@ impl oio::PageList for AzblobLister {
             } else {
                 MetadataBuilder::file(object.properties.content_length)
             };
-            if !object.properties.etag.is_empty() {
-                let etag = object.properties.etag.as_str();
+            let etag = object.properties.etag.as_str();
+            if !etag.is_empty() {
                 if etag.starts_with('"') && etag.ends_with('"') && etag.len() >= 2 {
                     meta.etag(etag);
                 } else {
                     meta.etag(format!("\"{etag}\""));
                 }
             }
-            if !object.properties.content_md5.is_empty() {
-                meta.content_md5(object.properties.content_md5);
-            }
-            if !object.properties.content_type.is_empty() {
-                meta.content_type(object.properties.content_type);
-            }
-            if !object.properties.last_modified.is_empty() {
-                meta.last_modified(Timestamp::parse_rfc2822(
+            meta.content_md5(object.properties.content_md5)
+                .content_type(object.properties.content_type)
+                .last_modified(Timestamp::parse_rfc2822(
                     object.properties.last_modified.as_str(),
                 )?);
-            }
 
             let de = oio::Entry::with(path, meta.build());
             ctx.entries.push_back(de);
@@ -177,7 +171,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn list_stops_when_next_marker_missing_and_skips_empty_properties() {
+    async fn list_stops_when_next_marker_missing() {
         let xml = r#"<?xml version="1.0" encoding="utf-8"?>
 <EnumerationResults ServiceEndpoint="https://myaccount.blob.core.windows.net/" ContainerName="test">
   <Blobs>
@@ -236,8 +230,8 @@ mod tests {
 
         let append_meta = &by_path["append.log"];
         assert_eq!(append_meta.etag(), Some("\"0x8D123\""));
-        assert_eq!(append_meta.content_md5(), None);
-        assert_eq!(append_meta.content_type(), None);
+        assert_eq!(append_meta.content_md5(), Some(""));
+        assert_eq!(append_meta.content_type(), Some(""));
 
         let quoted_meta = &by_path["quoted.bin"];
         assert_eq!(quoted_meta.etag(), Some("\"0x8D456\""));
@@ -246,6 +240,6 @@ mod tests {
 
         let no_etag_meta = &by_path["no-etag.bin"];
         assert_eq!(no_etag_meta.etag(), None);
-        assert_eq!(no_etag_meta.content_md5(), None);
+        assert_eq!(no_etag_meta.content_md5(), Some(""));
     }
 }

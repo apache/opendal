@@ -35,9 +35,6 @@ class ReadStream extends Readable {
   }
 
   async _read(size) {
-    if (this.destroyed || !this.reader) {
-      return
-    }
     try {
       // Node can request size 0 when highWaterMark is 0.
       const chunk = await this.reader.readChunk(Math.min(Math.max(size, 1), 0xffffffff))
@@ -62,19 +59,14 @@ class BlockingReadStream extends Readable {
   }
 
   _read(size) {
-    if (this.destroyed || !this.reader) {
-      return
-    }
     try {
       // Node can request size 0 when highWaterMark is 0.
       const buf = Buffer.alloc(Math.max(size, 1))
       const s = this.reader.read(buf)
-      if (!this.destroyed) {
-        if (s === 0n) {
-          this.push(null)
-        } else {
-          this.push(buf.subarray(0, Number(s)))
-        }
+      if (s === 0n) {
+        this.push(null)
+      } else {
+        this.push(buf.subarray(0, Number(s)))
       }
     } catch (error) {
       this.destroy(error)
@@ -122,11 +114,6 @@ class WriteStream extends Writable {
         callback(error)
       })
   }
-
-  _destroy(error, callback) {
-    this.writer = null
-    callback(error)
-  }
 }
 
 class BlockingWriteStream extends Writable {
@@ -151,11 +138,6 @@ class BlockingWriteStream extends Writable {
     } catch (error) {
       callback(error)
     }
-  }
-
-  _destroy(error, callback) {
-    this.writer = null
-    callback(error)
   }
 }
 
@@ -190,24 +172,6 @@ Writer.prototype.createWriteStream = function (options) {
 }
 
 module.exports = { ...generated }
-module.exports.BlockingLister = generated.BlockingLister
-module.exports.BlockingReader = generated.BlockingReader
-module.exports.BlockingWriter = generated.BlockingWriter
-module.exports.Capability = generated.Capability
-module.exports.CapabilityOverrideLayer = generated.CapabilityOverrideLayer
-module.exports.ConcurrentLimitLayer = generated.ConcurrentLimitLayer
-module.exports.Entry = generated.Entry
-module.exports.EntryMode = generated.EntryMode
-module.exports.Layer = generated.Layer
-module.exports.Lister = generated.Lister
-module.exports.LoggingLayer = generated.LoggingLayer
-module.exports.Metadata = generated.Metadata
-module.exports.Operator = generated.Operator
-module.exports.Reader = generated.Reader
-module.exports.RetryLayer = generated.RetryLayer
-module.exports.ThrottleLayer = generated.ThrottleLayer
-module.exports.TimeoutLayer = generated.TimeoutLayer
-module.exports.Writer = generated.Writer
 module.exports.layers = {
   CapabilityOverrideLayer,
   ConcurrentLimitLayer,

@@ -232,7 +232,8 @@ pub fn parse(path: &str) -> Result<Services> {
             continue;
         }
         // A service crate can expose additional schemes through
-        // `<scheme>_config.rs` files next to its primary `config.rs`.
+        // `<scheme>_config.rs` files next to its primary `config.rs`, using
+        // underscores in place of hyphens in the Rust module names.
         for entry in read_dir(src_dir)? {
             let entry = entry?;
             if !entry.file_type()?.is_file() {
@@ -253,7 +254,7 @@ fn supplemental_service_name(path: &Path) -> Option<String> {
         .to_str()?
         .strip_suffix("_config.rs")
         .filter(|name| !name.is_empty())
-        .map(ToString::to_string)
+        .map(|name| name.replace('_', "-"))
 }
 
 fn insert_service(map: &mut Services, service: String, path: &Path) -> Result<()> {
@@ -945,5 +946,6 @@ For example, Ceph RADOS S3 doesn't support write with if match.".to_string(),
         assert!(services.contains_key("s3"));
         assert!(services.contains_key("r2"));
         assert!(services.contains_key("minio"));
+        assert!(services.contains_key("ceph-rgw"));
     }
 }

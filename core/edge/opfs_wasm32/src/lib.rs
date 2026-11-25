@@ -19,9 +19,17 @@
 #[cfg(test)]
 mod tests {
     use futures::TryStreamExt;
+    use opendal::Buffer;
+    use opendal::Builder;
+    use opendal::BytesRange;
     use opendal::EntryMode;
     use opendal::ErrorKind;
+    use opendal::OperationContext;
     use opendal::Operator;
+    use opendal::raw::{
+        OpList, OpRead, OpStat, OpWrite, Service,
+        oio::{List, Read, ReadStream, Write},
+    };
     use opendal::services::Opfs;
     use opendal::services::OpfsConfig;
     use wasm_bindgen_test::wasm_bindgen_test;
@@ -317,6 +325,265 @@ mod tests {
         op.write(path, content).await.expect("write");
         let buffer = op.read_with(path).range(3..5).await.expect("read");
         assert_eq!(buffer.to_bytes(), "34".as_bytes());
+        op.delete(path).await.expect("delete");
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_writer_double_close_and_abort_lifecycle() {
+        let op = new_operator();
+        let srv = Opfs::default().build().expect("build opfs service");
+        let ctx = OperationContext::default();
+        let path = "writer-lifecycle.txt";
+        let content = "keep-this-content";
+
+        // Test OPFS-level double-close directly below CompleteLayer.
+        let mut raw_w = srv
+            .write(&ctx, path, OpWrite::default())
+            .expect("raw writer");
+        raw_w.write(Buffer::from(content)).await.expect("raw write");
+        let meta = raw_w.close().await.expect("first raw close");
+        assert_eq!(meta.content_length(), content.len() as u64);
+
+        let err = raw_w.close().await.expect_err("second raw close must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let err = raw_w
+            .write(Buffer::from("extra"))
+            .await
+            .expect_err("raw write after close must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let err = raw_w
+            .abort()
+            .await
+            .expect_err("raw abort after close must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let buffer = op.read(path).await.expect("read back after double close");
+        assert_eq!(buffer.to_bytes(), content.as_bytes());
+
+        // Test OPFS-level double-abort directly below CompleteLayer.
+        let mut raw_w = srv
+            .write(&ctx, path, OpWrite::default())
+            .expect("second raw writer");
+        raw_w
+            .write(Buffer::from("discard"))
+            .await
+            .expect("staged raw write");
+        raw_w.abort().await.expect("first raw abort");
+        raw_w
+            .abort()
+            .await
+            .expect("second raw abort must be idempotent");
+        let err = raw_w
+            .close()
+            .await
+            .expect_err("raw close after abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let buffer = op.read(path).await.expect("read back after raw abort");
+        assert_eq!(buffer.to_bytes(), content.as_bytes());
+
+        // Also verify Operator-level close and abort preserve file contents.
+        let mut w = op.writer(path).await.expect("operator writer");
+        w.write("operator-discard")
+            .await
+            .expect("operator staged write");
+        w.abort().await.expect("operator abort");
+
+        let buffer = op.read(path).await.expect("read back after operator abort");
+        assert_eq!(buffer.to_bytes(), content.as_bytes());
+
+        let op_content = "operator-committed";
+        let mut w = op.writer(path).await.expect("operator commit writer");
+        w.write(op_content).await.expect("operator write");
+        let meta = w.close().await.expect("operator close");
+        assert_eq!(meta.content_length(), op_content.len() as u64);
+
+        let buffer = op.read(path).await.expect("read back after operator close");
+        assert_eq!(buffer.to_bytes(), op_content.as_bytes());
+
+        op.delete(path).await.expect("delete");
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_writer_without_writes() {
+        let op = new_operator();
+        let srv = Opfs::default().build().expect("build opfs service");
+        let ctx = OperationContext::default();
+        let path = "writer-without-writes.txt";
+
+        let mut writer = srv
+            .write(&ctx, path, OpWrite::default())
+            .expect("raw writer");
+        writer.abort().await.expect("abort unused writer");
+        writer.abort().await.expect("abort unused writer again");
+        let err = writer.close().await.expect_err("close after abort");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!op.exists(path).await.expect("check aborted file"));
+
+        op.write(path, "replace with empty").await.expect("write");
+        let mut writer = srv
+            .write(&ctx, path, OpWrite::default())
+            .expect("raw writer");
+        let meta = writer.close().await.expect("close unused writer");
+        assert_eq!(meta.content_length(), 0);
+        assert!(op.read(path).await.expect("read empty file").is_empty());
+        op.delete(path).await.expect("delete");
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_stat_and_non_recursive_delete_origin_root() {
+        let srv = Opfs::default().build().expect("build opfs service");
+        let ctx = OperationContext::default();
+        let rp = srv
+            .stat(&ctx, "/", OpStat::default())
+            .await
+            .expect("direct Service::stat on origin root must succeed");
+        assert_eq!(rp.into_metadata().mode(), EntryMode::DIR);
+
+        let op = new_operator();
+        op.write("origin-root-keep", "keep")
+            .await
+            .expect("write file under origin root");
+
+        let err = op
+            .delete("/")
+            .await
+            .expect_err("non-recursive delete on non-empty origin root must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(op.exists("origin-root-keep").await.expect("file survives"));
+
+        op.delete_with("/")
+            .recursive(true)
+            .await
+            .expect("clear origin root");
+        op.delete("/")
+            .await
+            .expect("non-recursive delete on empty origin root must succeed");
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_list_missing_dir_and_non_trailing_slash() {
+        let op = new_operator();
+        let srv = Opfs::default().build().expect("build opfs service");
+        let ctx = OperationContext::default();
+
+        for path in ["list-prefix-dir/", "list-prefix-dir/nested/"] {
+            assert!(op.list(path).await.expect("list missing dir").is_empty());
+        }
+        let mut missing = srv
+            .list(&ctx, "list-prefix-dir/", OpList::default())
+            .expect("raw lister for missing dir");
+        assert!(missing.next().await.expect("next on missing dir").is_none());
+
+        op.write("list-prefix-dir/file.txt", "hello")
+            .await
+            .expect("write file");
+        op.create_dir("list-prefix-dir/child/")
+            .await
+            .expect("create child dir");
+        assert!(
+            missing
+                .next()
+                .await
+                .expect("next after completion")
+                .is_none()
+        );
+
+        let mut lister = srv
+            .list(&ctx, "list-prefix-dir", OpList::default())
+            .expect("list without trailing slash");
+        let mut paths = Vec::new();
+        while let Some(entry) = lister.next().await.expect("next entry") {
+            paths.push(entry.path().to_string());
+        }
+        paths.sort();
+        assert_eq!(
+            paths,
+            vec!["list-prefix-dir/child/", "list-prefix-dir/file.txt"]
+        );
+
+        op.delete_with("list-prefix-dir/")
+            .recursive(true)
+            .await
+            .expect("cleanup");
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_read_with_out_of_bounds_and_edge_ranges() {
+        let op = new_operator();
+        let path = "numbers-range-bounds.txt";
+        op.write(path, "0123456789").await.expect("write");
+
+        let err = op
+            .read_with(path)
+            .range(100..105)
+            .await
+            .expect_err("out-of-bounds range must fail");
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+
+        // Also exercise OPFS range validation directly below CompleteLayer.
+        let srv = Opfs::default().build().expect("build opfs service");
+        let ctx = OperationContext::default();
+        let reader = srv
+            .read(&ctx, path, OpRead::default())
+            .expect("raw read handle");
+        let err = reader
+            .read(BytesRange::new(100, Some(5)))
+            .await
+            .expect_err("raw out-of-bounds range must fail");
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+
+        let err = op
+            .read_with(path)
+            .range(10..11)
+            .await
+            .expect_err("range at EOF must fail");
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+
+        let err = op
+            .read_with(path)
+            .range(8..20)
+            .await
+            .expect_err("strict bounded read must fail on a short result");
+        assert!(matches!(
+            err.kind(),
+            ErrorKind::Unexpected | ErrorKind::RangeNotSatisfied
+        ));
+
+        let (_, mut stream) = reader
+            .open(BytesRange::new(8, Some(12)))
+            .await
+            .expect("open raw stream crossing EOF");
+        let tail = stream.read_all().await.expect("read available bytes");
+        assert_eq!(tail.to_bytes(), b"89".as_slice());
+
+        let tail = op
+            .read_with(path)
+            .range(8..)
+            .limit(12)
+            .await
+            .expect("limited read may end at EOF");
+        assert_eq!(tail.to_bytes(), b"89".as_slice());
+
+        let suffix = BytesRange::suffix(3);
+        let (_, tail) = reader.read(suffix).await.expect("raw suffix read");
+        assert_eq!(tail.to_bytes(), b"789".as_slice());
+        let tail = op.read_with(path).range(suffix).await.expect("suffix read");
+        assert_eq!(tail.to_bytes(), b"789".as_slice());
+
+        let empty = op
+            .read_with(path)
+            .range(10..)
+            .await
+            .expect("open-ended range at EOF");
+        assert!(empty.is_empty());
+
         op.delete(path).await.expect("delete");
     }
 }

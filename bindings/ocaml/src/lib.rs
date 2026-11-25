@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
@@ -31,14 +30,14 @@ static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
         .unwrap()
 });
 
-pub fn new_operator(
-    scheme: String,
-    map: BTreeMap<String, String>,
-) -> Result<od::Operator, od::Error> {
-    let hm: HashMap<String, String> = map.into_iter().collect();
-    od::Operator::via_iter(scheme, hm)
+pub fn new_operator(scheme: &str, map: HashMap<String, String>) -> Result<od::Operator, od::Error> {
+    od::Operator::via_iter(scheme, map)
 }
 
 pub fn map_res_error<T>(res: Result<T, od::Error>) -> Result<T, String> {
     res.map_err(|e| e.to_string())
+}
+
+pub fn parse_utf8<'a>(bytes: &'a [u8], field: &str) -> Result<&'a str, String> {
+    std::str::from_utf8(bytes).map_err(|e| format!("{field} is not valid UTF-8: {e}"))
 }

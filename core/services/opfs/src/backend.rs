@@ -84,7 +84,7 @@ impl Service for OpfsBackend {
     async fn stat(&self, _ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
         let p = build_absolute_path(&self.core.root, path);
 
-        if p.ends_with('/') {
+        if p.is_empty() || p.ends_with('/') {
             get_directory_handle(&p, false).await?;
             return Ok(RpStat::new(MetadataBuilder::dir().build()));
         }

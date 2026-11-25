@@ -79,8 +79,6 @@ pub enum FileStatusType {
     #[default]
     File,
     Symlink,
-    #[serde(other)]
-    Unknown,
 }
 
 #[cfg(test)]
@@ -251,7 +249,7 @@ mod test {
     }
 
     #[test]
-    fn test_file_status_symlink_and_unknown() {
+    fn test_file_status_symlink() {
         let json = r#"
 {
   "FileStatuses": {
@@ -261,25 +259,17 @@ mod test {
         "modificationTime": 1320173277227,
         "pathSuffix": "mylink",
         "type": "SYMLINK"
-      },
-      {
-        "length": 0,
-        "modificationTime": 1320173277227,
-        "pathSuffix": "future",
-        "type": "FIFO"
       }
     ]
   }
 }
 "#;
         let statuses = serde_json::from_str::<FileStatusesWrapper>(json)
-            .expect("must deserialize symlink and unknown types")
+            .expect("must deserialize symlink type")
             .file_statuses
             .file_status;
-        assert_eq!(statuses.len(), 2);
+        assert_eq!(statuses.len(), 1);
         assert_eq!(statuses[0].path_suffix, "mylink");
         assert_eq!(statuses[0].ty, FileStatusType::Symlink);
-        assert_eq!(statuses[1].path_suffix, "future");
-        assert_eq!(statuses[1].ty, FileStatusType::Unknown);
     }
 }

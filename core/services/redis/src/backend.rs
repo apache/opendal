@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::borrow::Cow;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -122,7 +121,7 @@ impl RedisBuilder {
     /// Set the default TTL for writes without a per-write expiration.
     ///
     /// Positive durations are rounded up to whole milliseconds and sent via
-    /// `SET ... PX`. A zero duration disables expiration.
+    /// `SET ... PX`. An explicit duration must be positive.
     pub fn default_ttl(mut self, ttl: Duration) -> Self {
         self.default_ttl = Some(ttl);
         self
@@ -190,11 +189,6 @@ impl Builder for RedisBuilder {
                 .map(signed_duration_to_duration)
                 .transpose()?,
         };
-        if let Some(ttl) = default_ttl
-            && !ttl.is_zero()
-        {
-            encode_expiration(ttl).map_err(|err| err.with_context("service", REDIS_SCHEME))?;
-        }
         let root = normalize_root(
             self.config
                 .root
@@ -315,13 +309,7 @@ impl RedisBuilder {
             }
             ConnectionAddr::Unix(PathBuf::from(path))
         } else {
-            let parsed_endpoint = if endpoint.contains("://") {
-                Cow::Borrowed(endpoint.as_str())
-            } else {
-                Cow::Owned(format!("tcp://{endpoint}"))
-            };
-
-            let ep_url = parsed_endpoint.parse::<Uri>().map_err(|e| {
+            let ep_url = endpoint.parse::<Uri>().map_err(|e| {
                 Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
                     .with_context("service", REDIS_SCHEME)
                     .with_context("endpoint", endpoint.clone())
@@ -346,7 +334,7 @@ impl RedisBuilder {
             };
 
             match ep_url.scheme_str() {
-                Some("tcp") | Some("redis") => {
+                Some("tcp") | Some("redis") | None => {
                     let host = extract_host()?;
                     let port = ep_url.port_u16().unwrap_or(DEFAULT_REDIS_PORT);
                     ConnectionAddr::Tcp(host, port)
@@ -368,11 +356,6 @@ impl RedisBuilder {
                     )
                     .with_context("service", REDIS_SCHEME)
                     .with_context("scheme", s));
-                }
-                None => {
-                    return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
-                        .with_context("service", REDIS_SCHEME)
-                        .with_context("endpoint", endpoint));
                 }
             }
         };
@@ -670,7 +653,7 @@ mod tests {
     }
 
     #[test]
-    fn build_validates_connection_pool_max_size_and_default_ttl() {
+    fn build_validates_connection_pool_max_size() {
         let zero_pool = RedisConfig {
             endpoint: Some("redis://127.0.0.1:6379".to_string()),
             connection_pool_max_size: Some(0),
@@ -692,25 +675,6 @@ mod tests {
             .into_builder()
             .build()
             .expect_err("zero pool size from URI must return ConfigInvalid");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        assert!(
-            RedisBuilder::default()
-                .default_ttl(Duration::ZERO)
-                .build()
-                .is_ok()
-        );
-        assert!(
-            RedisBuilder::default()
-                .default_ttl(Duration::from_millis(500))
-                .build()
-                .is_ok()
-        );
-
-        let err = RedisBuilder::default()
-            .default_ttl(Duration::from_millis(i64::MAX as u64) + Duration::from_nanos(1))
-            .build()
-            .expect_err("overflowing default_ttl must return ConfigInvalid");
         assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
 }

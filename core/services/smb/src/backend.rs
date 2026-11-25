@@ -277,9 +277,6 @@ impl Service for SmbBackend {
     ) -> Result<RpRename> {
         let source = self.core.path(from)?;
         let target = self.core.path(to)?;
-        if let Some((parent, _)) = to.rsplit_once('/') {
-            self.core.create_dir(parent).await?;
-        }
         let client = self.core.client().await?;
         let args = FileCreateArgs::make_open_existing(FileAccessMask::new().with_delete(true));
         let resource = client
@@ -305,22 +302,29 @@ impl Service for SmbBackend {
                 ));
             }
         };
-        let result = file
-            .set_info(FileRenameInformation {
+        let result = async {
+            if let Some((parent, _)) = to.rsplit_once('/') {
+                self.core.create_dir(parent).await?;
+            }
+            file.set_info(FileRenameInformation {
                 replace_if_exists: (!op.if_not_exists()).into(),
                 root_directory: 0,
                 file_name: target.path().unwrap_or_default().into(),
             })
-            .await;
-        file.close().await.map_err(parse_smb_error)?;
-        result.map_err(|error| {
-            let error = parse_smb_error(error);
-            if op.if_not_exists() && error.kind() == ErrorKind::AlreadyExists {
-                Error::new(ErrorKind::ConditionNotMatch, "file already exists").set_source(error)
-            } else {
-                error
-            }
-        })?;
+            .await
+            .map_err(|error| {
+                let error = parse_smb_error(error);
+                if op.if_not_exists() && error.kind() == ErrorKind::AlreadyExists {
+                    Error::new(ErrorKind::ConditionNotMatch, "file already exists")
+                        .set_source(error)
+                } else {
+                    error
+                }
+            })
+        }
+        .await;
+        let close_result = file.close().await.map_err(parse_smb_error);
+        result.and(close_result)?;
         Ok(RpRename::default())
     }
 

@@ -260,7 +260,7 @@ export declare class ConcurrentLimitLayer {
    *
    * # Errors
    *
-   * Returns an error if `permits` is not an integer between 1 and 4294967295.
+   * Returns an error if the permit count is zero or outside the semaphore's range.
    */
   constructor(permits: number)
   /**
@@ -274,7 +274,7 @@ export declare class ConcurrentLimitLayer {
    *
    * # Errors
    *
-   * Returns an error if `v` is not an integer between 1 and 4294967295.
+   * Returns an error if the permit count is zero or outside the semaphore's range.
    */
   set httpPermits(v: number)
   /**
@@ -945,16 +945,9 @@ export declare class RetryLayer {
    * Set max_times of current backoff.
    *
    * Backoff will return `None` if max times are reached.
-   *
-   * The value must be an integer between 0 and 4294967295. `0` disables
-   * retries.
    */
   set maxTimes(v: number)
-  /**
-   * Set factor of current backoff.
-   *
-   * The value must be a finite number between `1.0` and `340282350000000000000000000000000000000`.
-   */
+  /** Set the multiplier between retry delays. */
   set factor(v: number)
   /**
    * Set max_delay of current backoff.
@@ -964,7 +957,6 @@ export declare class RetryLayer {
    * # Notes
    *
    * - The unit of max_delay is millisecond.
-   * - The value must be a finite, non-negative number.
    */
   set maxDelay(v: number)
   /**
@@ -973,7 +965,6 @@ export declare class RetryLayer {
    * # Notes
    *
    * - The unit of min_delay is millisecond.
-   * - The value must be a finite, non-negative number.
    */
   set minDelay(v: number)
   build(): ExternalObject<Layer>
@@ -1017,9 +1008,7 @@ export declare class ThrottleLayer {
    *
    * # Notes
    *
-   * `bandwidth` and `burst` must be integers between 1 and 4294967295.
-   * Fractional values, and values that N-API would truncate or wrap, are
-   * rejected instead of silently changing the rate limit.
+   * Both converted arguments must be greater than zero.
    */
   constructor(bandwidth: number, burst: number)
   build(): ExternalObject<Layer>
@@ -1065,8 +1054,6 @@ export declare class TimeoutLayer {
    *
    * - The unit is millisecond.
    * - Default is 60000ms (60 seconds).
-   * - The value must be finite and greater than 0. A zero timeout is
-   *   rejected because it would time out every operation immediately.
    */
   set timeout(v: number)
   /**
@@ -1076,8 +1063,6 @@ export declare class TimeoutLayer {
    *
    * - The unit is millisecond.
    * - Default is 10000ms (10 seconds).
-   * - The value must be finite and greater than 0. A zero timeout is
-   *   rejected because it would time out every operation immediately.
    */
   set ioTimeout(v: number)
   build(): ExternalObject<Layer>
@@ -1139,8 +1124,6 @@ export interface ListOptions {
    * that could return per-request.
    *
    * Users could use this to control the memory usage of list operation.
-   *
-   * The value must be an integer between 0 and 4294967295.
    */
   limit?: number
   /** * The start_after passed to underlying service to specify the specified key
@@ -1206,8 +1189,6 @@ export interface ReaderOptions {
   /** * Sets the chunk size for this operation.
    *
    * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
-   *
-   * The value must be an integer between 0 and 4294967295.
    */
   chunk?: number
   /** Controls the number of prefetched bytes ranges that can be buffered in memory
@@ -1223,8 +1204,6 @@ export interface ReaderOptions {
    *
    * This option helps prevent memory exhaustion when reading large files with high
    * concurrency settings.
-   *
-   * The value must be an integer between 0 and 4294967295.
    */
   prefetch?: number
   /** * Controls the optimization strategy for range reads in [`Reader::fetch`].
@@ -1282,8 +1261,6 @@ export interface ReadOptions {
   /** * Sets the chunk size for this operation.
    *
    * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
-   *
-   * The value must be an integer between 0 and 4294967295.
    */
   chunk?: number
   /** * Controls the optimization strategy for range reads in [`Reader::fetch`].

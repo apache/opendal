@@ -25,6 +25,12 @@ use reqsign_aws_v4::EnvCredentialProvider;
 use reqsign_aws_v4::ProfileCredentialProvider;
 use reqsign_aws_v4::StaticCredentialProvider;
 use reqsign_core::ProvideCredentialChain;
+use url::Host;
+use url::Url;
+
+use crate::backend::S3Backend;
+use crate::backend::S3Builder;
+use crate::config::S3Config;
 
 pub(crate) fn from_uri<C: Configurator>(uri: &OperatorUri) -> Result<C> {
     let mut map = uri.options().clone();
@@ -120,6 +126,193 @@ pub(crate) fn credential_chain(
 
     chain
 }
+
+pub(crate) fn dns_label<'a>(
+    value: &'a str,
+    scheme: &'static str,
+    field: &'static str,
+) -> Result<&'a str> {
+    let value_bytes = value.as_bytes();
+    if value_bytes.len() <= 63
+        && value_bytes.first().is_some_and(u8::is_ascii_alphanumeric)
+        && value_bytes.last().is_some_and(u8::is_ascii_alphanumeric)
+        && value_bytes
+            .iter()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'-')
+    {
+        return Ok(value);
+    }
+    Err(config_error(scheme, "expected a lowercase DNS label").with_context("field", field))
+}
+
+pub(crate) struct Connection {
+    pub(crate) endpoint: String,
+    pub(crate) region: String,
+    pub(crate) virtual_host_style: bool,
+}
+
+impl Connection {
+    pub(crate) fn build(self, mut config: S3Config, scheme: &'static str) -> Result<S3Backend> {
+        validate_required(&config.bucket, scheme, "bucket must not be empty")?;
+        validate_required(&self.region, scheme, "region must not be empty")?;
+        validate_credentials(
+            config.access_key_id.as_deref(),
+            config.secret_access_key.as_deref(),
+            config.session_token.as_deref(),
+            scheme,
+        )?;
+
+        let invalid_endpoint = || {
+            config_error(
+                scheme,
+                "endpoint must be an HTTP(S) base URL without credentials, a query, or a fragment",
+            )
+        };
+        let (_, authority_and_path) = self
+            .endpoint
+            .split_once("://")
+            .ok_or_else(invalid_endpoint)?;
+        let mut endpoint = Url::parse(&self.endpoint).map_err(|_| invalid_endpoint())?;
+        if authority_and_path.starts_with(['/', '\\'])
+            || !matches!(endpoint.scheme(), "http" | "https")
+            || !endpoint.has_host()
+            || !endpoint.username().is_empty()
+            || endpoint.password().is_some()
+            || endpoint.query().is_some()
+            || endpoint.fragment().is_some()
+        {
+            return Err(invalid_endpoint());
+        }
+
+        // Preset endpoints are base URLs. The first host label can be a location
+        // or namespace that happens to match the bucket name.
+        if self.virtual_host_style {
+            let Some(Host::Domain(host)) = endpoint.host() else {
+                return Err(config_error(
+                    scheme,
+                    "virtual-hosted-style requests require a DNS endpoint",
+                ));
+            };
+            let bucket = dns_label(&config.bucket, scheme, "bucket")?;
+            endpoint
+                .set_host(Some(&format!("{bucket}.{host}")))
+                .map_err(|_| invalid_endpoint())?;
+        } else {
+            if matches!(config.bucket.as_str(), "." | "..") {
+                return Err(config_error(scheme, "bucket cannot be a dot segment"));
+            }
+            endpoint
+                .path_segments_mut()
+                .expect("HTTP(S) URLs support path segments")
+                .pop_if_empty()
+                .push(&config.bucket);
+        }
+
+        let credential_providers = credential_chain(
+            config.access_key_id.as_deref(),
+            config.secret_access_key.as_deref(),
+            config.session_token.as_deref(),
+        );
+        config.region = Some(self.region);
+        config.enable_virtual_host_style = self.virtual_host_style;
+        config.disable_ec2_metadata = true;
+        S3Builder::from_provider_config(config, credential_providers).build_with_resolved_endpoint(
+            scheme,
+            endpoint.as_str().trim_end_matches('/').to_owned(),
+        )
+    }
+}
+
+// Each config declares its own fields and resolves its own connection. The
+// builder and registry implement the same OpenDAL contracts for every preset.
+macro_rules! provider_preset {
+    (
+        $config:ident, $builder:ident, $scheme:ident = $name:literal, $register:ident, $guide:literal;
+        required { $( $required:ident : $required_doc:literal ),+ $(,)? }
+        optional { $( $optional:ident : $optional_doc:literal ),+ $(,)? }
+        flags { $( $flag:ident : $flag_doc:literal ),* $(,)? }
+        $( token: $session_token:ident; )?
+    ) => {
+        #[doc = concat!("URI scheme for the `", $name, "` preset.")]
+        pub const $scheme: &str = $name;
+
+        #[doc = concat!("Register the `", $name, "` URI scheme with an operator registry.")]
+        pub fn $register(registry: &opendal_core::OperatorRegistry) {
+            registry.register::<$builder>($scheme);
+        }
+
+        #[doc = include_str!($guide)]
+        #[derive(Debug, Default)]
+        pub struct $builder {
+            config: $config,
+        }
+
+        impl $builder {
+            $(
+                #[doc = $required_doc]
+                pub fn $required(mut self, value: &str) -> Self {
+                    self.config.$required = value.to_owned();
+                    self
+                }
+            )+
+            $(
+                #[doc = $optional_doc]
+                pub fn $optional(mut self, value: &str) -> Self {
+                    self.config.$optional = Some(value.to_owned());
+                    self
+                }
+            )+
+            $(
+                #[doc = $flag_doc]
+                pub fn $flag(mut self, value: bool) -> Self {
+                    self.config.$flag = Some(value);
+                    self
+                }
+            )*
+        }
+
+        impl opendal_core::Builder for $builder {
+            type Config = $config;
+
+            fn build(self) -> opendal_core::Result<impl opendal_core::raw::Service> {
+                let connection = self.config.connection()?;
+                let config = crate::config::S3Config {
+                    root: self.config.root,
+                    bucket: self.config.bucket,
+                    access_key_id: self.config.access_key_id,
+                    secret_access_key: self.config.secret_access_key,
+                    $( session_token: self.config.$session_token, )?
+                    ..Default::default()
+                };
+                connection.build(config, $scheme)
+            }
+        }
+
+        impl opendal_core::Configurator for $config {
+            type Builder = $builder;
+
+            fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
+                $crate::preset::from_uri(uri)
+            }
+
+            fn into_builder(self) -> Self::Builder {
+                $builder { config: self }
+            }
+        }
+
+        impl std::fmt::Debug for $config {
+            fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter
+                    .debug_struct(stringify!($config))
+                    .field("root", &self.root)
+                    .field("bucket", &self.bucket)
+                    .finish_non_exhaustive()
+            }
+        }
+    };
+}
+
+pub(crate) use provider_preset;
 
 #[cfg(test)]
 mod tests {

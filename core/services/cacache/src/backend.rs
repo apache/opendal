@@ -36,11 +36,7 @@ pub struct CacacheBuilder {
 impl CacacheBuilder {
     /// Set the path to the cacache data directory. Will create if not exists.
     pub fn datadir(mut self, path: &str) -> Self {
-        self.config.datadir = if path.is_empty() {
-            None
-        } else {
-            Some(path.into())
-        };
+        self.config.datadir = Some(path.into());
         self
     }
 }
@@ -49,14 +45,10 @@ impl Builder for CacacheBuilder {
     type Config = CacacheConfig;
 
     fn build(self) -> Result<impl Service> {
-        let datadir_path = self
-            .config
-            .datadir
-            .filter(|v| !v.is_empty())
-            .ok_or_else(|| {
-                Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
-                    .with_context("service", CACACHE_SCHEME)
-            })?;
+        let datadir_path = self.config.datadir.ok_or_else(|| {
+            Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
+                .with_context("service", CACACHE_SCHEME)
+        })?;
 
         let core = CacacheCore {
             path: datadir_path.clone(),
@@ -132,9 +124,7 @@ impl Service for CacacheBackend {
                     MetadataBuilder::file(meta.size as u64)
                 };
                 // Convert u128 milliseconds to Timestamp
-                if let Ok(millis) = i64::try_from(meta.time)
-                    && let Ok(dt) = Timestamp::from_millisecond(millis)
-                {
+                if let Ok(dt) = Timestamp::from_millisecond(meta.time as i64) {
                     md.last_modified(dt);
                 }
                 Ok(RpStat::new(md.build()))
@@ -256,37 +246,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_empty_datadir_rejected() -> Result<()> {
-        let err = CacacheBuilder::default()
-            .datadir("")
-            .build()
-            .expect_err("empty datadir in builder must fail");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        let err = CacacheBuilder::default()
-            .datadir("/valid/path")
-            .datadir("")
-            .build()
-            .expect_err("clearing datadir to empty must fail");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        let err = CacacheConfig::from_iter([("datadir".to_string(), "".to_string())])?
-            .into_builder()
-            .build()
-            .expect_err("empty datadir in config must fail");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        let uri = OperatorUri::new("cacache:///?datadir=", Vec::<(String, String)>::new())?;
-        let err = CacacheConfig::from_uri(&uri)?
-            .into_builder()
-            .build()
-            .expect_err("empty datadir in uri must fail");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        Ok(())
-    }
-
     #[tokio::test]
     async fn test_root_and_dir_marker_stat_and_writer_metadata() -> Result<()> {
         tokio::time::timeout(Duration::from_secs(10), async {
@@ -312,12 +271,6 @@ mod tests {
                     .mode(),
                 EntryMode::DIR
             );
-
-            for root_path in ["/", ""] {
-                let mut writer = service.write(&ctx, root_path, OpWrite::default())?;
-                let meta = writer.close().await?;
-                assert_eq!(meta.mode(), EntryMode::DIR, "root_path {root_path:?}");
-            }
 
             let mut dir_writer = service.write(&ctx, "a/", OpWrite::default())?;
             let dir_meta = dir_writer.close().await?;

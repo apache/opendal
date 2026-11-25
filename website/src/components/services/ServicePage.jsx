@@ -363,7 +363,9 @@ export default function ServicePage({ data }) {
         )}
 
         <section className={styles.section}>
-          <h2>Configuration reference</h2>
+          <Heading as="h2" id="configuration-reference">
+            Configuration reference
+          </Heading>
           {service.configs.length === 0 ? (
             <p>This service takes no configuration options.</p>
           ) : (

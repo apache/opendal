@@ -21,8 +21,11 @@
 -- repetition, especially after forcing the garbage collector.
 module ResourceTest (resourceTests) where
 
+import Control.Exception (bracket)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.ByteString as BS
+import qualified Data.HashMap.Strict as HashMap
+import GHC.IO.Encoding (getForeignEncoding, latin1, setForeignEncoding)
 import OpenDAL
 import System.Mem (performGC)
 import Test.Tasty
@@ -38,7 +41,8 @@ resourceTests =
       testCase "testRepeatedStatOps" testRepeatedStatOps,
       testCase "testListerExhaustion" testListerExhaustion,
       testCase "testForeignPtrFinalizers" testForeignPtrFinalizers,
-      testCase "testRepeatedWriterClose" testRepeatedWriterClose
+      testCase "testRepeatedWriterClose" testRepeatedWriterClose,
+      testCase "testUtf8UnderLatin1Encoding" testUtf8UnderLatin1Encoding
     ]
 
 testRepeatedReadOps :: Assertion
@@ -144,6 +148,45 @@ testRepeatedWriterClose = do
     )
     ([1 .. 50] :: [Int])
   performGC
+
+testUtf8UnderLatin1Encoding :: Assertion
+testUtf8UnderLatin1Encoding =
+  bracket getForeignEncoding setForeignEncoding $ \_ -> do
+    setForeignEncoding latin1
+    Right op <-
+      newOperator
+        OperatorConfig
+          { ocScheme = "memory",
+            ocConfig = HashMap.fromList [("root", "/根目录-café/")],
+            ocLogAction = Nothing
+          }
+    let dirPath = "目录-café/"
+        filePath = "目录-café/日本語-file.txt"
+        missingPath = "不存在/café.txt"
+    createDirOpRaw op dirPath ?= Right ()
+    writeOpRaw op filePath "hello-utf8" ?= Right ()
+    isExistOpRaw op filePath ?= Right True
+    readOpRaw op filePath ?= Right "hello-utf8"
+    statOpRaw op filePath >>= \case
+      Right meta -> mContentLength meta @?= 10
+      Left err -> assertFailure $ "stat failed: " ++ show err
+    Right lister <- listOpRaw op dirPath
+    items <- collectListerItems lister
+    assertBool ("expected UTF-8 path in listing, got: " ++ show items) (filePath `elem` items)
+    readOpRaw op missingPath >>= \case
+      Left err -> errorCode err @?= NotFound
+      Right _ -> assertFailure "Expected NotFound for missing UTF-8 path"
+    deleteOpRaw op filePath ?= Right ()
+    isExistOpRaw op filePath ?= Right False
+  where
+    collectListerItems lister = go []
+      where
+        go acc = do
+          r <- nextLister lister
+          case r of
+            Right (Just p) -> go (p : acc)
+            Right Nothing -> return acc
+            Left err -> assertFailure $ "lister error: " ++ show err
 
 -- helper function
 

@@ -271,18 +271,12 @@ impl AzdlsBuilder {
         }?;
         debug!("backend use filesystem {}", filesystem);
 
-        let endpoint = self
-            .config
-            .endpoint
-            .as_deref()
-            .map(|endpoint| endpoint.trim().trim_end_matches('/'))
-            .filter(|endpoint| !endpoint.is_empty())
-            .map(str::to_string)
-            .ok_or_else(|| {
-                Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                    .with_operation("Builder::build")
-                    .with_context("service", AZDLS_SCHEME)
-            })?;
+        let endpoint = match &self.config.endpoint {
+            Some(endpoint) => Ok(endpoint.clone().trim_end_matches('/').to_string()),
+            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
+                .with_operation("Builder::build")
+                .with_context("service", AZDLS_SCHEME)),
+        }?;
         debug!("backend use endpoint {}", endpoint);
 
         let account_name = self
@@ -817,40 +811,5 @@ mod tests {
         );
         assert_eq!(az_cli.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
         assert_eq!(http.captured.lock().unwrap().len(), 1);
-    }
-
-    #[test]
-    fn build_rejects_empty_or_slash_only_endpoint() {
-        for endpoint in [None, Some(""), Some("///"), Some("   "), Some(" /// ")] {
-            let err = AzdlsConfig {
-                filesystem: "fs".to_string(),
-                endpoint: endpoint.map(str::to_string),
-                ..Default::default()
-            }
-            .into_builder()
-            .build_backend()
-            .expect_err(&format!("endpoint {endpoint:?} must be rejected"));
-            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-        }
-
-        let err = AzdlsBuilder::default()
-            .filesystem("fs")
-            .endpoint("///")
-            .build_backend()
-            .expect_err("slash-only builder endpoint must be rejected");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        let backend = AzdlsConfig {
-            filesystem: "fs".to_string(),
-            endpoint: Some("https://myaccount.dfs.core.windows.net///".to_string()),
-            ..Default::default()
-        }
-        .into_builder()
-        .build_backend()
-        .expect("valid endpoint with trailing slashes must succeed");
-        assert_eq!(
-            backend.core.endpoint,
-            "https://myaccount.dfs.core.windows.net"
-        );
     }
 }

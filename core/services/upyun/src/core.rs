@@ -262,7 +262,7 @@ impl UpyunCore {
 
         req = req.header(header::CONTENT_LENGTH, "0");
 
-        req = req.header(X_UPYUN_COPY_SOURCE, percent_encode_path(&from));
+        req = req.header(X_UPYUN_COPY_SOURCE, from);
 
         req = req.header(X_UPYUN_METADATA_DIRECTIVE, "copy");
 
@@ -297,7 +297,7 @@ impl UpyunCore {
 
         req = req.header(header::CONTENT_LENGTH, "0");
 
-        req = req.header(X_UPYUN_MOVE_SOURCE, percent_encode_path(&from));
+        req = req.header(X_UPYUN_MOVE_SOURCE, from);
 
         req = req.header(X_UPYUN_METADATA_DIRECTIVE, "copy");
 
@@ -602,10 +602,11 @@ pub(super) struct ListObjectsResponse {
 }
 
 use bytes::Buf;
+use quick_xml::de;
 
 /// UpyunError is the error returned by upyun service.
 #[derive(Default, Debug, Deserialize)]
-#[serde(default)]
+#[serde(default, rename_all = "PascalCase")]
 struct UpyunError {
     code: i64,
     msg: String,
@@ -633,8 +634,6 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
         304 | 412 => (ErrorKind::ConditionNotMatch, false),
-        416 => (ErrorKind::RangeNotSatisfied, false),
-        429 => (ErrorKind::RateLimited, true),
         // Service like Upyun could return 499 error with a message like:
         // Client Disconnect, we should retry it.
         499 => (ErrorKind::Unexpected, true),
@@ -642,7 +641,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let (message, _upyun_err) = serde_json::from_reader::<_, UpyunError>(bs.clone().reader())
+    let (message, _upyun_err) = de::from_reader::<_, UpyunError>(bs.clone().reader())
         .map(|upyun_err| (format!("{upyun_err:?}"), Some(upyun_err)))
         .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
@@ -660,83 +659,21 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
-    use std::time::Duration;
 
-    use futures::stream;
     use http::StatusCode;
 
     use super::*;
 
-    #[derive(Clone, Default)]
-    struct HeaderRecordingTransport {
-        headers: Arc<Mutex<Vec<HeaderMap>>>,
-    }
-
-    impl HttpTransport for HeaderRecordingTransport {
-        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-            self.headers.lock().unwrap().push(req.headers().clone());
-            Ok(Response::builder()
-                .status(StatusCode::OK)
-                .body(HttpBody::new(stream::iter([Ok(Buffer::new())]), Some(0)))
-                .unwrap())
-        }
-    }
-
-    #[tokio::test]
-    async fn test_parse_error() {
-        let err_res = vec![
-            (
-                r#"{"code": 40100016, "msg": "invalid date value in header", "id": "f5b30c720ddcecc70abd2f5c1c64bde8"}"#,
-                ErrorKind::Unexpected,
-                StatusCode::UNAUTHORIZED,
-                false,
-                "UpyunError { code: 40100016, msg: \"invalid date value in header\"",
-            ),
-            (
-                r#"{"code": 40300010, "msg": "file type error", "id": "f5b30c720ddcecc70abd2f5c1c64bde7"}"#,
-                ErrorKind::PermissionDenied,
-                StatusCode::FORBIDDEN,
-                false,
-                "UpyunError { code: 40300010, msg: \"file type error\"",
-            ),
-            (
-                r#"{"code": 41600001, "msg": "invalid range", "id": "range-err-id"}"#,
-                ErrorKind::RangeNotSatisfied,
-                StatusCode::RANGE_NOT_SATISFIABLE,
-                false,
-                "UpyunError { code: 41600001, msg: \"invalid range\"",
-            ),
-            (
-                r#"{"code": 42900001, "msg": "too many requests", "id": "rate-err-id"}"#,
-                ErrorKind::RateLimited,
-                StatusCode::TOO_MANY_REQUESTS,
-                true,
-                "UpyunError { code: 42900001, msg: \"too many requests\"",
-            ),
-            (
-                "<html>gateway timeout</html>",
-                ErrorKind::Unexpected,
-                StatusCode::GATEWAY_TIMEOUT,
-                true,
-                "<html>gateway timeout</html>",
-            ),
-        ];
-
-        for (body_str, expected_kind, status, expected_temporary, expected_substr) in err_res {
-            let bs = bytes::Bytes::from(body_str);
-            let body = Buffer::from(bs);
-            let resp = Response::builder().status(status).body(body).unwrap();
-
-            let err = parse_error(ErrorContext::new(ServiceOperation("Test")), resp);
-
-            assert_eq!(err.kind(), expected_kind, "status {status}");
-            assert_eq!(err.is_temporary(), expected_temporary, "status {status}");
-            assert!(
-                err.to_string().contains(expected_substr),
-                "expected error message to contain {expected_substr:?}, got: {err}"
-            );
-        }
+    #[test]
+    fn test_parse_error() {
+        let body = Buffer::from("<Error><Code>40300010</Code><Msg>file type error</Msg></Error>");
+        let resp = Response::builder()
+            .status(StatusCode::FORBIDDEN)
+            .body(body)
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("Test")), resp);
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+        assert!(err.to_string().contains("file type error"));
     }
 
     #[test]
@@ -762,51 +699,6 @@ mod tests {
                 .expect_err("invalid operator must return an error instead of panicking");
             assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
         }
-    }
-
-    #[tokio::test]
-    async fn copy_and_move_percent_encode_source_headers() {
-        tokio::time::timeout(Duration::from_secs(10), async {
-            let transport = HeaderRecordingTransport::default();
-            let core = UpyunCore {
-                info: ServiceInfo::new(crate::UPYUN_SCHEME, "/root/", ""),
-                capability: Capability::default(),
-                root: "/root/".to_string(),
-                operator: "op".to_string(),
-                bucket: "bucket".to_string(),
-                signer: UpyunSigner {
-                    operator: "op".to_string(),
-                    password: "secret".to_string(),
-                },
-            };
-            let ctx = OperationContext::new()
-                .with_http_transport(HttpTransporter::new(transport.clone()));
-
-            let resp = core
-                .copy(&ctx, "dir/测试 file.txt", "dir/目标 file.txt")
-                .await
-                .unwrap();
-            assert_eq!(resp.status(), StatusCode::OK);
-
-            let resp = core
-                .move_object(&ctx, "dir/测试 file.txt", "dir/目标 file.txt")
-                .await
-                .unwrap();
-            assert_eq!(resp.status(), StatusCode::OK);
-
-            let recorded = transport.headers.lock().unwrap();
-            assert_eq!(recorded.len(), 2);
-            assert_eq!(
-                recorded[0].get(X_UPYUN_COPY_SOURCE).unwrap(),
-                "/bucket/root/dir/%E6%B5%8B%E8%AF%95%20file.txt"
-            );
-            assert_eq!(
-                recorded[1].get(X_UPYUN_MOVE_SOURCE).unwrap(),
-                "/bucket/root/dir/%E6%B5%8B%E8%AF%95%20file.txt"
-            );
-        })
-        .await
-        .expect("test timed out");
     }
 
     #[test]

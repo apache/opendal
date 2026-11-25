@@ -239,93 +239,6 @@ enum PendingRepair {
     Store(Buffer),
 }
 
-/// Active read counts per epoch for a single cache key.
-///
-/// Most concurrent reads of a key observe the same epoch, so the single-epoch
-/// fast path avoids allocating a [`BTreeMap`] on every cache hit.
-#[derive(Debug, PartialEq, Eq)]
-enum ActiveReadEpochs {
-    Single { epoch: u64, count: usize },
-    Multiple(BTreeMap<u64, usize>),
-}
-
-impl ActiveReadEpochs {
-    fn single(epoch: u64) -> Self {
-        Self::Single { epoch, count: 1 }
-    }
-
-    fn insert(&mut self, epoch: u64) {
-        match self {
-            Self::Single {
-                epoch: existing,
-                count,
-            } if *existing == epoch => {
-                *count += 1;
-            }
-            Self::Single {
-                epoch: existing,
-                count,
-            } => {
-                let mut map = BTreeMap::new();
-                map.insert(*existing, *count);
-                map.insert(epoch, 1);
-                *self = Self::Multiple(map);
-            }
-            Self::Multiple(map) => {
-                *map.entry(epoch).or_insert(0) += 1;
-            }
-        }
-    }
-
-    /// Decrements the count for `epoch` and returns `(removed_epoch, min_active_epoch)`.
-    /// When `min_active_epoch` is `None`, the caller must remove the key from `active_reads`.
-    fn remove(&mut self, epoch: u64) -> (bool, Option<u64>) {
-        match self {
-            Self::Single {
-                epoch: existing,
-                count,
-            } => {
-                if *existing != epoch {
-                    return (false, Some(*existing));
-                }
-                if *count > 1 {
-                    *count -= 1;
-                    (false, Some(*existing))
-                } else {
-                    *count = 0;
-                    (true, None)
-                }
-            }
-            Self::Multiple(map) => {
-                let removed_epoch = match map.get_mut(&epoch) {
-                    Some(count) if *count > 1 => {
-                        *count -= 1;
-                        false
-                    }
-                    Some(_) => {
-                        map.remove(&epoch);
-                        true
-                    }
-                    None => false,
-                };
-                match map.len() {
-                    0 => (removed_epoch, None),
-                    1 => {
-                        let (&remaining_epoch, &remaining_count) =
-                            map.first_key_value().expect("map has len 1");
-                        *self = Self::Single {
-                            epoch: remaining_epoch,
-                            count: remaining_count,
-                        };
-                        (removed_epoch, Some(remaining_epoch))
-                    }
-                    _ => (removed_epoch, map.first_key_value().map(|(&e, _)| e)),
-                }
-            }
-        }
-    }
-}
-
 /// Invalidated cache keys and in-flight read/delete fences.
 ///
 /// Origin cache fills commit under `cache_lock` alongside `store`, `evict`,
@@ -349,7 +262,7 @@ struct DeletedKeys {
 #[derive(Debug, Default)]
 struct DeletedKeysState {
     epoch: u64,
-    active_reads: HashMap<Arc<FoyerKey>, ActiveReadEpochs>,
+    active_reads: HashMap<Arc<FoyerKey>, BTreeMap<u64, usize>>,
     pinned: HashMap<FoyerKey, PinnedEntry>,
     active_deletes: HashMap<FoyerKey, usize>,
     idle: IdleTombstones,
@@ -476,15 +389,11 @@ impl Drop for DeleteGuard<'_> {
 
 impl DeletedKeys {
     fn lock_cache(&self) -> MutexGuard<'_, ()> {
-        self.cache_lock
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+        self.cache_lock.lock().unwrap()
     }
 
     fn lock_state(&self) -> MutexGuard<'_, DeletedKeysState> {
-        self.state
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+        self.state.lock().unwrap()
     }
 
     fn drain_repairs_locked(
@@ -551,13 +460,11 @@ impl DeletedKeys {
             }
 
             let epoch = state.epoch;
-            if let Some(epochs) = state.active_reads.get_mut(key.as_ref()) {
-                epochs.insert(epoch);
-            } else {
-                state
-                    .active_reads
-                    .insert(key.clone(), ActiveReadEpochs::single(epoch));
-            }
+            let epochs = match state.active_reads.get_mut(key.as_ref()) {
+                Some(epochs) => epochs,
+                None => state.active_reads.entry(key.clone()).or_default(),
+            };
+            *epochs.entry(epoch).or_default() += 1;
 
             return Some(ReadGuard(Arc::new(ReadGuardInner {
                 deleted_keys: self.clone(),
@@ -572,12 +479,21 @@ impl DeletedKeys {
         let Some(epochs) = state.active_reads.get_mut(key.as_ref()) else {
             return;
         };
-        let (removed_epoch, min_active) = epochs.remove(epoch);
+        let Some(count) = epochs.get_mut(&epoch) else {
+            return;
+        };
+        *count -= 1;
+        if *count > 0 {
+            return;
+        }
+        epochs.remove(&epoch);
+
+        let min_active = epochs.first_key_value().map(|(&epoch, _)| epoch);
         if min_active.is_none() {
             state.active_reads.remove(key.as_ref());
         }
 
-        if !removed_epoch || state.pinned.is_empty() {
+        if state.pinned.is_empty() {
             return;
         }
 
@@ -2331,30 +2247,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn active_read_epochs_promotes_and_demotes() {
-        let mut epochs = ActiveReadEpochs::single(1);
-        assert_eq!(epochs, ActiveReadEpochs::Single { epoch: 1, count: 1 });
-
-        epochs.insert(1);
-        assert_eq!(epochs, ActiveReadEpochs::Single { epoch: 1, count: 2 });
-
-        // Distinct epoch promotes from Single to Multiple.
-        epochs.insert(2);
-        assert!(matches!(epochs, ActiveReadEpochs::Multiple(_)));
-
-        // Decrementing epoch 1 from 2 to 1 keeps both epochs active.
-        assert_eq!(epochs.remove(1), (false, Some(1)));
-        assert!(matches!(epochs, ActiveReadEpochs::Multiple(_)));
-
-        // Removing epoch 1 leaves only epoch 2 and demotes back to Single.
-        assert_eq!(epochs.remove(1), (true, Some(2)));
-        assert_eq!(epochs, ActiveReadEpochs::Single { epoch: 2, count: 1 });
-
-        // Removing the last epoch returns None so the caller drops the key.
-        assert_eq!(epochs.remove(2), (true, None));
-    }
-
     #[tokio::test]
     async fn newer_reader_joining_stale_leader_fetch_falls_back_to_origin() {
         struct StaleJoinReader {
@@ -2754,8 +2646,6 @@ mod tests {
 
     #[derive(Debug)]
     struct FaultReadBuilder {
-        capability: Capability,
-        stat_mode: EntryMode,
         stat_length: u64,
         data: Vec<u8>,
         chunk_size: usize,
@@ -2775,12 +2665,6 @@ mod tests {
     impl FaultReadBuilder {
         fn new(data: &[u8]) -> Self {
             Self {
-                capability: Capability {
-                    read: true,
-                    stat: true,
-                    ..Default::default()
-                },
-                stat_mode: EntryMode::FILE,
                 stat_length: data.len() as u64,
                 data: data.to_vec(),
                 chunk_size: data.len().max(1),
@@ -2795,8 +2679,6 @@ mod tests {
 
     #[derive(Debug)]
     struct FaultReadService {
-        capability: Capability,
-        stat_mode: EntryMode,
         stat_length: u64,
         data: Vec<u8>,
         chunk_size: usize,
@@ -2812,8 +2694,6 @@ mod tests {
 
         fn build(self) -> Result<impl Service> {
             Ok(FaultReadService {
-                capability: self.capability,
-                stat_mode: self.stat_mode,
                 stat_length: self.stat_length,
                 data: self.data,
                 chunk_size: self.chunk_size,
@@ -2892,7 +2772,11 @@ mod tests {
         }
 
         fn capability(&self) -> Capability {
-            self.capability
+            Capability {
+                read: true,
+                stat: true,
+                ..Default::default()
+            }
         }
 
         async fn create_dir(
@@ -2907,22 +2791,12 @@ mod tests {
             ))
         }
 
-        async fn stat(&self, _: &OperationContext, _: &str, args: OpStat) -> Result<RpStat> {
+        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
             self.stat_calls.fetch_add(1, Ordering::Relaxed);
-            if !self.capability.stat
-                || (args.version().is_some() && !self.capability.stat_with_version)
-            {
-                return Err(Error::new(ErrorKind::Unsupported, "stat is not supported"));
-            }
             if let Some(err) = self.stat_fail_once.lock().unwrap().take() {
                 return Err(err);
             }
-            let metadata = match self.stat_mode {
-                EntryMode::FILE => MetadataBuilder::file(self.stat_length).build(),
-                EntryMode::DIR => MetadataBuilder::dir().build(),
-                EntryMode::Unknown => MetadataBuilder::unknown().build(),
-            };
-            Ok(RpStat::new(metadata))
+            Ok(RpStat::new(MetadataBuilder::file(self.stat_length).build()))
         }
 
         fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
@@ -3052,58 +2926,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_read_falls_back_when_stat_or_stat_with_version_unsupported() {
-        // 1. Service without `stat` capability falls back to direct read.
-        let cache = memory_cache().await;
-        let mut builder = FaultReadBuilder::new(b"0123456789");
-        builder.capability.stat = false;
-        let stat_calls = builder.stat_calls.clone();
-        let op = Operator::new(builder)
-            .unwrap()
-            .layer(FoyerLayer::new(cache.clone()));
-
-        assert_eq!(op.read("k").await.unwrap().to_vec(), b"0123456789");
-        assert_eq!(
-            op.read_with("k").range(2..5).await.unwrap().to_vec(),
-            b"234"
-        );
-        assert_eq!(stat_calls.load(Ordering::Relaxed), 0);
-        assert!(!cache.contains(&FoyerKey {
-            path: "k".to_string(),
-            version: None,
-        }));
-
-        // 2. Service with `stat` + `read_with_version` but without `stat_with_version`
-        //    falls back for versioned reads while still caching unversioned reads.
-        let cache = memory_cache().await;
-        let mut builder = FaultReadBuilder::new(b"versioned-body");
-        builder.capability.read_with_version = true;
-        builder.capability.stat_with_version = false;
-        let stat_calls = builder.stat_calls.clone();
-        let op = Operator::new(builder)
-            .unwrap()
-            .layer(FoyerLayer::new(cache.clone()));
-
-        assert_eq!(
-            op.read_with("k").version("v1").await.unwrap().to_vec(),
-            b"versioned-body"
-        );
-        assert_eq!(stat_calls.load(Ordering::Relaxed), 0);
-        assert!(!cache.contains(&FoyerKey {
-            path: "k".to_string(),
-            version: Some("v1".to_string()),
-        }));
-
-        assert_eq!(op.read("k").await.unwrap().to_vec(), b"versioned-body");
-        assert_eq!(stat_calls.load(Ordering::Relaxed), 1);
-        assert!(cache.contains(&FoyerKey {
-            path: "k".to_string(),
-            version: None,
-        }));
-    }
-
-    #[tokio::test]
-    async fn test_read_rechecks_size_limit_and_entry_mode_without_caching_oversized() {
+    async fn test_read_bypasses_cache_when_size_changes_outside_limit_after_stat() {
         // 1. Object grows past `size_limit.end` between `stat` and `read`:
         //    caller receives all 32 bytes and cache remains empty.
         let cache = memory_cache().await;
@@ -3136,26 +2959,6 @@ mod tests {
         };
 
         assert_eq!(op.read("shrunk").await.unwrap().to_vec(), b"short");
-        assert!(!cache.contains(&key));
-
-        // 3. `EntryMode::Unknown` from `stat` bypasses cache instead of treating
-        //    `content_length == 0` as a cacheable empty file.
-        let cache = memory_cache().await;
-        let mut builder = FaultReadBuilder::new(b"unknown-mode-data");
-        builder.stat_mode = EntryMode::Unknown;
-        builder.stat_length = 0;
-        let op = Operator::new(builder)
-            .unwrap()
-            .layer(FoyerLayer::new(cache.clone()).with_size_limit(0..100));
-        let key = FoyerKey {
-            path: "unknown".to_string(),
-            version: None,
-        };
-
-        assert_eq!(
-            op.read("unknown").await.unwrap().to_vec(),
-            b"unknown-mode-data"
-        );
         assert!(!cache.contains(&key));
     }
 

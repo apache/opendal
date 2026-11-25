@@ -270,10 +270,14 @@ impl Service for SurrealdbBackend {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.get_length(&p).await? {
-                Some(length) => Ok(RpStat::new({
-                    let metadata = MetadataBuilder::file(length as u64);
-                    metadata.build()
-                })),
+                Some(length) => {
+                    let metadata = if p.ends_with('/') {
+                        MetadataBuilder::dir()
+                    } else {
+                        MetadataBuilder::file(length as u64)
+                    };
+                    Ok(RpStat::new(metadata.build()))
+                }
                 None => Err(Error::new(ErrorKind::NotFound, "kv not found in surrealdb")),
             }
         }
@@ -353,5 +357,66 @@ impl Service for SurrealdbBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+
+    fn valid_config_entries() -> Vec<(String, String)> {
+        vec![
+            (
+                "connection_string".to_string(),
+                "http://127.0.0.1:8000".to_string(),
+            ),
+            ("namespace".to_string(), "test_ns".to_string()),
+            ("database".to_string(), "test_db".to_string()),
+            ("table".to_string(), "test_table".to_string()),
+        ]
+    }
+
+    #[tokio::test]
+    async fn stat_root_returns_dir() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let cfg = SurrealdbConfig::from_iter(valid_config_entries()).unwrap();
+            let service = cfg.into_builder().build().unwrap();
+            let ctx = OperationContext::default();
+
+            let root_stat = service.stat(&ctx, "/", OpStat::new()).await.unwrap();
+            assert_eq!(root_stat.into_metadata().mode(), EntryMode::DIR);
+
+            let empty_stat = service.stat(&ctx, "", OpStat::new()).await.unwrap();
+            assert_eq!(empty_stat.into_metadata().mode(), EntryMode::DIR);
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn empty_root_write_and_delete_succeed_with_record_ids() {
+        use oio::Delete;
+        use oio::Write;
+
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let mut entries = valid_config_entries();
+            entries.push(("key_field".to_string(), "id".to_string()));
+            entries.push(("root".to_string(), "/".to_string()));
+
+            let cfg = SurrealdbConfig::from_iter(entries).unwrap();
+            let service = cfg.into_builder().build().unwrap();
+            let ctx = OperationContext::default();
+
+            let mut writer = service.write(&ctx, "/", OpWrite::new()).unwrap();
+            writer.close().await.unwrap();
+
+            let mut deleter = service.delete(&ctx).unwrap();
+            deleter.delete("/", OpDelete::new()).await.unwrap();
+            deleter.close().await.unwrap();
+        })
+        .await
+        .unwrap();
     }
 }

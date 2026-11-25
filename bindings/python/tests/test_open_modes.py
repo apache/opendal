@@ -275,6 +275,7 @@ NONE_WRITE_OPTIONS = {
     "if_none_match": None,
     "if_not_exists": None,
     "user_metadata": None,
+    "offset": None,
 }
 
 NONE_READ_OPTIONS = {
@@ -289,6 +290,10 @@ NONE_READ_OPTIONS = {
     "if_none_match": None,
     "if_modified_since": None,
     "if_unmodified_since": None,
+    "append": None,
+    "content_type": None,
+    "cache_control": None,
+    "content_disposition": None,
 }
 
 
@@ -315,20 +320,16 @@ async def test_async_open_none_options(local_operator):
 
 INVALID_OPEN_KWARGS = [
     ("rb", {"if_matches": "etag"}, "if_matches"),
+    ("rb", {"if_matches": None}, "if_matches"),
     ("wb", {"if_not_exist": True}, "if_not_exist"),
     ("rb", {"append": True}, "append"),
-    ("rb", {"append": None}, "append"),
     ("rb", {"if_not_exists": True}, "if_not_exists"),
     ("rb", {"content_encoding": "gzip"}, "content_encoding"),
     ("rb", {"user_metadata": {"a": "b"}}, "user_metadata"),
     ("rb", {"content_type": "text/plain"}, "content_type"),
-    ("rb", {"content_type": None}, "content_type"),
     ("rb", {"cache_control": "no-cache"}, "cache_control"),
-    ("rb", {"cache_control": None}, "cache_control"),
     ("rb", {"content_disposition": "inline"}, "content_disposition"),
-    ("rb", {"content_disposition": None}, "content_disposition"),
     ("wb", {"offset": 0}, "offset"),
-    ("wb", {"offset": None}, "offset"),
     ("wb", {"size": 10}, "size"),
     ("wb", {"gap": 4}, "gap"),
     ("wb", {"prefetch": 1}, "prefetch"),

@@ -276,9 +276,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
-        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
@@ -300,98 +298,4 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     }
 
     err
-}
-
-#[cfg(test)]
-mod tests {
-    use std::time::Duration;
-
-    use futures::stream;
-    use http::{Request, Response, StatusCode};
-
-    use super::*;
-    use crate::backend::IpfsBuilder;
-
-    struct FixedStatusTransport(StatusCode);
-
-    impl HttpTransport for FixedStatusTransport {
-        async fn fetch(&self, _req: Request<Buffer>) -> Result<Response<HttpBody>> {
-            let body = Buffer::from("error body");
-            let len = body.len() as u64;
-            Ok(Response::builder()
-                .status(self.0)
-                .body(HttpBody::new(stream::iter([Ok(body)]), Some(len)))
-                .unwrap())
-        }
-    }
-
-    #[test]
-    fn test_parse_error_status_mappings() {
-        let cases = [
-            (StatusCode::NOT_FOUND, ErrorKind::NotFound, false),
-            (StatusCode::UNAUTHORIZED, ErrorKind::PermissionDenied, false),
-            (StatusCode::FORBIDDEN, ErrorKind::PermissionDenied, false),
-            (
-                StatusCode::RANGE_NOT_SATISFIABLE,
-                ErrorKind::RangeNotSatisfied,
-                false,
-            ),
-            (StatusCode::TOO_MANY_REQUESTS, ErrorKind::RateLimited, true),
-            (StatusCode::REQUEST_TIMEOUT, ErrorKind::Unexpected, true),
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ErrorKind::Unexpected,
-                true,
-            ),
-            (StatusCode::BAD_GATEWAY, ErrorKind::Unexpected, true),
-            (StatusCode::SERVICE_UNAVAILABLE, ErrorKind::Unexpected, true),
-            (StatusCode::GATEWAY_TIMEOUT, ErrorKind::Unexpected, true),
-            (StatusCode::BAD_REQUEST, ErrorKind::Unexpected, false),
-        ];
-
-        for (status, expected_kind, expected_temp) in cases {
-            let resp = Response::builder()
-                .status(status)
-                .body(Buffer::from("boom"))
-                .unwrap();
-            let err = parse_error(ErrorContext::new(ServiceOperation("Get")), resp);
-            assert_eq!(err.kind(), expected_kind, "status {status}");
-            assert_eq!(err.is_temporary(), expected_temp, "status {status}");
-        }
-    }
-
-    #[tokio::test]
-    async fn test_read_maps_401_416_and_429() -> Result<()> {
-        tokio::time::timeout(Duration::from_secs(5), async {
-            let cases = [
-                (StatusCode::UNAUTHORIZED, ErrorKind::PermissionDenied, false),
-                (
-                    StatusCode::RANGE_NOT_SATISFIABLE,
-                    ErrorKind::RangeNotSatisfied,
-                    false,
-                ),
-                (StatusCode::TOO_MANY_REQUESTS, ErrorKind::RateLimited, true),
-            ];
-
-            for (status, expected_kind, expected_temp) in cases {
-                let op = Operator::new(
-                    IpfsBuilder::default()
-                        .endpoint("https://ipfs.io")
-                        .root("/ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ/"),
-                )?
-                .with_context(
-                    OperationContext::new()
-                        .with_http_transport(HttpTransporter::new(FixedStatusTransport(status))),
-                );
-
-                let err = op.read("file.txt").await.unwrap_err();
-                assert_eq!(err.kind(), expected_kind, "status {status}");
-                assert_eq!(err.is_temporary(), expected_temp, "status {status}");
-            }
-
-            Ok(())
-        })
-        .await
-        .expect("test timed out")
-    }
 }

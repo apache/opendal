@@ -26,6 +26,7 @@ import tempfile
 from pathlib import Path
 
 PLAN_PATH = ".release/plan.json"
+NON_STANDALONE_COMPONENTS = {"bindings/zig"}
 
 
 def package_names():
@@ -87,9 +88,10 @@ def breaking_declaration(pull, packages):
             "expected Affected packages: <comma-separated names> followed by Migration: <instructions>"
         )
     affected = [name.strip().strip("`") for name in match[1].split(",")]
-    if not affected or len(affected) != len(set(affected)) or set(affected) - packages:
+    allowed = packages | NON_STANDALONE_COMPONENTS
+    if not affected or len(affected) != len(set(affected)) or set(affected) - allowed:
         raise ValueError(
-            f"invalid affected packages: {match[1]}; allowed: {', '.join(sorted(packages))}"
+            f"invalid affected packages: {match[1]}; allowed: {', '.join(sorted(allowed))}"
         )
     migration = match[2].strip()
     if not re.search(r"[a-zA-Z0-9]", migration) or migration.lower().strip(" .-") in {
@@ -160,18 +162,20 @@ def prepare(baseline, source):
 
     path = Path(PLAN_PATH)
     source = command("git", "rev-parse", f"{source}^{{commit}}")
+    packages = package_names()
     if path.exists():
         plan = json.loads(path.read_text())
         if (plan["baseline"], plan["source"]) != (baseline, source):
-            plan = collect_plan(baseline, source, package_names())
+            plan = collect_plan(baseline, source, packages)
     else:
-        plan = collect_plan(baseline, source, package_names())
+        plan = collect_plan(baseline, source, packages)
     breaking = sorted(
         {
             package
             for pull in plan["pulls"]
             if pull["breaking"]
             for package in pull["breaking"]["packages"]
+            if package in packages
         }
     )
     with tempfile.TemporaryDirectory(prefix="opendal-release-plan-") as directory:
@@ -228,11 +232,17 @@ def render_plan(plan):
             f"| {version['package']} | {version['previous'] or 'New package'} | {version['target']} | {'; '.join(reasons)} |"
         )
     lines += ["", "### Breaking changes and migration", ""]
+    released = {version["package"] for version in plan["versions"]}
     for pull in plan["pulls"]:
         if pull["breaking"]:
-            names = ", ".join(f"`{name}`" for name in pull["breaking"]["packages"])
+            names = []
+            for package in pull["breaking"]["packages"]:
+                name = f"`{package}`"
+                if package not in released:
+                    name += " (no standalone artifact in this release)"
+                names.append(name)
             lines += [
-                f"#### [#{pull['number']}]({pull['url']}) — {names}",
+                f"#### [#{pull['number']}]({pull['url']}) — {', '.join(names)}",
                 "",
                 pull["breaking"]["migration"],
                 "",

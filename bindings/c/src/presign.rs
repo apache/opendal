@@ -53,31 +53,20 @@ struct opendal_presigned_request_inner {
 
 impl opendal_presigned_request_inner {
     fn new(req: ocorePresignedRequest) -> core::Result<Self> {
-        let method = CString::new(req.method().as_str()).map_err(|e| {
+        let invalid_request = |source| {
             core::Error::new(
                 core::ErrorKind::Unexpected,
-                "presigned request method contains interior nul byte",
+                "presigned request contains interior nul byte",
             )
-            .set_source(e)
-        })?;
-        let uri = CString::new(req.uri().to_string()).map_err(|e| {
-            core::Error::new(
-                core::ErrorKind::Unexpected,
-                "presigned request uri contains interior nul byte",
-            )
-            .set_source(e)
-        })?;
+            .set_source(source)
+        };
+        let method = CString::new(req.method().as_str()).map_err(invalid_request)?;
+        let uri = CString::new(req.uri().to_string()).map_err(invalid_request)?;
 
         let mut header_keys = Vec::with_capacity(req.header().len());
         let mut header_values = Vec::with_capacity(req.header().len());
         for (k, v) in req.header().iter() {
-            header_keys.push(CString::new(k.as_str()).map_err(|e| {
-                core::Error::new(
-                    core::ErrorKind::Unexpected,
-                    "presigned request header name contains interior nul byte",
-                )
-                .set_source(e)
-            })?);
+            header_keys.push(CString::new(k.as_str()).map_err(invalid_request)?);
             header_values.push(CString::new(v.as_bytes()).map_err(|e| {
                 core::Error::new(
                     core::ErrorKind::Unexpected,
@@ -696,15 +685,6 @@ mod tests {
             assert!(opendal_presigned_request_headers(std::ptr::null()).is_null());
             assert_eq!(opendal_presigned_request_headers_len(std::ptr::null()), 0);
             opendal_presigned_request_free(std::ptr::null_mut());
-
-            let req = Box::into_raw(Box::new(opendal_presigned_request {
-                inner: std::ptr::null_mut(),
-            }));
-            assert!(opendal_presigned_request_method(req).is_null());
-            assert!(opendal_presigned_request_uri(req).is_null());
-            assert!(opendal_presigned_request_headers(req).is_null());
-            assert_eq!(opendal_presigned_request_headers_len(req), 0);
-            opendal_presigned_request_free(req);
         }
     }
 

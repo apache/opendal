@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::ops::Range;
+
 use super::backend::OpfsBackend;
 use super::core::*;
 use opendal_core::raw::*;
@@ -23,6 +25,35 @@ use send_wrapper::SendWrapper;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::FileSystemFileHandle;
+
+/// Resolve `range` against `file_size` using `u64` arithmetic so files larger
+/// than 4 GiB are handled without 32-bit `usize` truncation on `wasm32`.
+fn resolve_read_range(range: BytesRange, file_size: u64) -> Result<Range<u64>> {
+    let (offset, size) = match range {
+        BytesRange::Range { offset, size } => (offset, size),
+        BytesRange::Suffix { size } => {
+            return Ok(file_size.saturating_sub(size)..file_size);
+        }
+    };
+    if size == Some(0) {
+        return Ok(0..0);
+    }
+    if offset >= file_size {
+        if size.is_none() {
+            return Ok(file_size..file_size);
+        }
+        return Err(Error::new(
+            ErrorKind::RangeNotSatisfied,
+            "range starts at or beyond the end of the object",
+        )
+        .with_operation("OpfsReadStream::read")
+        .with_context("offset", offset)
+        .with_context("content_length", file_size));
+    }
+
+    let end = size.map_or(file_size, |size| offset.saturating_add(size).min(file_size));
+    Ok(offset..end)
+}
 
 pub struct OpfsReadStream {
     handle: SendWrapper<FileSystemFileHandle>,
@@ -53,15 +84,16 @@ impl oio::ReadStream for OpfsReadStream {
             .map_err(parse_js_error)?;
 
         let blob: &web_sys::Blob = file.as_ref();
-        let blob = if self.range.is_full() {
+        let file_size = blob.size() as u64;
+        let slice = resolve_read_range(self.range, file_size)?;
+        if slice.is_empty() {
+            return Ok(Buffer::new());
+        }
+
+        let blob = if slice.start == 0 && slice.end == file_size {
             blob.clone()
         } else {
-            let offset = self.range.offset() as f64;
-            let end = match self.range.size() {
-                Some(size) => offset + size as f64,
-                None => blob.size(),
-            };
-            blob.slice_with_f64_and_f64(offset, end)
+            blob.slice_with_f64_and_f64(slice.start as f64, slice.end as f64)
                 .map_err(parse_js_error)?
         };
 

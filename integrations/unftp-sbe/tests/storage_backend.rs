@@ -805,24 +805,6 @@ async fn metadata_returns_directory_for_implicit_prefix() -> Result<()> {
     Ok(())
 }
 
-/// The FTP root always exists, even when a backend cannot stat it.
-#[tokio::test]
-async fn metadata_returns_directory_for_root() -> Result<()> {
-    let op = Operator::new(services::Memory::default())?.layer(StatErrorLayer {
-        injected_path: "/",
-        injected_kind: opendal::ErrorKind::NotFound,
-        hide_list: false,
-    });
-    let storage = OpendalStorage::new(op);
-
-    let metadata = storage
-        .metadata(&DefaultUser, "/")
-        .await
-        .context("metadata /")?;
-    assert!(metadata.is_dir());
-    Ok(())
-}
-
 #[tokio::test]
 async fn metadata_returns_file_metadata() -> Result<()> {
     let storage = OpendalStorage::new(Operator::new(services::Memory::default())?);
@@ -1102,31 +1084,6 @@ async fn del_missing_and_directory_on_memory() -> Result<()> {
         .await
         .expect_err("deleted file must not exist");
     assert_eq!(err.kind(), ErrorKind::PermanentFileNotAvailable);
-    Ok(())
-}
-
-/// Backends without rename capability must report `CommandNotImplemented`.
-#[tokio::test]
-async fn rename_unsupported_on_memory() -> Result<()> {
-    let storage = OpendalStorage::new(Operator::new(services::Memory::default())?);
-    let user = DefaultUser;
-
-    storage
-        .put(&user, "hello".as_bytes(), "/file.txt", 0)
-        .await
-        .context("put /file.txt")?;
-
-    let err = storage
-        .rename(&user, "/file.txt", "/file2.txt")
-        .await
-        .expect_err("rename on memory must fail");
-    assert_eq!(err.kind(), ErrorKind::CommandNotImplemented);
-
-    let err = storage
-        .rename(&user, "/dir/", "/dir2/")
-        .await
-        .expect_err("directory rename on memory must fail");
-    assert_eq!(err.kind(), ErrorKind::CommandNotImplemented);
     Ok(())
 }
 

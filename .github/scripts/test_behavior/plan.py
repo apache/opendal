@@ -36,7 +36,7 @@ LANGUAGE_BINDING = ["java", "python", "ruby", "nodejs", "go", "c", "cpp", "dotne
 INTEGRATIONS = ["object_store"]
 
 SHARED_SERVICE_SCHEMES = {
-    "s3": {"s3", "minio", "r2"},
+    "s3": {"s3", "minio"},
 }
 
 VALID_MODES = ("pr", "nightly-local", "nightly-live")
@@ -316,7 +316,6 @@ def _filter_binding_cases(
                 # opendal-go-services does not provide these services yet.
                 "tos",
                 "minio",
-                "r2",
             ]
         ]
 
@@ -339,7 +338,6 @@ def _filter_binding_cases(
                 "obs",
                 "oss",
                 "minio",
-                "r2",
                 "s3",
                 "webdav",
                 "webhdfs",

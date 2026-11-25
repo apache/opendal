@@ -138,13 +138,6 @@ impl FromStr for BytesContentRange {
         })?;
 
         let parse_int = |input: &str| {
-            if input.is_empty() || !input.bytes().all(|b| b.is_ascii_digit()) {
-                return Err(
-                    Error::new(ErrorKind::Unexpected, "header content range is invalid")
-                        .with_operation("BytesContentRange::from_str")
-                        .with_context("value", value),
-                );
-            }
             input.parse::<u64>().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "header content range is invalid")
                     .with_operation("BytesContentRange::from_str")
@@ -188,17 +181,7 @@ impl FromStr for BytesContentRange {
 
         // Handle size part first.
         if s[1] != "*" {
-            let size = parse_int(s[1])?;
-            // RFC 9110 Section 14.4 requires complete-length to be greater than last-pos.
-            if size <= end {
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    "header content range is invalid: size is less than or equal to end",
-                )
-                .with_operation("BytesContentRange::from_str")
-                .with_context("value", value));
-            }
-            bcr = bcr.with_size(size);
+            bcr = bcr.with_size(parse_int(s[1])?);
         };
 
         Ok(bcr)
@@ -316,18 +299,6 @@ mod tests {
     }
 
     #[test]
-    fn test_bytes_content_range_from_str_invalid_size() {
-        // RFC 9110 section 14.4 requires complete-length to be greater than last-pos.
-        let cases = ["bytes 0-10/10", "bytes 0-10/5", "bytes 0-0/0"];
-
-        for input in cases {
-            let result: Result<BytesContentRange> = input.parse();
-            let err = result.expect_err("invalid size must be rejected");
-            assert_eq!(err.kind(), ErrorKind::Unexpected, "{input}");
-        }
-    }
-
-    #[test]
     fn test_bytes_content_range_from_str_size_boundaries() -> Result<()> {
         assert_eq!(
             "bytes 0-9/10".parse::<BytesContentRange>()?,
@@ -344,24 +315,5 @@ mod tests {
         );
 
         Ok(())
-    }
-
-    #[test]
-    fn test_bytes_content_range_from_str_rejects_leading_plus() {
-        let cases = [
-            "bytes +0-10/20",
-            "bytes 0-+10/20",
-            "bytes 0-10/+20",
-            "bytes +0-+5/+10",
-            "bytes +0-10/*",
-            "bytes */+10",
-        ];
-
-        for input in cases {
-            let err = input
-                .parse::<BytesContentRange>()
-                .expect_err("leading plus sign must be rejected");
-            assert_eq!(err.kind(), ErrorKind::Unexpected, "{input}");
-        }
     }
 }

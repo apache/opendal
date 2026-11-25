@@ -179,10 +179,8 @@ impl Service for TikvBackend {
         } else {
             let bs = self.core.get(&p).await?;
             match bs {
-                Some(bs) => Ok(RpStat::new({
-                    let metadata = MetadataBuilder::file(bs.len() as u64);
-                    metadata.build()
-                })),
+                Some(_) if p.ends_with('/') => Ok(RpStat::new(MetadataBuilder::dir().build())),
+                Some(bs) => Ok(RpStat::new(MetadataBuilder::file(bs.len() as u64).build())),
                 None => Err(Error::new(ErrorKind::NotFound, "kv not found in tikv")),
             }
         }

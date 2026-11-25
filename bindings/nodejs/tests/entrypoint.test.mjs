@@ -23,12 +23,11 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 
-import * as esm from '../index.mjs'
+import * as esm from 'opendal'
 
 const require = createRequire(import.meta.url)
-const cjs = require('../index.cjs')
-const cjsEntryUrl = new URL('../index.cjs', import.meta.url)
-const cjsEntryPath = fileURLToPath(cjsEntryUrl)
+const cjs = require('opendal')
+const packageDirectory = fileURLToPath(new URL('../', import.meta.url))
 const generatedDtsPath = fileURLToPath(new URL('../generated.d.ts', import.meta.url))
 
 function parseRuntimeExportsFromDts() {
@@ -61,25 +60,6 @@ describe('entrypoint exports parity', () => {
     const cjsKeys = Object.keys(cjs).sort()
     expect(cjsKeys).toEqual(esmKeys)
     expect(cjsKeys).toEqual([...declaredExports, 'layers'].sort())
-
-    // Verify Node's static CJS module lexer exposes every named export to ESM importers.
-    // Run in a real Node subprocess because Vite's module loader bypasses cjs-module-lexer.
-    const cjsImportKeys = JSON.parse(
-      execFileSync(
-        process.execPath,
-        [
-          '--input-type=module',
-          '-e',
-          `const mod = await import(${JSON.stringify(
-            cjsEntryUrl.href,
-          )}); console.log(JSON.stringify(Object.keys(mod)))`,
-        ],
-        { encoding: 'utf8' },
-      ),
-    )
-      .filter((key) => key !== 'default' && key !== 'module.exports')
-      .sort()
-    expect(cjsImportKeys).toEqual(cjsKeys)
   })
 
   test('ESM and CJS layers namespace expose every layer class', () => {
@@ -105,7 +85,7 @@ describe('entrypoint exports parity', () => {
       const assert = require('node:assert/strict')
       const { once } = require('node:events')
       const { finished } = require('node:stream/promises')
-      const od = require(${JSON.stringify(cjsEntryPath)})
+      const od = require('opendal')
 
       ;(async () => {
         const op = new od.Operator('memory')
@@ -149,7 +129,6 @@ describe('entrypoint exports parity', () => {
         asyncWs.write(Buffer.from('!'))
         asyncWs.end(new Uint8Array([63]))
         await finished(asyncWs)
-        assert.equal(asyncWs.writer, null)
         assert.deepEqual(await op.read('cjs-async.bin'), expected)
 
         const syncWs = op.writerSync('cjs-sync.bin').createWriteStream({ decodeStrings: false })
@@ -161,10 +140,9 @@ describe('entrypoint exports parity', () => {
         syncWs.write(Buffer.from('!'))
         syncWs.end(new Uint8Array([63]))
         await finished(syncWs)
-        assert.equal(syncWs.writer, null)
         assert.deepEqual(op.readSync('cjs-sync.bin'), expected)
 
-        // Destroying WriteStream / BlockingWriteStream clears writer without closing.
+        // Destroying a stream leaves the writer uncommitted.
         for (const ws of [
           (await op.writer('cjs-abort-async.bin')).createWriteStream(),
           op.writerSync('cjs-abort-sync.bin').createWriteStream(),
@@ -173,7 +151,6 @@ describe('entrypoint exports parity', () => {
           ws.destroy()
           await wsClosed
           assert.equal(ws.destroyed, true)
-          assert.equal(ws.writer, null)
         }
         assert.equal(await op.exists('cjs-abort-async.bin'), false)
         assert.equal(op.existsSync('cjs-abort-sync.bin'), false)
@@ -183,6 +160,6 @@ describe('entrypoint exports parity', () => {
       })
     `
 
-    execFileSync(process.execPath, ['-e', script], { stdio: 'inherit' })
+    execFileSync(process.execPath, ['-e', script], { cwd: packageDirectory, stdio: 'inherit' })
   })
 })

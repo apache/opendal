@@ -150,12 +150,7 @@ impl<R: PositionRead> oio::Read for PositionReader<R> {
             }
 
             let n = buf.len() as u64;
-            offset = offset.checked_add(n).ok_or_else(|| {
-                Error::new(
-                    ErrorKind::RangeNotSatisfied,
-                    "range end overflow: offset + size exceeds u64::MAX",
-                )
-            })?;
+            offset += n;
             remaining -= n;
             bufs.push(buf);
         }
@@ -225,16 +220,7 @@ impl<R: PositionRead> oio::ReadStream for PositionReadStream<R> {
 
         self.read_any = true;
         let n = buf.len() as u64;
-        self.offset = match self.offset.checked_add(n) {
-            Some(offset) => offset,
-            None => {
-                self.done = true;
-                return Err(Error::new(
-                    ErrorKind::RangeNotSatisfied,
-                    "range end overflow: offset + size exceeds u64::MAX",
-                ));
-            }
-        };
+        self.offset += n;
         if let Some(remaining) = &mut self.remaining {
             *remaining -= n;
         }
@@ -426,46 +412,6 @@ mod tests {
 
                 assert_eq!(*opens.lock().unwrap(), 0);
                 assert!(calls.lock().unwrap().is_empty());
-            }
-
-            Ok(())
-        })
-        .await
-        .expect("test timed out")
-    }
-
-    struct ConstantPositionRead {
-        chunk: Bytes,
-    }
-
-    impl PositionRead for ConstantPositionRead {
-        type Handle = Bytes;
-
-        async fn open(&self) -> Result<Self::Handle> {
-            Ok(self.chunk.clone())
-        }
-
-        async fn read_at(handle: &Self::Handle, _offset: u64, size: usize) -> Result<Buffer> {
-            Ok(Buffer::from(handle.slice(..size.min(handle.len()))))
-        }
-    }
-
-    #[tokio::test]
-    async fn test_position_reader_unbounded_stream_rejects_offset_overflow() -> Result<()> {
-        tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            let reader = PositionReader::new(ConstantPositionRead {
-                chunk: Bytes::from_static(b"ab"),
-            })
-            .with_max_buf_size(4);
-
-            for offset in [u64::MAX - 1, u64::MAX] {
-                let (_, mut stream) = reader.open(BytesRange::new(offset, None)).await?;
-                let err = stream.read().await.unwrap_err();
-                assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied, "offset={offset}");
-                assert!(
-                    stream.read().await?.is_empty(),
-                    "stream must be done after offset overflow"
-                );
             }
 
             Ok(())

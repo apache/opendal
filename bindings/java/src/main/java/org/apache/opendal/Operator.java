@@ -28,6 +28,8 @@ import java.util.Objects;
 /**
  * Operator represents an underneath OpenDAL operator that accesses data
  * synchronously.
+ *
+ * <p>A Rust panic caught at a native method boundary is thrown as an {@link OpenDALPanicException}.</p>
  */
 public class Operator extends NativeObject {
     public final OperatorInfo info;

@@ -25,12 +25,6 @@ pub(super) mod constants {
     pub const OK_STATUS: u16 = 0x0000;
     pub const KEY_NOT_FOUND: u16 = 0x0001;
     pub const AUTH_ERROR: u16 = 0x0020;
-    pub const OUT_OF_MEMORY: u16 = 0x0082;
-    pub const BUSY: u16 = 0x0085;
-    pub const TEMPORARY_FAILURE: u16 = 0x0086;
-
-    /// Memcached protocol maximum key length in bytes (`KEY_MAX_LENGTH`).
-    pub const MAX_KEY_LENGTH: usize = 250;
 
     /// Maximum response body size drained for error or non-GET control responses
     /// before treating the connection as poisoned to avoid unbounded allocations.
@@ -467,19 +461,6 @@ impl Connection {
 }
 
 fn encode_key_length(key: &str) -> Result<u16> {
-    if key.is_empty() {
-        return Err(Error::new(
-            ErrorKind::ConfigInvalid,
-            "memcached key must not be empty",
-        ));
-    }
-    if key.len() > constants::MAX_KEY_LENGTH {
-        return Err(Error::new(
-            ErrorKind::Unsupported,
-            "memcached key length exceeds 250 bytes",
-        )
-        .with_context("key_length", key.len().to_string()));
-    }
     u16::try_from(key.len()).map_err(|_| {
         Error::new(
             ErrorKind::Unsupported,
@@ -535,12 +516,6 @@ fn status_error(status: u16, body: &[u8]) -> Error {
         .with_context("status", format!("0x{status:04x}"));
     if !body.is_empty() {
         err = err.with_context("message", String::from_utf8_lossy(body).into_owned());
-    }
-    if matches!(
-        status,
-        constants::BUSY | constants::TEMPORARY_FAILURE | constants::OUT_OF_MEMORY
-    ) {
-        err = err.set_temporary();
     }
     err
 }
@@ -832,28 +807,18 @@ mod tests {
             .await;
         });
 
-        let key_251 = "a".repeat(251);
-        let key_65537 = "b".repeat(65537);
-
-        for bad_key in [&key_251, &key_65537] {
-            assert_eq!(
-                conn.get(bad_key).await.unwrap_err().kind(),
-                ErrorKind::Unsupported
-            );
-            assert_eq!(
-                conn.set(bad_key, b"v", 0).await.unwrap_err().kind(),
-                ErrorKind::Unsupported
-            );
-            assert_eq!(
-                conn.delete(bad_key).await.unwrap_err().kind(),
-                ErrorKind::Unsupported
-            );
-            assert!(!conn.is_poisoned());
-        }
-
+        let key = "a".repeat(usize::from(u16::MAX) + 1);
         assert_eq!(
-            conn.get("").await.unwrap_err().kind(),
-            ErrorKind::ConfigInvalid
+            conn.get(&key).await.unwrap_err().kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            conn.set(&key, b"v", 0).await.unwrap_err().kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            conn.delete(&key).await.unwrap_err().kind(),
+            ErrorKind::Unsupported
         );
         assert!(!conn.is_poisoned());
 

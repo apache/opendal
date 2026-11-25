@@ -336,6 +336,7 @@ impl GcsBuilder {
         let credential_provider = Arc::new(credential_chain);
         let request_signer = Arc::new(RequestSigner::new("storage").with_scope(&scope));
 
+        let gcs_can_restore = endpoint == DEFAULT_GCS_ENDPOINT && !skip_signature;
         let info = ServiceInfo::new(GCS_SCHEME, &root, bucket);
         let capability = Capability {
             stat: true,
@@ -395,6 +396,10 @@ impl GcsBuilder {
             // ref: <https://cloud.google.com/storage/docs/json_api/v1/objects/rewrite>
             copy_multi_min_size: Some(GCS_REWRITE_MIN_CHUNK_SIZE),
             copy_multi_max_size: Some(GCS_REWRITE_MAX_CHUNK_SIZE),
+
+            restore: gcs_can_restore,
+            restore_with_version: gcs_can_restore,
+            restore_with_if_not_exists: gcs_can_restore,
 
             compose: true,
             compose_with_content_type: true,
@@ -483,6 +488,17 @@ impl Service for GcsBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        args.check(&self.capability())?;
+        self.restore_object(ctx, path, args).await?;
+        Ok(RpRestore::new())
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {

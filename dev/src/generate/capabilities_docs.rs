@@ -682,6 +682,12 @@ fn describe_bool_condition(expr: &Expr, rel_path: &str) -> Result<String> {
                             .to_string(),
                     );
                 }
+                if ident == "gcs_can_restore" {
+                    return Ok(
+                        "Requires the default endpoint (`https://storage.googleapis.com`) with `skip_signature` and `allow_anonymous` disabled"
+                            .to_string(),
+                    );
+                }
                 if ident == "s3_write_can_multi" {
                     return Ok("When `checksum_algorithm` is not `md5`".to_string());
                 }
@@ -1163,6 +1169,17 @@ mod tests {
         );
 
         let gcs = out.services.iter().find(|s| s.scheme == "gcs").unwrap();
+        let gcs_restore = NativeBoolDoc::Conditional(
+            "Requires the default endpoint (`https://storage.googleapis.com`) with `skip_signature` and `allow_anonymous` disabled"
+                .to_string(),
+        );
+        for flag in [
+            "restore",
+            "restore_with_version",
+            "restore_with_if_not_exists",
+        ] {
+            assert_eq!(gcs.native.get(flag), Some(&gcs_restore), "{flag}");
+        }
         assert_eq!(
             gcs.limits.get("copy_multi_max_size"),
             Some(&LimitValueDoc {

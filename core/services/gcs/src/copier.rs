@@ -34,6 +34,7 @@ pub struct GcsCopier {
     from: String,
     to: String,
     args: OpCopy,
+    operation: Operation,
 
     chunk: Option<usize>,
     rewrite_token: Option<String>,
@@ -61,12 +62,18 @@ impl GcsCopier {
             from: from.to_string(),
             to: to.to_string(),
             args,
+            operation: Operation::Copy,
             chunk,
             rewrite_token: None,
             total_bytes_rewritten: 0,
             completed: false,
             metadata: None,
         }
+    }
+
+    pub fn with_operation(mut self, operation: Operation) -> Self {
+        self.operation = operation;
+        self
     }
 }
 
@@ -76,24 +83,31 @@ impl oio::Copy for GcsCopier {
             return Ok(None);
         }
 
+        let mut req = self.core.gcs_rewrite_object_request(
+            &self.from,
+            &self.to,
+            &self.args,
+            self.chunk,
+            self.rewrite_token.as_deref(),
+        )?;
+        req.extensions_mut().insert(self.operation);
+        let req = self.core.sign(&self.ctx, req).await?;
+        let restore = self.operation == Operation::Restore;
+        // A restore replay after a lost confirmation can create another generation.
         let resp = self
             .core
-            .gcs_rewrite_object(
-                &self.ctx,
-                &self.from,
-                &self.to,
-                &self.args,
-                self.chunk,
-                self.rewrite_token.as_deref(),
-            )
-            .await?;
+            .send(&self.ctx, req)
+            .await
+            .map_err(|err| err.with_permanent(restore))?;
 
         if !resp.status().is_success() {
+            let ambiguous = restore && resp.status().is_server_error();
             return Err(parse_error(
                 ErrorContext::new(ServiceOperation("RewriteObject"))
                     .with_caller_condition(self.args.is_conditional()),
                 resp,
-            ));
+            )
+            .with_permanent(ambiguous));
         }
 
         let result: RewriteResponse = serde_json::from_reader(resp.into_body().reader())

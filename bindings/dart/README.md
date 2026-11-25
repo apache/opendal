@@ -18,10 +18,8 @@ version.
 
 ## Installation
 
-This binding is not yet published to pub.dev. To use it, clone the repository
-and add it as a path dependency, or work directly from `bindings/dart/`.
-
-You must compile the Rust native library first:
+This binding is not yet published to pub.dev. Clone the OpenDAL repository
+and open `bindings/dart/`. Build the native library before running Dart code.
 
 ```shell
 cd rust
@@ -30,12 +28,27 @@ cd ..
 dart pub get
 ```
 
-The loader first looks for the library in the platform-specific target-triple
-directory (e.g. `rust/target/aarch64-apple-darwin/release/`), then falls back
-to `rust/target/release/`. For cross-compiled targets, build with
+The loader resolves library paths from the working directory. It first checks
+the platform-specific target directory (for example,
+`rust/target/aarch64-apple-darwin/release/`), then falls back to
+`rust/target/release/`. For cross-compiled targets, build with
 `--target <triple>` so the library is placed in the matching target directory.
 
+To use the binding in another Dart project, add `opendal` as a `path`
+dependency pointing to `bindings/dart/` in your checkout. After
+`cargo build -r`, copy the native library from `bindings/dart/rust/target/release/`
+into `rust/target/release/` under the directory where you run your app. Run
+`dart pub get` in your app.
+
 ## Quickstart
+
+Run the checked-in example from `bindings/dart/`.
+
+```shell
+dart run examples/getting_started.dart
+```
+
+`Storage.init()` loads the native library and creates a storage handle.
 
 ```dart
 import 'dart:typed_data';
@@ -60,8 +73,8 @@ factory functions that behave like `dart:io`'s `File` and `Directory`.
 
 Every method has a blocking `*Sync` variant alongside the async `Future<T>` form.
 
-See the [user guide](https://opendal.apache.org/docs/bindings/dart) for more
-examples and a full operations reference.
+See the [user guide](https://opendal.apache.org/docs/bindings/dart/getting-started/)
+for more file and directory examples.
 
 ## Contributing
 

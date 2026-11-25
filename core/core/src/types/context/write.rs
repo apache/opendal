@@ -159,6 +159,8 @@ pub struct WriteState {
     can_copy_from: bool,
     /// Whether a logical write stopped after the inner writer accepted part of its input.
     requires_abort: bool,
+    /// Whether abort discarded local data but the underlying cleanup is still pending.
+    abort_pending: bool,
     /// A source copy that stopped after accepting part of its range.
     pending_copy: Option<Box<PendingCopy>>,
     buffer: oio::QueueBuf,
@@ -178,6 +180,7 @@ impl WriteState {
             exact,
             can_copy_from,
             requires_abort: false,
+            abort_pending: false,
             pending_copy: None,
             buffer: oio::QueueBuf::new(),
         })
@@ -193,6 +196,7 @@ impl WriteState {
             exact,
             can_copy_from: false,
             requires_abort: false,
+            abort_pending: false,
             pending_copy: None,
             buffer: oio::QueueBuf::new(),
         }
@@ -233,6 +237,12 @@ impl WriteState {
     }
 
     fn check_not_aborted(&self) -> Result<()> {
+        if self.abort_pending {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "writer cannot accept data or close while abort is pending",
+            ));
+        }
         if self.requires_abort {
             return Err(Error::new(
                 ErrorKind::Unexpected,
@@ -583,9 +593,13 @@ impl WriteState {
 
     /// Abort the write process.
     pub async fn abort(&mut self) -> Result<()> {
+        // A failed or canceled abort cannot restore the buffered bytes or copy offset.
+        self.abort_pending = true;
         self.buffer.clear();
         self.pending_copy = None;
-        self.w.abort().await
+        self.w.abort().await?;
+        self.abort_pending = false;
+        Ok(())
     }
 }
 
@@ -653,6 +667,7 @@ mod tests {
         fail_on_write: usize,
         fail_on_copy: usize,
         pending_on_copy: usize,
+        fail_first_abort: bool,
         can_copy_from: bool,
         read_with_if_match: bool,
         /// Report this content length from `stat` instead of the real one.
@@ -665,6 +680,7 @@ mod tests {
                 fail_on_write: usize::MAX,
                 fail_on_copy: usize::MAX,
                 pending_on_copy: usize::MAX,
+                fail_first_abort: false,
                 can_copy_from: true,
                 read_with_if_match: false,
                 stat_content_length: None,
@@ -822,6 +838,11 @@ mod tests {
         }
 
         async fn abort(&mut self) -> Result<()> {
+            if std::mem::take(&mut self.faults.fail_first_abort) {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "injected abort failure").set_temporary()
+                );
+            }
             self.writer.abort().await
         }
     }
@@ -1046,6 +1067,62 @@ mod tests {
             op.read("target").await?.to_vec(),
             b"0123456789abcdefghijklmnopqrst"
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_writer_does_not_commit_partial_copy_after_failed_abort() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghijABCDEFGHIJ").await?;
+        let (fault_op, _, _) = with_write_faults(
+            &op,
+            WriteFaults {
+                fail_on_write: 2,
+                fail_first_abort: true,
+                can_copy_from: false,
+                ..Default::default()
+            },
+        );
+        let mut writer = fault_op.writer_with("target").chunk(10).await?;
+        let options = crate::options::ReadOptions {
+            range: (0..30).into(),
+            chunk: Some(5),
+            ..Default::default()
+        };
+
+        let err = writer
+            .copy_from_options("source", options.clone())
+            .await
+            .expect_err("second streamed chunk fails");
+        assert_eq!(err.message(), "injected flush failure");
+        assert!(
+            writer
+                .close()
+                .await
+                .expect_err("copy is incomplete")
+                .is_persistent()
+        );
+        let err = writer.abort().await.expect_err("first abort fails");
+        assert_eq!(err.message(), "injected abort failure");
+        assert!(err.is_temporary());
+
+        let close = writer.close().await;
+        let stored = op.read("target").await;
+        assert_eq!(
+            stored
+                .expect_err("close after failed abort committed a partial copy")
+                .kind(),
+            ErrorKind::NotFound
+        );
+        assert_eq!(
+            close.expect_err("cleanup is still pending").kind(),
+            ErrorKind::Unexpected
+        );
+        assert!(writer.write("extra").await.is_err());
+        assert!(writer.copy_from_options("source", options).await.is_err());
+
+        writer.abort().await?;
+        assert!(!op.exists("target").await?);
         Ok(())
     }
 

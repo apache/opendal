@@ -5,20 +5,32 @@ configuration contract:
 
 - Use [`crate::R2`] or the `r2` scheme for Cloudflare R2.
 - Use [`crate::Minio`] or the `minio` scheme for MinIO deployments.
+- Use [`crate::Akamai`] or the `akamai` scheme for Akamai Cloud Object Storage.
+- Use [`crate::CephRgw`] or the `ceph-rgw` scheme for Ceph RADOS Gateway.
 - Use [`crate::Exoscale`] or the `exoscale` scheme for Exoscale Simple Object Storage.
+- Use [`crate::Garage`] or the `garage` scheme for Garage deployments.
 - Use [`crate::Hetzner`] or the `hetzner` scheme for Hetzner Object Storage.
+- Use [`crate::IbmCos`] or the `ibm-cos` scheme for IBM Cloud Object Storage.
+- Use [`crate::IdriveE2`] or the `idrive-e2` scheme for IDrive e2.
+- Use [`crate::Ionos`] or the `ionos` scheme for IONOS Cloud Object Storage.
+- Use [`crate::Neon`] or the `neon` scheme for Neon Object Storage.
 - Use [`crate::Oci`] or the `oci` scheme for Oracle Cloud Infrastructure Object Storage.
 - Use [`crate::Ovhcloud`] or the `ovhcloud` scheme for OVHcloud Object Storage.
 - Use [`crate::Qingstor`] or the `qingstor` scheme for QingStor Object Storage.
+- Use [`crate::Rustfs`] or the `rustfs` scheme for RustFS deployments.
 - Use [`crate::Scaleway`] or the `scaleway` scheme for Scaleway Object Storage.
+- Use [`crate::Seaweedfs`] or the `seaweedfs` scheme for SeaweedFS S3 gateways.
 - Use [`crate::Spaces`] or the `spaces` scheme for DigitalOcean Spaces.
+- Use [`crate::Storj`] or the `storj` scheme for the Storj-hosted S3 Gateway.
 - Use [`crate::Supabase`] or the `supabase` scheme for Supabase Storage.
 - Use [`crate::Tigris`] or the `tigris` scheme for Tigris.
 - Use [`crate::Wasabi`] or the `wasabi` scheme for Wasabi Object Storage.
 
-The presets own provider defaults and validation. Use this generic [`crate::S3`]
-builder for AWS S3, for compatible services without a built-in preset, or when
-an application requires S3 options outside a preset's contract.
+The presets own provider defaults and validation. Their capabilities describe the
+shared S3 implementation. Check the provider guides for endpoint-specific limits.
+Use the generic [`crate::S3`] builder for AWS S3, for compatible services without
+a built-in preset, or when an application requires S3 options outside a preset's
+contract.
 
 ### AWS S3
 
@@ -60,36 +72,6 @@ builder.bucket("<bucket_name>");
 builder.enable_virtual_host_style();
 ```
 
-### Neon Object Storage
-
-[Neon Object Storage](https://neon.com/docs/storage/overview) is a S3-compatible service built into [Neon](https://neon.com/) projects. Buckets belong to a Neon branch, and each branch has its own S3 endpoint.
-
-To connect to Neon Object Storage, we need to set:
-
-- `endpoint`: The S3 endpoint of the branch, for example: `https://<branch_id>.storage.<cell>.<region>.aws.neon.tech`. The Neon Console and `neon env pull` (as `AWS_ENDPOINT_URL_S3`) show it.
-- `region`: The region of the Neon project, for example: `us-east-2`. Neon accepts any signing region, but OpenDAL requires one. `S3::detect_region()` derives it from the endpoint.
-- `bucket`: The bucket name.
-- `access_key_id` and `secret_access_key`: The token ID (`nak_live_...`) and S3 secret access key of a Neon credential with the `storage:read` and `storage:write` scopes.
-
-```rust,ignore
-builder.endpoint("https://<branch_id>.storage.<cell>.<region>.aws.neon.tech");
-builder.region("<region>");
-builder.bucket("<bucket_name>");
-builder.access_key_id("<token_id>");
-builder.secret_access_key("<s3_secret_access_key>");
-```
-
-> Neon supports path-style requests only. Don't call `enable_virtual_host_style()`.
-
-A new branch inherits the buckets and objects of its parent, and a credential issued on a branch also works on its descendants. To work against a copy of the data, point `endpoint` at the child branch. Writes there don't reach the parent.
-
-Neon Object Storage has the following capability differences from S3:
-
-- `write_can_append`: Neon ignores the append offset and replaces the object. Please override it to `false`.
-- `stat_with_version`, `read_with_version`, `delete_with_version`, `list_with_versions`, `list_with_deleted`, `copy_with_source_version`, `restore`, `restore_with_version`, `restore_with_if_not_exists`: Neon doesn't enforce versioning and always returns the `null` version ID. Please override them to `false`.
-- `copy_with_if_not_exists`, `copy_with_if_match`, `delete_with_if_match`: Neon ignores conditional headers on `CopyObject` and `DeleteObject`. Please override them to `false`.
-- `write_with_if_not_exists`, `write_with_if_match`: Neon checks these conditions for a single `PutObject`, but ignores them on `CompleteMultipartUpload` and doesn't check them atomically across concurrent writers. Please override them to `false` when you rely on them for locking or compare-and-swap.
-
 ### Tencent Cloud Object Storage (COS)
 
 [COS](https://intl.cloud.tencent.com/products/cos) is a s3 compatible service provided by [Tencent Cloud](https://intl.cloud.tencent.com/).
@@ -104,34 +86,6 @@ To connect to COS, we need to set:
 - `endpoint`: The endpoint of Google Cloud Storage XML API, for example: `https://storage.googleapis.com`
 - `bucket`: The bucket name.
 - To access GCS via S3 API, please enable `features = ["native-tls"]` in your `Cargo.toml` to avoid connection being reset when using `rustls`. Tracking in <https://github.com/seanmonstar/reqwest/issues/1809>
-
-### Ceph Rados Gateway
-Ceph supports a RESTful API that is compatible with the basic data access model of the Amazon S3 API.
-
-For more information, refer: <https://docs.ceph.com/en/latest/radosgw/s3/>
-
-### SeaweedFS
-
-[SeaweedFS](https://github.com/seaweedfs/seaweedfs) is an open-source distributed storage system that serves an S3 API from its gateway.
-
-To connect to SeaweedFS, we need to set:
-
-- `endpoint`: The endpoint of the SeaweedFS S3 gateway, for example: `http://127.0.0.1:8333`
-- `region`: The region of SeaweedFS. SeaweedFS ignores it, so set it to `us-east-1` when a region is required.
-- `bucket`: The bucket name.
-
-```rust,ignore
-builder.endpoint("http://127.0.0.1:8333");
-builder.region("us-east-1");
-builder.bucket("<bucket_name>");
-```
-
-Credentials are standard S3 access keys. A gateway started without any configured identity accepts anonymous requests, so `allow_anonymous` also works.
-
-SeaweedFS has the following capability differences from S3:
-
-- `write_can_append`: SeaweedFS doesn't support appending to an existing object through the S3 API. Please override it to `false`.
-- Object versioning is per-bucket and off by default. Enable it with `PutBucketVersioning` before relying on the version capabilities, or override them to `false`.
 
 ### Copy with metadata replacement
 

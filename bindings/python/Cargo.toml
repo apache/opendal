@@ -44,6 +44,16 @@ default = [
   "services-obs",
   "services-oss",
   "services-r2",
+  "services-akamai",
+  "services-ceph-rgw",
+  "services-garage",
+  "services-ibm-cos",
+  "services-idrive-e2",
+  "services-ionos",
+  "services-neon",
+  "services-rustfs",
+  "services-seaweedfs",
+  "services-storj",
   "services-exoscale",
   "services-hetzner",
   "services-oci",
@@ -109,6 +119,7 @@ services-platform-macos = ['services-all', 'services-foyer', 'services-sftp']
 services-platform-windows = ['services-all', 'services-foyer']
 
 # List of feature-flags for all services provided by opendal.
+services-akamai = ["opendal/services-akamai"]
 services-aliyun-drive = ["opendal/services-aliyun-drive"]
 services-alluxio = ["opendal/services-alluxio"]
 services-azblob = ["opendal/services-azblob"]
@@ -116,6 +127,7 @@ services-azdls = ["opendal/services-azdls"]
 services-azfile = ["opendal/services-azfile"]
 services-b2 = ["opendal/services-b2"]
 services-cacache = ["opendal/services-cacache"]
+services-ceph-rgw = ["opendal/services-ceph-rgw"]
 services-cloudflare-kv = [
   "opendal/services-cloudflare-kv",
 ] # FIXME EXCLUDED: Needs tests/ maintenance
@@ -139,6 +151,7 @@ services-foundationdb = [
 services-foyer = ["opendal/services-foyer"]
 services-fs = ["opendal/services-fs"]
 services-ftp = ["opendal/services-ftp"]
+services-garage = ["opendal/services-garage"]
 services-gcs = ["opendal/services-gcs"]
 services-gcs-grpc = ["opendal/services-gcs-grpc"]
 services-gdrive = ["opendal/services-gdrive"]
@@ -156,6 +169,9 @@ services-hetzner = ["opendal/services-hetzner"]
 services-hf = ["opendal/services-hf"]
 services-http = ["opendal/services-http"]
 services-huggingface = ["services-hf"]
+services-ibm-cos = ["opendal/services-ibm-cos"]
+services-idrive-e2 = ["opendal/services-idrive-e2"]
+services-ionos = ["opendal/services-ionos"]
 services-ipfs = ["opendal/services-ipfs"]
 services-ipmfs = ["opendal/services-ipmfs"]
 services-koofr = ["opendal/services-koofr"]
@@ -172,6 +188,7 @@ services-monoiofs = [
   "opendal/services-monoiofs",
 ] # FIXME EXCLUDED: Needs tests/ maintenance
 services-mysql = ["opendal/services-mysql"]
+services-neon = ["opendal/services-neon"]
 services-obs = ["opendal/services-obs"]
 services-oci = ["opendal/services-oci"]
 services-onedrive = ["opendal/services-onedrive"]
@@ -192,13 +209,16 @@ services-redis = ["opendal/services-redis"]
 services-rocksdb = [
   "opendal/services-rocksdb",
 ] # FIXME EXCLUDED: how to support rocksdb services in bindings?
+services-rustfs = ["opendal/services-rustfs"]
 services-s3 = ["opendal/services-s3"]
 services-scaleway = ["opendal/services-scaleway"]
 services-seafile = ["opendal/services-seafile"]
+services-seaweedfs = ["opendal/services-seaweedfs"]
 services-sftp = ["opendal/services-sftp"]
 services-sled = ["opendal/services-sled"]
 services-spaces = ["opendal/services-spaces"]
 services-sqlite = ["opendal/services-sqlite"]
+services-storj = ["opendal/services-storj"]
 services-supabase = ["opendal/services-supabase"]
 services-surrealdb = [
   "opendal/services-surrealdb",

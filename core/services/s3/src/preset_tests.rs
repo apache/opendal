@@ -29,13 +29,23 @@ type Options<'a> = &'a [(&'a str, &'a str)];
 fn registry() -> &'static OperatorRegistry {
     let registry = OperatorRegistry::get();
     for register in [
-        register_exoscale_service as fn(&OperatorRegistry),
+        register_akamai_service as fn(&OperatorRegistry),
+        register_ceph_rgw_service,
+        register_exoscale_service,
+        register_garage_service,
         register_hetzner_service,
+        register_ibm_cos_service,
+        register_idrive_e2_service,
+        register_ionos_service,
+        register_neon_service,
         register_oci_service,
         register_ovhcloud_service,
         register_qingstor_service,
+        register_rustfs_service,
         register_scaleway_service,
+        register_seaweedfs_service,
         register_spaces_service,
+        register_storj_service,
         register_supabase_service,
         register_tigris_service,
         register_wasabi_service,
@@ -73,7 +83,86 @@ async fn presign(uri: &str, options: &[(&str, &str)]) -> (Url, String) {
 
 #[tokio::test]
 async fn provider_uris_use_documented_endpoints_and_signing_regions() {
-    let cases: [(&str, Options<'_>, &str, &str, &str); 10] = [
+    let cases: [(&str, Options<'_>, &str, &str, &str); 20] = [
+        (
+            "akamai://bucket/root",
+            &[("endpoint", "https://us-sea-9.linodeobjects.com")],
+            "bucket.us-sea-9.linodeobjects.com",
+            "/root/file",
+            "us-east-1",
+        ),
+        (
+            "ceph-rgw://bucket/root",
+            &[("endpoint", "https://rgw.example.com/stores/")],
+            "rgw.example.com",
+            "/stores/bucket/root/file",
+            "us-east-1",
+        ),
+        (
+            "garage://bucket/root",
+            &[
+                ("endpoint", "http://localhost:3900"),
+                ("region", "my-garage"),
+            ],
+            "localhost",
+            "/bucket/root/file",
+            "my-garage",
+        ),
+        (
+            "ibm-cos://bucket/root",
+            &[(
+                "endpoint",
+                "https://s3.private.us.cloud-object-storage.appdomain.cloud",
+            )],
+            "s3.private.us.cloud-object-storage.appdomain.cloud",
+            "/bucket/root/file",
+            "us-standard",
+        ),
+        (
+            "idrive-e2://bucket/root",
+            &[("endpoint", "https://e2.example.com")],
+            "e2.example.com",
+            "/bucket/root/file",
+            "us-east-1",
+        ),
+        (
+            "ionos://bucket/root",
+            &[("region", "de")],
+            "s3.eu-central-1.ionoscloud.com",
+            "/bucket/root/file",
+            "de",
+        ),
+        (
+            "neon://bucket/root",
+            &[(
+                "endpoint",
+                "https://br-example.storage.c-6.us-east-2.aws.neon.tech/",
+            )],
+            "br-example.storage.c-6.us-east-2.aws.neon.tech",
+            "/bucket/root/file",
+            "us-east-2",
+        ),
+        (
+            "rustfs://bucket/root",
+            &[("endpoint", "http://localhost:9000")],
+            "localhost",
+            "/bucket/root/file",
+            "us-east-1",
+        ),
+        (
+            "seaweedfs://bucket/root",
+            &[("endpoint", "http://localhost:8333")],
+            "localhost",
+            "/bucket/root/file",
+            "us-east-1",
+        ),
+        (
+            "storj://bucket/root",
+            &[("endpoint", "https://gateway.storjshare.io")],
+            "gateway.storjshare.io",
+            "/bucket/root/file",
+            "us-east-1",
+        ),
         (
             "exoscale://bucket/root",
             &[("zone", "ch-dk-2")],
@@ -183,6 +272,70 @@ async fn explicit_endpoint_addressing_and_signing_options_take_precedence() {
 }
 
 #[tokio::test]
+async fn deployment_options_override_signing_region_and_addressing() {
+    let (url, region) = presign(
+        "ceph-rgw://bucket/root",
+        &[
+            ("endpoint", "https://rgw.example.com:8443"),
+            ("region", "my-zonegroup"),
+            ("enable_virtual_host_style", "true"),
+        ],
+    )
+    .await;
+    assert_eq!(url.host_str(), Some("bucket.rgw.example.com"));
+    assert_eq!(url.port(), Some(8443));
+    assert_eq!(url.path(), "/root/file");
+    assert_eq!(region, "my-zonegroup");
+
+    let (url, region) = presign(
+        "ibm-cos://bucket/root",
+        &[
+            (
+                "endpoint",
+                "https://s3.eu-de.cloud-object-storage.appdomain.cloud",
+            ),
+            ("region", "eu-de"),
+            ("enable_virtual_host_style", "true"),
+        ],
+    )
+    .await;
+    assert_eq!(
+        url.host_str(),
+        Some("bucket.s3.eu-de.cloud-object-storage.appdomain.cloud")
+    );
+    assert_eq!(url.path(), "/root/file");
+    assert_eq!(region, "eu-de");
+
+    let (url, region) = presign(
+        "neon://bucket/root",
+        &[
+            ("endpoint", "https://proxy.example.com/neon"),
+            ("region", "eu-west-1"),
+        ],
+    )
+    .await;
+    assert_eq!(url.host_str(), Some("proxy.example.com"));
+    assert_eq!(url.path(), "/neon/bucket/root/file");
+    assert_eq!(region, "eu-west-1");
+
+    let (url, region) = presign(
+        "ionos://bucket/root",
+        &[
+            ("endpoint", "https://s3.example.test"),
+            ("region", "custom-region"),
+        ],
+    )
+    .await;
+    assert_eq!(url.host_str(), Some("s3.example.test"));
+    assert_eq!(region, "custom-region");
+
+    let (url, region) = presign("ionos://bucket/root", &[("region", "eu-central-4")]).await;
+    assert_eq!(url.host_str(), Some("s3.eu-central-4.ionoscloud.com"));
+    assert_eq!(url.path(), "/bucket/root/file");
+    assert_eq!(region, "eu-central-4");
+}
+
+#[tokio::test]
 async fn presets_presign_with_the_supplied_session_token() {
     for (uri, options, expected_region) in [
         (
@@ -215,7 +368,34 @@ async fn presets_presign_with_the_supplied_session_token() {
 
 #[test]
 fn invalid_provider_connection_options_fail_during_construction() {
-    let cases: [(&str, Options<'_>, &str); 8] = [
+    let cases: [(&str, Options<'_>, &str); 13] = [
+        ("akamai", &[], "endpoint must be an HTTP(S) base URL"),
+        (
+            "garage",
+            &[("endpoint", "http://localhost:3900")],
+            "region must not be empty",
+        ),
+        (
+            "ionos",
+            &[("region", "unknown")],
+            "region has no documented default endpoint",
+        ),
+        (
+            "neon",
+            &[(
+                "endpoint",
+                "https://proxy.example.com/br-example.storage.c-6.us-east-2.aws.neon.tech",
+            )],
+            "region is required for a custom endpoint",
+        ),
+        (
+            "rustfs",
+            &[
+                ("endpoint", "http://localhost:9000"),
+                ("secret_access_key", "test-secret"),
+            ],
+            "must be provided together",
+        ),
         (
             "hetzner",
             &[("endpoint", "https://example.test")],
@@ -259,6 +439,27 @@ fn invalid_provider_connection_options_fail_during_construction() {
             .unwrap_err();
         assert_eq!(error.kind(), ErrorKind::ConfigInvalid, "{scheme}");
         assert!(error.to_string().contains(message), "{error}");
+    }
+}
+
+#[test]
+fn explicit_endpoint_configs_reject_unsupported_options_and_redact_credentials() {
+    for field in ["role_arn", "enable_virtual_host_style"] {
+        let options = [("bucket", "bucket"), (field, "true")];
+        let error =
+            NeonConfig::from_iter(options.map(|(key, value)| (key.to_owned(), value.to_owned())))
+                .unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::ConfigInvalid);
+        assert!(error.to_string().contains(field));
+    }
+
+    let builder = Neon::default()
+        .bucket("bucket")
+        .access_key_id("test-access")
+        .secret_access_key("test-secret");
+    let debug = format!("{builder:?}");
+    for secret in ["test-access", "test-secret"] {
+        assert!(!debug.contains(secret));
     }
 }
 

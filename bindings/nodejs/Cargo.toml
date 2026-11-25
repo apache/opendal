@@ -41,6 +41,16 @@ default = [
   "services-obs",
   "services-oss",
   "services-r2",
+  "services-akamai",
+  "services-ceph-rgw",
+  "services-garage",
+  "services-ibm-cos",
+  "services-idrive-e2",
+  "services-ionos",
+  "services-neon",
+  "services-rustfs",
+  "services-seaweedfs",
+  "services-storj",
   "services-exoscale",
   "services-hetzner",
   "services-oci",
@@ -105,29 +115,39 @@ services-all = [
 ]
 
 # Default services provided by opendal.
+services-akamai = ["opendal/services-akamai"]
 services-aliyun-drive = ["opendal/services-aliyun-drive"]
 services-azblob = ["opendal/services-azblob"]
 services-azdls = ["opendal/services-azdls"]
+services-ceph-rgw = ["opendal/services-ceph-rgw"]
 services-cos = ["opendal/services-cos"]
 services-exoscale = ["opendal/services-exoscale"]
 services-fs = ["opendal/services-fs"]
+services-garage = ["opendal/services-garage"]
 services-gcs = ["opendal/services-gcs"]
 services-gcs-grpc = ["opendal/services-gcs-grpc"]
 services-ghac = ["opendal/services-ghac"]
 services-hetzner = ["opendal/services-hetzner"]
 services-http = ["opendal/services-http"]
+services-ibm-cos = ["opendal/services-ibm-cos"]
+services-idrive-e2 = ["opendal/services-idrive-e2"]
+services-ionos = ["opendal/services-ionos"]
 services-ipmfs = ["opendal/services-ipmfs"]
 services-memory = ["opendal/services-memory"]
 services-minio = ["opendal/services-minio"]
+services-neon = ["opendal/services-neon"]
 services-obs = ["opendal/services-obs"]
 services-oci = ["opendal/services-oci"]
 services-oss = ["opendal/services-oss"]
 services-ovhcloud = ["opendal/services-ovhcloud"]
 services-qingstor = ["opendal/services-qingstor"]
 services-r2 = ["opendal/services-r2"]
+services-rustfs = ["opendal/services-rustfs"]
 services-s3 = ["opendal/services-s3"]
 services-scaleway = ["opendal/services-scaleway"]
+services-seaweedfs = ["opendal/services-seaweedfs"]
 services-spaces = ["opendal/services-spaces"]
+services-storj = ["opendal/services-storj"]
 services-supabase = ["opendal/services-supabase"]
 services-tigris = ["opendal/services-tigris"]
 services-wasabi = ["opendal/services-wasabi"]

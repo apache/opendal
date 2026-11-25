@@ -279,6 +279,10 @@ def _filter_binding_cases(
     # These fixtures target core services without enabling bindings.
     cases = [v for v in cases if v["service"] not in ["github", "hf3fs", "smb"]]
 
+    # The default Java and .NET native libraries omit the services-ftp feature.
+    if language in ("java", "dotnet"):
+        cases = [v for v in cases if v["service"] != "ftp"]
+
     if language == "java":
         cases = [
             v

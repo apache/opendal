@@ -943,6 +943,27 @@ class ObsConfig(TypedDict):
     """Skip signature will skip loading credentials and signing requests."""
 
 
+class ObsS3Config(TypedDict):
+    """Configuration for the `obs-s3` service."""
+
+    scheme: Required[Literal["obs-s3"]]
+    """The service scheme; fixed to `"obs-s3"`."""
+    access_key_id: NotRequired[str]
+    """Huawei Cloud access key ID (AK)."""
+    bucket: Required[str]
+    """OBS bucket name as a single lowercase DNS label."""
+    endpoint: NotRequired[str]
+    """HTTP(S) base endpoint override. OpenDAL prepends the bucket to the host."""
+    region: Required[str]
+    """OBS bucket region. Also used to sign requests."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root within the bucket. The default is `/`."""
+    secret_access_key: NotRequired[str]
+    """Huawei Cloud secret access key (SK)."""
+    session_token: NotRequired[str]
+    """Session token for temporary Huawei Cloud credentials. Requires both keys."""
+
+
 class OciConfig(TypedDict):
     """Configuration for the `oci` service."""
 
@@ -1747,6 +1768,7 @@ ServiceConfig = (
     | MysqlConfig
     | NeonConfig
     | ObsConfig
+    | ObsS3Config
     | OciConfig
     | OnedriveConfig
     | OssConfig
@@ -1831,6 +1853,7 @@ __all__ = [
     "MysqlConfig",
     "NeonConfig",
     "ObsConfig",
+    "ObsS3Config",
     "OciConfig",
     "OnedriveConfig",
     "OssConfig",

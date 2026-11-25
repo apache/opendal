@@ -68,7 +68,11 @@ impl oio::List for EtcdLister {
     async fn next(&mut self) -> Result<Option<Entry>> {
         for key in self.iter.by_ref() {
             if key.starts_with(&self.path) {
-                let path = build_relative_path(&self.root, &key);
+                let path = if key == self.root {
+                    "/".to_string()
+                } else {
+                    build_relative_path(&self.root, &key)
+                };
 
                 let metadata = if key.ends_with('/') {
                     MetadataBuilder::dir()
@@ -115,5 +119,27 @@ impl oio::List for EtcdLazyLister {
             .expect("lister must be initialized")
             .next()
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opendal_core::raw::oio::List as _;
+
+    #[tokio::test]
+    async fn lister_handles_default_root_marker() -> Result<()> {
+        let mut lister = EtcdLister {
+            root: "/".to_string(),
+            path: String::new(),
+            iter: vec!["/".to_string(), "file".to_string()].into_iter(),
+        };
+
+        let marker = lister.next().await?.expect("root marker");
+        assert_eq!(marker.path(), "/");
+        assert_eq!(marker.mode(), EntryMode::DIR);
+        assert_eq!(lister.next().await?.expect("file entry").path(), "file");
+        assert!(lister.next().await?.is_none());
+        Ok(())
     }
 }

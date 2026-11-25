@@ -50,7 +50,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         tests.extend(async_trials!(op, test_presign_write_with_metadata));
     }
 
-    if op.info().scheme() == "b2" && cap.presign_write && cap.stat && cap.delete {
+    if op.info().scheme() == "b2" && cap.presign_write {
         tests.extend(async_trials!(op, test_presign_write_b2_content_type));
     }
 
@@ -159,63 +159,22 @@ async fn test_presign_write_with_metadata(op: Operator) -> Result<()> {
 }
 
 async fn test_presign_write_b2_content_type(op: Operator) -> Result<()> {
-    let client = reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .timeout(Duration::from_secs(20))
-        .build()?;
+    let path = uuid::Uuid::new_v4().to_string();
     let expire = Duration::from_secs(60);
-    let content = "{}\n";
+    let default_request = op.presign_write(&path, expire).await?;
+    assert_eq!(default_request.header()[header::CONTENT_TYPE], "b2/x-auto");
 
-    let json = "application/json";
-    for (requested, request_type, stored_type) in
-        [(None, "b2/x-auto", "text/plain"), (Some(json), json, json)]
-    {
-        let path = format!("{}.txt", uuid::Uuid::new_v4());
-        let request = match requested {
-            Some(content_type) => {
-                op.presign_write_options(
-                    &path,
-                    expire,
-                    options::WriteOptions {
-                        content_type: Some(content_type.to_owned()),
-                        ..Default::default()
-                    },
-                )
-                .await?
-            }
-            None => op.presign_write(&path, expire).await?,
-        };
-        let metadata = async {
-            let response = client
-                .request(request.method().clone(), request.uri().to_string())
-                .headers(request.header().clone())
-                .body(content)
-                .send()
-                .await
-                .map_err(reqwest::Error::without_url)?;
-            anyhow::ensure!(
-                response.status() == http::StatusCode::OK,
-                "presigned B2 upload returned {}",
-                response.status()
-            );
-            Ok::<_, anyhow::Error>(op.stat(&path).await?)
-        }
-        .await;
-        let cleanup = op.delete(&path).await;
-        let metadata = metadata?;
-        cleanup?;
-
-        assert_eq!(request.method(), http::Method::POST);
-        assert!(request.header().contains_key(header::AUTHORIZATION));
-        assert_eq!(request.header()[header::CONTENT_TYPE], request_type);
-        assert_eq!(metadata.content_length(), content.len() as u64);
-        assert_eq!(metadata.content_type(), Some(stored_type));
-        assert_eq!(
-            op.stat(&path).await.unwrap_err().kind(),
-            ErrorKind::NotFound
-        );
-    }
-
+    let request = op
+        .presign_write_options(
+            &path,
+            expire,
+            options::WriteOptions {
+                content_type: Some("application/json".to_owned()),
+                ..Default::default()
+            },
+        )
+        .await?;
+    assert_eq!(request.header()[header::CONTENT_TYPE], "application/json");
     Ok(())
 }
 

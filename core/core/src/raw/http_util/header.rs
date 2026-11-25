@@ -134,8 +134,32 @@ pub fn parse_content_range(headers: &HeaderMap) -> Result<Option<BytesContentRan
 /// Parse last modified from header map.
 pub fn parse_last_modified(headers: &HeaderMap) -> Result<Option<Timestamp>> {
     parse_header_to_str(headers, LAST_MODIFIED)?
-        .map(Timestamp::parse_rfc2822)
+        .map(parse_http_date)
         .transpose()
+}
+
+/// Parse an HTTP-date.
+///
+/// RFC 9110 Section 5.6.7 requires recipients to accept the IMF-fixdate
+/// format as well as the obsolete RFC 850 and asctime formats.
+fn parse_http_date(s: &str) -> Result<Timestamp> {
+    let err = match Timestamp::parse_rfc2822(s) {
+        Ok(ts) => return Ok(ts),
+        Err(err) => err,
+    };
+
+    // RFC 850, e.g. `Sunday, 06-Nov-94 08:49:37 GMT`, and asctime, e.g.
+    // `Sun Nov  6 08:49:37 1994`. Both are always in UTC.
+    for format in ["%A, %d-%b-%y %H:%M:%S GMT", "%a %b %e %H:%M:%S %Y"] {
+        if let Ok(ts) = jiff::fmt::strtime::parse(format, s)
+            .and_then(|tm| tm.to_datetime())
+            .and_then(|dt| jiff::tz::Offset::UTC.to_timestamp(dt))
+        {
+            return Ok(ts.into());
+        }
+    }
+
+    Err(err)
 }
 
 /// Parse etag from header map.
@@ -431,6 +455,26 @@ pub fn build_header_value(v: &str) -> Result<HeaderValue> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse_last_modified_accepts_all_http_date_formats() {
+        for value in [
+            "Sun, 06 Nov 1994 08:49:37 GMT",
+            "Sunday, 06-Nov-94 08:49:37 GMT",
+            "Sun Nov  6 08:49:37 1994",
+        ] {
+            let mut headers = HeaderMap::new();
+            headers.insert(LAST_MODIFIED, HeaderValue::from_static(value));
+            let ts = parse_last_modified(&headers)
+                .unwrap_or_else(|err| panic!("{value}: {err}"))
+                .expect("last modified must be present");
+            assert_eq!(ts.to_string(), "1994-11-06T08:49:37Z", "{value}");
+        }
+
+        let mut headers = HeaderMap::new();
+        headers.insert(LAST_MODIFIED, HeaderValue::from_static("not a date"));
+        assert!(parse_last_modified(&headers).is_err());
+    }
 
     /// Test cases is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html
     #[test]

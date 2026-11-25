@@ -595,40 +595,110 @@ impl B2Core {
         self.send(ctx, req).await
     }
 
-    pub async fn copy_file(
+    pub async fn list_file_versions(
         &self,
         ctx: &OperationContext,
-        source_file_id: String,
-        to: &str,
-    ) -> Result<Response<Buffer>> {
-        let to = build_absolute_path(&self.root, to);
-
+        key: &str,
+        start_file_id: Option<&str>,
+    ) -> Result<ListFileVersionsResponse> {
         let auth_info = self.get_auth_info(ctx).await?;
+        let body = ListFileVersionsRequest {
+            bucket_id: &self.bucket_id,
+            prefix: key,
+            max_file_count: 2,
+            start_file_name: start_file_id.map(|_| key),
+            start_file_id,
+        };
+        let body = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
+        let req = Request::post(format!(
+            "{}/b2api/v2/b2_list_file_versions",
+            auth_info.api_url
+        ))
+        .header(header::AUTHORIZATION, auth_info.authorization_token)
+        .header(header::CONTENT_TYPE, "application/json")
+        .extension(Operation::Restore)
+        .extension(ServiceOperation("ListFileVersions"))
+        .body(Buffer::from(body))
+        .map_err(new_request_build_error)?;
+        let resp = self.send(ctx, req).await?;
+        match resp.status() {
+            StatusCode::OK => serde_json::from_reader(resp.into_body().reader())
+                .map_err(new_json_deserialize_error)
+                .map_err(Error::set_temporary),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListFileVersions")),
+                resp,
+            )),
+        }
+    }
 
-        let url = format!("{}/b2api/v2/b2_copy_file", auth_info.api_url);
+    pub async fn get_file_version(
+        &self,
+        ctx: &OperationContext,
+        file_id: &str,
+    ) -> Result<FileVersion> {
+        let auth_info = self.get_auth_info(ctx).await?;
+        let body = serde_json::json!({ "fileId": file_id });
+        let body = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
+        let req = Request::post(format!("{}/b2api/v2/b2_get_file_info", auth_info.api_url))
+            .header(header::AUTHORIZATION, auth_info.authorization_token)
+            .header(header::CONTENT_TYPE, "application/json")
+            .extension(Operation::Restore)
+            .extension(ServiceOperation("GetFileInfo"))
+            .body(Buffer::from(body))
+            .map_err(new_request_build_error)?;
+        let resp = self.send(ctx, req).await?;
+        match resp.status() {
+            StatusCode::OK => serde_json::from_reader(resp.into_body().reader())
+                .map_err(new_json_deserialize_error),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetFileInfo")),
+                resp,
+            )),
+        }
+    }
 
-        let mut req = Request::post(url);
+    pub async fn delete_file_version_request(
+        &self,
+        ctx: &OperationContext,
+        key: &str,
+        file_id: &str,
+    ) -> Result<Request<Buffer>> {
+        let auth_info = self.get_auth_info(ctx).await?;
+        let body = serde_json::json!({ "fileName": key, "fileId": file_id });
+        let body = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
+        Request::post(format!(
+            "{}/b2api/v2/b2_delete_file_version",
+            auth_info.api_url
+        ))
+        .header(header::AUTHORIZATION, auth_info.authorization_token)
+        .header(header::CONTENT_TYPE, "application/json")
+        .extension(Operation::Restore)
+        .extension(ServiceOperation("DeleteFileVersion"))
+        .body(Buffer::from(body))
+        .map_err(new_request_build_error)
+    }
 
-        req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
-
-        let req = req
-            .extension(Operation::Copy)
-            .extension(ServiceOperation("CopyFile"));
-
+    pub async fn copy_file_request(
+        &self,
+        ctx: &OperationContext,
+        source_file_id: &str,
+        to: &str,
+        operation: Operation,
+    ) -> Result<Request<Buffer>> {
+        let to = build_absolute_path(&self.root, to);
+        let auth_info = self.get_auth_info(ctx).await?;
         let body = CopyFileRequest {
             source_file_id,
             file_name: to,
         };
-
         let body = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
-        let body = bytes::Bytes::from(body);
-
-        // Set body
-        let req = req
+        Request::post(format!("{}/b2api/v2/b2_copy_file", auth_info.api_url))
+            .header(header::AUTHORIZATION, auth_info.authorization_token)
+            .extension(operation)
+            .extension(ServiceOperation("CopyFile"))
             .body(Buffer::from(body))
-            .map_err(new_request_build_error)?;
-
-        self.send(ctx, req).await
+            .map_err(new_request_build_error)
     }
 
     pub async fn hide_file(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
@@ -800,6 +870,44 @@ pub struct ListFileNamesResponse {
     pub next_file_name: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ListFileVersionsRequest<'a> {
+    bucket_id: &'a str,
+    prefix: &'a str,
+    max_file_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    start_file_name: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    start_file_id: Option<&'a str>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListFileVersionsResponse {
+    pub files: Vec<FileVersion>,
+    pub next_file_name: Option<String>,
+    pub next_file_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileVersion {
+    pub action: FileVersionAction,
+    pub bucket_id: String,
+    pub file_name: String,
+    pub file_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FileVersionAction {
+    Upload,
+    Copy,
+    Hide,
+    Start,
+}
+
 /// Response of [b2-finish-large-file](https://www.backblaze.com/apidocs/b2-finish-large-file).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -831,6 +939,10 @@ pub(super) fn parse_file_info(file: &File) -> Metadata {
 
     let mut metadata = MetadataBuilder::file(file.content_length);
 
+    if let Some(file_id) = &file.file_id {
+        metadata.version(file_id);
+    }
+
     if let Some(content_md5) = &file.content_md5 {
         metadata.content_md5(content_md5);
     }
@@ -858,9 +970,9 @@ pub(super) fn parse_file_info(file: &File) -> Metadata {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CopyFileRequest {
-    pub source_file_id: String,
-    pub file_name: String,
+struct CopyFileRequest<'a> {
+    source_file_id: &'a str,
+    file_name: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -946,7 +1058,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 pub(crate) fn parse_b2_error_code(code: &str) -> Option<(ErrorKind, bool)> {
     match code {
         "already_hidden" => Some((ErrorKind::AlreadyExists, false)),
-        "no_such_file" => Some((ErrorKind::NotFound, false)),
+        "no_such_file" | "file_not_present" => Some((ErrorKind::NotFound, false)),
         _ => None,
     }
 }

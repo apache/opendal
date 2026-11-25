@@ -33,7 +33,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ));
     }
 
-    if cap.restore && cap.restore_with_version && cap.read && cap.write && cap.stat_with_version {
+    if cap.restore && cap.restore_with_version && cap.read && cap.write && cap.stat {
         tests.extend(async_trials!(op, test_restore_with_version));
     }
 

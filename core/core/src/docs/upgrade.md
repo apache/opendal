@@ -62,6 +62,11 @@ deletion still uses one native `DELETE` request.
 respectively. For exhaustive struct literals, add `glob: None` or
 `list_with_glob: false`, or use `..Default::default()`.
 
+For services without native `list_with_glob`, client-side glob simulation is
+provided by [`SimulateLayer`][crate::layers::SimulateLayer] (controlled by
+`SimulateLayer::with_list_glob` and installed automatically when the default
+`auto-simulate` feature is enabled).
+
 ## Shared semaphores for `ConcurrentLimitLayer`
 
 `ConcurrentLimitLayer` now uses asyncband 0.8. If you pass an `Arc<asyncband::semaphore::Semaphore>` to `with_semaphore` or `with_http_semaphore`, update your direct asyncband dependency to `0.8` and enable its `semaphore` feature. Semaphores from asyncband 0.7 no longer implement this version's `ConcurrentLimitSemaphore` trait.

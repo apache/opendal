@@ -19,6 +19,8 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+mod glob;
+
 use crate::raw::oio::Delete;
 use crate::raw::oio::List;
 use crate::raw::oio::PrefixLister;
@@ -60,6 +62,7 @@ use crate::*;
 pub struct SimulateLayer {
     read_with_suffix: bool,
     list_recursive: bool,
+    list_glob: bool,
     stat_dir: bool,
     create_dir: bool,
     delete_recursive: bool,
@@ -70,6 +73,7 @@ impl Default for SimulateLayer {
         Self {
             read_with_suffix: true,
             list_recursive: true,
+            list_glob: true,
             stat_dir: true,
             create_dir: true,
             delete_recursive: true,
@@ -87,6 +91,17 @@ impl SimulateLayer {
     /// Enable or disable recursive list simulation. Default: true.
     pub fn with_list_recursive(mut self, enabled: bool) -> Self {
         self.list_recursive = enabled;
+        self
+    }
+
+    /// Enable or disable glob list simulation. Default: true.
+    ///
+    /// Services that advertise native [`Capability::list_with_glob`] receive
+    /// glob requests unchanged. Otherwise this simulation evaluates
+    /// [`options::ListOptions::glob`] client-side by pruning unrelated
+    /// directories or filtering an underlying listing.
+    pub fn with_list_glob(mut self, enabled: bool) -> Self {
+        self.list_glob = enabled;
         self
     }
 
@@ -134,6 +149,9 @@ impl SimulateService {
     fn simulate_capability(&self, mut cap: Capability) -> Capability {
         if self.config.read_with_suffix && cap.read {
             cap.read_with_suffix = true;
+        }
+        if self.config.list_glob && cap.list {
+            cap.list_with_glob = true;
         }
         if self.config.create_dir && cap.list && cap.write_can_empty {
             cap.create_dir = true;
@@ -232,10 +250,23 @@ impl SimulateService {
         args: OpList,
     ) -> Result<SimulateLister> {
         let cap = self.srv.capability();
-        if cap.list_with_glob && args.glob().is_some() {
-            return self.srv.list(ctx, path, args).map(SimulateLister::One);
+        if args.glob().is_some() {
+            if !cap.list || cap.list_with_glob || !self.config.list_glob {
+                return self.srv.list(ctx, path, args).map(SimulateLister::Direct);
+            }
+            return glob::simulate_list(self, ctx, path, args).map(SimulateLister::Glob);
         }
 
+        self.simulate_list_without_glob(ctx, path, args)
+    }
+
+    fn simulate_list_without_glob(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> Result<SimulateLister> {
+        let cap = self.srv.capability();
         let lister = match (
             args.recursive(),
             cap.list_with_recursive,
@@ -244,7 +275,7 @@ impl SimulateService {
             // Backend supports recursive list, forward directly.
             (_, true, _) => {
                 let p = self.srv.list(ctx, path, args)?;
-                SimulateLister::One(p)
+                SimulateLister::Direct(p)
             }
             // Simulate recursive via flat list when enabled.
             (true, false, true) => {
@@ -256,26 +287,26 @@ impl SimulateService {
                 let lister =
                     ServicerFlatLister::new(ctx.clone(), self.srv.clone(), directory, args);
                 if directory == path {
-                    SimulateLister::Two(lister)
+                    SimulateLister::Flat(lister)
                 } else {
-                    SimulateLister::Four(PrefixLister::new(lister, path))
+                    SimulateLister::PrefixFlat(PrefixLister::new(lister, path))
                 }
             }
             // Recursive requested but simulation disabled; rely on backend and propagate errors.
             (true, false, false) => {
                 let p = self.srv.list(ctx, path, args)?;
-                SimulateLister::One(p)
+                SimulateLister::Direct(p)
             }
             // Non-recursive list: keep existing prefix handling semantics.
             (false, false, _) => {
                 if path.ends_with('/') {
                     let p = self.srv.list(ctx, path, args)?;
-                    SimulateLister::One(p)
+                    SimulateLister::Direct(p)
                 } else {
                     let parent = get_parent(path);
                     let p = self.srv.list(ctx, parent, args)?;
                     let p = PrefixLister::new(p, path);
-                    SimulateLister::Three(p)
+                    SimulateLister::Prefix(p)
                 }
             }
         };
@@ -431,12 +462,34 @@ impl Service for SimulateService {
     }
 }
 
-type SimulateLister = FourWays<
-    oio::Lister,
-    ServicerFlatLister,
-    PrefixLister<oio::Lister>,
-    PrefixLister<ServicerFlatLister>,
->;
+enum SimulateLister {
+    Direct(oio::Lister),
+    Flat(ServicerFlatLister),
+    Prefix(PrefixLister<oio::Lister>),
+    PrefixFlat(PrefixLister<ServicerFlatLister>),
+    Glob(glob::GlobLister),
+}
+
+impl SimulateLister {
+    fn into_oio_lister(self) -> oio::Lister {
+        match self {
+            Self::Direct(lister) => lister,
+            other => Box::new(other),
+        }
+    }
+}
+
+impl oio::List for SimulateLister {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        match self {
+            Self::Direct(lister) => lister.next().await,
+            Self::Flat(lister) => lister.next().await,
+            Self::Prefix(lister) => lister.next().await,
+            Self::PrefixFlat(lister) => lister.next().await,
+            Self::Glob(lister) => lister.next().await,
+        }
+    }
+}
 
 struct SimulateReader {
     ctx: OperationContext,

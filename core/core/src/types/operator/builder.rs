@@ -43,30 +43,13 @@ impl Operator {
     /// # }
     /// ```
     pub fn new<B: Builder>(ab: B) -> Result<Operator> {
-        Self::from_builder(ab, true)
-    }
-
-    /// Create an operator with client-side glob simulation disabled.
-    ///
-    /// Glob requests still use native service support when available. Otherwise
-    /// they fail with [`ErrorKind::Unsupported`].
-    pub fn new_without_glob_simulation<B: Builder>(ab: B) -> Result<Operator> {
-        Self::from_builder(ab, false)
-    }
-
-    fn from_builder<B: Builder>(ab: B, simulate_glob: bool) -> Result<Operator> {
         let service = Arc::new(ab.build()?) as Servicer;
         let op =
             Operator::from_parts(OperationContext::default(), service).layer(ErrorContextLayer);
+        // Install simulation before metadata completion so simulated directory
+        // traversal sees the service's raw entries before symlinks are resolved.
         #[cfg(feature = "auto-simulate")]
         let op = op.layer(SimulateLayer::default());
-        let op = if simulate_glob {
-            // Traverse the service's directory entries before metadata completion
-            // can resolve symbolic links to directories.
-            op.layer(GlobLayer)
-        } else {
-            op
-        };
         Ok(op.layer(CompleteLayer))
     }
 
@@ -191,6 +174,10 @@ mod tests {
 
         assert_eq!(
             op.info().capability().create_dir,
+            cfg!(feature = "auto-simulate")
+        );
+        assert_eq!(
+            op.info().capability().list_with_glob,
             cfg!(feature = "auto-simulate")
         );
         let result = op.create_dir("dir/").await;

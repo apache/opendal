@@ -164,8 +164,10 @@ pub struct ListOptions {
     /// - A backslash escapes the next character within a component.
     /// - A trailing slash restricts matches to directories.
     ///
-    /// Requires [`Capability::list_with_glob`](crate::Capability::list_with_glob). Standard operators use native
-    /// glob support when available and otherwise filter entries client-side.
+    /// Requires [`Capability::list_with_glob`](crate::Capability::list_with_glob). Services with native glob
+    /// support handle patterns directly; otherwise [`crate::layers::SimulateLayer`]
+    /// (installed automatically by the default `auto-simulate` feature) evaluates
+    /// patterns client-side.
     /// Empty or malformed patterns fail with [`crate::ErrorKind::ConfigInvalid`].
     pub glob: Option<String>,
 }

@@ -18,220 +18,129 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use super::SimulateService;
 use crate::raw::oio::{self, List};
 use crate::raw::*;
 use crate::*;
 
-/// Provide client-side glob support for services that support listing.
-///
-/// OpenDAL installs this layer by default. Services that advertise native glob
-/// support receive list requests unchanged. Otherwise the layer uses the pattern
-/// to skip unrelated directories. If the walk would list every directory below
-/// a directory, as below `t/` for `t/**/*.parquet` or below `logs/` for
-/// `logs/**`, and the service supports recursive listing, the layer filters one
-/// recursive listing of that directory instead. With a cursor, versions, or
-/// delete markers, it filters an underlying listing to preserve the service's
-/// cursor and entries.
-/// For a custom stack, install it before layers that resolve symbolic links
-/// when completing entry metadata.
-///
-/// See [`ListOptions::glob`](options::ListOptions::glob) for the pattern syntax.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct GlobLayer;
+pub(super) enum GlobLister {
+    Guided(GuidedLister),
+    Filtered(FilteredLister),
+}
 
-impl Layer for GlobLayer {
-    fn apply_service(&self, inner: Servicer) -> Servicer {
-        let capability = inner.capability();
-        if !capability.list || capability.list_with_glob {
-            return inner;
+impl List for GlobLister {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        match self {
+            Self::Guided(lister) => lister.next().await,
+            Self::Filtered(lister) => lister.next().await,
         }
-        Arc::new(GlobService { inner })
     }
 }
 
-#[derive(Debug)]
-struct GlobService {
-    inner: Servicer,
-}
+pub(super) fn simulate_list(
+    service: &SimulateService,
+    ctx: &OperationContext,
+    path: &str,
+    mut args: OpList,
+) -> Result<GlobLister> {
+    let glob = args
+        .glob()
+        .expect("glob simulation requires a glob pattern");
+    let pattern = Arc::new(GlobPattern::new(glob)?);
+    args.clear_glob();
+    let base = if path.ends_with('/') {
+        path
+    } else {
+        get_parent(path)
+    };
+    let cap = service.srv.capability();
 
-impl Service for GlobService {
-    type Reader = oio::Reader;
-    type Writer = oio::Writer;
-    type Lister = oio::Lister;
-    type Deleter = oio::Deleter;
-    type Copier = oio::Copier;
-    type Composer = oio::Composer;
-
-    fn info(&self) -> ServiceInfo {
-        self.inner.info()
-    }
-
-    fn capability(&self) -> Capability {
-        let mut capability = self.inner.capability();
-        capability.list_with_glob = true;
-        capability
-    }
-
-    async fn create_dir(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpCreateDir,
-    ) -> Result<RpCreateDir> {
-        self.inner.create_dir(ctx, path, args).await
-    }
-
-    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
-        self.inner.stat(ctx, path, args).await
-    }
-
-    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
-        self.inner.read(ctx, path, args)
-    }
-
-    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        self.inner.write(ctx, path, args)
-    }
-
-    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
-        self.inner.delete(ctx)
-    }
-
-    fn copy(
-        &self,
-        ctx: &OperationContext,
-        from: &str,
-        to: &str,
-        args: OpCopy,
-    ) -> Result<Self::Copier> {
-        self.inner.copy(ctx, from, to, args)
-    }
-
-    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
-        self.inner.compose(ctx, to, args)
-    }
-
-    async fn rename(
-        &self,
-        ctx: &OperationContext,
-        from: &str,
-        to: &str,
-        args: OpRename,
-    ) -> Result<RpRename> {
-        self.inner.rename(ctx, from, to, args).await
-    }
-
-    async fn restore(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpRestore,
-    ) -> Result<RpRestore> {
-        self.inner.restore(ctx, path, args).await
-    }
-
-    async fn presign(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        args: OpPresign,
-    ) -> Result<RpPresign> {
-        self.inner.presign(ctx, path, args).await
-    }
-
-    fn list(&self, ctx: &OperationContext, path: &str, mut args: OpList) -> Result<Self::Lister> {
-        let Some(glob) = args.glob() else {
-            return self.inner.list(ctx, path, args);
-        };
-        let pattern = Arc::new(GlobPattern::new(glob)?);
-        args.clear_glob();
-        let base = if path.ends_with('/') {
-            path
-        } else {
-            get_parent(path)
-        };
-
-        if args.start_after().is_some() || args.versions() || args.deleted() {
-            // A recursive service listing can return versions of directory markers
-            // that a delimiter listing would fold into a common prefix.
-            let recursive = pattern.spans_directories();
-            let start_after = args.start_after().map(str::to_owned);
-            let implied = (recursive && !args.versions() && !args.deleted())
-                .then(ImpliedDirectories::default);
-            args.set_recursive(recursive);
-            return Ok(Box::new(FilteredLister {
-                inner: self.inner.list(ctx, path, args)?,
-                pattern,
-                base: base.to_owned(),
-                root: base.to_owned(),
-                start_after,
-                implied,
-                pending: None,
-            }));
+    if args.start_after().is_some() || args.versions() || args.deleted() {
+        // A recursive service listing can return versions of directory markers
+        // that a delimiter listing would fold into a common prefix.
+        let recursive = pattern.spans_directories();
+        if recursive && !cap.list_with_recursive && !service.config.list_recursive {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "recursive listing is required to simulate glob with start_after, versions, or deleted",
+            ));
         }
-
-        let mut directory = if base == "/" {
-            String::new()
-        } else {
-            base.to_owned()
-        };
-        let mut position = 0;
-        for component in pattern.literal_directories() {
-            directory.push_str(component);
-            directory.push('/');
-            position += 1;
-        }
-        if directory.is_empty() {
-            directory.push('/');
-        }
-        let prefix = if path == "/" { "" } else { path };
-        let can_match = position == 0 || directory.starts_with(prefix);
-
-        // A recursive listing reads every key below `root`. It costs no more
-        // requests than the walk only if the walk lists every directory too.
-        if can_match
-            && self.inner.capability().list_with_recursive
-            && pattern.walks_whole_subtree(position)
-        {
-            args.set_recursive(true);
-            let root = if directory.starts_with(prefix) {
-                directory
-            } else {
-                path.to_owned()
-            };
-            return Ok(Box::new(FilteredLister {
-                inner: self.inner.list(ctx, &root, args)?,
-                pattern,
-                base: base.to_owned(),
-                root,
-                start_after: None,
-                implied: Some(ImpliedDirectories::default()),
-                pending: None,
-            }));
-        }
-
-        args.set_recursive(false);
-        let directories = if can_match {
-            vec![Directory {
-                path: directory,
-                positions: vec![position],
-                lister: None,
-                discovered: false,
-                recursive: false,
-            }]
-        } else {
-            Vec::new()
-        };
-        Ok(Box::new(GuidedLister {
-            ctx: ctx.clone(),
-            inner: self.inner.clone(),
+        let start_after = args.start_after().map(str::to_owned);
+        let implied =
+            (recursive && !args.versions() && !args.deleted()).then(ImpliedDirectories::default);
+        args.set_recursive(recursive);
+        let inner = service
+            .simulate_list_without_glob(ctx, path, args)?
+            .into_oio_lister();
+        return Ok(GlobLister::Filtered(FilteredLister {
+            inner,
             pattern,
-            args,
             base: base.to_owned(),
-            prefix: prefix.to_owned(),
-            directories,
-        }))
+            root: base.to_owned(),
+            start_after,
+            implied,
+            pending: None,
+        }));
     }
+
+    let mut directory = if base == "/" {
+        String::new()
+    } else {
+        base.to_owned()
+    };
+    let mut position = 0;
+    for component in pattern.literal_directories() {
+        directory.push_str(component);
+        directory.push('/');
+        position += 1;
+    }
+    if directory.is_empty() {
+        directory.push('/');
+    }
+    let prefix = if path == "/" { "" } else { path };
+    let can_match = position == 0 || directory.starts_with(prefix);
+
+    // A recursive listing reads every key below `root`. It costs no more
+    // requests than the walk only if the walk lists every directory too.
+    if can_match && cap.list_with_recursive && pattern.walks_whole_subtree(position) {
+        args.set_recursive(true);
+        let root = if directory.starts_with(prefix) {
+            directory
+        } else {
+            path.to_owned()
+        };
+        return Ok(GlobLister::Filtered(FilteredLister {
+            inner: service.srv.list(ctx, &root, args)?,
+            pattern,
+            base: base.to_owned(),
+            root,
+            start_after: None,
+            implied: Some(ImpliedDirectories::default()),
+            pending: None,
+        }));
+    }
+
+    args.set_recursive(false);
+    let directories = if can_match {
+        vec![Directory {
+            path: directory,
+            positions: vec![position],
+            lister: None,
+            discovered: false,
+            recursive: false,
+        }]
+    } else {
+        Vec::new()
+    };
+    Ok(GlobLister::Guided(GuidedLister {
+        ctx: ctx.clone(),
+        inner: service.srv.clone(),
+        pattern,
+        args,
+        base: base.to_owned(),
+        prefix: prefix.to_owned(),
+        directories,
+    }))
 }
 
 struct Directory {
@@ -279,7 +188,7 @@ impl Directory {
     }
 }
 
-struct GuidedLister {
+pub(super) struct GuidedLister {
     ctx: OperationContext,
     inner: Servicer,
     pattern: Arc<GlobPattern>,
@@ -362,7 +271,7 @@ impl List for GuidedLister {
     }
 }
 
-struct FilteredLister {
+pub(super) struct FilteredLister {
     inner: oio::Lister,
     pattern: Arc<GlobPattern>,
     base: String,

@@ -166,6 +166,40 @@ final class OpenDALTests: XCTestCase {
         XCTAssertFalse(try op.blockingExists(prefix))
     }
 
+    func testBlockingCopyRejectsSamePath() throws {
+        let op = try Operator(scheme: "memory")
+
+        XCTAssertThrowsError(try op.blockingCopy("source", to: "/./source")) { error in
+            XCTAssertEqual((error as? OperatorError)?.code, OPENDAL_IS_SAME_FILE.rawValue)
+        }
+    }
+
+    func testBlockingCopyRejectsNulPaths() throws {
+        let op = try Operator(scheme: "memory")
+
+        func assertInvalidPath(_ error: Error) {
+            guard let opendalError = error as? OperatorError else {
+                XCTFail("expected OperatorError, got \(error)")
+                return
+            }
+
+            XCTAssertEqual(opendalError.code, OPENDAL_UNEXPECTED.rawValue)
+            let message = String(decoding: opendalError.message, as: UTF8.self)
+            XCTAssertTrue(message.contains("U+0000"), "unexpected error message: \(message)")
+        }
+
+        XCTAssertThrowsError(
+            try op.blockingCopy("source\0suffix", to: "destination"),
+            "source",
+            assertInvalidPath
+        )
+        XCTAssertThrowsError(
+            try op.blockingCopy("source", to: "destination\0suffix"),
+            "destination",
+            assertInvalidPath
+        )
+    }
+
     func testOperatorInitInvalidSchemeError() throws {
         XCTAssertThrowsError(try Operator(scheme: "scheme_not_exist")) { error in
             guard let opendalError = error as? OperatorError else {

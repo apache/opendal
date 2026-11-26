@@ -36,6 +36,9 @@ mod async_read;
 #[path = "../../../tests/behavior/async_stat.rs"]
 mod async_stat;
 
+#[path = "../../../tests/behavior/async_write.rs"]
+mod async_write;
+
 wasm_bindgen_test_configure!(run_in_browser);
 
 static TEST_FIXTURE: Fixture = Fixture::new();
@@ -71,6 +74,7 @@ async fn memory_behavior() {
     async_read::tests(&op, &mut tests);
     async_stat::tests(&op, &mut tests);
     async_create_dir::tests(&op, &mut tests);
+    async_write::tests(&op, &mut tests);
 
     assert!(!tests.is_empty(), "Memory should register behavior tests");
     for (name, test) in tests {

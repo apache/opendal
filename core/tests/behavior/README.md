@@ -64,9 +64,9 @@ OPENDAL_TEST=fs cargo test behavior::test_stat_dir --features tests
 
 ## Run in Chrome
 
-The Memory browser suite uses the shared read, stat, and create-dir cases on
-`wasm32-unknown-unknown`. The cases use the operator's capabilities to decide
-which assertions apply. Install wasm-pack and Chrome, put a matching
+The Memory browser suite uses the shared read, stat, create-dir, and write
+cases on `wasm32-unknown-unknown`. The cases use the operator's capabilities to
+decide which assertions apply. Install wasm-pack and Chrome, put a matching
 ChromeDriver on your `PATH`, then run from the repository root.
 
 ```sh

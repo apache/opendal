@@ -2727,6 +2727,7 @@ name = "edge_test_memory_behavior_on_wasm"
 version = "0.59.5"
 dependencies = [
  "anyhow",
+ "bytes",
  "futures",
  "getrandom 0.4.2",
  "http 1.5.0",

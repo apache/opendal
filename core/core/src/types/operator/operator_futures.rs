@@ -85,6 +85,14 @@ where
 pub type FutureStat<F> = OperatorFuture<options::StatOptions, Metadata, F>;
 
 impl<F: Future<Output = Result<Metadata>>> FutureStat<F> {
+    /// Set the hint to request full-file checksum metadata.
+    ///
+    /// See [`options::StatOptions::checksum`] for the hint semantics.
+    pub fn checksum(mut self, checksum: bool) -> Self {
+        self.args.checksum = checksum;
+        self
+    }
+
     /// Stat only when the file has this exact ETag.
     ///
     /// Refer to [`options::StatOptions::if_match`] for the full contract.
@@ -272,6 +280,14 @@ impl<F: Future<Output = Result<PresignedRequest>>> FuturePresignWrite<F> {
 pub type FutureRead<F> = OperatorFuture<options::ReadOptions, Buffer, F>;
 
 impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
+    /// Set the hint to request full-file checksum metadata.
+    ///
+    /// See [`options::ReadOptions::checksum`] for the hint semantics.
+    pub fn checksum(mut self, checksum: bool) -> Self {
+        self.args.checksum = checksum;
+        self
+    }
+
     /// Set `range` for this `read` request.
     ///
     /// If we have a file with size `n`.
@@ -472,6 +488,14 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
 pub type FutureReader<F> = OperatorFuture<options::ReaderOptions, Reader, F>;
 
 impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
+    /// Set the hint to request full-file checksum metadata.
+    ///
+    /// See [`options::ReaderOptions::checksum`] for the hint semantics.
+    pub fn checksum(mut self, checksum: bool) -> Self {
+        self.args.checksum = checksum;
+        self
+    }
+
     /// Read the given version of the file instead of the current one.
     ///
     /// Refer to [`options::ReaderOptions::version`] for the full contract.

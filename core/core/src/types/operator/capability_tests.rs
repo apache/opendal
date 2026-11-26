@@ -17,8 +17,8 @@
 
 use crate::raw::*;
 use crate::*;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use crate::Capability;
 
@@ -30,6 +30,7 @@ use crate::raw::oio;
 struct MockService {
     capability: Capability,
     calls: Arc<AtomicUsize>,
+    checksum_hints: Arc<Mutex<Vec<(Operation, bool)>>>,
 }
 
 impl Builder for MockService {
@@ -68,13 +69,21 @@ impl Service for MockService {
         ))
     }
 
-    async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, _: &OperationContext, _: &str, args: OpStat) -> Result<RpStat> {
         self.calls.fetch_add(1, Ordering::Relaxed);
+        self.checksum_hints
+            .lock()
+            .unwrap()
+            .push((Operation::Stat, args.checksum()));
         Ok(RpStat::new(MetadataBuilder::file(0).build()))
     }
 
-    fn read(&self, _ctx: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+    fn read(&self, _ctx: &OperationContext, _: &str, args: OpRead) -> Result<Self::Reader> {
         self.calls.fetch_add(1, Ordering::Relaxed);
+        self.checksum_hints
+            .lock()
+            .unwrap()
+            .push((Operation::Read, args.checksum()));
         Ok(MockReader)
     }
 
@@ -222,7 +231,7 @@ impl oio::Compose for MockComposer {
 fn new_test_operator(capability: Capability) -> Operator {
     let srv = MockService {
         capability,
-        calls: Arc::default(),
+        ..Default::default()
     };
 
     Operator::from_parts(OperationContext::default(), Arc::new(srv))
@@ -237,6 +246,7 @@ async fn assert_override_rejects(
     let op = Operator::new(MockService {
         capability,
         calls: calls.clone(),
+        ..Default::default()
     })?;
     let overridden = op
         .clone()
@@ -301,6 +311,47 @@ async fn test_read_and_reader_honor_capability_override() -> Result<()> {
         op.reader_with("path").version("version").await.map(drop)
     })
     .await
+}
+
+#[tokio::test]
+async fn test_checksum_metadata_hint_reaches_read_and_stat_services() -> Result<()> {
+    let hints = Arc::new(Mutex::new(Vec::new()));
+    let op = Operator::new(MockService {
+        capability: Capability {
+            stat: true,
+            read: true,
+            ..Default::default()
+        },
+        checksum_hints: hints.clone(),
+        ..Default::default()
+    })?;
+
+    let meta = op.stat_with("path").checksum(true).await?;
+    assert_eq!(meta.checksum(), None);
+    op.stat("path").await?;
+    op.read_with("path").checksum(true).await?;
+    op.read("path").await?;
+    let reader = op.reader_with("path").checksum(true).await?;
+    reader.read(..).await?;
+    op.reader("path").await?;
+    op.reader_with("path")
+        .checksum(true)
+        .checksum(false)
+        .await?;
+
+    assert_eq!(
+        *hints.lock().unwrap(),
+        [
+            (Operation::Stat, true),
+            (Operation::Stat, false),
+            (Operation::Read, true),
+            (Operation::Read, false),
+            (Operation::Read, true),
+            (Operation::Read, false),
+            (Operation::Read, false),
+        ]
+    );
+    Ok(())
 }
 
 #[tokio::test]
@@ -407,6 +458,7 @@ async fn test_compose_source_honors_capability_override() -> Result<()> {
             ..Default::default()
         },
         calls: calls.clone(),
+        ..Default::default()
     })?;
     let overridden = op
         .clone()

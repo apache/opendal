@@ -351,6 +351,13 @@ pub struct ReadOptions {
     ///
     /// This option is only meaningful when used along with presign.
     pub override_content_disposition: Option<String>,
+
+    /// Request full-file checksum metadata when the service can provide it.
+    ///
+    /// This hint defaults to `false`. Services can ignore it or return checksum
+    /// metadata by default. It does not require a checksum or verify the read.
+    /// Use [`crate::Reader::metadata`] to inspect metadata from a reader.
+    pub checksum: bool,
 }
 
 /// Options for reader operations.
@@ -505,6 +512,12 @@ pub struct ReaderOptions {
     /// This option helps prevent memory exhaustion when reading large files with high
     /// concurrency settings.
     pub prefetch: usize,
+
+    /// Request full-file checksum metadata for reads through this reader.
+    ///
+    /// This hint defaults to `false` and follows the same rules as
+    /// [`ReadOptions::checksum`].
+    pub checksum: bool,
 }
 
 /// Options for stat operations.
@@ -612,6 +625,12 @@ pub struct StatOptions {
     ///
     /// This option is only meaningful when used along with presign.
     pub override_content_disposition: Option<String>,
+
+    /// Request full-file checksum metadata when the service can provide it.
+    ///
+    /// This hint defaults to `false`. Services can ignore it or return checksum
+    /// metadata by default. OpenDAL does not read object data to obtain it.
+    pub checksum: bool,
 }
 
 /// Options for write operations.

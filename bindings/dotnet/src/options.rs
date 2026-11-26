@@ -148,6 +148,7 @@ pub struct OpendalReadOptions {
     pub override_content_type: *const c_char,
     pub override_cache_control: *const c_char,
     pub override_content_disposition: *const c_char,
+    pub checksum: u8,
 }
 
 impl NativeOptions for OpendalReadOptions {
@@ -197,6 +198,7 @@ impl NativeOptions for OpendalReadOptions {
             self.override_content_disposition,
             "override_content_disposition",
         )?;
+        options.checksum = self.checksum != 0;
 
         Ok(options)
     }
@@ -235,6 +237,7 @@ impl Default for OpendalReadOptions {
             override_content_type: std::ptr::null(),
             override_cache_control: std::ptr::null(),
             override_content_disposition: std::ptr::null(),
+            checksum: 0,
         }
     }
 }
@@ -359,6 +362,7 @@ pub struct OpendalStatOptions {
     pub override_content_type: *const c_char,
     pub override_cache_control: *const c_char,
     pub override_content_disposition: *const c_char,
+    pub checksum: u8,
 }
 
 impl NativeOptions for OpendalStatOptions {
@@ -390,6 +394,7 @@ impl NativeOptions for OpendalStatOptions {
             self.override_content_disposition,
             "override_content_disposition",
         )?;
+        options.checksum = self.checksum != 0;
 
         Ok(options)
     }
@@ -414,6 +419,7 @@ impl Default for OpendalStatOptions {
             override_content_type: std::ptr::null(),
             override_cache_control: std::ptr::null(),
             override_content_disposition: std::ptr::null(),
+            checksum: 0,
         }
     }
 }

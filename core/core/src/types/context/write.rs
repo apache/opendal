@@ -157,7 +157,7 @@ pub struct WriteState {
     exact: bool,
     /// Whether the composed writer can copy source ranges directly.
     can_copy_from: bool,
-    /// Whether a logical write stopped after the inner writer accepted part of its input.
+    /// Whether a failed write or copy left accepted data that requires aborting.
     requires_abort: bool,
     /// Abort discards buffered data immediately and permanently disables writes and close.
     abort_started: bool,
@@ -251,7 +251,7 @@ impl WriteState {
         if self.requires_abort {
             return Err(Error::new(
                 ErrorKind::Unexpected,
-                "writer must be aborted after a partially accepted write",
+                "writer must be aborted after accepting data from a failed write or copy",
             ));
         }
         Ok(())
@@ -327,9 +327,15 @@ impl WriteState {
         range: BytesRange,
         limit: Option<u64>,
     ) -> Result<()> {
-        let reader = self.reader(path, args, options)?;
+        let reader = self
+            .reader(path, args, options)
+            .map_err(|err| self.copy_source_error(err))?;
         let mut stream = reader.into_stream_with_limit(range, limit).await?;
-        while let Some(mut bs) = stream.try_next().await? {
+        while let Some(mut bs) = stream
+            .try_next()
+            .await
+            .map_err(|err| self.copy_source_error(err))?
+        {
             while !bs.is_empty() {
                 // The caller already admitted this copy, and a retry must be
                 // able to continue it even though `pending_copy` is set.
@@ -339,6 +345,19 @@ impl WriteState {
             }
         }
         Ok(())
+    }
+
+    fn copy_source_error(&mut self, err: Error) -> Error {
+        if err.kind() == ErrorKind::ChecksumMismatch
+            && self
+                .pending_copy
+                .as_ref()
+                .is_some_and(|copy| copy.has_accepted_bytes())
+        {
+            // Resuming past the accepted prefix would bypass source verification.
+            self.requires_abort = true;
+        }
+        err
     }
 
     fn advance_copy_offset(&mut self, n: u64) {
@@ -667,6 +686,10 @@ mod tests {
     #[derive(Debug, Clone, Copy)]
     struct WriteFaults {
         fail_on_write: usize,
+        write_error_kind: ErrorKind,
+        /// Faults for `source`, keyed by open offset and followed by the number
+        /// of bytes to yield before returning the error.
+        stream_read_faults: &'static [(u64, usize, ErrorKind)],
         fail_on_copy: usize,
         pending_on_copy: usize,
         fail_first_abort: bool,
@@ -680,6 +703,8 @@ mod tests {
         fn default() -> Self {
             Self {
                 fail_on_write: usize::MAX,
+                write_error_kind: ErrorKind::Unexpected,
+                stream_read_faults: &[],
                 fail_on_copy: usize::MAX,
                 pending_on_copy: usize::MAX,
                 fail_first_abort: false,
@@ -715,6 +740,7 @@ mod tests {
                 write_can_multi: true,
                 write_multi_min_size: Some(10),
                 write_can_copy_from: self.faults.can_copy_from,
+                checksum_sha256: true,
                 read_with_if_match: self.faults.read_with_if_match,
                 ..self.inner.capability()
             }
@@ -742,7 +768,12 @@ mod tests {
         }
 
         fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
-            self.inner.read(ctx, path, args)
+            let reader = self.inner.read(ctx, path, args)?;
+            let faults = self.faults.stream_read_faults;
+            if path == "source" && !faults.is_empty() {
+                return Ok(Box::new(CopyReadFault { reader, faults }));
+            }
+            Ok(reader)
         }
 
         fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
@@ -785,6 +816,57 @@ mod tests {
         }
     }
 
+    struct CopyReadFault {
+        reader: oio::Reader,
+        faults: &'static [(u64, usize, ErrorKind)],
+    }
+
+    impl oio::Read for CopyReadFault {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            let (rp, stream) = self.reader.open(range).await?;
+            if let BytesRange::Range { offset, .. } = range
+                && let Some(&(_, bytes_until_error, kind)) =
+                    self.faults.iter().find(|(start, ..)| *start == offset)
+            {
+                return Ok((
+                    rp,
+                    Box::new(CopyStreamFault {
+                        stream,
+                        bytes_until_error,
+                        kind,
+                    }),
+                ));
+            }
+            Ok((rp, stream))
+        }
+
+        async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+            self.reader.read(range).await
+        }
+    }
+
+    struct CopyStreamFault {
+        stream: Box<dyn oio::ReadStreamDyn>,
+        bytes_until_error: usize,
+        kind: ErrorKind,
+    }
+
+    impl oio::ReadStream for CopyStreamFault {
+        async fn read(&mut self) -> Result<Buffer> {
+            if self.bytes_until_error == 0 {
+                let err = Error::new(self.kind, "injected source stream failure");
+                return Err(match self.kind {
+                    ErrorKind::ChecksumMismatch => err.set_persistent(),
+                    _ => err.set_temporary(),
+                });
+            }
+            let mut buf = self.stream.read_dyn().await?;
+            buf.truncate(buf.len().min(self.bytes_until_error));
+            self.bytes_until_error -= buf.len();
+            Ok(buf)
+        }
+    }
+
     struct WriteFault {
         writer: oio::Writer,
         source: Servicer,
@@ -801,7 +883,8 @@ mod tests {
             self.write_attempts += 1;
             if self.write_attempts == self.faults.fail_on_write {
                 return Err(
-                    Error::new(ErrorKind::Unexpected, "injected flush failure").set_temporary()
+                    Error::new(self.faults.write_error_kind, "injected flush failure")
+                        .set_temporary(),
                 );
             }
             self.writer.write(bs).await
@@ -1038,37 +1121,204 @@ mod tests {
     /// A streaming fallback must also resume after a failed chunk without
     /// replaying source bytes.
     #[tokio::test]
-    async fn test_retry_copy_from_resumes_after_stream_failure() -> Result<()> {
+    async fn test_retry_copy_from_resumes_after_destination_write_failure() -> Result<()> {
+        for kind in [ErrorKind::Unexpected, ErrorKind::ChecksumMismatch] {
+            let op = Operator::new(services::Memory::default())?;
+            op.write("source", "0123456789abcdefghijklmnopqrst").await?;
+            let (fault_op, _, _) = with_write_faults(
+                &op,
+                WriteFaults {
+                    fail_on_write: 2,
+                    write_error_kind: kind,
+                    can_copy_from: false,
+                    ..Default::default()
+                },
+            );
+            let mut writer = fault_op.writer_with("target").chunk(10).await?;
+            let options = crate::options::ReadOptions {
+                range: (0..30).into(),
+                chunk: Some(5),
+                ..Default::default()
+            };
+
+            let err = writer
+                .copy_from_options("source", options.clone())
+                .await
+                .expect_err("second streamed chunk fails");
+            assert_eq!(err.kind(), kind);
+            assert_eq!(err.message(), "injected flush failure");
+            assert!(err.is_temporary());
+
+            writer.copy_from_options("source", options).await?;
+            writer.close().await?;
+
+            assert_eq!(
+                op.read("target").await?.to_vec(),
+                b"0123456789abcdefghijklmnopqrst"
+            );
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_source_checksum_mismatch_after_flushing_copy_bytes() -> Result<()> {
+        assert_source_checksum_mismatch_requires_abort(10, &[(0, 15, ErrorKind::ChecksumMismatch)])
+            .await
+    }
+
+    #[tokio::test]
+    async fn test_source_checksum_mismatch_with_only_queued_copy_bytes() -> Result<()> {
+        // All 20 bytes fit in one exact chunk and remain queued until close.
+        assert_source_checksum_mismatch_requires_abort(20, &[(0, 20, ErrorKind::ChecksumMismatch)])
+            .await
+    }
+
+    async fn assert_source_checksum_mismatch_requires_abort(
+        chunk: usize,
+        stream_read_faults: &'static [(u64, usize, ErrorKind)],
+    ) -> Result<()> {
         let op = Operator::new(services::Memory::default())?;
-        op.write("source", "0123456789abcdefghijklmnopqrst").await?;
-        let (op, _, _) = with_write_faults(
+        op.write("source", "0123456789abcdefghij").await?;
+        let (fault_op, _, _) = with_write_faults(
             &op,
             WriteFaults {
-                fail_on_write: 2,
                 can_copy_from: false,
+                stream_read_faults,
                 ..Default::default()
             },
         );
-        let mut writer = op.writer_with("target").chunk(10).await?;
-        let options = crate::options::ReadOptions {
-            range: (0..30).into(),
-            chunk: Some(5),
-            ..Default::default()
-        };
+        let mut writer = fault_op.writer_with("target").chunk(chunk).await?;
 
         let err = writer
-            .copy_from_options("source", options.clone())
+            .copy_from("source", 0..20)
             .await
-            .expect_err("second streamed chunk fails");
-        assert_eq!(err.message(), "injected flush failure");
+            .expect_err("source reports a mismatch after yielding bytes");
+        assert_eq!(err.kind(), ErrorKind::ChecksumMismatch);
+        assert_eq!(err.message(), "injected source stream failure");
+        assert!(err.is_persistent());
+        assert_copy_requires_abort(&op, &mut writer).await
+    }
 
-        writer.copy_from_options("source", options).await?;
-        writer.close().await?;
-
+    async fn assert_copy_requires_abort(op: &Operator, writer: &mut Writer) -> Result<()> {
+        let retry = writer.copy_from("source", 0..20).await;
+        let close = writer.close().await;
         assert_eq!(
-            op.read("target").await?.to_vec(),
-            b"0123456789abcdefghijklmnopqrst"
+            (retry.is_err(), close.is_err(), op.exists("target").await?),
+            (true, true, false),
+            "an accepted but unverified copy must require abort"
         );
+        assert_eq!(retry.unwrap_err().kind(), ErrorKind::Unexpected);
+        assert_eq!(close.unwrap_err().kind(), ErrorKind::Unexpected);
+        assert_eq!(
+            writer.write("extra").await.unwrap_err().kind(),
+            ErrorKind::Unexpected
+        );
+        writer.abort().await?;
+        assert!(!op.exists("target").await?);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_source_checksum_mismatch_at_zero_progress_preserves_existing_prefix() -> Result<()>
+    {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789").await?;
+        op.write("replacement", "valid-data").await?;
+        let (fault_op, _, _) = with_write_faults(
+            &op,
+            WriteFaults {
+                can_copy_from: false,
+                stream_read_faults: &[(0, 0, ErrorKind::ChecksumMismatch)],
+                ..Default::default()
+            },
+        );
+
+        let mut writer = fault_op.writer("target").await?;
+        writer.write("known-good:").await?;
+        let err = writer.copy_from("source", 0..10).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ChecksumMismatch);
+        writer.copy_from("replacement", 0..10).await?;
+        writer.close().await?;
+        assert_eq!(op.read("target").await?.to_vec(), b"known-good:valid-data");
+
+        let mut writer = fault_op.writer("prefix-only").await?;
+        writer.write("known-good:").await?;
+        let err = writer.copy_from("source", 0..10).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ChecksumMismatch);
+        writer.close().await?;
+        assert_eq!(op.read("prefix-only").await?.to_vec(), b"known-good:");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_source_checksum_mismatch_on_retry_after_accepting_copy_bytes() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghij").await?;
+        let (fault_op, _, _) = with_write_faults(
+            &op,
+            WriteFaults {
+                can_copy_from: false,
+                stream_read_faults: &[
+                    (0, 10, ErrorKind::Unexpected),
+                    (10, 0, ErrorKind::ChecksumMismatch),
+                ],
+                ..Default::default()
+            },
+        );
+        let mut writer = fault_op.writer_with("target").chunk(20).await?;
+        let err = writer.copy_from("source", 0..20).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_temporary());
+
+        let err = writer.copy_from("source", 0..20).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ChecksumMismatch);
+        assert_eq!(err.message(), "injected source stream failure");
+        assert!(err.is_persistent());
+        assert_copy_requires_abort(&op, &mut writer).await
+    }
+
+    #[tokio::test]
+    async fn test_retry_copy_from_resumes_after_temporary_source_read_failure() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghij").await?;
+        let (fault_op, _, _) = with_write_faults(
+            &op,
+            WriteFaults {
+                can_copy_from: false,
+                stream_read_faults: &[(0, 10, ErrorKind::Unexpected)],
+                ..Default::default()
+            },
+        );
+        let mut writer = fault_op.writer_with("target").chunk(20).await?;
+        let err = writer.copy_from("source", 0..20).await.unwrap_err();
+        assert_eq!(err.message(), "injected source stream failure");
+        assert!(err.is_temporary());
+
+        writer.copy_from("source", 0..20).await?;
+        writer.close().await?;
+        assert_eq!(op.read("target").await?.to_vec(), b"0123456789abcdefghij");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_write_checksum_disables_native_copy_from() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let data = b"0123456789abcdefghij";
+        op.write("source", data.to_vec()).await?;
+        let (fault_op, copy_ranges, _) = with_write_faults(&op, WriteFaults::default());
+        let mut writer = fault_op
+            .writer_with("target")
+            .checksum(Checksum::new(
+                ChecksumAlgo::Sha256,
+                Sha256::digest(data).to_vec(),
+            ))
+            .chunk(10)
+            .await?;
+
+        writer.copy_from("source", 0..20).await?;
+        writer.close().await?;
+        assert!(copy_ranges.lock().unwrap().is_empty());
+        assert_eq!(op.read("target").await?.to_vec(), data);
         Ok(())
     }
 

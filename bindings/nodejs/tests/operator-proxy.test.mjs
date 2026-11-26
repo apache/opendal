@@ -80,25 +80,30 @@ test.for([
   ['map', 'statSync'],
   ['uri', 'stat'],
   ['uri', 'statSync'],
-])('Operator %s uses a per-operator proxy and retries the proxied %s request', async ([constructor, stat], { onTestFinished }) => {
-  const origin = await startHeadServer(onTestFinished, 3)
-  const proxy = await startHeadServer(onTestFinished, 7, { retryFirst: true })
-  const proxyVariables = new Set(['http_proxy', 'https_proxy', 'all_proxy', 'no_proxy'])
-  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !proxyVariables.has(key.toLowerCase())))
+])(
+  'Operator %s uses a per-operator proxy and retries the proxied %s request',
+  async ([constructor, stat], { onTestFinished }) => {
+    const origin = await startHeadServer(onTestFinished, 3)
+    const proxy = await startHeadServer(onTestFinished, 7, { retryFirst: true })
+    const proxyVariables = new Set(['http_proxy', 'https_proxy', 'all_proxy', 'no_proxy'])
+    const env = Object.fromEntries(
+      Object.entries(process.env).filter(([key]) => !proxyVariables.has(key.toLowerCase())),
+    )
 
-  // Async process launch lets the parent serve both endpoints during statSync.
-  await runChild(process.execPath, ['-e', client, constructor, stat, origin.url, proxy.url], {
-    cwd: packageDirectory,
-    env,
-    timeout: 20_000,
-  })
+    // Async process launch lets the parent serve both endpoints during statSync.
+    await runChild(process.execPath, ['-e', client, constructor, stat, origin.url, proxy.url], {
+      cwd: packageDirectory,
+      env,
+      timeout: 20_000,
+    })
 
-  expect(origin.requests).toEqual([
-    ['HEAD', '/proxy-test/direct-before'],
-    ['HEAD', '/proxy-test/direct-after'],
-  ])
-  expect(proxy.requests).toEqual([
-    ['HEAD', `${origin.url}/proxy-test/proxied`],
-    ['HEAD', `${origin.url}/proxy-test/proxied`],
-  ])
-})
+    expect(origin.requests).toEqual([
+      ['HEAD', '/proxy-test/direct-before'],
+      ['HEAD', '/proxy-test/direct-after'],
+    ])
+    expect(proxy.requests).toEqual([
+      ['HEAD', `${origin.url}/proxy-test/proxied`],
+      ['HEAD', `${origin.url}/proxy-test/proxied`],
+    ])
+  },
+)

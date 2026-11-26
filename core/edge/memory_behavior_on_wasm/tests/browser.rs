@@ -20,7 +20,9 @@
 use std::future::Future;
 
 use futures::future::LocalBoxFuture;
+use gloo_timers::future::sleep;
 use opendal::raw::BoxedStaticFuture;
+use opendal::raw::Instant;
 use opendal::*;
 use wasm_bindgen_test::{console_log, wasm_bindgen_test, wasm_bindgen_test_configure};
 
@@ -31,6 +33,8 @@ use utils::*;
 
 #[path = "../../../tests/behavior/async_create_dir.rs"]
 mod async_create_dir;
+#[path = "../../../tests/behavior/async_delete.rs"]
+mod async_delete;
 #[path = "../../../tests/behavior/async_read.rs"]
 mod async_read;
 #[path = "../../../tests/behavior/async_stat.rs"]
@@ -75,6 +79,7 @@ async fn memory_behavior() {
     async_stat::tests(&op, &mut tests);
     async_create_dir::tests(&op, &mut tests);
     async_write::tests(&op, &mut tests);
+    async_delete::tests(&op, &mut tests);
 
     assert!(!tests.is_empty(), "Memory should register behavior tests");
     for (name, test) in tests {

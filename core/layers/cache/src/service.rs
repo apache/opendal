@@ -79,10 +79,7 @@ impl Service for CacheService {
     }
 
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
-        let decision = self
-            .layer
-            .policy
-            .on_read(&CacheReadRequest { path, args: &args });
+        let decision = self.layer.policy.on_read(&CacheReadRequest { path });
         let ttl = match decision {
             CacheDecision::Bypass => return self.inner.read(ctx, path, args),
             CacheDecision::Cache => self.layer.ttl,

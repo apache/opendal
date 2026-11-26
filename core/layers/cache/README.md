@@ -55,3 +55,22 @@ fn cached(source: Operator, cache: Operator) -> Result<Operator> {
     Ok(source.layer(CacheLayer::new(cache)?))
 }
 ```
+
+Use `with_policy` to bypass caching or override the metadata TTL for a source
+path. The policy receives the normalized path when the reader is created.
+
+```rust
+use opendal_core::{Operator, Result};
+use opendal_layer_cache::{CacheDecision, CacheLayer, CacheReadRequest};
+
+fn cached(source: Operator, cache: Operator) -> Result<Operator> {
+    let layer = CacheLayer::new(cache)?.with_policy(|request: &CacheReadRequest<'_>| {
+        if request.path().starts_with("temporary/") {
+            CacheDecision::Bypass
+        } else {
+            CacheDecision::Cache
+        }
+    });
+    Ok(source.layer(layer))
+}
+```

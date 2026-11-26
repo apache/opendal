@@ -11,13 +11,13 @@ OpenDAL does not add another TLS backend selector on top of reqwest. Pick the
 Cargo feature set you need, build a `reqwest::Client` with reqwest's
 `ClientBuilder`, and pass that client to `ReqwestTransport::new`.
 
-The default feature is `rustls`. When `ReqwestTransport::default()` is used on
-native targets, this crate explicitly asks reqwest for the Rustls backend if the
-`rustls` feature is compiled in.
+The default feature is `rustls`. Both `ReqwestTransport::default()` and the
+`context.http.*` factory use reqwest's automatic TLS backend selection.
 
 If this crate is built with only `rustls-no-provider`, install a Rustls default
-crypto provider before using `ReqwestTransport::default()`, or build a
-preconfigured `reqwest::Client` yourself and pass it to `ReqwestTransport::new`.
+crypto provider before using `ReqwestTransport::default()` or loading an
+operator that builds a client from `context.http.*` options. You can also pass a
+preconfigured `reqwest::Client` to `ReqwestTransport::new`.
 
 ### Reqwest TLS resolution
 
@@ -71,6 +71,19 @@ opendal = { version = "0.58", default-features = false, features = [
     "http-transport-reqwest-rustls",
 ] }
 ```
+
+## Configure HTTP per operator
+
+Use `context.http.*` options with [`opendal_core::Operator::from_uri`] or
+[`opendal_core::Operator::via_iter`] to set a proxy, timeout, or user agent on
+an individual operator. The `opendal` facade's `install_default()` registers the
+provider when a `http-transport-reqwest*` feature is enabled. The default
+`auto-register-services` feature calls it before `main`.
+
+With the split crates, call [`register_http_context`] with
+[`opendal_core::OperatorRegistry::get`] before loading the operator. This
+registers the provider for string-based configuration. The operator's
+configured layers wrap its resulting base context.
 
 ## Use with `opendal-core`
 

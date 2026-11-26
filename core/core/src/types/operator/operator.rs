@@ -22,6 +22,9 @@ use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
 
+#[cfg(feature = "auto-simulate")]
+use crate::layers::SimulateLayer;
+use crate::layers::{CompleteLayer, ErrorContextLayer};
 use crate::operator_futures::*;
 use crate::raw::*;
 use crate::types::delete::Deleter;
@@ -250,6 +253,32 @@ impl Operator {
     /// and starts with an empty layer list.
     pub fn into_parts(self) -> (OperationContext, Servicer) {
         (self.ctx, self.srv)
+    }
+
+    pub(crate) fn assemble(
+        base_srv: Servicer,
+        base_ctx: OperationContext,
+        user_layers: Vec<Arc<dyn Layer>>,
+    ) -> Self {
+        let mut layers: Vec<Arc<dyn Layer>> = Vec::with_capacity(
+            2 + usize::from(cfg!(feature = "auto-simulate")) + user_layers.len(),
+        );
+        layers.push(Arc::new(ErrorContextLayer));
+        // Simulated directory traversal needs the service's raw entries before
+        // metadata completion resolves symlinks.
+        #[cfg(feature = "auto-simulate")]
+        layers.push(Arc::new(SimulateLayer::default()));
+        layers.push(Arc::new(CompleteLayer));
+        layers.extend(user_layers);
+
+        let (srv, ctx) = Self::apply_layers(&base_srv, &base_ctx, &layers);
+        Self {
+            base_srv,
+            base_ctx,
+            layers: Arc::new(layers),
+            srv,
+            ctx,
+        }
     }
 
     /// Replay layers over the base providers to compute composed dispatch state.

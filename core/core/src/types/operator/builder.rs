@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use crate::layers::*;
 use crate::raw::*;
 use crate::types::IntoOperatorUri;
 use crate::*;
@@ -27,8 +26,8 @@ impl Operator {
     ///
     /// OpenDAL calls [`Builder::build`] internally and returns a ready-to-use
     /// [`Operator`]. The default `auto-simulate` Cargo feature installs
-    /// [`SimulateLayer`] automatically. With that feature disabled, use
-    /// [`Operator::layer`] to apply `SimulateLayer` explicitly.
+    /// [`SimulateLayer`](crate::layers::SimulateLayer) automatically. With that
+    /// feature disabled, use [`Operator::layer`] to apply it explicitly.
     ///
     /// # Examples
     ///
@@ -44,13 +43,11 @@ impl Operator {
     /// ```
     pub fn new<B: Builder>(ab: B) -> Result<Operator> {
         let service = Arc::new(ab.build()?) as Servicer;
-        let op =
-            Operator::from_parts(OperationContext::default(), service).layer(ErrorContextLayer);
-        // Install simulation before metadata completion so simulated directory
-        // traversal sees the service's raw entries before symlinks are resolved.
-        #[cfg(feature = "auto-simulate")]
-        let op = op.layer(SimulateLayer::default());
-        Ok(op.layer(CompleteLayer))
+        Ok(Operator::assemble(
+            service,
+            OperationContext::default(),
+            Vec::new(),
+        ))
     }
 
     /// Create a new operator from given config.
@@ -78,7 +75,8 @@ impl Operator {
     /// Create a new operator from given iterator.
     ///
     /// The service builder type is selected statically by `B`, while config
-    /// values are parsed from the provided key-value iterator.
+    /// values are parsed from the provided key-value iterator. To configure
+    /// context and layers alongside service options, use [`Operator::via_iter`].
     ///
     /// # Examples
     ///
@@ -153,6 +151,8 @@ impl Operator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(not(feature = "auto-simulate"))]
+    use crate::layers::SimulateLayer;
     use crate::services;
 
     #[test]

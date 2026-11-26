@@ -100,6 +100,33 @@ public class Operator {
         return Data(openDALBytes: data)
     }
 
+    /// Returns metadata for an existing path.
+    /// Use a trailing slash for a named directory. The service must support stat.
+    /// Throws `OperatorError` on failure, including a missing path or a path
+    /// containing a NUL character (U+0000).
+    public func blockingStat(_ path: String) throws -> Metadata {
+        try Self.validatePath(path)
+
+        var result: UnsafeMutablePointer<opendal_metadata>? = nil
+        if let err = opendal_operator_stat(nativeOp, path, &result) {
+            throw OperatorError(consuming: err)
+        }
+        guard let metadata = result else {
+            throw OperatorError(code: OPENDAL_UNEXPECTED, message: "Stat returned no metadata.")
+        }
+        defer { opendal_metadata_free(metadata) }
+
+        let lastModifiedMilliseconds = opendal_metadata_last_modified_ms(metadata)
+        return Metadata(
+            isFile: opendal_metadata_is_file(metadata),
+            isDirectory: opendal_metadata_is_dir(metadata),
+            contentLength: opendal_metadata_content_length(metadata),
+            lastModified: lastModifiedMilliseconds == -1
+                ? nil
+                : Date(timeIntervalSince1970: TimeInterval(lastModifiedMilliseconds) / 1_000)
+        )
+    }
+
     /// Returns `true` if the path exists or `false` if it is missing.
     /// The service must support stat. Throws `OperatorError` on failure or
     /// if the path contains a NUL character (U+0000).

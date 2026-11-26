@@ -36,8 +36,8 @@ be built from source. It is not published to any package registry.
 | Blocking directory creation (`blockingCreateDirectory`) | Supported on services with directory creation |
 | Blocking object copy (`blockingCopy`) | Supported on services with copy |
 | Blocking object rename (`blockingRename`) | Supported on services with rename |
+| Blocking stat (`blockingStat`) | Entry type, content length, and modification date when available |
 | Async read/write | Not yet |
-| Stat / metadata | Not yet |
 | List | Not yet |
 | Presigned URLs | Not yet |
 

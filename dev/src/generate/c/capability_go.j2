@@ -36,6 +36,10 @@ type opendalCapability struct {
 //
 // The capability information helps in understanding the functionalities
 // available for a specific storage backend or Operator configuration.
+//
+// These flags describe the underlying OpenDAL operator. A flag can be true even
+// when the Go binding does not expose the matching method (for example,
+// Restore).
 type Capability struct {
 	inner *opendalCapability
 }

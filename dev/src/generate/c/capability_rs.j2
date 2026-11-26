@@ -23,6 +23,10 @@ use ::opendal as core;
 /// by current Operator.
 ///
 /// Size limit fields are zero when the operator does not define a limit.
+///
+/// These flags describe the underlying OpenDAL operator. A flag can be true even
+/// when the C binding does not expose the matching function (for example,
+/// `restore`).
 #[repr(C)]
 pub struct opendal_capability {
 {%- for f in fields %}

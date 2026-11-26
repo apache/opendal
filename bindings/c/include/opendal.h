@@ -819,6 +819,10 @@ typedef struct opendal_operator_info {
  * by current Operator.
  *
  * Size limit fields are zero when the operator does not define a limit.
+ *
+ * These flags describe the underlying OpenDAL operator. A flag can be true even
+ * when the C binding does not expose the matching function (for example,
+ * `restore`).
  */
 typedef struct opendal_capability {
   /**

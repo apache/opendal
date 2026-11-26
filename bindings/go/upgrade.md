@@ -4,6 +4,14 @@
 
 ### Breaking Changes
 
+#### `opendal_capability` layout and `opendal-go-services` companions
+
+`opendal_capability` is now generated from core and exposes every core capability, so its layout changed (on 64-bit targets it grows from 104 to 144 bytes). The Go binding's mirror is generated together with it, and existing `Capability` methods keep their names and signatures.
+
+**Migration:**
+
+The Go binding reads this struct from `libopendal_c`, which each `opendal-go-services` companion module ships. Upgrade every companion module you use to a release built from the same OpenDAL version as the Go binding. Mixing a new Go binding with an older companion, or the reverse, makes `GetCapability()` read the wrong fields.
+
 #### `context.Context` parameter on I/O operations
 
 All `Operator` I/O methods and non-stdlib handle methods now accept `context.Context` as their first parameter to support cooperative cancellation and deadlines via `opendal_cancel_token`:

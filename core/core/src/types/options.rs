@@ -777,6 +777,12 @@ pub struct WriteOptions {
     /// The checksum covers the whole file, regardless of how the content is
     /// split into chunks or parts.
     ///
+    /// A writer with a checksum never uses native copies for
+    /// [`crate::Writer::copy_from`], even when the service advertises
+    /// [`crate::Capability::write_can_copy_from`]. It reads every copied
+    /// range from the source and uploads it again, so each copied byte costs
+    /// download and upload bandwidth.
+    ///
     /// If the service completes the write but does not confirm the
     /// checksum, the write returns [`crate::ErrorKind::Unexpected`]. In that
     /// case the content may already be stored without verification.

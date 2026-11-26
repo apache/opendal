@@ -200,6 +200,11 @@ impl Writer {
     /// [`Capability::write_can_copy_from`] to determine whether eligible
     /// non-append writes use the native path.
     ///
+    /// A writer created with [`options::WriteOptions::checksum`] always
+    /// streams the range through the client, even when the service supports
+    /// native copies. Every copied byte is then downloaded from the source
+    /// and uploaded again.
+    ///
     /// The source path must differ from the writer's destination path.
     /// Copying a file onto itself returns [`ErrorKind::IsSameFile`].
     ///

@@ -211,10 +211,16 @@ impl Writer {
     /// Each call accepts at most 5 GiB. Applications must split larger source
     /// ranges into multiple ordered calls.
     ///
-    /// If a call fails after the underlying writer accepts part of the range,
-    /// retrying the same path, range, and read options resumes after the
-    /// accepted prefix instead of copying it again. Until that retry succeeds
-    /// or [`Writer::abort`] runs, other writes and [`Writer::close`] fail.
+    /// If the streaming source returns [`ErrorKind::ChecksumMismatch`] after
+    /// the writer has accepted any bytes from that copy, the call returns the
+    /// source error and the writer requires [`Writer::abort`]. Bytes queued in
+    /// the writer's buffer count as accepted. Further copies, writes, and
+    /// [`Writer::close`] fail.
+    ///
+    /// For other failures after accepting bytes from the copy, retrying the
+    /// same path, range, and read options resumes after the accepted prefix.
+    /// Until that retry succeeds or [`Writer::abort`] runs, other writes and
+    /// [`Writer::close`] fail.
     pub async fn copy_from(&mut self, path: &str, range: impl Into<BytesRange>) -> Result<()> {
         self.copy_from_options(
             path,
@@ -241,10 +247,9 @@ impl Writer {
     /// restore. Copying the current object onto itself returns
     /// [`ErrorKind::IsSameFile`].
     ///
-    /// A retry with the same path, range, and read options resumes a partially
-    /// accepted copy instead of replaying its accepted prefix. Any other write
-    /// or [`Writer::close`] fails until the retry succeeds or [`Writer::abort`]
-    /// runs.
+    /// The retry and abort rules in [`Writer::copy_from`] apply, including
+    /// the requirement to abort after a source [`ErrorKind::ChecksumMismatch`]
+    /// when the writer has accepted bytes from the copy.
     pub async fn copy_from_options(
         &mut self,
         path: &str,

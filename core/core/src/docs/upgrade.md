@@ -166,6 +166,19 @@ available bytes. Keep using `oio::Read::read` for an exact bounded range.
 
 `raw::oio::FlatLister` has been removed. Recursive listing simulation for services without native recursive listing is provided by [`SimulateLayer`][crate::layers::SimulateLayer] (enabled automatically with the default `auto-simulate` feature). Use `SimulateLayer` instead of constructing `oio::FlatLister` directly.
 
+### `raw::OpDeleter` removed
+
+Remove imports and construction of `raw::OpDeleter` when the value is unused.
+If you used the type as a marker, define your own type, such as
+`struct DeleteMarker;`. If the marker was part of your crate's public API,
+make your type public and update your signatures or re-exports to use it.
+
+To set deleter options, pass
+[`options::DeleterOptions`][crate::options::DeleterOptions]
+to [`Operator::deleter_options`][crate::Operator::deleter_options] or use
+[`Operator::deleter_with`][crate::Operator::deleter_with], for example
+`op.deleter_with().concurrent(4).await?`.
+
 ### Explicit executor and capability in `oio::MultipartCopier::new`
 
 `raw::oio::IntoMultipartCopyContext` has been removed, and

@@ -255,6 +255,7 @@ impl EtcdBackend {
             delete: true,
             stat: true,
             list: true,
+            list_with_recursive: true,
 
             shared: true,
 

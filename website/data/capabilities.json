@@ -1466,6 +1466,7 @@
         "create_dir": true,
         "delete": true,
         "list": true,
+        "list_with_recursive": true,
         "read": true,
         "shared": true,
         "stat": true,

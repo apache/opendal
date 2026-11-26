@@ -253,12 +253,7 @@ impl FtpLazyLister {
                     .iter()
                     .any(|line| matches!(parse_list_line(line), Ok(Some(_))));
                 if !dir_exists {
-                    // CWD moves the connection away from the root that every
-                    // relative path depends on. Detach it from the pool first,
-                    // so success, failure and cancellation all drop it
-                    // instead of returning it for reuse.
-                    let mut ftp_stream = bounded::Object::detach(ftp_stream);
-                    dir_exists = ftp_stream.cwd(&self.path).await.is_ok();
+                    dir_exists = self.core.ftp_dir_exists(ftp_stream, &self.path).await?;
                 }
             }
 

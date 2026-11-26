@@ -20,6 +20,8 @@ use std::fmt::Debug;
 use std::fmt::Write;
 use std::sync::Arc;
 
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use bytes::Buf;
 use bytes::Bytes;
 use constants::*;
@@ -50,6 +52,7 @@ use opendal_core::*;
 
 pub mod constants {
     pub const X_GOOG_GENERATION: &str = "x-goog-generation";
+    pub const X_GOOG_HASH: &str = "x-goog-hash";
     pub const GCS_REWRITE_MIN_CHUNK_SIZE: usize = 1024 * 1024;
     #[cfg(target_pointer_width = "64")]
     pub const GCS_REWRITE_MAX_CHUNK_SIZE: usize =
@@ -319,10 +322,12 @@ impl GcsCore {
         op: &OpWrite,
         body: Buffer,
         idempotency_token: Option<&str>,
+        crc32c: Option<[u8; 4]>,
     ) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path);
 
         let request_metadata = InsertRequestMetadata {
+            crc32c: crc32c.map(|value| BASE64_STANDARD.encode(value)),
             storage_class: self.default_storage_class.as_deref(),
             cache_control: op.cache_control(),
             content_type: op.content_type(),
@@ -437,6 +442,7 @@ impl GcsCore {
         }
 
         let metadata = InsertRequestMetadata {
+            crc32c: None,
             storage_class: self.default_storage_class.as_deref(),
             cache_control: op.cache_control(),
             content_type: op.content_type(),
@@ -478,6 +484,7 @@ impl GcsCore {
         offset: u64,
         body: Buffer,
         total: Option<u64>,
+        crc32c: Option<[u8; 4]>,
     ) -> Result<Response<Buffer>> {
         let end = offset + body.len() as u64;
         let mut content_range = BytesContentRange::default();
@@ -487,9 +494,16 @@ impl GcsCore {
         if let Some(total) = total {
             content_range = content_range.with_size(total);
         }
-        let req = Request::put(session_uri)
+        let mut req = Request::put(session_uri)
             .header(CONTENT_LENGTH, body.len())
-            .header(CONTENT_RANGE, content_range.to_header())
+            .header(CONTENT_RANGE, content_range.to_header());
+        if let Some(crc32c) = crc32c {
+            req = req.header(
+                X_GOOG_HASH,
+                format!("crc32c={}", BASE64_STANDARD.encode(crc32c)),
+            );
+        }
+        let req = req
             .extension(Operation::Write)
             .extension(ServiceOperation("UploadResumableChunk"))
             .body(body)
@@ -1116,6 +1130,12 @@ impl GcsCore {
     }
 }
 
+pub(super) fn parse_crc32c(encoded: &str) -> Option<Checksum> {
+    let value = BASE64_STANDARD.decode(encoded).ok()?;
+    (value.len() == ChecksumAlgo::Crc32c.digest_len())
+        .then(|| Checksum::new(ChecksumAlgo::Crc32c, value))
+}
+
 impl GetObjectJsonResponse {
     fn into_metadata(self, path: &str) -> Result<Metadata> {
         let size = self
@@ -1130,6 +1150,9 @@ impl GetObjectJsonResponse {
 
         m.etag(&self.etag);
         m.content_md5(&self.md5_hash);
+        if let Some(checksum) = self.crc32c.as_deref().and_then(parse_crc32c) {
+            m.checksum(checksum);
+        }
         if !self.content_type.is_empty() {
             m.content_type(&self.content_type);
         }
@@ -1179,6 +1202,8 @@ fn predefined_acl_to_xml_header(predefined_acl: &str) -> Option<&'static str> {
 #[serde(default, rename_all = "camelCase")]
 pub struct InsertRequestMetadata<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
+    crc32c: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     content_type: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     content_encoding: Option<&'a str>,
@@ -1196,9 +1221,8 @@ impl InsertRequestMetadata<'_> {
             && self.content_encoding.is_none()
             && self.storage_class.is_none()
             && self.cache_control.is_none()
-            // We could also put content-encoding in the url parameters
-            && self.content_encoding.is_none()
             && self.metadata.is_none()
+            && self.crc32c.is_none()
     }
 }
 
@@ -1343,6 +1367,7 @@ struct GetObjectJsonResponse {
     ///
     /// For example: `"md5Hash": "fHcEH1vPwA6eTPqxuasXcg=="`
     md5_hash: String,
+    crc32c: Option<String>,
     /// Content type of this object.
     ///
     /// For example: `"contentType": "image/png",`
@@ -1497,6 +1522,7 @@ mod tests {
                 &OpWrite::default(),
                 Buffer::new(),
                 None,
+                None,
             )
             .expect("request must build");
         let original_uri = req.uri().clone();
@@ -1526,6 +1552,7 @@ mod tests {
                 &OpWrite::default(),
                 Buffer::new(),
                 Some("token-1"),
+                None,
             )
             .expect("media request must build");
         assert_eq!(media.headers()[X_GOOG_GCS_IDEMPOTENCY_TOKEN], "token-1");
@@ -1540,6 +1567,7 @@ mod tests {
                 }),
                 Buffer::new(),
                 Some("token-2"),
+                None,
             )
             .expect("multipart request must build");
         assert!(
@@ -1552,7 +1580,14 @@ mod tests {
         assert_eq!(multipart.headers()[X_GOOG_GCS_IDEMPOTENCY_TOKEN], "token-2");
 
         let untokened = core
-            .gcs_insert_object_request("object", Some(0), &OpWrite::default(), Buffer::new(), None)
+            .gcs_insert_object_request(
+                "object",
+                Some(0),
+                &OpWrite::default(),
+                Buffer::new(),
+                None,
+                None,
+            )
             .expect("media request must build");
         assert!(
             !untokened
@@ -1578,6 +1613,7 @@ mod tests {
                     ..Default::default()
                 }),
                 Buffer::new(),
+                None,
                 None,
             )
             .unwrap_err();
@@ -1651,6 +1687,7 @@ mod tests {
                     ..Default::default()
                 }),
                 Buffer::new(),
+                None,
                 None,
             )
             .expect("write request must build");
@@ -2408,6 +2445,18 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let gcs_error = de::from_slice::<GcsErrorResponse>(&bs).ok();
 
     let (mut kind, mut retryable) = match parts.status {
+        StatusCode::BAD_REQUEST
+            if gcs_error.as_ref().is_some_and(|error| {
+                error.has_reason("invalid")
+                    && error.error.message.starts_with("Provided CRC32C ")
+                    && error
+                        .error
+                        .message
+                        .contains("doesn't match calculated CRC32C ")
+            }) =>
+        {
+            (ErrorKind::ChecksumMismatch, false)
+        }
         StatusCode::NOT_FOUND if ctx.delete_match_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
@@ -2494,6 +2543,22 @@ mod error_tests {
         let err = parse_error(ErrorContext::new(ServiceOperation("GetObject")), resp);
         assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
         assert!(!err.is_temporary());
+    }
+
+    #[test]
+    fn test_parse_crc32c_rejection() {
+        let response = Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .body(Buffer::from(
+                r#"{"error":{"code":400,"message":"Provided CRC32C 'AAAAAA==' doesn't match calculated CRC32C 'z8aakA=='.","errors":[{"reason":"invalid"}]}}"#,
+            ))
+            .unwrap();
+        let error = parse_error(
+            ErrorContext::new(ServiceOperation("UploadResumableChunk")),
+            response,
+        );
+        assert_eq!(error.kind(), ErrorKind::ChecksumMismatch);
+        assert!(!error.is_temporary());
     }
 
     fn condition_not_met(ctx: ErrorContext) -> Error {

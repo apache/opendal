@@ -1777,6 +1777,7 @@
         "write_can_empty": true,
         "write_can_multi": true,
         "write_with_cache_control": true,
+        "write_with_checksum": "Requires the default endpoint (`https://storage.googleapis.com`) with `skip_signature` and `allow_anonymous` disabled",
         "write_with_content_encoding": true,
         "write_with_content_type": true,
         "write_with_if_not_exists": true,

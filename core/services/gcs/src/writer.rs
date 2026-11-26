@@ -18,6 +18,7 @@
 use std::sync::Arc;
 
 use bytes::Buf;
+use crc_fast::{CrcAlgorithm, Digest};
 use http::StatusCode;
 use http::header::LOCATION;
 use http::header::RANGE;
@@ -31,7 +32,7 @@ use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-pub type GcsWriters = TwoWays<oio::MultipartWriter<GcsWriter>, GcsConditionalWriter>;
+pub type GcsWriters = TwoWays<oio::MultipartWriter<GcsWriter>, GcsResumableWriter>;
 
 const RESUMABLE_CHUNK_SIZE: usize = 8 * 1024 * 1024;
 
@@ -57,9 +58,14 @@ impl oio::MultipartWrite for GcsWriter {
     async fn write_once(&self, _: u64, body: Buffer) -> Result<Metadata> {
         let size = body.len() as u64;
         // Request builders own percent-encoding; writers pass logical paths unchanged.
-        let req =
-            self.core
-                .gcs_insert_object_request(&self.path, Some(size), &self.op, body, None)?;
+        let req = self.core.gcs_insert_object_request(
+            &self.path,
+            Some(size),
+            &self.op,
+            body,
+            None,
+            None,
+        )?;
 
         let req = self.core.sign(&self.ctx, req).await?;
 
@@ -193,7 +199,7 @@ impl oio::MultipartWrite for GcsWriter {
     }
 }
 
-pub struct GcsConditionalWriter {
+pub struct GcsResumableWriter {
     core: Arc<GcsCore>,
     ctx: OperationContext,
     path: String,
@@ -202,6 +208,7 @@ pub struct GcsConditionalWriter {
     offset: u64,
     pending: oio::QueueBuf,
     finalize_state: FinalizeState,
+    crc32c: Option<WriteCrc32c>,
     // Retries of the same request reuse its token so GCS can return the original
     // response instead of applying the write twice.
     insert_idempotency_token: String,
@@ -219,9 +226,50 @@ enum FinalizeState {
     CheckStatus,
 }
 
-impl GcsConditionalWriter {
-    pub fn new(core: Arc<GcsCore>, ctx: OperationContext, path: &str, op: OpWrite) -> Self {
-        Self {
+enum WriteCrc32c {
+    Computed(Box<Digest>),
+    Expected([u8; 4]),
+}
+
+impl WriteCrc32c {
+    fn digest(&self) -> [u8; 4] {
+        match self {
+            Self::Computed(digest) => (digest.finalize() as u32).to_be_bytes(),
+            Self::Expected(value) => *value,
+        }
+    }
+}
+
+impl GcsResumableWriter {
+    pub fn new(core: Arc<GcsCore>, ctx: OperationContext, path: &str, op: OpWrite) -> Result<Self> {
+        let crc32c = if let Some(intent) = op.checksum() {
+            op.check(&core.capability)?;
+            let checksum = match intent {
+                WriteChecksum::Any
+                | WriteChecksum::Fast
+                | WriteChecksum::Algo(ChecksumAlgo::Crc32c) => {
+                    WriteCrc32c::Computed(Box::new(Digest::new(CrcAlgorithm::Crc32Iscsi)))
+                }
+                WriteChecksum::Expected(checksum) if checksum.algo == ChecksumAlgo::Crc32c => {
+                    WriteCrc32c::Expected(checksum.value.try_into().map_err(|_| {
+                        Error::new(
+                            ErrorKind::ConfigInvalid,
+                            "CRC32C requires a four-byte digest",
+                        )
+                    })?)
+                }
+                _ => {
+                    return Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "GCS write checksums require CRC32C",
+                    ));
+                }
+            };
+            Some(checksum)
+        } else {
+            None
+        };
+        Ok(Self {
             core,
             ctx,
             path: path.to_string(),
@@ -230,9 +278,10 @@ impl GcsConditionalWriter {
             offset: 0,
             pending: oio::QueueBuf::new(),
             finalize_state: FinalizeState::Ready,
+            crc32c,
             insert_idempotency_token: uuid::Uuid::new_v4().to_string(),
             session_idempotency_token: uuid::Uuid::new_v4().to_string(),
-        }
+        })
     }
 
     async fn ensure_session(&mut self) -> Result<&str> {
@@ -321,7 +370,7 @@ impl GcsConditionalWriter {
         let session_uri = self.ensure_session().await?.to_string();
         let resp = self
             .core
-            .gcs_upload_resumable_chunk(&self.ctx, &session_uri, start, body, None)
+            .gcs_upload_resumable_chunk(&self.ctx, &session_uri, start, body, None, None)
             .await?;
 
         if resp.status() == StatusCode::PERMANENT_REDIRECT {
@@ -366,25 +415,49 @@ impl GcsConditionalWriter {
         ))
     }
 
-    async fn write_once(&self, body: Buffer) -> Result<Metadata> {
+    async fn write_once(&self, body: Buffer, crc32c: Option<[u8; 4]>) -> Result<Metadata> {
         let req = self.core.gcs_insert_object_request(
             &self.path,
             Some(body.len() as u64),
             &self.op,
             body,
             Some(&self.insert_idempotency_token),
+            crc32c,
         )?;
         let req = self.core.sign(&self.ctx, req).await?;
         let resp = self.core.send(&self.ctx, req).await?;
 
         if resp.status() == StatusCode::OK || resp.status() == StatusCode::CREATED {
-            return GcsCore::build_metadata_from_object_response(&self.path, resp.into_body());
+            let metadata =
+                GcsCore::build_metadata_from_object_response(&self.path, resp.into_body())?;
+            return Self::verify_receipt(metadata, crc32c);
         }
-        Err(parse_error(
+        let error = parse_error(
             ErrorContext::new(ServiceOperation("InsertObject"))
                 .with_caller_condition(self.op.is_conditional()),
             resp,
-        ))
+        );
+        if error.kind() == ErrorKind::ChecksumMismatch
+            && matches!(self.crc32c, Some(WriteCrc32c::Computed(_)))
+        {
+            // The rejected insert retains the same replayable body and idempotency token.
+            return Err(error.set_temporary());
+        }
+        Err(error)
+    }
+
+    fn verify_receipt(metadata: Metadata, sent: Option<[u8; 4]>) -> Result<Metadata> {
+        if let Some(sent) = sent
+            && metadata
+                .checksum()
+                .is_none_or(|received| received.value != sent)
+        {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "GCS completed the write without confirming the requested CRC32C",
+            ));
+        }
+        Ok(metadata)
     }
 
     async fn flush_pending(&mut self) -> Result<()> {
@@ -398,19 +471,26 @@ impl GcsConditionalWriter {
     }
 }
 
-impl oio::Write for GcsConditionalWriter {
+impl oio::Write for GcsResumableWriter {
     async fn write(&mut self, body: Buffer) -> Result<()> {
         self.flush_pending().await?;
+        if let Some(WriteCrc32c::Computed(digest)) = &mut self.crc32c {
+            // Hash input after the previous flush succeeds so a retried write counts it once.
+            for chunk in body.clone() {
+                digest.update(&chunk);
+            }
+        }
         self.pending.push(body);
         Ok(())
     }
 
     async fn close(&mut self) -> Result<Metadata> {
+        let crc32c = self.crc32c.as_ref().map(WriteCrc32c::digest);
         // A body that fits in one chunk has no partial upload to resume, so it skips the
         // request that opens a resumable session.
         if self.session_uri.is_none() && self.pending.len() <= RESUMABLE_CHUNK_SIZE {
             let body = self.pending.clone().collect();
-            let metadata = self.write_once(body).await?;
+            let metadata = self.write_once(body, crc32c).await?;
             self.pending.clear();
             return Ok(metadata);
         }
@@ -436,10 +516,11 @@ impl oio::Write for GcsConditionalWriter {
                     self.finalize_state = FinalizeState::Ready;
                 }
                 ResumableUploadStatus::Complete(metadata) => {
+                    let metadata = Self::verify_receipt(*metadata, crc32c)?;
                     self.finalize_state = FinalizeState::Ready;
                     self.offset = total;
                     self.pending.advance(body.len());
-                    return Ok(*metadata);
+                    return Ok(metadata);
                 }
             }
         }
@@ -448,7 +529,14 @@ impl oio::Write for GcsConditionalWriter {
         self.finalize_state = FinalizeState::CheckStatus;
         let resp = self
             .core
-            .gcs_upload_resumable_chunk(&self.ctx, &session_uri, start, body.clone(), Some(total))
+            .gcs_upload_resumable_chunk(
+                &self.ctx,
+                &session_uri,
+                start,
+                body.clone(),
+                Some(total),
+                crc32c,
+            )
             .await?;
 
         if resp.status() == StatusCode::PERMANENT_REDIRECT {
@@ -475,6 +563,7 @@ impl oio::Write for GcsConditionalWriter {
         if resp.status() == StatusCode::OK || resp.status() == StatusCode::CREATED {
             let metadata =
                 GcsCore::build_metadata_from_object_response(&self.path, resp.into_body())?;
+            let metadata = Self::verify_receipt(metadata, crc32c)?;
             self.finalize_state = FinalizeState::Ready;
             self.offset = total;
             self.pending.advance(body.len());
@@ -486,7 +575,7 @@ impl oio::Write for GcsConditionalWriter {
                 .with_caller_condition(self.op.is_conditional()),
             resp,
         );
-        if !err.is_temporary() {
+        if !err.is_temporary() && err.kind() != ErrorKind::ChecksumMismatch {
             self.finalize_state = FinalizeState::Ready;
         }
         Err(err)
@@ -501,20 +590,23 @@ impl oio::Write for GcsConditionalWriter {
             .core
             .gcs_cancel_resumable_upload(&self.ctx, session_uri)
             .await?;
-        if resp.status().is_success()
-            || resp.status().as_u16() == 499
-            || resp.status() == StatusCode::NOT_FOUND
-            || resp.status() == StatusCode::GONE
+        if !resp.status().is_success()
+            && resp.status().as_u16() != 499
+            && resp.status() != StatusCode::NOT_FOUND
+            && resp.status() != StatusCode::GONE
         {
-            self.session_uri = None;
-            self.pending.clear();
-            Ok(())
-        } else {
-            Err(parse_error(
+            let error = parse_error(
                 ErrorContext::new(ServiceOperation("CancelResumableUpload")),
                 resp,
-            ))
+            );
+            // A session with a rejected final CRC32C replays its terminal error on DELETE.
+            if error.kind() != ErrorKind::ChecksumMismatch {
+                return Err(error);
+            }
         }
+        self.session_uri = None;
+        self.pending.clear();
+        Ok(())
     }
 }
 
@@ -821,7 +913,7 @@ mod tests {
         }
     }
 
-    fn test_writer(transport: MockResumableTransport) -> GcsConditionalWriter {
+    fn test_writer(transport: MockResumableTransport) -> GcsResumableWriter {
         test_writer_with(
             transport,
             options::WriteOptions {
@@ -834,7 +926,7 @@ mod tests {
     fn test_writer_with(
         transport: MockResumableTransport,
         options: options::WriteOptions,
-    ) -> GcsConditionalWriter {
+    ) -> GcsResumableWriter {
         let core = Arc::new(GcsCore {
             info: ServiceInfo::new("gcs", "/", "test-bucket"),
             capability: Capability {
@@ -865,7 +957,7 @@ mod tests {
         });
         let ctx = OperationContext::new().with_http_transport(HttpTransporter::new(transport));
         let (op, _) = OpWrite::from_options(&core.capability, options).unwrap();
-        GcsConditionalWriter::new(core, ctx, "object", op)
+        GcsResumableWriter::new(core, ctx, "object", op).unwrap()
     }
 
     #[tokio::test]

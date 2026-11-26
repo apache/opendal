@@ -207,7 +207,7 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
                 None if binding.id == "go" => {
                     let s3_preset = scheme != "s3"
                         && service.source_dir == workspace_dir.join("core/services/s3/src");
-                    !s3_preset && !matches!(scheme.as_str(), "hf3fs" | "smb")
+                    !s3_preset && scheme != "hf3fs"
                 }
                 None => true,
                 Some(set) => set.contains(&scheme),

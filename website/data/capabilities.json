@@ -984,6 +984,7 @@
         "read_with_override_content_disposition": true,
         "read_with_override_content_type": true,
         "read_with_suffix": true,
+        "read_with_version": true,
         "restore": true,
         "restore_with_version": true,
         "shared": true,

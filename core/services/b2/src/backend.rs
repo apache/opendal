@@ -170,6 +170,7 @@ impl Builder for B2Builder {
                     stat_with_override_content_type: true,
 
                     read: true,
+                    read_with_version: true,
                     read_with_override_cache_control: true,
                     read_with_override_content_disposition: true,
                     read_with_override_content_type: true,
@@ -294,6 +295,23 @@ impl Service for B2Backend {
         Ok(RpStat::new(meta))
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        if let Some(version) = args.version() {
+            if version.is_empty() {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "empty read version ID",
+                ));
+            }
+            if args.override_cache_control().is_some()
+                || args.override_content_disposition().is_some()
+                || args.override_content_type().is_some()
+            {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "B2 does not support response overrides for version-selected reads",
+                ));
+            }
+        }
         let output: oio::StreamReader<B2Reader> = {
             Ok(oio::StreamReader::new(B2Reader::new(
                 self.clone(),
@@ -541,6 +559,12 @@ impl Service for B2Backend {
                     .await
             }
             PresignOperation::Read(range, read) => {
+                if read.version().is_some() {
+                    return Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "B2 does not support presigning reads for a selected version",
+                    ));
+                }
                 self.core
                     .presign_download(
                         ctx,

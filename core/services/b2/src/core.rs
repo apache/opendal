@@ -172,6 +172,31 @@ impl B2Core {
         ctx.http_transport().fetch(req).await
     }
 
+    pub(super) async fn download_file_by_id(
+        &self,
+        ctx: &OperationContext,
+        file_id: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
+        let auth_info = self.get_auth_info(ctx).await?;
+        let url = format!(
+            "{}/b2api/v4/b2_download_file_by_id?fileId={}",
+            auth_info.download_url,
+            percent_encode_path(file_id)
+        );
+        let mut request = Request::get(url)
+            .header(header::AUTHORIZATION, auth_info.authorization_token)
+            .extension(Operation::Read)
+            .extension(ServiceOperation("DownloadFileById"));
+        if !range.is_full() {
+            request = request.header(header::RANGE, range.to_header());
+        }
+        let request = request
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        ctx.http_transport().fetch(request).await
+    }
+
     pub(super) async fn get_upload_url(
         &self,
         ctx: &OperationContext,

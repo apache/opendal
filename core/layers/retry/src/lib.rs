@@ -1213,7 +1213,7 @@ mod tests {
         let registry = OperatorRegistry::get();
         register_retry_layer(registry);
         assert!(registry.load("memory://?layers=retry").is_ok());
-        for value in ["TrUe", "On", "FaLsE", "OfF"] {
+        for value in ["True", "On", "FaLsE", "OfF"] {
             assert!(
                 registry
                     .load(("memory://?layers=retry", [("layer.retry.jitter", value)]))

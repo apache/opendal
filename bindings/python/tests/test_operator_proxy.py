@@ -91,7 +91,7 @@ def run_client(constructor, origin, proxy):
 
 
 @pytest.mark.parametrize("constructor", ["map", "uri"])
-def test_operator_proxy_and_retry_are_isolated(constructor):
+def test_only_configured_operator_uses_proxy_and_retries_proxied_request(constructor):
     env = {
         key: value
         for key, value in os.environ.items()

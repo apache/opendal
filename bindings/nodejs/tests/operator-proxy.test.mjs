@@ -80,7 +80,7 @@ test.for([
   ['map', 'statSync'],
   ['uri', 'stat'],
   ['uri', 'statSync'],
-])('Operator %s construction isolates proxy and retry through %s', async ([constructor, stat], { onTestFinished }) => {
+])('Operator %s uses a per-operator proxy and retries the proxied %s request', async ([constructor, stat], { onTestFinished }) => {
   const origin = await startHeadServer(onTestFinished, 3)
   const proxy = await startHeadServer(onTestFinished, 7, { retryFirst: true })
   const proxyVariables = new Set(['http_proxy', 'https_proxy', 'all_proxy', 'no_proxy'])

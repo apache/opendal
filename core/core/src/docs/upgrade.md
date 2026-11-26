@@ -28,6 +28,13 @@ Use `..Default::default()` in `ReadOptions` struct literals, or set
 Set `limit: Some(n)` to read up to the first `n` bytes of the selected range
 and accept EOF after a valid starting byte.
 
+## Read and stat checksum hints
+
+`ReadOptions`, `ReaderOptions`, and `StatOptions` now have a `checksum` field
+that defaults to `false`. In exhaustive struct literals, set `checksum: false`
+or use `..Default::default()` to preserve the previous behavior. In exhaustive
+patterns, include `checksum` or ignore the new field with `..`.
+
 ## Automatic capability simulation
 
 The `auto-simulate` feature in `opendal` and `opendal-core` controls whether

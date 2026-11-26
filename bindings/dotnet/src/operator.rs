@@ -1356,6 +1356,7 @@ fn operator_input_stream_create_inner(
         if_modified_since: options.if_modified_since,
         if_unmodified_since: options.if_unmodified_since,
         content_length_hint: options.content_length_hint,
+        checksum: options.checksum,
         concurrent: options.concurrent,
         chunk: options.chunk,
         gap: options.gap,

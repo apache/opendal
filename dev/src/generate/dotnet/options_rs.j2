@@ -185,6 +185,21 @@ mod tests {
     }
 
     #[test]
+    fn read_and_stat_options_keep_explicit_checksum_hint() {
+        let read = OpendalReadOptions {
+            checksum: 1,
+            ..Default::default()
+        };
+        let stat = OpendalStatOptions {
+            checksum: 1,
+            ..Default::default()
+        };
+
+        assert!(read_options(&read).unwrap().checksum);
+        assert!(read_options(&stat).unwrap().checksum);
+    }
+
+    #[test]
     fn read_options_keeps_explicit_zero_limit() {
         let native = OpendalReadOptions {
             limit_has_value: 1,

@@ -593,6 +593,7 @@ enum ReadField {
     OverrideContentDisposition,
     Version,
     ContentLengthHint,
+    Checksum,
 }
 
 impl OpRead {
@@ -840,6 +841,21 @@ impl OpRead {
         string_value(&self.values, ReadField::Version as usize)
     }
 
+    /// Return whether to request full-file checksum metadata.
+    pub fn checksum(&self) -> bool {
+        self.values.get(ReadField::Checksum as usize).is_some()
+    }
+
+    /// Set or clear the hint to request full-file checksum metadata.
+    pub fn with_checksum(mut self, checksum: bool) -> Self {
+        if self.checksum() != checksum {
+            let mut fields = self.values.fields::<{ u16::BITS as usize }>();
+            fields[ReadField::Checksum as usize] = checksum.then_some(b"");
+            self.values = CompactValues::encode(&fields);
+        }
+        self
+    }
+
     pub(crate) fn content_length_hint(&self) -> Option<u64> {
         self.values
             .get(ReadField::ContentLengthHint as usize)
@@ -866,6 +882,7 @@ impl OpRead {
                     .map(str::as_bytes),
                 value.version.as_deref().map(str::as_bytes),
                 content_length_hint.as_ref().map(|value| value.as_slice()),
+                value.checksum.then_some(b""),
             ]),
         }
     }
@@ -979,6 +996,7 @@ impl From<options::ReaderOptions> for (OpRead, OpReader) {
             if_modified_since: value.if_modified_since,
             if_unmodified_since: value.if_unmodified_since,
             content_length_hint: value.content_length_hint,
+            checksum: value.checksum,
             ..Default::default()
         };
         (OpRead::from_read_options(read), reader)
@@ -1073,6 +1091,11 @@ impl OpStat {
         string_value(&self.values, ReadField::Version as usize)
     }
 
+    /// Return whether to request full-file checksum metadata.
+    pub fn checksum(&self) -> bool {
+        self.values.get(ReadField::Checksum as usize).is_some()
+    }
+
     pub(crate) fn from_read(value: &OpRead) -> Self {
         // `OpStat` uses the same `ReadField` layout and simply ignores the
         // read-only content-length hint.
@@ -1158,6 +1181,8 @@ impl From<options::StatOptions> for OpStat {
                     .as_deref()
                     .map(str::as_bytes),
                 value.version.as_deref().map(str::as_bytes),
+                None, // ContentLengthHint is read-only.
+                value.checksum.then_some(b""),
             ]),
         }
     }
@@ -2293,6 +2318,7 @@ mod tests {
             if_modified_since: Some(modified),
             if_unmodified_since: Some(unmodified),
             content_length_hint: Some(42),
+            checksum: true,
             chunk: Some(0),
             override_content_type: Some("text/plain".to_owned()),
             override_cache_control: Some("no-cache".to_owned()),
@@ -2314,6 +2340,32 @@ mod tests {
         assert_eq!(args.override_cache_control(), Some("no-cache"));
         assert_eq!(args.override_content_disposition(), Some("attachment"));
         assert!(args.is_conditional());
+        assert!(args.checksum());
+
+        let stat = OpStat::from_read(&args);
+        assert!(stat.checksum());
+        assert_eq!(stat.if_modified_since(), Some(modified));
+        assert_eq!(stat.override_cache_control(), Some("no-cache"));
+
+        let cleared = args.clone().with_checksum(false);
+        assert!(!cleared.checksum());
+        assert!(!OpStat::from_read(&cleared).checksum());
+        assert!(cleared.with_checksum(true).same_read(&args));
+    }
+
+    #[test]
+    fn checksum_hint_keeps_default_raw_options_empty() {
+        let (_, read, _) = options::ReadOptions::default().into();
+        let (reader, _) = options::ReaderOptions::default().into();
+        let stat = OpStat::from(options::StatOptions::default());
+        assert!(read.values.as_encoded().is_none());
+        assert!(reader.values.as_encoded().is_none());
+        assert!(stat.values.as_encoded().is_none());
+
+        let read = read.with_checksum(true);
+        assert!(read.checksum());
+        assert!(!read.is_conditional());
+        assert!(read.with_checksum(false).values.as_encoded().is_none());
     }
 
     #[test]

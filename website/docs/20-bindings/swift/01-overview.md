@@ -37,8 +37,8 @@ be built from source. It is not published to any package registry.
 | Blocking object copy (`blockingCopy`) | Supported on services with copy |
 | Blocking object rename (`blockingRename`) | Supported on services with rename |
 | Blocking stat (`blockingStat`) | Entry type, content length, and modification date when available |
+| Blocking list (`blockingLister`) | Nonrecursive cursor on services with listing |
 | Async read/write | Not yet |
-| List | Not yet |
 | Presigned URLs | Not yet |
 
 The `Operator` class is the single entry point. It accepts a service scheme

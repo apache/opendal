@@ -252,6 +252,26 @@ public class Capability {
     public final long writeTotalMaxSize;
 
     /**
+     * Indicates if writes accept a full-file CRC-64/NVME checksum, verify it, and return it in the write result.
+     */
+    public final boolean checksumCrc64Nvme;
+
+    /**
+     * Indicates if writes accept a full-file CRC-32C checksum, verify it, and return it in the write result.
+     */
+    public final boolean checksumCrc32c;
+
+    /**
+     * Indicates if writes accept a full-file MD5 checksum, verify it, and return it in the write result.
+     */
+    public final boolean checksumMd5;
+
+    /**
+     * Indicates if writes accept a full-file SHA-256 checksum, verify it, and return it in the write result.
+     */
+    public final boolean checksumSha256;
+
+    /**
      * Indicates if directory creation is supported.
      */
     public final boolean createDir;
@@ -721,6 +741,10 @@ public class Capability {
         this.writeMultiMaxSize = writeMultiMaxSize;
         this.writeMultiMinSize = writeMultiMinSize;
         this.writeTotalMaxSize = -1L;
+        this.checksumCrc64Nvme = false;
+        this.checksumCrc32c = false;
+        this.checksumMd5 = false;
+        this.checksumSha256 = false;
         this.createDir = createDir;
         this.delete = delete;
         this.deleteWithVersion = false;

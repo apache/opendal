@@ -100,6 +100,13 @@ pub enum ErrorKind {
     /// This error kind does not indicate whether retrying the same operation is safe.
     /// Inspect the error's retry status for that decision.
     Conflict,
+    /// The content does not match the checksum supplied for the operation.
+    ///
+    /// For example, a write with
+    /// [`WriteOptions::checksum`][crate::options::WriteOptions::checksum]
+    /// returns this error when the service computes a different digest for
+    /// the uploaded content. The service does not store the content.
+    ChecksumMismatch,
 }
 
 impl ErrorKind {
@@ -139,6 +146,7 @@ impl From<ErrorKind> for &'static str {
             ErrorKind::ConditionNotMatch => "ConditionNotMatch",
             ErrorKind::RangeNotSatisfied => "RangeNotSatisfied",
             ErrorKind::Conflict => "Conflict",
+            ErrorKind::ChecksumMismatch => "ChecksumMismatch",
         }
     }
 }

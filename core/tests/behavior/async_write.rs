@@ -88,6 +88,25 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ));
     }
 
+    if cap.write && cap.stat {
+        tests.extend(async_trials!(op, test_write_with_unsupported_checksum));
+    }
+
+    if cap.read && cap.write && cap.stat && (cap.checksum_crc32c || cap.checksum_crc64_nvme) {
+        tests.extend(async_trials!(
+            op,
+            test_write_with_checksum,
+            test_write_with_checksum_mismatch
+        ));
+        if cap.write_can_multi {
+            tests.extend(async_trials!(
+                op,
+                test_writer_with_checksum_multipart,
+                test_writer_with_checksum_multipart_mismatch
+            ));
+        }
+    }
+
     if cap.read && cap.write && cap.write_can_append && cap.stat {
         tests.extend(async_trials!(
             op,
@@ -1326,5 +1345,166 @@ pub async fn test_writer_write_non_contiguous_data(op: Operator) -> Result<()> {
     assert_eq!(sha256_digest(&bs[..size]), digest_a, "read content a");
     assert_eq!(sha256_digest(&bs[size..]), digest_b, "read content b");
 
+    Ok(())
+}
+
+/// Return the CRC checksums of `content` for every CRC algorithm `op` supports.
+fn supported_crc_checksums(op: &Operator, content: &[u8]) -> Vec<Checksum> {
+    let cap = op.info().capability();
+    let mut checksums = Vec::new();
+    if cap.checksum_crc32c {
+        let crc = crc_fast::checksum(crc_fast::CrcAlgorithm::Crc32Iscsi, content) as u32;
+        checksums.push(Checksum::new(ChecksumAlgo::Crc32c, crc.to_be_bytes()));
+    }
+    if cap.checksum_crc64_nvme {
+        let crc = crc_fast::checksum(crc_fast::CrcAlgorithm::Crc64Nvme, content);
+        checksums.push(Checksum::new(ChecksumAlgo::Crc64Nvme, crc.to_be_bytes()));
+    }
+    checksums
+}
+
+/// Return a checksum of the same algorithm and length that does not match.
+fn corrupt_checksum(checksum: &Checksum) -> Checksum {
+    let mut value = checksum.value.clone();
+    value[0] ^= 0xff;
+    Checksum::new(checksum.algo, value)
+}
+
+/// Write with a checksum whose algorithm the service does not advertise
+/// should fail before writing anything.
+pub async fn test_write_with_unsupported_checksum(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    let unsupported = [
+        (ChecksumAlgo::Crc64Nvme, cap.checksum_crc64_nvme),
+        (ChecksumAlgo::Crc32c, cap.checksum_crc32c),
+        (ChecksumAlgo::Md5, cap.checksum_md5),
+        (ChecksumAlgo::Sha256, cap.checksum_sha256),
+    ]
+    .into_iter()
+    .find(|(_, supported)| !supported);
+    let Some((algo, _)) = unsupported else {
+        return Ok(());
+    };
+
+    let path = TEST_FIXTURE.new_file_path();
+    let err = op
+        .write_with(&path, "content")
+        .checksum(Checksum::new(algo, vec![0; algo.digest_len()]))
+        .await
+        .expect_err("write with an unsupported checksum must fail");
+    assert_eq!(err.kind(), ErrorKind::Unsupported);
+    assert_eq!(
+        op.stat(&path)
+            .await
+            .expect_err("file must not exist")
+            .kind(),
+        ErrorKind::NotFound
+    );
+    Ok(())
+}
+
+/// Write with a matching checksum should succeed and return the checksum.
+pub async fn test_write_with_checksum(op: Operator) -> Result<()> {
+    let (_, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    for checksum in supported_crc_checksums(&op, &content) {
+        let path = TEST_FIXTURE.new_file_path();
+        let meta = op
+            .write_with(&path, content.clone())
+            .checksum(checksum.clone())
+            .await?;
+        assert_eq!(meta.checksum(), Some(checksum));
+        assert_eq!(
+            op.read(&path).await?.to_bytes(),
+            Bytes::from(content.clone())
+        );
+    }
+    Ok(())
+}
+
+/// Write with a mismatching checksum should fail without creating the file.
+pub async fn test_write_with_checksum_mismatch(op: Operator) -> Result<()> {
+    let (_, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    for checksum in supported_crc_checksums(&op, &content) {
+        let path = TEST_FIXTURE.new_file_path();
+        let err = op
+            .write_with(&path, content.clone())
+            .checksum(corrupt_checksum(&checksum))
+            .await
+            .expect_err("write with a mismatching checksum must fail");
+        assert_eq!(err.kind(), ErrorKind::ChecksumMismatch, "{err}");
+        assert_eq!(
+            op.stat(&path)
+                .await
+                .expect_err("file must not exist")
+                .kind(),
+            ErrorKind::NotFound
+        );
+    }
+    Ok(())
+}
+
+fn multipart_checksum_content(op: &Operator) -> (usize, Vec<u8>) {
+    let chunk = op.info().capability().write_multi_min_size.unwrap_or(1024);
+    let mut content = Vec::with_capacity(chunk * 2 + 1);
+    content.extend(std::iter::repeat_n(1, chunk));
+    content.extend(std::iter::repeat_n(2, chunk));
+    content.push(3);
+    (chunk, content)
+}
+
+/// A checksum covers the whole file when a writer splits it into parts.
+pub async fn test_writer_with_checksum_multipart(op: Operator) -> Result<()> {
+    let (chunk, content) = multipart_checksum_content(&op);
+
+    for checksum in supported_crc_checksums(&op, &content) {
+        let path = TEST_FIXTURE.new_file_path();
+        let mut writer = op
+            .writer_with(&path)
+            .chunk(chunk)
+            .checksum(checksum.clone())
+            .await?;
+        for part in content.chunks(chunk) {
+            writer.write(part.to_vec()).await?;
+        }
+        let meta = writer.close().await?;
+        assert_eq!(meta.checksum(), Some(checksum));
+        assert_eq!(
+            op.read(&path).await?.to_bytes(),
+            Bytes::from(content.clone())
+        );
+    }
+    Ok(())
+}
+
+/// A mismatching full-file checksum fails a multipart write on close.
+pub async fn test_writer_with_checksum_multipart_mismatch(op: Operator) -> Result<()> {
+    let (chunk, content) = multipart_checksum_content(&op);
+
+    for checksum in supported_crc_checksums(&op, &content) {
+        let path = TEST_FIXTURE.new_file_path();
+        let mut writer = op
+            .writer_with(&path)
+            .chunk(chunk)
+            .checksum(corrupt_checksum(&checksum))
+            .await?;
+        for part in content.chunks(chunk) {
+            writer.write(part.to_vec()).await?;
+        }
+        let err = writer
+            .close()
+            .await
+            .expect_err("close with a mismatching checksum must fail");
+        assert_eq!(err.kind(), ErrorKind::ChecksumMismatch, "{err}");
+        let _ = writer.abort().await;
+        assert_eq!(
+            op.stat(&path)
+                .await
+                .expect_err("file must not exist")
+                .kind(),
+            ErrorKind::NotFound
+        );
+    }
     Ok(())
 }

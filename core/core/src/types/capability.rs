@@ -157,6 +157,23 @@ pub struct Capability {
     /// For example, Cloudflare D1 has a 1MB total size limit.
     pub write_total_max_size: Option<usize>,
 
+    /// Indicates if writes accept a full-file CRC-64/NVME checksum, verify it,
+    /// and return it in the write result.
+    #[serde(default)]
+    pub checksum_crc64_nvme: bool,
+    /// Indicates if writes accept a full-file CRC-32C checksum, verify it,
+    /// and return it in the write result.
+    #[serde(default)]
+    pub checksum_crc32c: bool,
+    /// Indicates if writes accept a full-file MD5 checksum, verify it, and
+    /// return it in the write result.
+    #[serde(default)]
+    pub checksum_md5: bool,
+    /// Indicates if writes accept a full-file SHA-256 checksum, verify it,
+    /// and return it in the write result.
+    #[serde(default)]
+    pub checksum_sha256: bool,
+
     /// Indicates if directory creation is supported.
     pub create_dir: bool,
 

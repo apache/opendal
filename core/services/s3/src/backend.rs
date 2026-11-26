@@ -1191,6 +1191,13 @@ impl S3Builder {
         // S3 CreateMultipartUpload does not support MD5 checksum_algorithm;
         // only single-shot PutObject supports Content-MD5.
         let s3_write_can_multi = !matches!(checksum_algorithm, Some(ChecksumAlgorithm::Md5));
+        // S3 verifies a caller-supplied full-object checksum on both PutObject
+        // and multipart uploads only for CRC algorithms. Provider presets keep
+        // checksum capabilities disabled because some S3-compatible services
+        // accept checksum headers without verifying them.
+        //
+        // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity-upload.html>
+        let s3_can_checksum = scheme == S3_SCHEME && !is_s3_express;
 
         let mut capability = Capability {
             stat: true,
@@ -1228,6 +1235,9 @@ impl S3Builder {
             write_with_if_match: true,
             write_with_if_not_exists: true,
             write_with_user_metadata: true,
+
+            checksum_crc32c: s3_can_checksum,
+            checksum_crc64_nvme: s3_can_checksum,
 
             // The min multipart size of S3 is 5 MiB.
             //
@@ -3826,6 +3836,26 @@ mod tests {
                 "presign_write with {algorithm} must not sign {header_name}: {signed_headers}"
             );
         }
+    }
+
+    #[test]
+    fn test_checksum_capability_only_for_s3_scheme() {
+        let builder = || {
+            S3Builder::default()
+                .bucket("test")
+                .region("us-east-1")
+                .endpoint("http://127.0.0.1:9000")
+        };
+
+        let cap = builder().build().unwrap().capability();
+        assert!(cap.checksum_crc32c && cap.checksum_crc64_nvme);
+        assert!(!cap.checksum_md5 && !cap.checksum_sha256);
+
+        let cap = builder()
+            .build_with_scheme(crate::MINIO_SCHEME)
+            .unwrap()
+            .capability();
+        assert!(!cap.checksum_crc32c && !cap.checksum_crc64_nvme);
     }
 
     #[test]

@@ -26,7 +26,7 @@ use crate::raw::*;
 use crate::types::compact::CompactValues;
 use crate::types::metadata::user_metadata_encoded_len;
 use crate::types::metadata::write_user_metadata;
-use crate::{Capability, Error, ErrorKind, Result};
+use crate::{Capability, Checksum, ChecksumAlgo, Error, ErrorKind, Result};
 
 use std::collections::HashMap;
 
@@ -1172,6 +1172,7 @@ enum WriteField {
     IfVersionNotMatch,
     UserMetadata,
     Expires,
+    Checksum,
 }
 
 impl OpWrite {
@@ -1228,10 +1229,26 @@ impl OpWrite {
             }
         }
 
+        if let Some(checksum) = &options.checksum
+            && checksum.value.len() != checksum.algo.digest_len()
+        {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                format!(
+                    "checksum {:?} requires a {}-byte digest, got {} bytes",
+                    checksum.algo,
+                    checksum.algo.digest_len(),
+                    checksum.value.len()
+                ),
+            )
+            .with_operation(Operation::Write));
+        }
+
         let writer = OpWriter {
             chunk: options.chunk.filter(|&chunk| chunk != 0),
         };
         let user_metadata = options.user_metadata.take().map(sorted_user_metadata);
+        let checksum = options.checksum.as_ref().map(Checksum::encode);
         let mut flags = 0;
         if options.append {
             flags |= OP_WRITE_APPEND;
@@ -1257,6 +1274,7 @@ impl OpWrite {
             options.if_version_not_match.as_deref().map(str::as_bytes),
             None,
             expires.as_ref().map(<[u8; 12]>::as_slice),
+            checksum.as_deref(),
         ];
         let mut lengths = fields.map(|value| value.map(<[u8]>::len));
         lengths[WriteField::UserMetadata as usize] =
@@ -1290,11 +1308,34 @@ impl OpWrite {
     ///
     /// # Errors
     ///
-    /// Returns [`ErrorKind::Unsupported`] if any set append, expiration, or
-    /// conditional option is not advertised by `capability`.
+    /// Returns [`ErrorKind::Unsupported`] if any set append, expiration,
+    /// checksum, or conditional option is not advertised by `capability`, or
+    /// if a checksum is combined with append.
     pub fn check(&self, capability: &Capability) -> Result<()> {
         if self.append() && !capability.write_can_append {
             return Err(new_unsupported_error(Operation::Write, "append"));
+        }
+        if let Some(checksum) = self.checksum() {
+            let supported = match checksum.algo {
+                ChecksumAlgo::Crc64Nvme => capability.checksum_crc64_nvme,
+                ChecksumAlgo::Crc32c => capability.checksum_crc32c,
+                ChecksumAlgo::Md5 => capability.checksum_md5,
+                ChecksumAlgo::Sha256 => capability.checksum_sha256,
+            };
+            if !supported {
+                return Err(new_unsupported_error(
+                    Operation::Write,
+                    &format!("checksum({:?})", checksum.algo),
+                ));
+            }
+            // An append extends an existing file, so a checksum of the
+            // appended bytes cannot describe the full file.
+            if self.append() {
+                return Err(new_unsupported_error(
+                    Operation::Write,
+                    "checksum with append",
+                ));
+            }
         }
         if self.expires().is_some() && !capability.write_with_expires {
             return Err(new_unsupported_error(Operation::Write, "expires"));
@@ -1333,6 +1374,14 @@ impl OpWrite {
     #[inline]
     pub fn append(&self) -> bool {
         self.flags & OP_WRITE_APPEND != 0
+    }
+
+    /// Get the expected full-file checksum of the written content.
+    #[inline]
+    pub fn checksum(&self) -> Option<Checksum> {
+        self.values
+            .get(WriteField::Checksum as usize)
+            .map(Checksum::decode)
     }
 
     /// Get the content type from option
@@ -2307,6 +2356,67 @@ mod tests {
         assert_eq!(changed.content_language(), Some("fr-CA, en"));
         assert_eq!(changed.expires(), Some(expires));
         assert_eq!(args.content_language(), Some("en-US"));
+    }
+
+    #[test]
+    fn write_checksum_requires_matching_capability() {
+        let checksum = Checksum::new(ChecksumAlgo::Crc32c, [1, 2, 3, 4]);
+        let options = options::WriteOptions {
+            checksum: Some(checksum.clone()),
+            ..Default::default()
+        };
+
+        let (args, _) = OpWrite::from_options(
+            &Capability {
+                checksum_crc32c: true,
+                ..Default::default()
+            },
+            options.clone(),
+        )
+        .unwrap();
+        assert_eq!(args.checksum(), Some(checksum));
+        assert_eq!(OpWrite::default().checksum(), None);
+
+        let err = OpWrite::from_options(
+            &Capability {
+                checksum_crc64_nvme: true,
+                checksum_sha256: true,
+                ..Default::default()
+            },
+            options.clone(),
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let err = OpWrite::from_options(
+            &Capability {
+                checksum_crc32c: true,
+                write_can_append: true,
+                ..Default::default()
+            },
+            options::WriteOptions {
+                append: true,
+                ..options
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+    }
+
+    #[test]
+    fn write_checksum_rejects_wrong_digest_length() {
+        let err = OpWrite::from_options(
+            &Capability {
+                checksum_sha256: true,
+                ..Default::default()
+            },
+            options::WriteOptions {
+                checksum: Some(Checksum::new(ChecksumAlgo::Sha256, [0; 31])),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
 
     #[test]

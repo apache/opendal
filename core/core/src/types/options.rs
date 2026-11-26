@@ -17,6 +17,7 @@
 
 //! Options module provides options definitions for operations.
 
+use crate::Checksum;
 use crate::Metadata;
 use crate::raw::{Duration, Timestamp};
 use crate::types::BytesRange;
@@ -764,6 +765,29 @@ pub struct WriteOptions {
     /// advertise [`crate::Capability::write_with_expires`]. A zero or
     /// unrepresentable duration returns [`crate::ErrorKind::ConfigInvalid`].
     pub expires: Option<Duration>,
+    /// Sets the expected full-file checksum of the written content.
+    ///
+    /// The service verifies the stored content against this checksum before
+    /// the write commits. A mismatch fails the write with
+    /// [`crate::ErrorKind::ChecksumMismatch`] and leaves the previously
+    /// visible file unchanged. On success, the returned [`Metadata`] carries
+    /// the checksum the service verified, available through
+    /// [`Metadata::checksum`].
+    ///
+    /// The checksum covers the whole file, regardless of how the content is
+    /// split into chunks or parts.
+    ///
+    /// If the service completes the write but does not confirm the
+    /// checksum, the write returns [`crate::ErrorKind::Unexpected`]. In that
+    /// case the content may already be stored without verification.
+    ///
+    /// Returns [`crate::ErrorKind::Unsupported`] when the service does not
+    /// advertise the capability flag for the checksum's algorithm, for
+    /// example [`crate::Capability::checksum_crc32c`] for
+    /// [`crate::ChecksumAlgo::Crc32c`], and when combined with `append`.
+    /// A digest whose length does not match the algorithm returns
+    /// [`crate::ErrorKind::ConfigInvalid`].
+    pub checksum: Option<Checksum>,
 
     /// Write only when the file at the write path has this exact ETag.
     ///

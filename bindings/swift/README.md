@@ -71,7 +71,16 @@ print(result)
 
 Both `blockingWrite` and `blockingRead` throw `OperatorError` on failure.
 
-For a real backend, pass the service scheme and options:
+The default build includes only the Memory service. To enable S3, run the
+following command from the repository root.
+
+```shell
+make -C bindings/swift build-c OPENDAL_FEATURES=opendal/services-s3
+```
+
+If you already built your app, run `swift package clean` in the app directory
+before rebuilding to link against the new library. Then create an operator
+with the S3 scheme and options.
 
 ```swift
 let op = try Operator(

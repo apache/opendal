@@ -45,10 +45,20 @@ print(String(data: bytes, encoding: .utf8)!) // hello
 
 ## Pointing at a real backend
 
-Only the scheme and options change; the write/read calls are identical. The
-keys for each service are listed on [/services](/services).
+The default build includes only the Memory service. To enable S3, run the
+following command from the repository root.
+
+```shell
+make -C bindings/swift build-c OPENDAL_FEATURES=opendal/services-s3
+```
+
+If you already built your app, run `swift package clean` in the app directory
+before rebuilding to link against the new library. Use the same read and write
+calls with the S3 scheme and options. For configuration keys, see
+[Services](/services).
 
 ```swift
+import Foundation
 import OpenDAL
 
 // S3 example — fill in real values.

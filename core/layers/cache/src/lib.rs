@@ -24,7 +24,7 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use opendal_core::raw::{Layer, OpRead, Servicer};
+use opendal_core::raw::{Layer, Servicer};
 use opendal_core::{Error, ErrorKind, Operator, Result};
 
 mod flight;
@@ -38,22 +38,16 @@ mod state;
 use service::CacheService;
 use state::State;
 
-/// The source path and options supplied when opening a reader.
+/// The source path supplied to the read cache policy.
 #[non_exhaustive]
 pub struct CacheReadRequest<'a> {
     path: &'a str,
-    args: &'a OpRead,
 }
 
 impl<'a> CacheReadRequest<'a> {
     /// Return the normalized source path.
     pub fn path(&self) -> &'a str {
         self.path
-    }
-
-    /// Return the source read options.
-    pub fn args(&self) -> &'a OpRead {
-        self.args
     }
 }
 
@@ -70,7 +64,7 @@ pub enum CacheDecision {
     CacheFor(Duration),
 }
 
-/// Decide whether to cache reads and how long their metadata remains fresh.
+/// Decide by source path whether to cache reads and how long their metadata remains fresh.
 pub trait CachePolicy: Send + Sync + 'static {
     /// Decide once for the reader, before any I/O.
     fn on_read(&self, req: &CacheReadRequest<'_>) -> CacheDecision;

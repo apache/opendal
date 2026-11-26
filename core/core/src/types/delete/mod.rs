@@ -18,6 +18,7 @@
 mod input;
 pub use input::IntoDeleteInput;
 
+mod concurrent;
 mod deleter;
 pub use deleter::Deleter;
 

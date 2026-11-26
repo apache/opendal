@@ -61,8 +61,16 @@ impl oio::OneShotDelete for WebdavDeleter {
 
 #[cfg(test)]
 mod tests {
+    use std::future::Future;
+    use std::pin::pin;
+    use std::sync::Mutex;
+    use std::sync::mpsc::{self, Receiver, Sender};
+    use std::task::Context;
+
+    use futures::channel::oneshot;
     use futures::stream;
-    use http::{Request, Response, StatusCode};
+    use futures::task::noop_waker_ref;
+    use http::{Method, Request, Response, StatusCode};
 
     use super::super::backend::WebdavBuilder;
     use super::*;
@@ -115,6 +123,168 @@ mod tests {
             .unwrap_err();
         assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
 
+        Ok(())
+    }
+
+    type PendingDelete = (String, oneshot::Sender<StatusCode>);
+
+    struct GatedTransport(Sender<PendingDelete>);
+
+    impl HttpTransport for GatedTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            assert_eq!(req.method(), Method::DELETE);
+            let (response, status) = oneshot::channel();
+            self.0
+                .send((req.uri().path().to_owned(), response))
+                .unwrap();
+            Ok(Response::builder()
+                .status(status.await.unwrap())
+                .body(HttpBody::new(stream::empty(), Some(0)))
+                .unwrap())
+        }
+    }
+
+    #[derive(Clone, Default)]
+    struct ManualExecutor(Arc<Mutex<Vec<BoxedStaticFuture<()>>>>);
+
+    impl Execute for ManualExecutor {
+        fn execute(&self, task: BoxedStaticFuture<()>) {
+            self.0.lock().unwrap().push(task);
+        }
+    }
+
+    impl ManualExecutor {
+        fn advance(&self) {
+            let mut cx = Context::from_waker(noop_waker_ref());
+            self.0
+                .lock()
+                .unwrap()
+                .retain_mut(|task| task.as_mut().poll(&mut cx).is_pending());
+        }
+    }
+
+    fn gated_deletes() -> (Operator, ManualExecutor, Receiver<PendingDelete>) {
+        let (requests, log) = mpsc::channel();
+        let executor = ManualExecutor::default();
+        let op = Operator::new(WebdavBuilder::default().endpoint("http://localhost:8080"))
+            .unwrap()
+            .with_context(
+                OperationContext::new()
+                    .with_http_transport(HttpTransporter::new(GatedTransport(requests)))
+                    .with_executor(Executor::with(executor.clone())),
+            );
+        (op, executor, log)
+    }
+
+    fn response_for(log: &Receiver<PendingDelete>, expected: &str) -> oneshot::Sender<StatusCode> {
+        let (path, response) = log.try_recv().unwrap();
+        assert_eq!(path, expected);
+        response
+    }
+
+    #[tokio::test]
+    async fn concurrent_delete_returns_completed_failure_before_accepting_input() -> Result<()> {
+        let (op, executor, log) = gated_deletes();
+        let mut deleter = op.deleter_with().concurrent(3).await?;
+        deleter
+            .delete_iter(["pending", "completed", "failed"])
+            .await?;
+        executor.advance();
+        let pending = response_for(&log, "/pending");
+        response_for(&log, "/completed")
+            .send(StatusCode::NO_CONTENT)
+            .unwrap();
+        response_for(&log, "/failed")
+            .send(StatusCode::FORBIDDEN)
+            .unwrap();
+        executor.advance();
+
+        let error = deleter.delete("unaccepted").await.unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::PermissionDenied);
+        assert!(error.to_string().contains("path: failed"));
+        pending.send(StatusCode::NO_CONTENT).unwrap();
+        let mut close = pin!(deleter.close());
+        let mut cx = Context::from_waker(noop_waker_ref());
+        assert!(close.as_mut().poll(&mut cx).is_pending());
+        executor.advance();
+        response_for(&log, "/failed")
+            .send(StatusCode::NO_CONTENT)
+            .unwrap();
+        executor.advance();
+        close.await?;
+        assert!(log.try_recv().is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn concurrent_close_resumes_canceled_waits_and_collects_all_failures() -> Result<()> {
+        let (op, executor, log) = gated_deletes();
+        let mut deleter = op.deleter_with().concurrent(2).await?;
+        deleter.delete_iter(["first", "second"]).await?;
+        executor.advance();
+        let first = response_for(&log, "/first");
+        let second = response_for(&log, "/second");
+        let mut cx = Context::from_waker(noop_waker_ref());
+        {
+            let mut delete = pin!(deleter.delete("unaccepted"));
+            assert!(delete.as_mut().poll(&mut cx).is_pending());
+        }
+        first.send(StatusCode::FORBIDDEN).unwrap();
+        executor.advance();
+        {
+            let mut close = pin!(deleter.close());
+            assert!(close.as_mut().poll(&mut cx).is_pending());
+        }
+        second.send(StatusCode::FORBIDDEN).unwrap();
+        executor.advance();
+        let error = deleter.close().await.unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::PermissionDenied);
+        assert!(error.to_string().contains("path: first"));
+
+        let mut retry = pin!(deleter.close());
+        assert!(retry.as_mut().poll(&mut cx).is_pending());
+        executor.advance();
+        response_for(&log, "/first")
+            .send(StatusCode::NO_CONTENT)
+            .unwrap();
+        response_for(&log, "/second")
+            .send(StatusCode::NO_CONTENT)
+            .unwrap();
+        executor.advance();
+        retry.await?;
+        assert!(log.try_recv().is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn dropping_concurrent_deleter_stops_queued_requests() -> Result<()> {
+        let (op, executor, log) = gated_deletes();
+        let mut deleter = op.deleter_with().concurrent(2).await?;
+        deleter.delete("started").await?;
+        executor.advance();
+        let started = response_for(&log, "/started");
+        deleter.delete("queued").await?;
+
+        drop(deleter);
+        executor.advance();
+        assert!(started.send(StatusCode::NO_CONTENT).is_err());
+        assert!(log.try_recv().is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn default_deleter_options_preserve_inline_one_shot_completion() -> Result<()> {
+        let op = operator_with_status(StatusCode::FORBIDDEN)?;
+        for mut deleter in [
+            op.deleter().await?,
+            op.deleter_with().await?,
+            op.deleter_with().concurrent(0).await?,
+            op.deleter_with().concurrent(1).await?,
+        ] {
+            let error = deleter.delete("file").await.unwrap_err();
+            assert_eq!(error.kind(), ErrorKind::PermissionDenied);
+            deleter.close().await?;
+        }
         Ok(())
     }
 }

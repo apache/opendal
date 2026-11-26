@@ -92,6 +92,7 @@ pub struct OpDelete {
 }
 
 const OP_DELETE_RECURSIVE: u8 = 1;
+const OP_DELETE_DEFER_BATCH_FLUSH: u8 = 2;
 
 #[repr(usize)]
 enum DeleteField {
@@ -256,6 +257,16 @@ impl OpDelete {
             || self.if_none_match().is_some()
             || self.if_version_match().is_some()
             || self.if_version_not_match().is_some()
+    }
+
+    pub(crate) fn defer_batch_flush(&mut self) {
+        self.flags |= OP_DELETE_DEFER_BATCH_FLUSH;
+    }
+
+    pub(crate) fn take_deferred_batch_flush(&mut self) -> bool {
+        let deferred = self.flags & OP_DELETE_DEFER_BATCH_FLUSH != 0;
+        self.flags &= !OP_DELETE_DEFER_BATCH_FLUSH;
+        deferred
     }
 
     pub(crate) fn set_recursive(&mut self, recursive: bool) {

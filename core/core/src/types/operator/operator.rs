@@ -2045,6 +2045,45 @@ impl Operator {
         Deleter::create(self.context().clone(), self.service().clone())
     }
 
+    /// Create a [`Deleter`] with a configurable concurrency limit.
+    ///
+    /// The default limit of one preserves [`Self::deleter`] behavior. Higher
+    /// limits use the operator's configured executor. A one-shot service can
+    /// process one entry per task. A batch service accumulates a full batch
+    /// before dispatching a task, and [`Deleter::close`] submits any remaining
+    /// entries. Concurrent tasks may complete in any order, including tasks
+    /// that contain the same path.
+    ///
+    /// ```
+    /// # use opendal_core::{Operator, Result};
+    /// # async fn example(op: Operator) -> Result<()> {
+    /// let mut deleter = op.deleter_with().concurrent(4).await?;
+    /// deleter.delete_iter(["path/a", "path/b"]).await?;
+    /// deleter.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn deleter_with(&self) -> FutureDeleter<impl Future<Output = Result<Deleter>>> {
+        OperatorFuture::new(
+            self.context().clone(),
+            self.service().clone(),
+            String::new(),
+            1,
+            Self::deleter_inner,
+        )
+    }
+
+    // Keep this async so it can be used as an `OperatorFuture` factory.
+    #[allow(clippy::unused_async)]
+    async fn deleter_inner(
+        ctx: OperationContext,
+        srv: Servicer,
+        _path: String,
+        concurrent: usize,
+    ) -> Result<Deleter> {
+        Deleter::create_with(ctx, srv, concurrent)
+    }
+
     /// Recursively delete entries at the given path.
     ///
     /// A path ending in `/`, such as `"a/"`, is the only portable way to

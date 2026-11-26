@@ -97,8 +97,9 @@ namespace :doc do
   task :rustdoc do
     target_dir = "tmp"
     ext_dir = "opendal-ruby"
+    toolchain = ENV.fetch("RUST_DOC_TOOLCHAIN", "nightly-2026-09-22")
     run(<<~CMD)
-      cargo +nightly-2025-10-12 rustdoc \
+      cargo +#{toolchain} rustdoc \
         --target-dir #{target_dir} \
         --package #{ext_dir} \
         -Zunstable-options \

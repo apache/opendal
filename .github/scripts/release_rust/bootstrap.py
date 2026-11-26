@@ -404,7 +404,7 @@ def _placeholder_manifest(name: str) -> str:
 name = {json.dumps(name)}
 version = {json.dumps(PLACEHOLDER_VERSION)}
 edition = "2024"
-rust-version = "1.91"
+rust-version = "1.95"
 description = {json.dumps(PLACEHOLDER_DESCRIPTION)}
 homepage = "https://opendal.apache.org/"
 repository = {json.dumps(REPOSITORY)}

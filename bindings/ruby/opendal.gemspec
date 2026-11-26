@@ -98,7 +98,7 @@ Gem::Specification.new do |spec|
   # Exclude non-Ruby files from RDoc to prevent parsing errors
   spec.rdoc_options = ["--exclude", "Cargo\\..*", "--exclude", "core/", "--exclude", "\\.rs$"]
 
-  spec.requirements = ["Rust >= 1.91"]
+  spec.requirements = ["Rust >= 1.95"]
   # use a Ruby version which:
   # - supports Rubygems with the ability of compilation of Rust gem
   # - not end of life

@@ -311,7 +311,7 @@ Operation wrappers implement `raw::Service`, store the inner `Servicer`, forward
 
 ## Important Notes
 
-- Minimum Rust version is 1.91, configured in `core/Cargo.toml` and checked by CI.
+- Minimum Rust version is 1.95, configured in `core/Cargo.toml` and checked by CI.
 - Use `opendal_core::raw::{Service, ServiceInfo, ServiceDyn, Servicer, Layer}` for internal service and layer boundaries, and `opendal_core::OperationContext` for runtime resources.
 - Use `opendal_core::raw::oio::{Read, Write, List, Delete, Copy, Compose}` for service operation bodies. `Read` opens range streams that implement `ReadStream`; type-erased handles use the corresponding `*Dyn` adapters.
 - Use `Operator` and `blocking::Operator` as the public API entry points.

@@ -9,7 +9,7 @@ operator to verify the complete native link at runtime.
 
 ## Requirements
 
-- Rust 1.91 or later.
+- Rust 1.95 or later.
 - A C compiler supported by MoonBit.
 - MoonBit compiler `0.10.6+80dc50f24`.
 

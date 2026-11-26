@@ -1,3 +1,9 @@
+# v0.60.0 (unreleased)
+
+### Fixed
+
+- On GCS buckets with Object Versioning enabled, ordinary recursive deletes now preserve the formerly current generation in version history. In 0.59.0 and subsequent 0.59.x releases, `delete_with(prefix).recursive(true)` and `remove_all(prefix)` removed that generation from ordinary history on both GCS JSON and gRPC. Reading it by generation ID could then return `NotFound`.
+
 # v0.59.5
 
 - [Release notes](https://github.com/apache/opendal/releases/tag/v0.59.5)

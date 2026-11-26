@@ -90,6 +90,13 @@ create_exception!(
     PyException,
     "Operation conflicts with the current resource state"
 );
+// Preserve handlers for checksum failures previously mapped to Unexpected.
+create_exception!(
+    opendal.exceptions,
+    ChecksumMismatch,
+    Unexpected,
+    "Checksum verification failed"
+);
 
 fn format_pyerr_impl(err: &ocore::Error) -> PyErr {
     let e = format!("{err:?}");
@@ -107,6 +114,7 @@ fn format_pyerr_impl(err: &ocore::Error) -> PyErr {
         ocore::ErrorKind::RateLimited => RateLimited::new_err(e),
         ocore::ErrorKind::RangeNotSatisfied => RangeNotSatisfied::new_err(e),
         ocore::ErrorKind::Conflict => Conflict::new_err(e),
+        ocore::ErrorKind::ChecksumMismatch => ChecksumMismatch::new_err(e),
         _ => Unexpected::new_err(e),
     }
 }

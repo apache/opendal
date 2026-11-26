@@ -132,6 +132,9 @@ pub unsafe extern "C" fn via_map_ffi(
 
         let res = match od::Operator::via_iter(scheme, map) {
             Ok(mut operator) => {
+                // Keep the Haskell defaults outside any layers configured in the map.
+                // A configured retry layer runs inside this default retry layer.
+                // A log callback adds a logging layer outside the retry layers.
                 operator = operator.layer(RetryLayer::new());
                 if callback.is_some() {
                     operator = operator.layer(LoggingLayer::default());

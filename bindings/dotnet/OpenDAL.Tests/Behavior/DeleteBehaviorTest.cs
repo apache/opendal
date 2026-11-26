@@ -244,7 +244,7 @@ public sealed class DeleteBehaviorTest : BehaviorTestBase
             return;
         }
 
-        // More targets than the stack buffer holds, converted from listed entries.
+        // More targets than the stack buffer holds.
         var dir = NewPath("delete-many-listed") + "/";
         await Op.CreateDirAsync(dir, CT);
         for (var i = 0; i < 300; i++)
@@ -252,9 +252,10 @@ public sealed class DeleteBehaviorTest : BehaviorTestBase
             await Op.WriteAsync($"{dir}file-{i:D3}", RandomBytes(1), cancellationToken: CT);
         }
 
+        // Delete the current objects by path even when the listing includes version metadata.
         var files = Op.List(dir)
             .Where(e => e.Metadata.IsFile)
-            .Select(e => (DeleteInput)e);
+            .Select(e => (DeleteInput)e.Path);
         await Op.DeleteManyAsync(files, CT);
 
         Assert.DoesNotContain(Op.List(dir), e => e.Metadata.IsFile);

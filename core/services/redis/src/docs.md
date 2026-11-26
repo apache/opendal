@@ -30,7 +30,8 @@ count hint, and Redis may return more or fewer keys per request. Listing does
 not provide a snapshot when keys change during the scan.
 
 Use `op.list_with("/").glob("movreg_*_832917")` to find matching keys with
-OpenDAL's default `GlobLayer`. A Redis account with restricted command access
+OpenDAL's `SimulateLayer` (installed automatically when the default
+`auto-simulate` feature is enabled). A Redis account with restricted command access
 needs `SCAN`, `TYPE`, and `STRLEN` to list entries.
 
 Redis Cluster connections do not support listing because scan cursors are

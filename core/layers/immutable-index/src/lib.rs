@@ -171,8 +171,8 @@ impl Service for ImmutableIndexService {
         // deleted entries.
         capability.list_with_versions = false;
         capability.list_with_deleted = false;
-        // `GlobLayer` sits below this layer and advertises `list_with_glob` on
-        // its wrapped stack, but this layer answers list calls directly. The
+        // `SimulateLayer` may sit below this layer and advertise `list_with_glob`
+        // on its wrapped stack, but this layer answers list calls directly. The
         // index cannot honor glob patterns.
         capability.list_with_glob = false;
 

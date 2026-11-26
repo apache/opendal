@@ -19,11 +19,14 @@ use std::collections::VecDeque;
 use std::sync::Mutex;
 
 use super::*;
+use crate::layers::SimulateLayer;
 use crate::services::Memory;
 
 #[tokio::test]
-async fn default_glob_can_be_disabled_and_reenabled() -> Result<()> {
-    let op = Operator::new_without_glob_simulation(Memory::default())?;
+async fn glob_simulation_can_be_disabled_and_reenabled() -> Result<()> {
+    let service = Arc::new(Memory::default().build()?) as Servicer;
+    let op = Operator::from_parts(OperationContext::default(), service)
+        .layer(SimulateLayer::default().with_list_glob(false));
     assert!(!op.info().capability().list_with_glob);
     op.write("a.jpg", "jpg").await?;
     op.write("b.png", "png").await?;
@@ -32,7 +35,7 @@ async fn default_glob_can_be_disabled_and_reenabled() -> Result<()> {
     assert!(err.message().contains("glob"));
     assert_eq!(op.list("/").await?.len(), 2);
 
-    let op = op.layer(GlobLayer);
+    let op = op.layer(SimulateLayer::default());
     assert!(op.info().capability().list_with_glob);
     let entries = op.list_with("/").glob("*.jpg").await?;
     assert_eq!(entries.len(), 1);
@@ -42,7 +45,7 @@ async fn default_glob_can_be_disabled_and_reenabled() -> Result<()> {
 
 #[tokio::test]
 async fn guided_listing_with_overlapping_recursive_segments() -> Result<()> {
-    let op = Operator::new(Memory::default())?;
+    let op = Operator::new(Memory::default())?.layer(SimulateLayer::default());
     for path in ["a/b/c", "a/b/b/c", "a/b/x/c", "a/x/b/c", "a/c", "b/b/c"] {
         op.write(path, "data").await?;
     }
@@ -55,7 +58,7 @@ async fn guided_listing_with_overlapping_recursive_segments() -> Result<()> {
 
 #[tokio::test]
 async fn literal_patterns_preserve_list_prefix_semantics() -> Result<()> {
-    let op = Operator::new(Memory::default())?;
+    let op = Operator::new(Memory::default())?.layer(SimulateLayer::default());
     op.write("a/b/é.jpg", "data").await?;
     assert_eq!(
         op.list_with("/").glob("a/b/é.jpg").await?[0].path(),
@@ -87,7 +90,8 @@ async fn guided_listing_skips_literal_parents_and_keeps_page_size() -> Result<()
         "a/b/bad.png",
         "a/b/é.jpg",
     ]));
-    let op = Operator::from_parts(OperationContext::default(), inner.clone()).layer(GlobLayer);
+    let op = Operator::from_parts(OperationContext::default(), inner.clone())
+        .layer(SimulateLayer::default());
     let entries = op.list_with("/").glob("a/b/?.jpg").limit(1).await?;
     assert_eq!(
         entries.iter().map(Entry::path).collect::<Vec<_>>(),
@@ -113,7 +117,8 @@ async fn guided_listing_skips_unreadable_discovered_directories() -> Result<()> 
         denied: Some("locked/"),
         ..ListFixture::new(&[])
     });
-    let op = Operator::from_parts(OperationContext::default(), inner.clone()).layer(GlobLayer);
+    let op = Operator::from_parts(OperationContext::default(), inner.clone())
+        .layer(SimulateLayer::default());
     let entries = op.list_with("/").glob("*/*.jpg").await?;
     assert_eq!(
         entries.iter().map(Entry::path).collect::<Vec<_>>(),
@@ -139,10 +144,12 @@ async fn filtering_preserves_versions_and_delete_markers_at_the_same_path() -> R
         oio::Entry::new(path, metadata.build())
     });
     let inner = Arc::new(ListFixture {
+        recursive: true,
         entries: entries.to_vec(),
         ..ListFixture::new(&[])
     });
-    let op = Operator::from_parts(OperationContext::default(), inner.clone()).layer(GlobLayer);
+    let op = Operator::from_parts(OperationContext::default(), inner.clone())
+        .layer(SimulateLayer::default());
     let got = op
         .list_with("/")
         .glob("a/**/*.jpg")
@@ -177,8 +184,7 @@ async fn native_glob_receives_the_original_list_options() -> Result<()> {
         ..ListFixture::new(&[])
     });
     let op = Operator::from_parts(OperationContext::default(), inner.clone())
-        .layer(crate::layers::SimulateLayer::default())
-        .layer(GlobLayer);
+        .layer(SimulateLayer::default());
     op.list_with("prefix")
         .glob("**/*.jpg")
         .recursive(true)
@@ -207,7 +213,8 @@ async fn recursive_services_filter_one_listing() -> Result<()> {
             "t/q=3/d.parquet",
         ])
     });
-    let op = Operator::from_parts(OperationContext::default(), inner.clone()).layer(GlobLayer);
+    let op = Operator::from_parts(OperationContext::default(), inner.clone())
+        .layer(SimulateLayer::default());
 
     let entries = op.list_with("/").glob("t/*/**/*.parquet").limit(2).await?;
     assert_eq!(
@@ -256,7 +263,8 @@ async fn recursive_listing_returns_each_directory_once() -> Result<()> {
         ],
         ..ListFixture::new(&[])
     });
-    let op = Operator::from_parts(OperationContext::default(), inner).layer(GlobLayer);
+    let op =
+        Operator::from_parts(OperationContext::default(), inner).layer(SimulateLayer::default());
     let entries = op.list_with("/").glob("**/").await?;
     assert_eq!(
         entries.iter().map(Entry::path).collect::<Vec<_>>(),
@@ -281,7 +289,7 @@ async fn services_without_recursive_listing_keep_the_walk() -> Result<()> {
     });
     let op = Operator::from_parts(OperationContext::default(), inner.clone())
         .layer(no_recursion)
-        .layer(GlobLayer);
+        .layer(SimulateLayer::default());
     op.list_with("/").glob("t/**/*.parquet").await?;
     op.list_with("/").glob("t/**").await?;
     let requests = inner.requests.lock().unwrap();
@@ -300,7 +308,8 @@ async fn walk_filters_one_recursive_listing_below_a_matched_directory() -> Resul
         ],
         ..ListFixture::new(&[])
     });
-    let op = Operator::from_parts(OperationContext::default(), inner.clone()).layer(GlobLayer);
+    let op = Operator::from_parts(OperationContext::default(), inner.clone())
+        .layer(SimulateLayer::default());
     let entries = op.list_with("/").glob("logs/**").await?;
     assert_eq!(
         entries.iter().map(Entry::path).collect::<Vec<_>>(),
@@ -321,7 +330,8 @@ async fn recursive_services_walk_patterns_that_skip_directories() -> Result<()> 
         recursive: true,
         ..ListFixture::new(&["t/a.parquet", "t/b.json"])
     });
-    let op = Operator::from_parts(OperationContext::default(), inner.clone()).layer(GlobLayer);
+    let op = Operator::from_parts(OperationContext::default(), inner.clone())
+        .layer(SimulateLayer::default());
     let entries = op.list_with("t/").glob("*.parquet").await?;
     assert_eq!(entries[0].path(), "t/a.parquet");
     for pattern in ["t/*", "t/*/*.parquet", "t/p=*/**", "t/*/x/**"] {
@@ -339,7 +349,7 @@ async fn recursive_services_walk_patterns_that_skip_directories() -> Result<()> 
 
 #[tokio::test]
 async fn recursive_listing_keeps_the_entry_named_by_a_prefix() -> Result<()> {
-    let op = Operator::new(Memory::default())?;
+    let op = Operator::new(Memory::default())?.layer(SimulateLayer::default());
     for path in ["t/a", "t/ab/c", "v/a/b"] {
         op.write(path, "data").await?;
     }
@@ -358,7 +368,7 @@ async fn recursive_listing_keeps_the_entry_named_by_a_prefix() -> Result<()> {
 
 #[tokio::test]
 async fn start_after_preserves_implied_directories_for_recursive_globs() -> Result<()> {
-    let op = Operator::new(Memory::default())?;
+    let op = Operator::new(Memory::default())?.layer(SimulateLayer::default());
     for path in [
         "t/a/1.txt",
         "t/a/x/1.txt",
@@ -457,7 +467,8 @@ async fn start_after_with_explicit_directory_markers_returns_each_directory_once
         ],
         ..ListFixture::new(&[])
     });
-    let op = Operator::from_parts(OperationContext::default(), inner).layer(GlobLayer);
+    let op =
+        Operator::from_parts(OperationContext::default(), inner).layer(SimulateLayer::default());
     let entries = op.list_with("/").glob("**/").start_after("t/a/").await?;
     assert_eq!(
         entries.iter().map(Entry::path).collect::<Vec<_>>(),
@@ -475,7 +486,8 @@ async fn start_after_with_versions_does_not_synthesize_implied_directories() -> 
         entries: vec![oio::Entry::new("t/b/1.txt", meta.build())],
         ..ListFixture::new(&[])
     });
-    let op = Operator::from_parts(OperationContext::default(), inner).layer(GlobLayer);
+    let op =
+        Operator::from_parts(OperationContext::default(), inner).layer(SimulateLayer::default());
     let entries = op
         .list_with("/")
         .glob("**")
@@ -488,6 +500,90 @@ async fn start_after_with_versions_does_not_synthesize_implied_directories() -> 
             .map(|entry| (entry.path(), entry.metadata().version()))
             .collect::<Vec<_>>(),
         [("t/b/1.txt", Some("v1"))]
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn start_after_glob_uses_simulated_recursive_listing_on_non_recursive_service() -> Result<()>
+{
+    let inner = Arc::new(ListFixture {
+        recursive: false,
+        entries: vec![
+            oio::Entry::new("a/", MetadataBuilder::dir().build()),
+            oio::Entry::new("a/1.jpg", MetadataBuilder::file(0).build()),
+            oio::Entry::new("b/", MetadataBuilder::dir().build()),
+            oio::Entry::new("b/2.jpg", MetadataBuilder::file(0).build()),
+        ],
+        ..ListFixture::new(&[])
+    });
+    let op = Operator::from_parts(OperationContext::default(), inner.clone())
+        .layer(SimulateLayer::default());
+    let entries = op.list_with("/").glob("*/*.jpg").start_after("a/").await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        ["a/1.jpg", "b/2.jpg"]
+    );
+    let requests = inner.requests.lock().unwrap();
+    assert!(!requests.is_empty());
+    assert!(requests.iter().all(|(_, args)| !args.recursive()));
+    Ok(())
+}
+
+#[tokio::test]
+async fn filtered_recursive_glob_rejects_non_recursive_service_when_list_recursive_disabled()
+-> Result<()> {
+    let inner = Arc::new(ListFixture {
+        recursive: false,
+        entries: vec![
+            oio::Entry::new("a.jpg", MetadataBuilder::file(0).build()),
+            oio::Entry::new("sub/", MetadataBuilder::dir().build()),
+            oio::Entry::new("sub/b.jpg", MetadataBuilder::file(0).build()),
+        ],
+        ..ListFixture::new(&[])
+    });
+    let op = Operator::from_parts(OperationContext::default(), inner.clone())
+        .layer(SimulateLayer::default().with_list_recursive(false));
+
+    for err in [
+        op.list_with("/")
+            .glob("**/*.jpg")
+            .start_after("a.jpg")
+            .await
+            .unwrap_err(),
+        op.list_with("/")
+            .glob("**/*.jpg")
+            .versions(true)
+            .await
+            .unwrap_err(),
+        op.list_with("/")
+            .glob("**/*.jpg")
+            .deleted(true)
+            .await
+            .unwrap_err(),
+    ] {
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+    }
+    assert!(inner.requests.lock().unwrap().is_empty());
+
+    // Single-level glob with start_after and uncursorized multi-level glob still work non-recursively.
+    let shallow = op.list_with("/").glob("*.jpg").start_after("").await?;
+    assert_eq!(
+        shallow.iter().map(Entry::path).collect::<Vec<_>>(),
+        ["a.jpg"]
+    );
+    let walked = op.list_with("/").glob("**/*.jpg").await?;
+    assert_eq!(
+        walked.iter().map(Entry::path).collect::<Vec<_>>(),
+        ["a.jpg", "sub/b.jpg"]
+    );
+    assert!(
+        inner
+            .requests
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|(_, args)| !args.recursive())
     );
     Ok(())
 }
@@ -542,11 +638,24 @@ impl Service for ListFixture {
     }
 
     fn list(&self, _: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let recursive = args.recursive();
         self.requests.lock().unwrap().push((path.to_owned(), args));
         if self.denied == Some(path) {
             return Err(Error::new(ErrorKind::PermissionDenied, "denied"));
         }
-        Ok(TestLister(self.entries.clone().into()))
+        let entries = if recursive {
+            self.entries.clone()
+        } else {
+            self.entries
+                .iter()
+                .filter(|entry| {
+                    relative_child(entry.path(), path)
+                        .is_some_and(|rel| !rel.trim_end_matches('/').contains('/'))
+                })
+                .cloned()
+                .collect()
+        };
+        Ok(TestLister(entries.into()))
     }
 
     async fn create_dir(

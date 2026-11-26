@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![allow(deprecated)]
+
 use foyer::{HybridCache, HybridCacheBuilder, RecoverMode};
 use futures::StreamExt;
 use opendal_core::raw::oio::Delete as _;

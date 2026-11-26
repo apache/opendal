@@ -2722,3 +2722,86 @@ async fn writer_pre_close_write_invalidates_cache_and_blocks_inflight_publish() 
     .await
     .expect("writer_pre_close_write test timed out")
 }
+
+#[tokio::test]
+async fn full_read_falls_back_when_http_source_ignores_range_probe() -> Result<()> {
+    use http::{Request, Response, StatusCode};
+    use opendal_core::{HttpBody, HttpTransport, HttpTransporter};
+    use opendal_service_http::Http;
+
+    #[derive(Debug)]
+    struct StaticHttpTransport {
+        requests: Arc<AtomicUsize>,
+        temporary_status: Arc<AtomicUsize>,
+    }
+
+    impl HttpTransport for StaticHttpTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.requests.fetch_add(1, Ordering::Relaxed);
+            let status = self.temporary_status.load(Ordering::Relaxed);
+            if status != 0 {
+                return Ok(Response::builder()
+                    .status(StatusCode::from_u16(status as u16).unwrap())
+                    .body(HttpBody::new(
+                        futures::stream::iter([Ok(Buffer::from("unavailable"))]),
+                        Some(11),
+                    ))
+                    .unwrap());
+            }
+            // Ignore `Range` and respond 200 OK like an HTTP endpoint without range support.
+            let body: &'static [u8] = match req.uri().path() {
+                "/empty" => b"",
+                "/hello" => b"hello world",
+                _ => {
+                    return Ok(Response::builder()
+                        .status(StatusCode::NOT_FOUND)
+                        .body(HttpBody::new(futures::stream::empty(), Some(0)))
+                        .unwrap());
+                }
+            };
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header(http::header::CONTENT_LENGTH, body.len().to_string())
+                .header(http::header::ETAG, "\"v1\"")
+                .body(HttpBody::new(
+                    futures::stream::iter([Ok(Buffer::from(body))]),
+                    Some(body.len() as u64),
+                ))
+                .unwrap())
+        }
+    }
+
+    let requests = Arc::new(AtomicUsize::new(0));
+    let temporary_status = Arc::new(AtomicUsize::new(0));
+    let origin = Operator::new(Http::default().endpoint("http://example.invalid"))?.with_context(
+        OperationContext::new().with_http_transport(HttpTransporter::new(StaticHttpTransport {
+            requests: requests.clone(),
+            temporary_status: temporary_status.clone(),
+        })),
+    );
+    let op = origin
+        .clone()
+        .layer(CacheLayer::new(memory()?)?.with_chunk_size(4));
+
+    // Full reads succeed on both non-empty and empty objects despite 200 OK to ranged probe.
+    assert_eq!(origin.read("hello").await?.to_vec(), b"hello world");
+    assert_eq!(op.read("hello").await?.to_vec(), b"hello world");
+    assert!(origin.read("empty").await?.is_empty());
+    assert!(op.read("empty").await?.is_empty());
+
+    // Explicit ranged reads preserve the source's Unexpected error without a duplicate request.
+    requests.store(0, Ordering::Relaxed);
+    let err = op.read_with("hello").range(0..5).await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Unexpected);
+    assert_eq!(requests.load(Ordering::Relaxed), 1);
+
+    // Temporary source errors (503) propagate without issuing a fallback request.
+    temporary_status.store(503, Ordering::Relaxed);
+    requests.store(0, Ordering::Relaxed);
+    let err = op.read("hello").await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Unexpected);
+    assert!(err.is_temporary());
+    assert_eq!(requests.load(Ordering::Relaxed), 1);
+
+    Ok(())
+}

@@ -1,5 +1,16 @@
 # Unreleased
 
+## Deprecation of `FoyerLayer`
+
+`FoyerLayer` (`layers-foyer`) is deprecated in favor of `CacheLayer` (`layers-cache`) backed by `services::Foyer` (`services-foyer`):
+
+```rust,ignore
+use opendal::{layers::CacheLayer, services, Operator, Result};
+
+let cache = Operator::new(services::Foyer::new().cache(hybrid_cache))?;
+let op = source.layer(CacheLayer::new(cache)?);
+```
+
 ## Minimum supported Rust version
 
 OpenDAL now requires Rust 1.95 or later (up from 1.91).

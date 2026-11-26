@@ -53,7 +53,8 @@ Use `std.fmt.allocPrintZ` or `allocator.dupeZ` for paths and schemes you build
 at runtime. The operator accepts `[:0]const u8` for these inputs.
 
 See the [User Guide](https://opendal.apache.org/docs/bindings/zig) for more. If you
-already use the binding, see the [Zig migration notes](../../core/core/src/docs/upgrade.md#zig-binding).
+already use the binding, see the [Zig migration notes](../../core/core/src/docs/upgrade.md#zig-binding)
+and the [C binding ABI migration](../c/upgrade.md#opendal_capability-abi-change).
 
 ## Contributing
 

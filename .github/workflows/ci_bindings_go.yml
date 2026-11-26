@@ -72,6 +72,15 @@ jobs:
         with:
           go-version-file: bindings/go/go.mod
           cache-dependency-path: bindings/go/go.sum
+      - name: Check compiled C and Go capability layouts
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          probe_dir=$(mktemp -d)
+          trap 'rm -r -- "$probe_dir"' EXIT
+          cp bindings/c/include/opendal.h bindings/go/testdata/capability_layout.go "$probe_dir/"
+          sed 's/^package opendal$/package main/' bindings/go/capability.go > "$probe_dir/capability.go"
+          go run "$probe_dir/capability_layout.go" "$probe_dir/capability.go"
       - name: Regenerate code from core
         run: |
           cargo run --manifest-path=dev/Cargo.toml -- generate -l go

@@ -126,10 +126,10 @@ impl Deleter {
     ///
     /// A successful call accepts the entry. Call [`Self::close`] to wait for
     /// all accepted deletions to complete. With concurrency greater than one,
-    /// an error from an earlier backend task is returned before this entry is
-    /// accepted. Canceling a wait for an available task slot leaves this entry
-    /// unaccepted. If an interrupted close is pending, this call resumes it
-    /// before accepting another entry.
+    /// an error leaves the current entry unaccepted. This includes executor
+    /// rejection and errors from earlier backend tasks. Canceling a wait for
+    /// a task slot also leaves the entry unaccepted. If an interrupted close
+    /// is pending, this call resumes it before accepting another entry.
     pub async fn delete(&mut self, input: impl IntoDeleteInput) -> Result<()> {
         let (path, options) = input.into_delete_input();
         let path = normalize_path(&path);
@@ -222,7 +222,9 @@ impl Deleter {
     /// task and returns the first error it observes, if any. Each call can
     /// retry work whose failure was reported by an earlier call, using the
     /// original paths and options. The deleter retains failed entries and
-    /// entries whose outcome is unknown. Dropping the future returned by
+    /// entries whose outcome is unknown. An accepted entry with a permanent
+    /// error, such as an unmet condition, can return that error again on a
+    /// later close. Dropping the future returned by
     /// `close` preserves progress so the next call can resume it. Dropping
     /// the deleter discards buffered work and cancels local tasks. Already
     /// issued requests may still complete on the backend.

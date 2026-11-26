@@ -2048,8 +2048,12 @@ impl Operator {
     /// Create a [`Deleter`] with a configurable concurrency limit.
     ///
     /// The default limit of one preserves [`Self::deleter`] behavior. Higher
-    /// limits use the operator's configured executor. A one-shot service can
-    /// process one entry per task. A batch service accumulates a full batch
+    /// limits require an executor that can run background tasks on the active
+    /// runtime. Use the OpenDAL facade's default executor or supply one through
+    /// [`Self::with_context`]. Operations that dispatch work return an error if
+    /// the executor is missing or rejects a task.
+    ///
+    /// A one-shot service can process one entry per task. A batch service accumulates a full batch
     /// before dispatching a task, and [`Deleter::close`] submits any remaining
     /// entries. A recursive delete uses one task for the entire entry, including
     /// any deletion work expanded by the service stack. Concurrent tasks may

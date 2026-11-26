@@ -35,7 +35,7 @@ pub(super) struct ConcurrentDeleter {
     initial_deleter: Option<oio::Deleter>,
     concurrent: usize,
     batch_size: usize,
-    pending: HashSet<(String, OpDelete)>,
+    pending: HashSet<DeleteEntry>,
     running: FuturesUnordered<RunningDelete>,
     failed: VecDeque<SharedDeleteTask>,
     closing: Option<CloseProgress>,
@@ -68,7 +68,27 @@ impl ConcurrentDeleter {
         }
     }
 
-    fn dispatch_entries(&mut self, entries: VecDeque<(String, OpDelete)>) -> Result<()> {
+    fn submit_entry(
+        &mut self,
+        mut entries: VecDeque<DeleteEntry>,
+        entry: DeleteEntry,
+    ) -> Result<()> {
+        entries.push_back(entry);
+        self.dispatch_entries(entries).map_err(|(state, error)| {
+            // The executor rejected the task before it could run. Restore the
+            // previously accepted entries and discard the entry from this call.
+            let mut state = state.try_lock().expect("rejected task did not start");
+            state.entries.pop_back();
+            self.pending.extend(state.entries.drain(..));
+            self.initial_deleter = state.deleter.take();
+            error
+        })
+    }
+
+    fn dispatch_entries(
+        &mut self,
+        entries: VecDeque<DeleteEntry>,
+    ) -> Result<(), (SharedDeleteTask, Error)> {
         let state = DeleteTask {
             deleter: self.initial_deleter.take(),
             entries,
@@ -76,7 +96,7 @@ impl ConcurrentDeleter {
         self.dispatch(Arc::new(Mutex::new(state)))
     }
 
-    fn dispatch(&mut self, state: SharedDeleteTask) -> Result<()> {
+    fn dispatch(&mut self, state: SharedDeleteTask) -> Result<(), (SharedDeleteTask, Error)> {
         let work = state.clone();
         let ctx = self.ctx.clone();
         let service = self.service.clone();
@@ -89,10 +109,7 @@ impl ConcurrentDeleter {
                 self.running.push(RunningDelete { state, task });
                 Ok(())
             }
-            Err(error) => {
-                self.failed.push_back(state);
-                Err(error)
-            }
+            Err(error) => Err((state, error)),
         }
     }
 
@@ -120,13 +137,15 @@ impl oio::Delete for ConcurrentDeleter {
 
         // Recursive deletion may expand into many entries inside a service layer.
         if self.batch_size == 1 || args.recursive() {
-            return self.dispatch_entries(VecDeque::from([(path.to_owned(), args)]));
+            return self.submit_entry(VecDeque::new(), (path.to_owned(), args));
         }
         args.defer_batch_flush();
-        self.pending.insert((path.to_owned(), args));
-        if self.pending.len() == self.batch_size {
+        let entry = (path.to_owned(), args);
+        if self.pending.len() == self.batch_size - 1 && !self.pending.contains(&entry) {
             let entries = self.pending.drain().collect();
-            self.dispatch_entries(entries)?;
+            self.submit_entry(entries, entry)?;
+        } else {
+            self.pending.insert(entry);
         }
         Ok(())
     }
@@ -150,7 +169,8 @@ impl oio::Delete for ConcurrentDeleter {
                 } else {
                     break;
                 };
-                if let Err(error) = result {
+                if let Err((state, error)) = result {
+                    self.failed.push_back(state);
                     let progress = self.closing.as_mut().expect("close has started");
                     progress.error.get_or_insert(error);
                 }
@@ -170,12 +190,13 @@ impl oio::Delete for ConcurrentDeleter {
     }
 }
 
+type DeleteEntry = (String, OpDelete);
 type SharedDeleteTask = Arc<Mutex<DeleteTask>>;
 
 struct DeleteTask {
     // Retain the composed deleter so retrying close uses its failed batch entries.
     deleter: Option<oio::Deleter>,
-    entries: VecDeque<(String, OpDelete)>,
+    entries: VecDeque<DeleteEntry>,
 }
 
 impl DeleteTask {

@@ -187,8 +187,8 @@ mod tests {
     use std::pin::pin;
     use std::sync::Arc;
     use std::sync::Mutex;
-    use std::sync::atomic::AtomicUsize;
     use std::sync::atomic::Ordering;
+    use std::sync::atomic::{AtomicBool, AtomicUsize};
     use std::sync::mpsc::{self, Sender};
     use std::task::{Context, Poll};
 
@@ -390,17 +390,31 @@ mod tests {
     }
 
     #[derive(Clone, Default)]
-    struct BatchExecutor(Arc<Mutex<Vec<BoxedStaticFuture<()>>>>);
+    struct BatchExecutor {
+        tasks: Arc<Mutex<Vec<BoxedStaticFuture<()>>>>,
+        reject_next: Arc<AtomicBool>,
+    }
 
     impl Execute for BatchExecutor {
         fn execute(&self, task: BoxedStaticFuture<()>) {
-            self.0.lock().unwrap().push(task);
+            self.tasks.lock().unwrap().push(task);
+        }
+
+        fn try_execute(&self, task: BoxedStaticFuture<()>) -> Result<()> {
+            if self.reject_next.swap(false, Ordering::Relaxed) {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "executor rejected submission",
+                ));
+            }
+            self.execute(task);
+            Ok(())
         }
     }
 
     impl BatchExecutor {
         fn advance(&self, cx: &mut Context<'_>) {
-            self.0
+            self.tasks
                 .lock()
                 .unwrap()
                 .retain_mut(|task| task.as_mut().poll(cx).is_pending());
@@ -467,6 +481,52 @@ mod tests {
             panic!("close must finish when both batches succeed");
         };
         result
+    }
+
+    #[tokio::test]
+    async fn rejected_full_batch_keeps_only_previously_accepted_entries() -> Result<()> {
+        let (requests, recorded) = mpsc::channel();
+        let executor = BatchExecutor::default();
+        let op = operator_with_transport(GatedBatchTransport(requests));
+        let context = op.context().with_executor(Executor::with(executor.clone()));
+        let op = op.with_context(context);
+        let mut deleter = op.deleter_with().concurrent(2).await?;
+        let mut cx = Context::from_waker(noop_waker_ref());
+        deleter
+            .delete_iter((0..999).map(|index| format!("key-{index:04}")))
+            .await?;
+
+        executor.reject_next.store(true, Ordering::Relaxed);
+        let error = deleter.delete("unaccepted").await.unwrap_err();
+        assert_eq!(error.message(), "executor rejected submission");
+        executor.advance(&mut cx);
+        assert!(recorded.try_recv().is_err());
+
+        executor.reject_next.store(true, Ordering::Relaxed);
+        {
+            let mut close = pin!(deleter.close());
+            let Poll::Ready(Err(error)) = close.as_mut().poll(&mut cx) else {
+                panic!("tail submission must be rejected");
+            };
+            assert_eq!(error.message(), "executor rejected submission");
+        }
+        executor.advance(&mut cx);
+        assert!(recorded.try_recv().is_err());
+
+        let mut close = pin!(deleter.close());
+        assert!(close.as_mut().poll(&mut cx).is_pending());
+        executor.advance(&mut cx);
+        let (xml, release) = recorded.try_recv().unwrap();
+        assert_eq!(xml.matches("<Key>").count(), 999);
+        assert!(!xml.contains("<Key>unaccepted</Key>"));
+        for index in 0..999 {
+            assert!(xml.contains(&format!("<Key>key-{index:04}</Key>")));
+        }
+        assert!(recorded.try_recv().is_err());
+        release.send(()).unwrap();
+        executor.advance(&mut cx);
+        assert!(matches!(close.as_mut().poll(&mut cx), Poll::Ready(Ok(()))));
+        Ok(())
     }
 
     #[tokio::test]

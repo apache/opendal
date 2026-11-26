@@ -64,6 +64,7 @@ mod tests {
     use std::future::Future;
     use std::pin::pin;
     use std::sync::Mutex;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::mpsc::{self, Receiver, Sender};
     use std::task::{Context, Poll};
 
@@ -145,18 +146,32 @@ mod tests {
     }
 
     #[derive(Clone, Default)]
-    struct ManualExecutor(Arc<Mutex<Vec<BoxedStaticFuture<()>>>>);
+    struct ManualExecutor {
+        tasks: Arc<Mutex<Vec<BoxedStaticFuture<()>>>>,
+        reject_next: Arc<AtomicBool>,
+    }
 
     impl Execute for ManualExecutor {
         fn execute(&self, task: BoxedStaticFuture<()>) {
-            self.0.lock().unwrap().push(task);
+            self.tasks.lock().unwrap().push(task);
+        }
+
+        fn try_execute(&self, task: BoxedStaticFuture<()>) -> Result<()> {
+            if self.reject_next.swap(false, Ordering::Relaxed) {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "executor rejected submission",
+                ));
+            }
+            self.execute(task);
+            Ok(())
         }
     }
 
     impl ManualExecutor {
         fn advance(&self) {
             let mut cx = Context::from_waker(noop_waker_ref());
-            self.0
+            self.tasks
                 .lock()
                 .unwrap()
                 .retain_mut(|task| task.as_mut().poll(&mut cx).is_pending());
@@ -220,6 +235,59 @@ mod tests {
         executor.advance();
         assert!(matches!(close.as_mut().poll(&mut cx), Poll::Ready(Ok(()))));
         assert!(log.try_recv().is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn concurrent_close_retries_accepted_work_but_never_submits_rejected_inputs() -> Result<()>
+    {
+        let (op, executor, log) = gated_deletes();
+        let mut deleter = op.deleter_with().concurrent(2).await?;
+        deleter.delete("accepted").await?;
+        executor.advance();
+        response_for(&log, "/accepted")
+            .send(StatusCode::FORBIDDEN)
+            .unwrap();
+        executor.advance();
+        let error = deleter.delete("not-accepted").await.unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::PermissionDenied);
+
+        for recursive in [false, true] {
+            executor.reject_next.store(true, Ordering::Relaxed);
+            let error = deleter
+                .delete((
+                    "rejected".to_string(),
+                    options::DeleteOptions {
+                        recursive,
+                        ..Default::default()
+                    },
+                ))
+                .await
+                .unwrap_err();
+            assert_eq!(error.message(), "executor rejected submission");
+        }
+
+        executor.reject_next.store(true, Ordering::Relaxed);
+        let mut cx = Context::from_waker(noop_waker_ref());
+        {
+            let mut close = pin!(deleter.close());
+            let Poll::Ready(Err(error)) = close.as_mut().poll(&mut cx) else {
+                panic!("retry submission must be rejected");
+            };
+            assert_eq!(error.message(), "executor rejected submission");
+        }
+        executor.advance();
+        assert!(log.try_recv().is_err());
+
+        let mut close = pin!(deleter.close());
+        assert!(close.as_mut().poll(&mut cx).is_pending());
+        executor.advance();
+        response_for(&log, "/accepted")
+            .send(StatusCode::NO_CONTENT)
+            .unwrap();
+        assert!(log.try_recv().is_err());
+        executor.advance();
+        assert!(matches!(close.as_mut().poll(&mut cx), Poll::Ready(Ok(()))));
         Ok(())
     }
 

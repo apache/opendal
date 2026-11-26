@@ -74,12 +74,13 @@ pub(crate) fn validate_optional(
     Ok(())
 }
 
-pub(crate) fn validate_credentials(
-    access_key_id: Option<&str>,
-    secret_access_key: Option<&str>,
-    session_token: Option<&str>,
+pub(crate) fn credential_chain(
+    config: &S3Config,
     service: &'static str,
-) -> Result<()> {
+) -> Result<ProvideCredentialChain<Credential>> {
+    let access_key_id = config.access_key_id.as_deref();
+    let secret_access_key = config.secret_access_key.as_deref();
+    let session_token = config.session_token.as_deref();
     validate_optional(
         access_key_id,
         service,
@@ -96,35 +97,36 @@ pub(crate) fn validate_credentials(
         "session_token must not be empty when set",
     )?;
 
+    let mut chain = ProvideCredentialChain::new();
     match (access_key_id, secret_access_key, session_token) {
-        (None, None, None) | (Some(_), Some(_), None | Some(_)) => Ok(()),
-        _ => Err(config_error(
-            service,
-            "access_key_id and secret_access_key must be provided together; session_token requires both",
-        )),
-    }
-}
-
-pub(crate) fn credential_chain(
-    access_key_id: Option<&str>,
-    secret_access_key: Option<&str>,
-    session_token: Option<&str>,
-) -> ProvideCredentialChain<Credential> {
-    let mut chain = ProvideCredentialChain::new()
-        .push(EnvCredentialProvider::new())
-        .push(ProfileCredentialProvider::new());
-
-    if let (Some(access_key_id), Some(secret_access_key)) = (access_key_id, secret_access_key) {
-        let provider = if let Some(session_token) = session_token {
-            StaticCredentialProvider::new(access_key_id, secret_access_key)
-                .with_session_token(session_token)
-        } else {
-            StaticCredentialProvider::new(access_key_id, secret_access_key)
-        };
-        chain = chain.push_front(provider);
+        (Some(access_key_id), Some(secret_access_key), session_token) => {
+            let mut provider = StaticCredentialProvider::new(access_key_id, secret_access_key);
+            if let Some(session_token) = session_token {
+                provider = provider.with_session_token(session_token);
+            }
+            chain = chain.push(provider);
+        }
+        (None, None, None) if config.disable_config_load && !config.skip_signature => {
+            return Err(config_error(
+                service,
+                "access_key_id and secret_access_key are required when disable_config_load is true",
+            ));
+        }
+        (None, None, None) => {}
+        _ => {
+            return Err(config_error(
+                service,
+                "access_key_id and secret_access_key must be provided together; session_token requires both",
+            ));
+        }
     }
 
-    chain
+    if !config.disable_config_load {
+        chain = chain
+            .push(EnvCredentialProvider::new())
+            .push(ProfileCredentialProvider::new());
+    }
+    Ok(chain)
 }
 
 pub(crate) fn dns_label<'a>(
@@ -155,12 +157,7 @@ impl Connection {
     pub(crate) fn build(self, mut config: S3Config, scheme: &'static str) -> Result<S3Backend> {
         validate_required(&config.bucket, scheme, "bucket must not be empty")?;
         validate_required(&self.region, scheme, "region must not be empty")?;
-        validate_credentials(
-            config.access_key_id.as_deref(),
-            config.secret_access_key.as_deref(),
-            config.session_token.as_deref(),
-            scheme,
-        )?;
+        let credential_providers = credential_chain(&config, scheme)?;
 
         let invalid_endpoint = || {
             config_error(
@@ -208,11 +205,6 @@ impl Connection {
                 .push(&config.bucket);
         }
 
-        let credential_providers = credential_chain(
-            config.access_key_id.as_deref(),
-            config.secret_access_key.as_deref(),
-            config.session_token.as_deref(),
-        );
         config.region = Some(self.region);
         config.enable_virtual_host_style = self.virtual_host_style;
         config.disable_ec2_metadata = true;
@@ -269,6 +261,14 @@ macro_rules! provider_preset {
                     self
                 }
             )*
+
+            /// Disable loading credentials from AWS environment variables and shared profile files.
+            ///
+            /// Set both [`Self::access_key_id`] and [`Self::secret_access_key`] when enabled.
+            pub fn disable_config_load(mut self) -> Self {
+                self.config.disable_config_load = true;
+                self
+            }
         }
 
         impl opendal_core::Builder for $builder {
@@ -282,6 +282,7 @@ macro_rules! provider_preset {
                     access_key_id: self.config.access_key_id,
                     secret_access_key: self.config.secret_access_key,
                     $( session_token: self.config.$session_token, )?
+                    disable_config_load: self.config.disable_config_load,
                     ..Default::default()
                 };
                 connection.build(config, $scheme)
@@ -326,11 +327,16 @@ mod tests {
 
     #[test]
     fn credential_chain_contains_only_declared_sources() {
-        assert_eq!(credential_chain(None, None, None).len(), 2);
-        assert_eq!(
-            credential_chain(Some("access"), Some("secret"), Some("token")).len(),
-            3
-        );
+        let mut config = S3Config::default();
+        assert_eq!(credential_chain(&config, "test").unwrap().len(), 2);
+
+        config.access_key_id = Some("access".to_owned());
+        config.secret_access_key = Some("secret".to_owned());
+        config.session_token = Some("token".to_owned());
+        assert_eq!(credential_chain(&config, "test").unwrap().len(), 3);
+
+        config.disable_config_load = true;
+        assert_eq!(credential_chain(&config, "test").unwrap().len(), 1);
     }
 
     #[tokio::test]
@@ -345,7 +351,12 @@ mod tests {
                 ),
             ]),
         });
-        let chain = credential_chain(Some("direct-access"), Some("direct-secret"), None);
+        let config = S3Config {
+            access_key_id: Some("direct-access".to_owned()),
+            secret_access_key: Some("direct-secret".to_owned()),
+            ..Default::default()
+        };
+        let chain = credential_chain(&config, "test").unwrap();
 
         let credential = chain.provide_credential(&context).await.unwrap().unwrap();
         assert_eq!(credential.access_key_id, "direct-access");
@@ -364,10 +375,66 @@ mod tests {
                 ),
             ]),
         });
-        let chain = credential_chain(None, None, None);
+        let chain = credential_chain(&S3Config::default(), "test").unwrap();
 
         let credential = chain.provide_credential(&context).await.unwrap().unwrap();
         assert_eq!(credential.access_key_id, "env-access");
         assert_eq!(credential.secret_access_key, "env-secret");
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[derive(Debug)]
+    struct SharedCredentialsFile;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    impl reqsign_core::FileRead for SharedCredentialsFile {
+        async fn file_read(&self, path: &str) -> reqsign_core::Result<Vec<u8>> {
+            assert_eq!(path, "test-credentials");
+            Ok(b"[default]\naws_access_key_id = profile-access\naws_secret_access_key = profile-secret\n".to_vec())
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test]
+    async fn ambient_credentials_follow_preset_config_loading_policy() {
+        let disabled = S3Config {
+            disable_config_load: true,
+            skip_signature: true,
+            ..Default::default()
+        };
+        let default_chain = credential_chain(&S3Config::default(), "test").unwrap();
+        let disabled_chain = credential_chain(&disabled, "test").unwrap();
+
+        for (has_env_credentials, expected_key) in [(true, "env-access"), (false, "profile-access")]
+        {
+            let mut envs = HashMap::from([(
+                "AWS_SHARED_CREDENTIALS_FILE".to_owned(),
+                "test-credentials".to_owned(),
+            )]);
+            if has_env_credentials {
+                envs.insert("AWS_ACCESS_KEY_ID".to_owned(), "env-access".to_owned());
+                envs.insert("AWS_SECRET_ACCESS_KEY".to_owned(), "env-secret".to_owned());
+            }
+            let context = Context::new()
+                .with_env(StaticEnv {
+                    home_dir: None,
+                    envs,
+                })
+                .with_file_read(SharedCredentialsFile);
+
+            let credential = default_chain
+                .provide_credential(&context)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(credential.access_key_id, expected_key);
+            assert!(
+                disabled_chain
+                    .provide_credential(&context)
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+        }
     }
 }

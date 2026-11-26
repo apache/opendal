@@ -101,6 +101,14 @@ impl R2Builder {
         self
     }
 
+    /// Disable loading credentials from AWS environment variables and shared profile files.
+    ///
+    /// Set both [`Self::access_key_id`] and [`Self::secret_access_key`] to sign requests.
+    pub fn disable_config_load(mut self) -> Self {
+        self.config.disable_config_load = true;
+        self
+    }
+
     fn into_s3_config(self) -> Result<(S3Config, ProvideCredentialChain<Credential>)> {
         let R2Config {
             root,
@@ -111,6 +119,7 @@ impl R2Builder {
             access_key_id,
             secret_access_key,
             session_token,
+            disable_config_load,
         } = self.config;
 
         preset::validate_required(&bucket, R2_SCHEME, "bucket must not be empty")?;
@@ -129,12 +138,19 @@ impl R2Builder {
             R2_SCHEME,
             "endpoint must not be empty when set",
         )?;
-        preset::validate_credentials(
-            access_key_id.as_deref(),
-            secret_access_key.as_deref(),
-            session_token.as_deref(),
-            R2_SCHEME,
-        )?;
+
+        let mut config = S3Config {
+            root,
+            bucket,
+            region: Some("auto".to_string()),
+            access_key_id,
+            secret_access_key,
+            session_token,
+            disable_config_load,
+            disable_ec2_metadata: true,
+            ..Default::default()
+        };
+        let credential_providers = preset::credential_chain(&config, R2_SCHEME)?;
 
         let endpoint = match (account_id.as_deref(), endpoint.as_deref()) {
             (Some(account_id), None) => match jurisdiction.as_deref() {
@@ -170,23 +186,7 @@ impl R2Builder {
             }
         };
 
-        let credential_providers = preset::credential_chain(
-            access_key_id.as_deref(),
-            secret_access_key.as_deref(),
-            session_token.as_deref(),
-        );
-
-        let config = S3Config {
-            root,
-            bucket,
-            endpoint: Some(endpoint),
-            region: Some("auto".to_string()),
-            access_key_id,
-            secret_access_key,
-            session_token,
-            disable_ec2_metadata: true,
-            ..Default::default()
-        };
+        config.endpoint = Some(endpoint);
 
         Ok((config, credential_providers))
     }

@@ -66,6 +66,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Use virtual-hosted-style bucket addressing.</p>
          */
         public final Boolean enableVirtualHostStyle;
@@ -98,6 +103,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
             }
@@ -653,6 +661,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Use virtual-hosted-style addressing.</p>
          */
         public final Boolean enableVirtualHostStyle;
@@ -685,6 +698,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
             }
@@ -745,6 +761,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Use virtual-hosted-style addressing when the gateway has a matching <code>rgw_dns_name</code> or zonegroup hostname.</p>
          */
         public final Boolean enableVirtualHostStyle;
@@ -777,6 +798,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
             }
@@ -980,6 +1004,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>HTTP(S) base endpoint override.</p>
          */
         public final String endpoint;
@@ -1012,6 +1041,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
             }
@@ -1330,6 +1362,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Use virtual-hosted-style bucket addressing.</p>
          */
         public final Boolean enableVirtualHostStyle;
@@ -1362,6 +1399,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
             }
@@ -1524,6 +1564,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Use virtual-hosted-style addressing when the cluster has a matching <code>root_domain</code>.</p>
          */
         public final Boolean enableVirtualHostStyle;
@@ -1556,6 +1601,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
             }
@@ -1804,6 +1852,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Use virtual-hosted-style addressing for DNS-compatible buckets without dots.</p>
          */
         public final Boolean enableVirtualHostStyle;
@@ -1836,6 +1889,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
             }
@@ -2238,6 +2294,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Use virtual-hosted-style bucket addressing.</p>
          */
         public final Boolean enableVirtualHostStyle;
@@ -2274,6 +2335,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
             }
@@ -2468,6 +2532,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Use virtual-hosted-style bucket addressing.</p>
          */
         public final Boolean enableVirtualHostStyle;
@@ -2500,6 +2569,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
             }
@@ -2533,6 +2605,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Endpoint Access URL associated with the IDrive e2 access key.</p>
          */
         public final @NonNull String endpoint;
@@ -2561,6 +2638,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             map.put("endpoint", endpoint);
             if (region != null) {
                 map.put("region", region);
@@ -2591,6 +2671,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Explicit HTTP(S) S3 base endpoint. By default, OpenDAL selects the
          * endpoint from the bucket’s region.</p>
          */
@@ -2620,6 +2705,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
             }
@@ -2831,6 +2919,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Use virtual-hosted-style addressing when the gateway is configured for it.</p>
          */
         public final Boolean enableVirtualHostStyle;
@@ -2867,6 +2960,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
             }
@@ -3054,6 +3150,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>When enabled, signing requires both <code>access_key_id</code> and <code>secret_access_key</code>.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>MinIO endpoint.</p>
          * <p>This field is required because MinIO deployments do not share a
          * universal endpoint.</p>
@@ -3098,6 +3199,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             map.put("endpoint", endpoint);
             if (region != null) {
                 map.put("region", region);
@@ -3347,6 +3451,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>HTTPS S3 endpoint of the Neon branch, or an HTTP(S) custom endpoint.</p>
          */
         public final @NonNull String endpoint;
@@ -3376,6 +3485,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             map.put("endpoint", endpoint);
             if (region != null) {
                 map.put("region", region);
@@ -3502,6 +3614,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>HTTP(S) base endpoint override. OpenDAL prepends the bucket to the host.</p>
          */
         public final String endpoint;
@@ -3534,6 +3651,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
             }
@@ -3566,6 +3686,11 @@ public interface ServiceConfig {
          * <p>Bucket name.</p>
          */
         public final @NonNull String bucket;
+        /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
         /**
          * <p>Explicit HTTP(S) base endpoint. The default is
          * <code>https://&lt;namespace&gt;.compat.objectstorage.&lt;region&gt;.oci.customer-oci.com</code>.</p>
@@ -3600,6 +3725,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
             }
@@ -3946,6 +4074,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>HTTP(S) base endpoint override.</p>
          */
         public final String endpoint;
@@ -3978,6 +4111,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
             }
@@ -4011,6 +4147,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Use virtual-hosted-style bucket addressing.</p>
          */
         public final Boolean enableVirtualHostStyle;
@@ -4043,6 +4184,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
             }
@@ -4228,6 +4372,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Use virtual-hosted-style bucket addressing.</p>
          */
         public final Boolean enableVirtualHostStyle;
@@ -4260,6 +4409,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
             }
@@ -4299,6 +4451,11 @@ public interface ServiceConfig {
          * <p>This field is required.</p>
          */
         public final @NonNull String bucket;
+        /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
         /**
          * <p>Explicit R2-compatible endpoint.</p>
          * <p>Use this field for a proxy, gateway, or test server. Set exactly one of
@@ -4342,6 +4499,9 @@ public interface ServiceConfig {
                 map.put("account_id", accountId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
             }
@@ -4510,6 +4670,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Use virtual-hosted-style addressing when the deployment has a matching <code>RUSTFS_SERVER_DOMAINS</code>.</p>
          */
         public final Boolean enableVirtualHostStyle;
@@ -4542,6 +4707,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
             }
@@ -5011,6 +5179,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Use virtual-hosted-style bucket addressing.</p>
          */
         public final Boolean enableVirtualHostStyle;
@@ -5043,6 +5216,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
             }
@@ -5131,6 +5307,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Use virtual-hosted-style addressing when the gateway has a matching <code>domainName</code>.</p>
          */
         public final Boolean enableVirtualHostStyle;
@@ -5163,6 +5344,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
             }
@@ -5328,6 +5512,11 @@ public interface ServiceConfig {
          */
         public final String datacenter;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Use virtual-hosted-style bucket addressing.</p>
          */
         public final Boolean enableVirtualHostStyle;
@@ -5363,6 +5552,9 @@ public interface ServiceConfig {
             map.put("bucket", bucket);
             if (datacenter != null) {
                 map.put("datacenter", datacenter);
+            }
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
             }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
@@ -5465,6 +5657,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>HTTPS gateway URL issued with the S3 key pair for the access grant.</p>
          */
         public final @NonNull String endpoint;
@@ -5493,6 +5690,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             map.put("endpoint", endpoint);
             if (region != null) {
                 map.put("region", region);
@@ -5522,6 +5722,11 @@ public interface ServiceConfig {
          * <p>Bucket name.</p>
          */
         public final @NonNull String bucket;
+        /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
         /**
          * <p>Explicit HTTP(S) base endpoint. The default is
          * <code>https://&lt;project_ref&gt;.storage.supabase.co/storage/v1/s3</code>.</p>
@@ -5561,6 +5766,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
             }
@@ -5748,6 +5956,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Use virtual-hosted-style addressing when the proxy defines a matching <code>storage_domain</code>.</p>
          */
         public final Boolean enableVirtualHostStyle;
@@ -5780,6 +5993,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
             }
@@ -5812,6 +6028,11 @@ public interface ServiceConfig {
          * <p>Bucket name.</p>
          */
         public final @NonNull String bucket;
+        /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
         /**
          * <p>Use virtual-hosted-style bucket addressing.</p>
          */
@@ -5849,6 +6070,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
             }
@@ -5999,6 +6223,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>HTTP(S) S3-compatible base endpoint for the selected TOS product and region.</p>
          */
         public final @NonNull String endpoint;
@@ -6027,6 +6256,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             map.put("endpoint", endpoint);
             map.put("region", region);
             if (root != null) {
@@ -6188,6 +6420,11 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
+         * <p>Disable loading credentials from AWS environment variables and shared profile files.</p>
+         * <p>Set both <code>access_key_id</code> and <code>secret_access_key</code> when enabled.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Use virtual-hosted-style bucket addressing.</p>
          */
         public final Boolean enableVirtualHostStyle;
@@ -6225,6 +6462,9 @@ public interface ServiceConfig {
                 map.put("access_key_id", accessKeyId);
             }
             map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
             }

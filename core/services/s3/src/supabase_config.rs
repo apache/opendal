@@ -64,6 +64,13 @@ pub struct SupabaseConfig {
     ///
     /// <!-- @group Credentials -->
     pub session_token: Option<String>,
+    /// Disable loading credentials from AWS environment variables and shared profile files.
+    ///
+    /// Set both `access_key_id` and `secret_access_key` when enabled.
+    ///
+    /// <!-- @group Credentials -->
+    /// <!-- @default false -->
+    pub disable_config_load: bool,
 }
 
 impl SupabaseConfig {

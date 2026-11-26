@@ -95,6 +95,14 @@ impl MinioBuilder {
         self
     }
 
+    /// Disable loading credentials from AWS environment variables and shared profile files.
+    ///
+    /// Set both [`Self::access_key_id`] and [`Self::secret_access_key`] to sign requests.
+    pub fn disable_config_load(mut self) -> Self {
+        self.config.disable_config_load = true;
+        self
+    }
+
     /// Send requests without signing them.
     pub fn skip_signature(mut self) -> Self {
         self.config.skip_signature = true;
@@ -110,6 +118,7 @@ impl MinioBuilder {
             access_key_id,
             secret_access_key,
             session_token,
+            disable_config_load,
             skip_signature,
         } = self.config;
 
@@ -137,19 +146,6 @@ impl MinioBuilder {
             ));
         }
 
-        preset::validate_credentials(
-            access_key_id.as_deref(),
-            secret_access_key.as_deref(),
-            session_token.as_deref(),
-            MINIO_SCHEME,
-        )?;
-
-        let credential_providers = preset::credential_chain(
-            access_key_id.as_deref(),
-            secret_access_key.as_deref(),
-            session_token.as_deref(),
-        );
-
         let config = S3Config {
             root,
             bucket,
@@ -158,10 +154,12 @@ impl MinioBuilder {
             access_key_id,
             secret_access_key,
             session_token,
+            disable_config_load,
             disable_ec2_metadata: true,
             skip_signature,
             ..Default::default()
         };
+        let credential_providers = preset::credential_chain(&config, MINIO_SCHEME)?;
 
         Ok((config, credential_providers))
     }

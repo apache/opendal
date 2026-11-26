@@ -611,6 +611,8 @@ impl Builder for OssBuilder {
             stat: true,
             stat_with_if_match: true,
             stat_with_if_none_match: true,
+            stat_with_override_cache_control: true,
+            stat_with_override_content_disposition: true,
             stat_with_version: true,
 
             read: true,
@@ -621,6 +623,8 @@ impl Builder for OssBuilder {
             read_with_version: true,
             read_with_if_modified_since: true,
             read_with_if_unmodified_since: true,
+            read_with_override_cache_control: true,
+            read_with_override_content_disposition: true,
 
             write: true,
             write_can_empty: true,

@@ -57,6 +57,7 @@ pub mod constants {
 
     pub const X_OSS_VERSION_ID: &str = "x-oss-version-id";
 
+    pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
 
     pub const OSS_QUERY_VERSION_ID: &str = "versionId";
@@ -341,8 +342,14 @@ impl OssCore {
         let endpoint = self.get_endpoint(is_presign);
         let mut url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
-        // Add query arguments to the URL based on response overrides
         let mut query_args = Vec::new();
+        if let Some(cache_control) = args.override_cache_control() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CACHE_CONTROL,
+                percent_encode_path(cache_control)
+            ));
+        }
         if let Some(override_content_disposition) = args.override_content_disposition() {
             query_args.push(format!(
                 "{}={}",
@@ -440,7 +447,20 @@ impl OssCore {
         let mut url = format!("{}/{}", endpoint, percent_encode_path(&p));
 
         let mut query_args = Vec::new();
-
+        if let Some(cache_control) = args.override_cache_control() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CACHE_CONTROL,
+                percent_encode_path(cache_control)
+            ));
+        }
+        if let Some(content_disposition) = args.override_content_disposition() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_DISPOSITION,
+                percent_encode_path(content_disposition)
+            ));
+        }
         if let Some(version) = args.version() {
             query_args.push(format!(
                 "{}={}",

@@ -356,6 +356,7 @@ impl GcsBuilder {
             read_with_if_none_match: true,
             read_with_if_version_match: true,
             read_with_if_version_not_match: true,
+            read_with_override_content_disposition: true,
 
             write: true,
             write_can_empty: true,

@@ -1743,6 +1743,7 @@
         "read_with_if_none_match": true,
         "read_with_if_version_match": true,
         "read_with_if_version_not_match": true,
+        "read_with_override_content_disposition": true,
         "read_with_suffix": true,
         "read_with_version": true,
         "restore": "Requires the default endpoint (`https://storage.googleapis.com`) with `skip_signature` and `allow_anonymous` disabled",

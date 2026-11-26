@@ -693,7 +693,7 @@ fn describe_bool_condition(expr: &Expr, rel_path: &str) -> Result<String> {
                             .to_string(),
                     );
                 }
-                if ident == "gcs_can_restore" {
+                if ident == "gcs_can_restore" || ident == "gcs_can_checksum" {
                     return Ok(
                         "Requires the default endpoint (`https://storage.googleapis.com`) with `skip_signature` and `allow_anonymous` disabled"
                             .to_string(),

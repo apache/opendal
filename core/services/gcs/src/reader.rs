@@ -17,11 +17,11 @@
 
 use super::backend::*;
 use super::core::ErrorContext;
-use super::core::constants::X_GOOG_GENERATION;
-use super::core::parse_error;
-use http::Response;
+use super::core::constants::{X_GOOG_GENERATION, X_GOOG_HASH};
+use super::core::{parse_crc32c, parse_error};
 use http::StatusCode;
 use http::header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_RANGE};
+use http::{HeaderMap, Response};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -103,6 +103,9 @@ impl oio::StreamRead for GcsReader {
                 if let Some(generation) = parse_header_to_str(headers, X_GOOG_GENERATION)? {
                     metadata.version(generation);
                 }
+                if let Some(checksum) = stored_checksum(status, headers) {
+                    metadata.checksum(checksum);
+                }
                 let metadata = metadata.build();
                 let body = resp.into_body();
                 let stream: Box<dyn oio::ReadStreamDyn> = if check_stored_length {
@@ -122,6 +125,37 @@ impl oio::StreamRead for GcsReader {
             }
         }
     }
+}
+
+fn stored_checksum(status: StatusCode, headers: &HeaderMap) -> Option<Checksum> {
+    match status {
+        StatusCode::OK if !headers.contains_key(CONTENT_RANGE) => {}
+        StatusCode::PARTIAL_CONTENT => {
+            let range = parse_content_range(headers).ok()??;
+            if range.range()? != (0..range.size()?) {
+                return None;
+            }
+        }
+        _ => return None,
+    }
+
+    let stored = headers
+        .get(STORED_CONTENT_ENCODING)
+        .map_or(b"identity".as_slice(), |h| h.as_bytes());
+    let received = headers
+        .get(CONTENT_ENCODING)
+        .map_or(b"identity".as_slice(), |h| h.as_bytes());
+    // GCS can return the stored CRC32C after decompressing the object in transit.
+    if !stored.eq_ignore_ascii_case(received) {
+        return None;
+    }
+
+    headers
+        .get_all(X_GOOG_HASH)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|value| value.split(','))
+        .find_map(|hash| hash.trim().strip_prefix("crc32c=").and_then(parse_crc32c))
 }
 
 struct StoredGzipStream {
@@ -171,6 +205,32 @@ mod tests {
 
     use super::super::core::GcsCore;
     use super::*;
+
+    #[test]
+    fn test_crc32c_requires_complete_stored_representation() {
+        let mut headers = HeaderMap::new();
+        headers.insert(X_GOOG_HASH, "crc32c=5847cw==".parse().unwrap());
+        headers.insert(STORED_CONTENT_ENCODING, "gzip".parse().unwrap());
+        headers.insert(CONTENT_ENCODING, "gzip".parse().unwrap());
+        let expected = Checksum::new(ChecksumAlgo::Crc32c, 0xe7ce_3b73_u32.to_be_bytes());
+        assert_eq!(
+            stored_checksum(StatusCode::OK, &headers),
+            Some(expected.clone())
+        );
+
+        headers.insert(CONTENT_RANGE, "bytes 0-63/64".parse().unwrap());
+        assert_eq!(
+            stored_checksum(StatusCode::PARTIAL_CONTENT, &headers),
+            Some(expected)
+        );
+
+        headers.insert(CONTENT_RANGE, "bytes 5-12/64".parse().unwrap());
+        assert_eq!(stored_checksum(StatusCode::PARTIAL_CONTENT, &headers), None);
+
+        headers.remove(CONTENT_RANGE);
+        headers.remove(CONTENT_ENCODING);
+        assert_eq!(stored_checksum(StatusCode::OK, &headers), None);
+    }
 
     struct EtagTransport(&'static str);
 

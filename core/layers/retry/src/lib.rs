@@ -1221,28 +1221,38 @@ mod tests {
             );
         }
 
+        const INVALID_CONFIG_MARKER: &str = "invalid-config-marker";
         for (option, value) in [
             ("jitter", ""),
             ("jitter", "1"),
+            ("jitter", INVALID_CONFIG_MARKER),
             ("factor", ""),
             ("factor", "NaN"),
             ("factor", "1e100"),
             ("factor", "0.9"),
+            ("factor", INVALID_CONFIG_MARKER),
             ("min_delay", ""),
             ("min_delay", "0s"),
-            ("min_delay", "invalid-config-marker"),
+            ("min_delay", INVALID_CONFIG_MARKER),
             ("max_delay", ""),
             ("max_delay", "0s"),
             ("max_delay", "-1ns"),
             ("max_times", ""),
             ("max_times", "-1"),
+            ("max_times", INVALID_CONFIG_MARKER),
         ] {
             let uri = format!("memory://?layers=retry&layer.retry.{option}={value}");
             let err = registry.load(uri).unwrap_err();
             assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-            assert!(err.to_string().contains(option));
-            assert!(!err.to_string().contains("invalid-config-marker"));
-            assert!(!format!("{err:?}").contains("invalid-config-marker"));
+            let message = err.to_string();
+            assert!(message.contains(option));
+            if value == INVALID_CONFIG_MARKER {
+                assert!(!message.contains(value), "Display exposes invalid {option}");
+                assert!(
+                    !format!("{err:?}").contains(value),
+                    "Debug exposes invalid {option}"
+                );
+            }
         }
     }
 

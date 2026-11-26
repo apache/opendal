@@ -1788,6 +1788,22 @@ mod tests {
             "123456789"
         );
         assert!(op.info().capability().read_with_checksum);
+
+        let (ctx, service) = op.into_parts();
+        let reader = service.read(
+            &ctx,
+            "object",
+            OpRead::new().with_checksum_for_zero_offset(),
+        )?;
+        for (range, expected, has_checksum) in [(0..9, "123456789", true), (2..5, "345", false)] {
+            let (response, buffer) = reader.read_dyn(range.into()).await?;
+            assert_eq!(buffer.to_bytes(), expected);
+            assert_eq!(
+                response.metadata().unwrap().checksum().is_some(),
+                has_checksum
+            );
+        }
+
         let preset = Operator::new(
             crate::Minio::default()
                 .endpoint("https://s3.us-west-2.amazonaws.com")
@@ -1813,6 +1829,8 @@ mod tests {
                 (Method::GET, true),
                 (Method::GET, true),
                 (Method::GET, true),
+                (Method::GET, true),
+                (Method::GET, false),
                 (Method::HEAD, false),
             ]
         );

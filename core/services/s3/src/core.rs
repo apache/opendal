@@ -742,7 +742,7 @@ impl S3Core {
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let mut req = self.s3_get_object_request(path, range, args)?;
-        if args.checksum() && self.capability.read_with_checksum {
+        if args.checksum_for_range(range) && self.capability.read_with_checksum {
             req.headers_mut().insert(
                 constants::X_AMZ_CHECKSUM_MODE,
                 HeaderValue::from_static("ENABLED"),

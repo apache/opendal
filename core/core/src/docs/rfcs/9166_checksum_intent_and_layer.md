@@ -1,6 +1,6 @@
 - Proposal Name: `checksum_intent_and_layer`
 - Start Date: 2026-11-26
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
+- RFC PR: [apache/opendal#9166](https://github.com/apache/opendal/pull/9166)
 - Tracking Issue: [apache/opendal#5549](https://github.com/apache/opendal/issues/5549)
 - Supersedes: `Capability` and `ChecksumLayer` sections of [RFC-6817: Checksum](6817_checksum.md)
 

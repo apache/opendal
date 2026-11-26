@@ -366,5 +366,5 @@ pub mod rfc_8569_chunked_cache_layer {}
 pub mod rfc_9061_unified_operator_config {}
 
 /// Checksum Intent and Layer
-#[doc = include_str!("0000_checksum_intent_and_layer.md")]
-pub mod rfc_0000_checksum_intent_and_layer {}
+#[doc = include_str!("9166_checksum_intent_and_layer.md")]
+pub mod rfc_9166_checksum_intent_and_layer {}

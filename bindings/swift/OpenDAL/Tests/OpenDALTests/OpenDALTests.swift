@@ -128,6 +128,44 @@ final class OpenDALTests: XCTestCase {
         XCTAssertTrue(try op.blockingExists(child))
     }
 
+    func testBlockingCreateDirectory() throws {
+        let op = try Operator(scheme: "memory")
+        let path = "logs/archive/"
+
+        XCTAssertFalse(try op.blockingExists(path))
+        try op.blockingCreateDirectory(path)
+        XCTAssertTrue(try op.blockingExists(path))
+
+        try op.blockingCreateDirectory(path)
+        XCTAssertTrue(try op.blockingExists(path))
+    }
+
+    func testBlockingCreateDirectoryRequiresTrailingSlash() throws {
+        let op = try Operator(scheme: "memory")
+
+        XCTAssertThrowsError(try op.blockingCreateDirectory("logs")) { error in
+            XCTAssertEqual((error as? OperatorError)?.code, OPENDAL_NOT_A_DIRECTORY.rawValue)
+        }
+        XCTAssertFalse(try op.blockingExists("logs/"))
+    }
+
+    func testBlockingCreateDirectoryRejectsNulPath() throws {
+        let op = try Operator(scheme: "memory")
+        let prefix = "logs/"
+
+        XCTAssertThrowsError(try op.blockingCreateDirectory(prefix + "\0suffix/")) { error in
+            guard let opendalError = error as? OperatorError else {
+                XCTFail("expected OperatorError, got \(error)")
+                return
+            }
+
+            XCTAssertEqual(opendalError.code, OPENDAL_UNEXPECTED.rawValue)
+            let message = String(decoding: opendalError.message, as: UTF8.self)
+            XCTAssertTrue(message.contains("U+0000"), "unexpected error message: \(message)")
+        }
+        XCTAssertFalse(try op.blockingExists(prefix))
+    }
+
     func testOperatorInitInvalidSchemeError() throws {
         XCTAssertThrowsError(try Operator(scheme: "scheme_not_exist")) { error in
             guard let opendalError = error as? OperatorError else {

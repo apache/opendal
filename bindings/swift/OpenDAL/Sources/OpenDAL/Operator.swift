@@ -125,6 +125,18 @@ public class Operator {
         }
     }
 
+    /// Creates the directory and any missing parents. Succeeds if the directory already exists.
+    /// Use a trailing slash for a named directory (for example, `logs/archive/`).
+    /// The service must support directory creation. Throws `OperatorError` on failure or
+    /// if the path contains a NUL character (U+0000).
+    public func blockingCreateDirectory(_ path: String) throws {
+        try Self.validatePath(path)
+
+        if let err = opendal_operator_create_dir(nativeOp, path) {
+            throw OperatorError(consuming: err)
+        }
+    }
+
     private static func validatePath(_ path: String) throws {
         // The C API treats the first NUL byte as the end of the path.
         if path.utf8.contains(0) {

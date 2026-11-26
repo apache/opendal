@@ -66,6 +66,68 @@ final class OpenDALTests: XCTestCase {
         }
     }
 
+    func testBlockingExistsAndDelete() throws {
+        let op = try Operator(scheme: "memory")
+        let path = "文档/café-🦀"
+
+        XCTAssertFalse(try op.blockingExists(path))
+
+        var data = Data([1, 2, 3, 4])
+        try op.blockingWrite(&data, to: path)
+        XCTAssertTrue(try op.blockingExists(path))
+
+        try op.blockingDelete(path)
+        XCTAssertFalse(try op.blockingExists(path))
+
+        try op.blockingDelete(path)
+        XCTAssertFalse(try op.blockingExists(path))
+    }
+
+    func testBlockingExistsAndDeleteRejectNulPath() throws {
+        let op = try Operator(scheme: "memory")
+        let path = "文档/café-🦀"
+        let invalidPath = path + "\0suffix"
+        var contents = Data([1, 2, 3, 4])
+        try op.blockingWrite(&contents, to: path)
+
+        func assertInvalidPath(_ error: Error) {
+            guard let opendalError = error as? OperatorError else {
+                XCTFail("expected OperatorError, got \(error)")
+                return
+            }
+
+            XCTAssertEqual(opendalError.code, OPENDAL_UNEXPECTED.rawValue)
+            let message = String(decoding: opendalError.message, as: UTF8.self)
+            XCTAssertTrue(message.contains("U+0000"), "unexpected error message: \(message)")
+        }
+
+        XCTAssertThrowsError(try op.blockingExists(invalidPath), "exists", assertInvalidPath)
+        XCTAssertThrowsError(try op.blockingDelete(invalidPath), "delete", assertInvalidPath)
+        XCTAssertEqual(try op.blockingRead(path), contents)
+    }
+
+    func testBlockingDeleteNonEmptyDirectoryError() throws {
+        let op = try Operator(scheme: "memory")
+        let child = "directory/child"
+        var data = Data([1])
+        try op.blockingWrite(&data, to: child)
+
+        XCTAssertThrowsError(try op.blockingDelete("directory/")) { error in
+            guard let opendalError = error as? OperatorError else {
+                XCTFail("expected OperatorError, got \(error)")
+                return
+            }
+
+            XCTAssertEqual(opendalError.code, OPENDAL_UNEXPECTED.rawValue)
+            let message = String(decoding: opendalError.message, as: UTF8.self)
+            XCTAssertTrue(
+                message.contains("directory not empty"),
+                "unexpected error message: \(message)"
+            )
+        }
+        XCTAssertTrue(try op.blockingExists(child))
+    }
+
     func testOperatorInitInvalidSchemeError() throws {
         XCTAssertThrowsError(try Operator(scheme: "scheme_not_exist")) { error in
             guard let opendalError = error as? OperatorError else {

@@ -22,9 +22,8 @@ for production use**. Contributions welcome.
 
 ## Status
 
-**Experimental — unreleased.** Only blocking read and write are implemented.
-The binding depends on the C binding and must be built from source; it is not
-published to any package registry.
+**Experimental — unreleased.** The binding depends on the C binding and must
+be built from source. It is not published to any package registry.
 
 ## Capabilities
 
@@ -32,10 +31,11 @@ published to any package registry.
 |---|---|
 | Blocking read | Supported |
 | Blocking write | Supported |
+| Blocking existence check (`blockingExists`) | Supported |
+| Blocking delete (`blockingDelete`) | Supported |
 | Async read/write | Not yet |
 | Stat / metadata | Not yet |
 | List | Not yet |
-| Delete | Not yet |
 | Presigned URLs | Not yet |
 
 The `Operator` class is the single entry point. It accepts a service scheme

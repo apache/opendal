@@ -37,6 +37,11 @@ public struct OperatorError: Error {
         }
         opendal_error_free(error)
     }
+
+    fileprivate init(code: opendal_code, message: String) {
+        self.code = code.rawValue
+        self.message = Data(message.utf8)
+    }
 }
 
 public class Operator {
@@ -93,5 +98,40 @@ public class Operator {
         }
 
         return Data(openDALBytes: data)
+    }
+
+    /// Returns `true` if the path exists or `false` if it is missing.
+    /// The service must support stat. Throws `OperatorError` on failure or
+    /// if the path contains a NUL character (U+0000).
+    public func blockingExists(_ path: String) throws -> Bool {
+        try Self.validatePath(path)
+
+        var exists = false
+        if let err = opendal_operator_exists(nativeOp, path, &exists) {
+            throw OperatorError(consuming: err)
+        }
+
+        return exists
+    }
+
+    /// Deletes the path without recursion. Deleting a missing file succeeds.
+    /// The service must support delete. Throws `OperatorError` on failure or
+    /// if the path contains a NUL character (U+0000).
+    public func blockingDelete(_ path: String) throws {
+        try Self.validatePath(path)
+
+        if let err = opendal_operator_delete(nativeOp, path) {
+            throw OperatorError(consuming: err)
+        }
+    }
+
+    private static func validatePath(_ path: String) throws {
+        // The C API treats the first NUL byte as the end of the path.
+        if path.utf8.contains(0) {
+            throw OperatorError(
+                code: OPENDAL_UNEXPECTED,
+                message: "Path contains a NUL character (U+0000)."
+            )
+        }
     }
 }

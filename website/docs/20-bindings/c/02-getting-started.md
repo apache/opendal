@@ -35,8 +35,8 @@ cmake --build .
 ```
 
 Configuration-driven layers require a registered factory and the corresponding
-`opendal/layers-*` Cargo feature. The facade defaults used by C include
-`concurrent-limit`, `logging`, `retry`, and `timeout`.
+`opendal/layers-*` Cargo feature. The default build supports `concurrent_limit`,
+`logging`, `retry`, and `timeout` as names in the `layers` option.
 
 ## Your first program
 

@@ -7083,6 +7083,7 @@ dependencies = [
  "opendal-layer-cache",
  "opendal-layer-capability-check",
  "opendal-layer-chaos",
+ "opendal-layer-checksum",
  "opendal-layer-concurrent-limit",
  "opendal-layer-dtrace",
  "opendal-layer-fastmetrics",

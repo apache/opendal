@@ -140,6 +140,7 @@ layers-await-tree = ["dep:opendal-layer-await-tree"]
 layers-cache = ["dep:opendal-layer-cache"]
 layers-capability-check = ["dep:opendal-layer-capability-check"]
 layers-chaos = ["dep:opendal-layer-chaos"]
+layers-checksum = ["dep:opendal-layer-checksum"]
 layers-concurrent-limit = ["dep:opendal-layer-concurrent-limit"]
 layers-dtrace = ["dep:opendal-layer-dtrace"]
 layers-fastmetrics = ["dep:opendal-layer-fastmetrics"]
@@ -306,6 +307,7 @@ opendal-layer-await-tree = { path = "layers/await-tree", version = "0.59.5", opt
 opendal-layer-cache = { path = "layers/cache", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-capability-check = { path = "layers/capability-check", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-chaos = { path = "layers/chaos", version = "0.59.5", optional = true, default-features = false }
+opendal-layer-checksum = { path = "layers/checksum", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-concurrent-limit = { path = "layers/concurrent-limit", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-fastmetrics = { path = "layers/fastmetrics", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-fastrace = { path = "layers/fastrace", version = "0.59.5", optional = true, default-features = false }

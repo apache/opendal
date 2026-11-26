@@ -657,30 +657,53 @@ impl B2Core {
         }
     }
 
-    pub async fn get_file_version(
+    pub async fn get_data_version(
         &self,
         ctx: &OperationContext,
+        key: &str,
         file_id: &str,
-    ) -> Result<FileVersion> {
+        operation: Operation,
+    ) -> Result<Buffer> {
         let auth_info = self.get_auth_info(ctx).await?;
         let body = serde_json::json!({ "fileId": file_id });
         let body = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
         let req = Request::post(format!("{}/b2api/v2/b2_get_file_info", auth_info.api_url))
             .header(header::AUTHORIZATION, auth_info.authorization_token)
             .header(header::CONTENT_TYPE, "application/json")
-            .extension(Operation::Restore)
+            .extension(operation)
             .extension(ServiceOperation("GetFileInfo"))
             .body(Buffer::from(body))
             .map_err(new_request_build_error)?;
         let resp = self.send(ctx, req).await?;
-        match resp.status() {
-            StatusCode::OK => serde_json::from_reader(resp.into_body().reader())
-                .map_err(new_json_deserialize_error),
-            _ => Err(parse_error(
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(
                 ErrorContext::new(ServiceOperation("GetFileInfo")),
                 resp,
-            )),
+            ));
         }
+
+        let body = resp.into_body();
+        let version: FileVersion =
+            serde_json::from_reader(body.clone().reader()).map_err(new_json_deserialize_error)?;
+        if version.bucket_id != self.bucket_id
+            || version.file_name != key
+            || !matches!(
+                version.action,
+                FileVersionAction::Upload | FileVersionAction::Copy
+            )
+        {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "no such data version for this path",
+            ));
+        }
+        if version.file_id != file_id {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "B2 returned a different file ID",
+            ));
+        }
+        Ok(body)
     }
 
     pub async fn delete_file_version_request(

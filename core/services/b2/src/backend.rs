@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use asyncband::rwlock::RwLock;
+use bytes::Buf;
 use http::Request;
 use http::StatusCode;
 use log::debug;
@@ -163,6 +164,7 @@ impl Builder for B2Builder {
                 info: ServiceInfo::new(B2_SCHEME, &root, ""),
                 capability: Capability {
                     stat: true,
+                    stat_with_version: true,
                     stat_with_override_cache_control: true,
                     stat_with_override_content_disposition: true,
                     stat_with_override_content_type: true,
@@ -254,13 +256,36 @@ impl Service for B2Backend {
         ))
     }
 
-    /// B2 have a get_file_info api required a file_id field, but field_id need call list api, list api also return file info
-    /// So we call list api to get file info
-    async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
-        // Stat root always returns a DIR.
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        if let Some(version) = args.version() {
+            if path.ends_with('/') {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "no such data version for this path",
+                ));
+            }
+            if version.is_empty() {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "empty stat version ID",
+                ));
+            }
+
+            let key = build_absolute_path(&self.core.root, path);
+            let body = self
+                .core
+                .get_data_version(ctx, &key, version, Operation::Stat)
+                .await?;
+            let file =
+                serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
+            return Ok(RpStat::new(parse_file_info(&file)));
+        }
+
         if path == "/" {
             return Ok(RpStat::new(MetadataBuilder::dir().build()));
         }
+
+        // Listing by name returns the current file's metadata without first resolving its ID.
 
         let delimiter = if path.ends_with('/') { Some("/") } else { None };
 
@@ -381,20 +406,9 @@ impl Service for B2Backend {
                     "empty restore version ID",
                 ));
             }
-            // A B2 file ID can name a version of a different file or bucket.
-            let source = self.core.get_file_version(ctx, version).await?;
-            if source.file_name != key
-                || source.bucket_id != self.core.bucket_id
-                || !matches!(
-                    source.action,
-                    FileVersionAction::Upload | FileVersionAction::Copy
-                )
-            {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    "no such data version for this path",
-                ));
-            }
+            self.core
+                .get_data_version(ctx, &key, version, Operation::Restore)
+                .await?;
 
             let req = self
                 .core
@@ -506,6 +520,12 @@ impl Service for B2Backend {
     ) -> Result<RpPresign> {
         match args.operation() {
             PresignOperation::Stat(stat) => {
+                if stat.version().is_some() {
+                    return Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "B2 does not support presigning stat for a selected version",
+                    ));
+                }
                 self.core
                     .presign_download(
                         ctx,
@@ -608,6 +628,215 @@ mod tests {
                 .body(HttpBody::new(stream::iter([Ok(buf)]), Some(len)))
                 .map_err(new_request_build_error)
         }
+    }
+
+    fn stat_operator(version_status: StatusCode, version_body: &'static str) -> Result<Operator> {
+        version_operator(Operation::Stat, version_status, version_body)
+    }
+
+    fn version_operator(
+        operation: Operation,
+        version_status: StatusCode,
+        version_body: &'static str,
+    ) -> Result<Operator> {
+        struct VersionTransport {
+            operation: Operation,
+            version_status: StatusCode,
+            version_body: &'static str,
+        }
+
+        impl HttpTransport for VersionTransport {
+            async fn fetch(&self, request: Request<Buffer>) -> Result<Response<HttpBody>> {
+                let (status, body) = match request.uri().path() {
+                    "/b2api/v4/b2_authorize_account" => (
+                        StatusCode::OK,
+                        r#"{"authorizationToken":"token","apiInfo":{"storageApi":{"apiUrl":"https://api.example","downloadUrl":"https://download.example"}}}"#,
+                    ),
+                    "/b2api/v2/b2_get_file_info" => {
+                        assert_eq!(request.method(), http::Method::POST);
+                        assert_eq!(
+                            request.extensions().get::<Operation>(),
+                            Some(&self.operation)
+                        );
+                        assert_eq!(request.body().to_bytes().as_ref(), br#"{"fileId":"old"}"#);
+                        (self.version_status, self.version_body)
+                    }
+                    "/b2api/v2/b2_copy_file" if self.operation == Operation::Restore => {
+                        assert_eq!(
+                            request.extensions().get::<Operation>(),
+                            Some(&Operation::Restore)
+                        );
+                        let body: serde_json::Value =
+                            serde_json::from_reader(request.body().clone().reader()).unwrap();
+                        assert_eq!(body["sourceFileId"], "old");
+                        assert_eq!(body["fileName"], "root/file");
+                        (
+                            StatusCode::FORBIDDEN,
+                            r#"{"status":403,"code":"unauthorized","message":"copy denied"}"#,
+                        )
+                    }
+                    "/b2api/v2/b2_list_file_names" => {
+                        let query = request.uri().query().unwrap();
+                        let body = if query.contains("prefix=root/dir/") {
+                            r#"{"files":[{"fileName":"root/dir/","contentLength":0}]}"#
+                        } else {
+                            assert!(query.contains("prefix=root/file"));
+                            r#"{"files":[{"fileName":"root/file","fileId":"new","contentLength":13}]}"#
+                        };
+                        (StatusCode::OK, body)
+                    }
+                    other => panic!("unexpected path: {other}"),
+                };
+                let buffer = Buffer::from(body);
+                Response::builder()
+                    .status(status)
+                    .body(HttpBody::new(
+                        stream::iter([Ok(buffer)]),
+                        Some(body.len() as u64),
+                    ))
+                    .map_err(new_request_build_error)
+            }
+        }
+
+        let op = Operator::new(
+            B2Builder::default()
+                .root("root")
+                .bucket("test-bucket")
+                .bucket_id("bucket-id")
+                .application_key_id("test-key")
+                .application_key("test-secret"),
+        )?;
+        let transport = HttpTransporter::new(VersionTransport {
+            operation,
+            version_status,
+            version_body,
+        });
+        Ok(op.with_context(OperationContext::new().with_http_transport(transport)))
+    }
+
+    #[tokio::test]
+    async fn test_version_stat_preserves_metadata_from_selected_file() -> Result<()> {
+        let op = stat_operator(
+            StatusCode::OK,
+            r#"{"bucketId":"bucket-id","fileName":"root/file","fileId":"old","action":"upload","contentLength":5,"contentType":"text/plain","contentMd5":"md5","fileInfo":{"Owner":"a%2Bb"}}"#,
+        )?;
+        assert!(op.info().capability().stat_with_version);
+        let old = op.stat_with("file").version("old").await?;
+        assert_eq!(old.mode(), EntryMode::FILE);
+        assert_eq!(old.version(), Some("old"));
+        assert_eq!(old.content_length(), 5);
+        assert_eq!(old.content_type(), Some("text/plain"));
+        assert_eq!(old.content_md5(), Some("md5"));
+        assert_eq!(old.user_metadata().unwrap().get("owner"), Some("a+b"));
+
+        let current = op.stat("file").await?;
+        assert_eq!(current.version(), Some("new"));
+        assert_eq!(current.content_length(), 13);
+
+        let op = stat_operator(
+            StatusCode::OK,
+            r#"{"bucketId":"bucket-id","fileName":"root/file","fileId":"old","action":"copy","contentLength":0}"#,
+        )?;
+        let old = op.stat_with("file").version("old").await?;
+        let mut expected = MetadataBuilder::file(0);
+        expected.version("old");
+        assert_eq!(old, expected.build());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_version_stat_requires_exact_data_version() -> Result<()> {
+        for (status, body, expected) in [
+            (
+                StatusCode::OK,
+                r#"{"bucketId":"bucket-id","fileName":"root/file-neighbor","fileId":"old","action":"upload"}"#,
+                ErrorKind::NotFound,
+            ),
+            (
+                StatusCode::OK,
+                r#"{"bucketId":"other","fileName":"root/file","fileId":"old","action":"upload"}"#,
+                ErrorKind::NotFound,
+            ),
+            (
+                StatusCode::OK,
+                r#"{"bucketId":"bucket-id","fileName":"root/file","fileId":"old","action":"hide"}"#,
+                ErrorKind::NotFound,
+            ),
+            (
+                StatusCode::OK,
+                r#"{"bucketId":"bucket-id","fileName":"root/file","fileId":"old","action":"start"}"#,
+                ErrorKind::NotFound,
+            ),
+            (
+                StatusCode::OK,
+                r#"{"bucketId":"bucket-id","fileName":"root/file","fileId":"other","action":"upload","contentLength":5}"#,
+                ErrorKind::Unexpected,
+            ),
+            (
+                StatusCode::OK,
+                r#"{"bucketId":"bucket-id","fileName":"root/file","fileId":"old","action":"upload"}"#,
+                ErrorKind::Unexpected,
+            ),
+            (
+                StatusCode::NOT_FOUND,
+                r#"{"status":404,"code":"not_found","message":"missing"}"#,
+                ErrorKind::NotFound,
+            ),
+            (
+                StatusCode::FORBIDDEN,
+                r#"{"status":403,"code":"unauthorized","message":"denied"}"#,
+                ErrorKind::PermissionDenied,
+            ),
+        ] {
+            let op = stat_operator(status, body)?;
+            let error = op.stat_with("file").version("old").await.unwrap_err();
+            assert_eq!(error.kind(), expected, "{body}");
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_restore_reaches_copy_with_version_identity_alone() -> Result<()> {
+        let op = version_operator(
+            Operation::Restore,
+            StatusCode::OK,
+            r#"{"bucketId":"bucket-id","fileName":"root/file","fileId":"old","action":"upload"}"#,
+        )?;
+        let error = op.restore_with("file").version("old").await.unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::PermissionDenied);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_version_stat_and_presign_respect_operator_options() -> Result<()> {
+        use opendal_core::layers::SimulateLayer;
+        use std::time::Duration;
+
+        let op = stat_operator(StatusCode::FORBIDDEN, "")?;
+        let configured = op
+            .clone()
+            .layer(SimulateLayer::default().with_create_dir(false));
+        for stack in [&op, &configured] {
+            for path in ["/", "dir/"] {
+                assert_eq!(stack.stat(path).await?.mode(), EntryMode::DIR);
+                let error = stack.stat_with(path).version("old").await.unwrap_err();
+                assert_eq!(error.kind(), ErrorKind::NotFound);
+            }
+        }
+
+        let error = op
+            .presign_stat_options(
+                "file",
+                Duration::from_secs(60),
+                options::StatOptions {
+                    version: Some("old".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::Unsupported);
+        Ok(())
     }
 
     #[tokio::test]

@@ -16,10 +16,19 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+## File metadata by version
+
+`stat_with(path).version(file_id)` returns metadata for a B2 data version of
+that file. The application key needs `readFiles` permission. A version that
+has been permanently deleted, belongs to a different path, or is a hide marker
+returns `NotFound`. Ordinary `stat` and `list` expose current file IDs through
+`Metadata::version()`.
+
 ## Presigned downloads
 
 `presign_read` and `presign_stat` both return a B2 download request that uses
-GET. Their option-bearing variants support overriding the response
+GET and addresses the file by name. `presign_stat_options` returns `Unsupported`
+when a version is set. The option-bearing variants support overriding the response
 `Content-Type`, `Content-Disposition`, and `Cache-Control`. Use the returned
 method, URL, and headers to execute the request.
 
@@ -31,8 +40,7 @@ remaining data versions returns `NotFound`. The application key needs `listFiles
 and `deleteFiles` permissions to remove the marker.
 
 `restore_with(path).version(file_id)` copies a data version of the same file to
-make it current. `stat` and `list` expose current file IDs through
-`Metadata::version()`. Version promotion requires `readFiles` and `writeFiles`
+make it current. Version promotion requires `readFiles` and `writeFiles`
 and is subject to the [B2 Copy File size limit](https://www.backblaze.com/apidocs/b2-copy-file).
 
 ## Configuration

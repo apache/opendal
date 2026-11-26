@@ -416,6 +416,75 @@ async fn memory_ranges_and_policy_use_cached_chunks() -> Result<()> {
 }
 
 #[tokio::test]
+async fn chunk_size_controls_range_alignment_and_cache_keys() -> Result<()> {
+    const DEFAULT_SIZE: usize = 1024 * 1024;
+    const D1_MAX_WRITE_SIZE: usize = 1_000_000;
+
+    for (limit, sizes, expected_size) in [
+        (None, &[0][..], DEFAULT_SIZE),
+        (None, &[3, 0][..], DEFAULT_SIZE),
+        (None, &[3][..], 3),
+        (Some(D1_MAX_WRITE_SIZE), &[][..], D1_MAX_WRITE_SIZE),
+        (Some(D1_MAX_WRITE_SIZE), &[3, 0][..], D1_MAX_WRITE_SIZE),
+        (
+            Some(D1_MAX_WRITE_SIZE),
+            &[DEFAULT_SIZE][..],
+            D1_MAX_WRITE_SIZE,
+        ),
+    ] {
+        let origin = memory()?;
+        let cache_storage = memory()?;
+        let cache = cache_storage.clone().layer(Probe {
+            max_write_size: limit,
+            ..Probe::default()
+        });
+        let mut layer = CacheLayer::new(cache)?;
+        for &size in sizes {
+            layer = layer.with_chunk_size(size);
+        }
+        let op = origin.clone().layer(layer);
+        origin
+            .write("object", vec![b'a'; expected_size + 1])
+            .await?;
+
+        let boundary = expected_size as u64;
+        assert_eq!(
+            op.read_with("object")
+                .range(boundary - 1..boundary + 1)
+                .await?
+                .to_vec(),
+            b"aa"
+        );
+
+        let chunks = cache_storage.list_with("v1/data/").recursive(true).await?;
+        assert_eq!(chunks.len(), 2, "limit={limit:?}, sizes={sizes:?}");
+        for (index, length) in [(0, boundary), (1, 1)] {
+            let suffix = format!("/{expected_size:x}/{index}");
+            assert!(
+                chunks.iter().any(|entry| {
+                    entry.path().ends_with(&suffix) && entry.metadata().content_length() == length
+                }),
+                "expected a {length}-byte chunk with suffix {suffix} for limit={limit:?}, sizes={sizes:?}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn chunk_size_rejects_a_zero_cache_write_limit() -> Result<()> {
+    let cache = memory()?.layer(Probe {
+        max_write_size: Some(0),
+        ..Probe::default()
+    });
+    assert_eq!(
+        CacheLayer::new(cache).unwrap_err().kind(),
+        ErrorKind::ConfigInvalid
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn bounded_cache_configuration_and_backend_failures() -> Result<()> {
     let probe = Probe {
         faults: Some(Arc::new(AtomicUsize::new(READ_ONLY))),

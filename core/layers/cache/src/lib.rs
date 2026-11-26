@@ -85,9 +85,12 @@ where
     }
 }
 
+const DEFAULT_CHUNK_SIZE: usize = 1024 * 1024;
+
 /// Cache aligned source read chunks in another OpenDAL operator.
 ///
-/// The default chunk size is 1 MiB and the default metadata TTL is 60 seconds.
+/// The default chunk size is 1 MiB, capped by the cache operator's advertised
+/// maximum total write size. The default metadata TTL is 60 seconds.
 /// Use a cache backend with capacity eviction to reclaim chunks from old object
 /// identities. Use separate cache roots or instances for different tenants,
 /// endpoints, or credentials because fresh cache hits skip source I/O.
@@ -109,6 +112,7 @@ pub struct CacheLayer {
     state: Arc<State>,
     policy: Arc<dyn CachePolicy>,
     chunk_size: usize,
+    max_chunk_size: usize,
     ttl: Duration,
 }
 
@@ -124,8 +128,9 @@ impl fmt::Debug for CacheLayer {
 impl CacheLayer {
     /// Create a layer backed by `cache`.
     ///
-    /// Returns [`ErrorKind::ConfigInvalid`] if the cache operator does not
-    /// advertise read, write, and delete in its full capabilities.
+    /// Returns [`ErrorKind::ConfigInvalid`] if the cache operator's full
+    /// capabilities do not include read, write, and delete, or if its
+    /// advertised maximum total write size is zero.
     pub fn new(cache: Operator) -> Result<Self> {
         let capability = cache.info().capability();
         if !(capability.read && capability.write && capability.delete) {
@@ -134,22 +139,30 @@ impl CacheLayer {
                 "cache must support read, write, and delete",
             ));
         }
+        let max_chunk_size = capability.write_total_max_size.unwrap_or(usize::MAX);
+        if max_chunk_size == 0 {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "cache maximum total write size must be positive",
+            ));
+        }
         Ok(Self {
             state: Arc::new(State::new(cache)),
             policy: Arc::new(|_: &CacheReadRequest<'_>| CacheDecision::Cache),
-            chunk_size: 1024 * 1024,
+            chunk_size: DEFAULT_CHUNK_SIZE.min(max_chunk_size),
+            max_chunk_size,
             ttl: Duration::from_secs(60),
-        }
-        .with_chunk_size(1024 * 1024))
+        })
     }
 
     /// Set the aligned chunk size in bytes.
     ///
-    /// Zero is clamped to one byte. The cache's advertised maximum total write
-    /// size caps the effective chunk size.
+    /// Zero restores the default of 1 MiB. Positive sizes are used without
+    /// rounding. The cache operator's advertised maximum total write size
+    /// caps both the default and explicit sizes.
     pub fn with_chunk_size(mut self, size: usize) -> Self {
-        let limit = self.state.cache.info().capability().write_total_max_size;
-        self.chunk_size = size.max(1).min(limit.unwrap_or(usize::MAX).max(1));
+        let size = if size == 0 { DEFAULT_CHUNK_SIZE } else { size };
+        self.chunk_size = size.min(self.max_chunk_size);
         self
     }
 

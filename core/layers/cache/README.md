@@ -44,6 +44,12 @@ cache until the backend evicts them. Use a dedicated cache root or a separate
 cache instance for each tenant, endpoint, or credential boundary. Hot reads
 reuse cached metadata and do not re-authorize against the source.
 
+The default chunk size is 1 MiB. Use `with_chunk_size` to set an exact size in
+bytes, or pass `0` to restore the default. The cache operator's advertised
+maximum total write size caps both the default and explicit sizes. The layer
+uses this effective size to align source ranges and key cached chunks. The
+last chunk of an object can be shorter.
+
 Enable `layers-cache` to use `opendal::layers::CacheLayer` through the facade.
 When using `opendal-core` directly, add `opendal-layer-cache`.
 

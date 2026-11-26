@@ -139,8 +139,34 @@ class CacheLayerTest {
     }
 
     @ParameterizedTest
-    @ValueSource(longs = {0, -1, Long.MIN_VALUE})
-    void rejectsNonPositiveChunkSizes(long chunkSize) {
+    @ValueSource(booleans = {false, true})
+    void zeroChunkSizeUsesTheDefault(boolean reset) {
+        try (AsyncOperator source = AsyncOperator.of(MEMORY);
+                AsyncOperator cache = AsyncOperator.of(MEMORY)) {
+            CacheLayer.CacheLayerBuilder builder = CacheLayer.builder(cache);
+            if (reset) {
+                builder.chunkSize(4);
+            }
+            try (CacheLayer layer = builder.chunkSize(0).build();
+                    AsyncOperator cached = source.layer(layer)) {
+                source.write(PATH, "abcdefghij").join();
+                assertThat(cached.read(PATH).join())
+                        .asString(StandardCharsets.UTF_8)
+                        .isEqualTo("abcdefghij");
+                assertThat(cache.list(
+                                        "v1/data/",
+                                        ListOptions.builder().recursive(true).build())
+                                .join())
+                        .filteredOn(entry -> entry.metadata.isFile())
+                        .extracting(entry -> entry.metadata.contentLength)
+                        .containsExactly(10L);
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1, Long.MIN_VALUE})
+    void rejectsNegativeChunkSizes(long chunkSize) {
         try (AsyncOperator cache = AsyncOperator.of(MEMORY)) {
             assertThatThrownBy(() -> CacheLayer.builder(cache).chunkSize(chunkSize))
                     .isInstanceOf(IllegalArgumentException.class)

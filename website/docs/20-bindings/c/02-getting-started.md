@@ -8,9 +8,8 @@ description: Build an OpenDAL operator in C, write and read data, check errors, 
 
 ## Build the library
 
-The C binding is available as source. Its [Cargo.toml](https://github.com/apache/opendal/blob/main/bindings/c/Cargo.toml)
-enables the OpenDAL blocking API, and CMake builds the memory and `fs` services
-by default.
+The C binding is available as source. The default CMake build includes the
+built-in `memory` service and enables the `fs` service.
 
 From `bindings/c/`:
 
@@ -35,7 +34,9 @@ cmake .. -DFEATURES="opendal/services-fs,opendal/services-s3,opendal/services-gc
 cmake --build .
 ```
 
-Exposing additional Rust layers requires C binding code.
+Configuration-driven layers require a registered factory and the corresponding
+`opendal/layers-*` Cargo feature. The facade defaults used by C include
+`concurrent-limit`, `logging`, `retry`, and `timeout`.
 
 ## Your first program
 
@@ -71,6 +72,34 @@ opendal_operator_free(op);
 
 For S3 or any other service, set the configuration keys documented on
 [/services](/services) as key-value pairs via `opendal_operator_options_set`.
+
+## Configure an operator
+
+Both constructors accept `context.http.*` options for the reqwest HTTP
+context and a comma-separated `layers` list in inner-to-outer order.
+Use `layer.<name>.*` to set options for a listed layer. Pass configuration
+from trusted sources.
+
+`opendal_operator_new` appends its default retry and logging layers after the
+configured layers, so `layers=retry` adds a second retry layer inside the
+default one. To use a single configured retry layer, call
+`opendal_operator_new_with_layers` with a `NULL` C layer handle:
+
+```c
+opendal_operator_options *opts = opendal_operator_options_new();
+opendal_operator_options_set(opts, "layers", "retry");
+opendal_operator_options_set(opts, "layer.retry.max_times", "1");
+
+opendal_operator *op = NULL;
+opendal_error *err = opendal_operator_new_with_layers("memory", opts, NULL, &op);
+opendal_operator_options_free(opts);
+assert(err == NULL && op != NULL);
+/* ... use the operator ... */
+opendal_operator_free(op);
+```
+
+A non-`NULL` C layer handle appends its layers in insertion order after the
+configured layers. Both constructors retain OpenDAL's core layers.
 
 ## Error handling
 

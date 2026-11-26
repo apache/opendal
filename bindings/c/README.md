@@ -35,7 +35,9 @@ cmake .. -DFEATURES="opendal/services-fs,opendal/services-s3,opendal/services-gc
 cmake --build .
 ```
 
-Exposing additional Rust layers requires C binding code.
+Configuration-driven layers require a registered factory and the corresponding
+`opendal/layers-*` Cargo feature. The facade defaults used by C include
+`concurrent-limit`, `logging`, `retry`, and `timeout`.
 
 The header is at `include/opendal.h`. The default build writes the shared
 library to `target/debug/` relative to `bindings/c`.
@@ -76,6 +78,23 @@ See `examples/` for more, including error handling patterns.
 
 Full documentation is at https://opendal.apache.org/docs/bindings/c.
 
+## Operator configuration
+
+Both C constructors accept service options and scoped options set with
+`opendal_operator_options_set`. Use `context.http.*` for the reqwest HTTP
+context, `layers` for a comma-separated list of registered layers in
+inner-to-outer order, and `layer.<name>.*` for options of a listed layer.
+Pass configuration from trusted sources.
+
+`opendal_operator_new` appends the C binding's default retry and logging layers
+after any configured layers. Setting `layers=retry` therefore places a
+configured retry layer inside the default retry layer.
+
+`opendal_operator_new_with_layers` omits those C defaults and appends any
+layers in the supplied C handle in insertion order. Pass `NULL` as the
+handle to use the configured layers without appending any C layers. Both
+constructors retain OpenDAL's core layers.
+
 ## Output parameters
 
 Fallible operations return `opendal_error *`: `NULL` means success. Result values
@@ -113,11 +132,12 @@ Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademar
 ## Native logging
 
 Call `opendal_logging_init` once to install a program-lifetime, thread-safe C
-callback for OpenDAL's Rust log facade. The default `opendal_operator_new`
-constructor emits operation events through that callback. The explicit
-`opendal_operator_new_with_layers` constructor uses only the supplied layers.
-The callback may also receive other Rust log records from the same library.
-Successful registration enables all Rust log levels for this facade.
+callback for OpenDAL's Rust log facade. The logging layer added by
+`opendal_operator_new` emits operation events through that callback. To enable
+operation logging with `opendal_operator_new_with_layers`, set `layers=logging`
+in the options. The callback may also receive other Rust log records from the
+same library. Successful registration enables all Rust log levels for this
+facade.
 
 The callback receives DEBUG=0 (including TRACE), INFO=1, WARN=2, or ERROR=3,
 a source file, a line number, and a message. File and message are borrowed,

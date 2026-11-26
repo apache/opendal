@@ -200,10 +200,16 @@ unsafe fn new_operator_result(
 
 /// \brief Construct an operator based on `scheme` and `options`
 ///
-/// Uses an array of key-value pairs to initialize the operator based on provided `scheme`
-/// and `options`. For each scheme, i.e. Backend, different options could be set, you may
-/// reference the [documentation](https://opendal.apache.org/docs/category/services/) for
-/// each service, especially for the **Configuration Part**.
+/// Pass service configuration and any `context.<name>.*`, `layers`, and
+/// `layer.<name>.*` options as key-value pairs from trusted sources. The linked
+/// library must include the selected service and configured providers.
+///
+/// The `layers` option lists layer names from inner to outer, separated by
+/// commas. This constructor appends the C binding's default retry and logging
+/// layers after the configured layers. In particular, `layers=retry` adds an
+/// inner retry layer beneath the default retry layer. Use
+/// opendal_operator_new_with_layers() with `layers` set to NULL to use only
+/// the configured layers in addition to OpenDAL's core layers.
 ///
 /// @param scheme the service scheme you want to specify, e.g. "fs", "s3"
 /// @param options the pointer to the options for this operator, it could be NULL, which means no
@@ -254,8 +260,18 @@ pub unsafe extern "C" fn opendal_operator_new(
 
 /// \brief Construct an operator based on scheme, options, and explicit layers.
 ///
-/// Unlike opendal_operator_new, this function will not add any default layer.
-/// Layers will be applied exactly as they were added to opendal_operator_layers.
+/// This constructor uses the same configuration options as
+/// opendal_operator_new(). It appends the layers in the C handle in insertion
+/// order, after any layers configured in `options`. Pass NULL for the C handle
+/// to keep only the configured layers and OpenDAL's core layers.
+///
+/// This constructor omits the C binding's default retry and logging layers.
+///
+/// @param scheme The service scheme.
+/// @param options The configuration options, or NULL to use defaults.
+/// @param layers The C layer handle, or NULL to append no explicit layers.
+/// @param op Output pointer receiving the newly allocated `opendal_operator *` on success, or NULL on failure.
+/// @return NULL if construction succeeds, or an `opendal_error *` on failure.
 ///
 /// # Safety
 ///

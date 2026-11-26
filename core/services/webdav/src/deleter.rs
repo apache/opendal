@@ -65,7 +65,7 @@ mod tests {
     use std::pin::pin;
     use std::sync::Mutex;
     use std::sync::mpsc::{self, Receiver, Sender};
-    use std::task::Context;
+    use std::task::{Context, Poll};
 
     use futures::channel::oneshot;
     use futures::stream;
@@ -199,19 +199,26 @@ mod tests {
             .unwrap();
         executor.advance();
 
-        let error = deleter.delete("unaccepted").await.unwrap_err();
-        assert_eq!(error.kind(), ErrorKind::PermissionDenied);
-        assert!(error.to_string().contains("path: failed"));
+        let mut cx = Context::from_waker(noop_waker_ref());
+        {
+            let mut delete = pin!(deleter.delete("unaccepted"));
+            let Poll::Ready(Err(error)) = delete.as_mut().poll(&mut cx) else {
+                panic!(
+                    "delete must surface the completed error without waiting for the pending task"
+                );
+            };
+            assert_eq!(error.kind(), ErrorKind::PermissionDenied);
+            assert!(error.to_string().contains("path: failed"));
+        }
         pending.send(StatusCode::NO_CONTENT).unwrap();
         let mut close = pin!(deleter.close());
-        let mut cx = Context::from_waker(noop_waker_ref());
         assert!(close.as_mut().poll(&mut cx).is_pending());
         executor.advance();
         response_for(&log, "/failed")
             .send(StatusCode::NO_CONTENT)
             .unwrap();
         executor.advance();
-        close.await?;
+        assert!(matches!(close.as_mut().poll(&mut cx), Poll::Ready(Ok(()))));
         assert!(log.try_recv().is_err());
         Ok(())
     }
@@ -237,9 +244,14 @@ mod tests {
         }
         second.send(StatusCode::FORBIDDEN).unwrap();
         executor.advance();
-        let error = deleter.close().await.unwrap_err();
-        assert_eq!(error.kind(), ErrorKind::PermissionDenied);
-        assert!(error.to_string().contains("path: first"));
+        {
+            let mut close = pin!(deleter.close());
+            let Poll::Ready(Err(error)) = close.as_mut().poll(&mut cx) else {
+                panic!("close must resume the original attempt and report its error");
+            };
+            assert_eq!(error.kind(), ErrorKind::PermissionDenied);
+            assert!(error.to_string().contains("path: first"));
+        }
 
         let mut retry = pin!(deleter.close());
         assert!(retry.as_mut().poll(&mut cx).is_pending());
@@ -251,7 +263,7 @@ mod tests {
             .send(StatusCode::NO_CONTENT)
             .unwrap();
         executor.advance();
-        retry.await?;
+        assert!(matches!(retry.as_mut().poll(&mut cx), Poll::Ready(Ok(()))));
         assert!(log.try_recv().is_err());
         Ok(())
     }

@@ -82,16 +82,16 @@ public final class CacheLayer extends Layer implements AutoCloseable {
         }
 
         /**
-         * Sets the aligned chunk size. The default is 1 MiB. The cache operator's maximum
-         * write size caps the effective chunk size.
+         * Sets the aligned chunk size. Zero restores the default of 1 MiB. The cache operator's
+         * advertised maximum total write size caps both the default and explicit sizes.
          *
-         * @param chunkSize the positive chunk size in bytes
+         * @param chunkSize the chunk size in bytes, or zero to restore the default
          * @return this builder
-         * @throws IllegalArgumentException if the chunk size is zero or negative
+         * @throws IllegalArgumentException if the chunk size is negative
          */
         public CacheLayerBuilder chunkSize(long chunkSize) {
-            if (chunkSize <= 0) {
-                throw new IllegalArgumentException("chunkSize must be positive");
+            if (chunkSize < 0) {
+                throw new IllegalArgumentException("chunkSize must be non-negative");
             }
             this.chunkSize = chunkSize;
             return this;
@@ -120,7 +120,8 @@ public final class CacheLayer extends Layer implements AutoCloseable {
          * @return a new cache layer
          * @throws IllegalStateException if the cache operator is closed
          * @throws OpenDALException with code {@link OpenDALException.Code#ConfigInvalid} if the
-         *     cache operator lacks read, write, or delete, or the chunk size exceeds the native size range
+         *     cache operator lacks read, write, or delete, the cache operator advertises a maximum
+         *     total write size of zero, or the chunk size exceeds the native size range
          */
         public CacheLayer build() {
             synchronized (cache) {

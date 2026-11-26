@@ -38,8 +38,8 @@ use opendal_core::*;
 /// data between two routed services. A batched delete routes each path
 /// independently.
 ///
-/// [`OperatorInfo::capability`] continues to describe the wrapped operator; it
-/// does not aggregate the capabilities of route targets.
+/// [`OperatorInfo::capability`] describes the wrapped operator. The
+/// read-checksum hint is advertised only if all route targets also support it.
 ///
 /// # Example
 ///
@@ -197,6 +197,12 @@ impl Service for RouteService {
 
     fn capability(&self) -> Capability {
         let mut capability = self.inner.capability();
+        capability.read_with_checksum = capability.read_with_checksum
+            && self
+                .router
+                .targets
+                .iter()
+                .all(|target| target.srv.capability().read_with_checksum);
         capability.write_can_copy_from = false;
         capability.compose = false;
         capability.compose_with_content_type = false;

@@ -574,6 +574,8 @@ impl From<OpDelete> for PresignOperation {
     }
 }
 
+const READ_CHECKSUM_ZERO_OFFSET: &[u8] = b"\x01";
+
 /// Arguments for `read` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpRead {
@@ -841,16 +843,43 @@ impl OpRead {
         string_value(&self.values, ReadField::Version as usize)
     }
 
-    /// Return whether to request full-file checksum metadata.
+    /// Return whether the caller requested full-file checksum metadata.
     pub fn checksum(&self) -> bool {
-        self.values.get(ReadField::Checksum as usize).is_some()
+        matches!(self.values.get(ReadField::Checksum as usize), Some([]))
+    }
+
+    /// Return whether to request full-file checksum metadata for this range.
+    ///
+    /// Services advertising [`Capability::read_with_checksum`] use this method
+    /// when opening each range, including when resuming a read.
+    pub fn checksum_for_range(&self, range: BytesRange) -> bool {
+        match self.values.get(ReadField::Checksum as usize) {
+            Some([]) => true,
+            Some(READ_CHECKSUM_ZERO_OFFSET) => {
+                matches!(range, BytesRange::Range { offset: 0, size } if size != Some(0))
+            }
+            _ => false,
+        }
     }
 
     /// Set or clear the hint to request full-file checksum metadata.
-    pub fn with_checksum(mut self, checksum: bool) -> Self {
-        if self.checksum() != checksum {
+    pub fn with_checksum(self, checksum: bool) -> Self {
+        self.with_checksum_value(checksum.then_some(b""))
+    }
+
+    /// Request full-file checksum metadata on nonempty forward reads at offset zero.
+    /// An existing caller hint keeps its original scope.
+    pub fn with_checksum_for_zero_offset(self) -> Self {
+        if self.checksum() {
+            return self;
+        }
+        self.with_checksum_value(Some(READ_CHECKSUM_ZERO_OFFSET))
+    }
+
+    fn with_checksum_value(mut self, value: Option<&[u8]>) -> Self {
+        if self.values.get(ReadField::Checksum as usize) != value {
             let mut fields = self.values.fields::<{ u16::BITS as usize }>();
-            fields[ReadField::Checksum as usize] = checksum.then_some(b"");
+            fields[ReadField::Checksum as usize] = value;
             self.values = CompactValues::encode(&fields);
         }
         self
@@ -1093,12 +1122,12 @@ impl OpStat {
 
     /// Return whether to request full-file checksum metadata.
     pub fn checksum(&self) -> bool {
-        self.values.get(ReadField::Checksum as usize).is_some()
+        matches!(self.values.get(ReadField::Checksum as usize), Some([]))
     }
 
     pub(crate) fn from_read(value: &OpRead) -> Self {
-        // `OpStat` uses the same `ReadField` layout and simply ignores the
-        // read-only content-length hint.
+        // `OpStat` shares the `ReadField` layout and ignores content-length
+        // hints and range-scoped checksum requests.
         Self {
             values: value.values.clone(),
         }
@@ -2391,6 +2420,11 @@ mod tests {
         assert!(read.checksum());
         assert!(!read.is_conditional());
         assert!(read.with_checksum(false).values.as_encoded().is_none());
+
+        let automatic = reader.with_checksum_for_zero_offset();
+        assert!(!OpStat::from_read(&automatic).checksum());
+        assert!(!automatic.checksum_for_range(BytesRange::new(0, Some(0))));
+        assert!(automatic.with_checksum(false).values.as_encoded().is_none());
     }
 
     #[test]

@@ -58,6 +58,7 @@ public struct Capability
         ReadWithOverrideContentType = native.readWithOverrideContentType != 0;
         ReadWithVersion = native.readWithVersion != 0;
         ReadWithSuffix = native.readWithSuffix != 0;
+        ReadWithChecksum = native.readWithChecksum != 0;
         Write = native.write != 0;
         WriteCanMulti = native.writeCanMulti != 0;
         WriteCanEmpty = native.writeCanEmpty != 0;
@@ -248,6 +249,11 @@ public struct Capability
     /// Indicates if suffix read operations are supported.
     /// </summary>
     public bool ReadWithSuffix { get; private set; }
+
+    /// <summary>
+    /// Indicates if the operator supports requesting stored full-file checksum metadata. Stat and read responses may include that metadata when requested.
+    /// </summary>
+    public bool ReadWithChecksum { get; private set; }
 
     /// <summary>
     /// Indicates if the operator supports write operations.

@@ -1263,6 +1263,7 @@ impl S3Builder {
             read_with_override_content_type: true,
             read_with_version: !is_s3_express,
             read_with_suffix: true,
+            read_with_checksum: read_checksum_mode,
 
             write: true,
             write_can_empty: true,
@@ -1378,7 +1379,6 @@ impl S3Builder {
                 server_side_encryption_customer_key_md5,
                 default_storage_class,
                 skip_signature: config.skip_signature,
-                read_checksum_mode,
                 disable_list_objects_v2: config.disable_list_objects_v2,
                 enable_request_payer: config.enable_request_payer,
                 signer_spec,
@@ -1427,7 +1427,7 @@ impl Service for S3Backend {
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let error_ctx = ErrorContext::new(ServiceOperation("HeadObject"))
             .with_caller_condition(args.is_conditional());
-        let checksum = args.checksum() && self.core.read_checksum_mode;
+        let checksum = args.checksum() && self.core.capability.read_with_checksum;
         let resp = self.core.s3_head_object(ctx, path, args).await?;
 
         let status = resp.status();
@@ -1787,6 +1787,23 @@ mod tests {
             op.read_with("object").checksum(true).await?.to_bytes(),
             "123456789"
         );
+        assert!(op.info().capability().read_with_checksum);
+
+        let (ctx, service) = op.into_parts();
+        let reader = service.read(
+            &ctx,
+            "object",
+            OpRead::new().with_checksum_for_zero_offset(),
+        )?;
+        for (range, expected, has_checksum) in [(0..9, "123456789", true), (2..5, "345", false)] {
+            let (response, buffer) = reader.read_dyn(range.into()).await?;
+            assert_eq!(buffer.to_bytes(), expected);
+            assert_eq!(
+                response.metadata().unwrap().checksum().is_some(),
+                has_checksum
+            );
+        }
+
         let preset = Operator::new(
             crate::Minio::default()
                 .endpoint("https://s3.us-west-2.amazonaws.com")
@@ -1797,6 +1814,7 @@ mod tests {
                 .disable_config_load(),
         )?
         .with_context(OperationContext::new().with_http_transport(transport));
+        assert!(!preset.info().capability().read_with_checksum);
         assert_eq!(
             preset.stat_with("object").checksum(true).await?.checksum(),
             None
@@ -1811,6 +1829,8 @@ mod tests {
                 (Method::GET, true),
                 (Method::GET, true),
                 (Method::GET, true),
+                (Method::GET, true),
+                (Method::GET, false),
                 (Method::HEAD, false),
             ]
         );
@@ -1826,7 +1846,12 @@ mod tests {
                 .disable_config_load()
                 .disable_ec2_metadata()
         };
-        assert!(builder().build_inner(S3_SCHEME)?.core.read_checksum_mode);
+        assert!(
+            builder()
+                .build_inner(S3_SCHEME)?
+                .capability()
+                .read_with_checksum
+        );
         for endpoint in [
             "s3.amazonaws.com",
             "https://s3.us-west-2.amazonaws.com",
@@ -1837,8 +1862,8 @@ mod tests {
                 .endpoint(endpoint)
                 .enable_virtual_host_style()
                 .build_inner(S3_SCHEME)?;
-            assert!(path_style.core.read_checksum_mode);
-            assert!(virtual_style.core.read_checksum_mode);
+            assert!(path_style.capability().read_with_checksum);
+            assert!(virtual_style.capability().read_with_checksum);
         }
         for endpoint in [
             "https://s3.us-west-2.amazonaws.com.example.test",
@@ -1848,14 +1873,14 @@ mod tests {
             "http://s3.us-west-2.amazonaws.com",
         ] {
             let backend = builder().endpoint(endpoint).build_inner(S3_SCHEME)?;
-            assert!(!backend.core.read_checksum_mode);
+            assert!(!backend.capability().read_with_checksum);
         }
         let anonymous = builder().skip_signature().build_inner(S3_SCHEME)?;
         let express = builder()
             .bucket("example--usw2-az1--x-s3")
             .build_inner(S3_SCHEME)?;
-        assert!(!anonymous.core.read_checksum_mode);
-        assert!(!express.core.read_checksum_mode);
+        assert!(!anonymous.capability().read_with_checksum);
+        assert!(!express.capability().read_with_checksum);
         Ok(())
     }
 

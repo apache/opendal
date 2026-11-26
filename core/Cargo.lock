@@ -7398,6 +7398,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-layer-checksum"
+version = "0.59.5"
+dependencies = [
+ "crc-fast",
+ "futures",
+ "md-5 0.11.0",
+ "opendal-core",
+ "opendal-executor-tokio",
+ "opendal-layer-retry",
+ "opendal-layer-route",
+ "sha2 0.11.0",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-layer-concurrent-limit"
 version = "0.59.5"
 dependencies = [

@@ -343,9 +343,8 @@ fn parse_capability_literal(
                     loc(rel_path, fv.span())
                 );
             }
-            // S3 provider presets share its Capability literal, but only the S3 scheme
-            // enables per-write checksums at runtime.
-            let s3_only = matches!(strip_parens(&fv.expr), Expr::Path(path) if path.path.is_ident("s3_can_checksum"));
+            // S3 presets share this literal, but these capabilities require the S3 scheme.
+            let s3_only = matches!(strip_parens(&fv.expr), Expr::Path(path) if path.path.is_ident("read_checksum_mode") || path.path.is_ident("s3_can_checksum"));
             if s3_only && name != "s3" {
                 continue;
             }
@@ -702,6 +701,12 @@ fn describe_bool_condition(expr: &Expr, rel_path: &str) -> Result<String> {
                 }
                 if ident == "s3_write_can_multi" {
                     return Ok("When `checksum_algorithm` is not `md5`".to_string());
+                }
+                if ident == "read_checksum_mode" {
+                    return Ok(
+                        "Signed requests to standard AWS S3 endpoints for general-purpose buckets"
+                            .to_string(),
+                    );
                 }
                 if ident == "s3_can_checksum" {
                     return Ok("Standard S3 buckets (not S3 Express One Zone)".to_string());
@@ -1124,6 +1129,10 @@ mod tests {
 
         let s3 = out.services.iter().find(|s| s.scheme == "s3").unwrap();
         assert_eq!(s3.native.get("read"), Some(&NativeBoolDoc::Supported(true)));
+        assert!(matches!(
+            s3.native.get("read_with_checksum"),
+            Some(NativeBoolDoc::Conditional(_))
+        ));
         assert_eq!(
             s3.native.get("stat_with_version"),
             Some(&NativeBoolDoc::Conditional(
@@ -1143,6 +1152,7 @@ mod tests {
             ))
         );
         let minio = out.services.iter().find(|s| s.scheme == "minio").unwrap();
+        assert!(!minio.native.contains_key("read_with_checksum"));
         assert!(!minio.native.contains_key("write_with_checksum"));
         assert!(!s3.native.contains_key("create_dir"));
         assert_eq!(

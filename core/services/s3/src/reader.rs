@@ -62,8 +62,8 @@ impl oio::StreamRead for S3Reader {
             .await?;
 
         let status = resp.status();
-        let checksum = args.checksum()
-            && backend.core.read_checksum_mode
+        let checksum = args.checksum_for_range(range)
+            && backend.core.capability.read_with_checksum
             && (status == StatusCode::OK
                 || resp.headers().contains_key(http::header::CONTENT_RANGE));
         let (rp, stream) = match status {

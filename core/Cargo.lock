@@ -7406,6 +7406,7 @@ dependencies = [
  "md-5 0.11.0",
  "opendal-core",
  "opendal-executor-tokio",
+ "opendal-layer-capability-check",
  "opendal-layer-retry",
  "opendal-layer-route",
  "sha2 0.11.0",

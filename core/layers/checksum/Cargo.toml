@@ -37,6 +37,7 @@ sha2 = { workspace = true }
 [dev-dependencies]
 futures = { workspace = true }
 opendal-executor-tokio = { path = "../../executors/tokio", version = "0.59.5" }
+opendal-layer-capability-check = { path = "../capability-check", version = "0.59.5" }
 opendal-layer-retry = { path = "../retry", version = "0.59.5" }
 opendal-layer-route = { path = "../route", version = "0.59.5" }
 tokio = { workspace = true, features = ["macros", "rt"] }

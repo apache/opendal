@@ -17,20 +17,26 @@
 
 #![deny(missing_docs)]
 
-//! Verify stored full-object checksums during reads.
+//! Request native write checksums and verify stored full-object checksums during reads.
 
 mod reader;
 
 use std::sync::Arc;
 
 use opendal_core::raw::*;
-use opendal_core::{Capability, OperationContext, Result};
+use opendal_core::{Capability, Error, ErrorKind, OperationContext, Result, WriteChecksumPolicy};
 
 use crate::reader::ChecksumReader;
 
-/// Verify a stored checksum when a single read response covers the whole object.
+/// Request native write checksums and verify stored full-object checksums during reads.
 ///
-/// Verification is enabled by default. Whole-object reads without a supported
+/// By default the layer requests [`WriteChecksumPolicy::Fast`] on writes without
+/// an explicit checksum. In best-effort mode, the layer uses the original write
+/// arguments if validation or writer selection rejects the policy as unsupported.
+/// Explicit checksums take precedence. The layer uses streaming `Writer::copy_from`
+/// when a write policy is configured and the inner service advertises write checksums.
+///
+/// Read verification is enabled by default. Whole-object reads without a supported
 /// checksum succeed unless [`require_read`](Self::require_read) is enabled. A
 /// mismatch returns a permanent [`ChecksumMismatch`](opendal_core::ErrorKind::ChecksumMismatch).
 /// When the response reports the object length, the layer checks the digest
@@ -52,6 +58,8 @@ use crate::reader::ChecksumReader;
 /// cache returns. Inside a cache layer, verification applies to origin reads.
 #[derive(Clone, Debug)]
 pub struct ChecksumLayer {
+    write: Option<WriteChecksumPolicy>,
+    require_write: bool,
     verify_read: bool,
     require_read: bool,
 }
@@ -59,6 +67,8 @@ pub struct ChecksumLayer {
 impl Default for ChecksumLayer {
     fn default() -> Self {
         Self {
+            write: Some(WriteChecksumPolicy::Fast),
+            require_write: false,
             verify_read: true,
             require_read: false,
         }
@@ -66,9 +76,27 @@ impl Default for ChecksumLayer {
 }
 
 impl ChecksumLayer {
-    /// Create a layer with best-effort read verification enabled.
+    /// Create a layer with best-effort checksums on writes and verification on reads.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set the checksum policy for writes without an explicit checksum.
+    ///
+    /// Pass `None` to disable injection and the requirement configured by
+    /// [`Self::require_write`].
+    pub fn write(mut self, policy: impl Into<Option<WriteChecksumPolicy>>) -> Self {
+        self.write = policy.into();
+        self
+    }
+
+    /// Require support for the configured write checksum policy.
+    ///
+    /// When the policy is active, writes using it return
+    /// [`Unsupported`](ErrorKind::Unsupported) if the service cannot apply it.
+    pub fn require_write(mut self, required: bool) -> Self {
+        self.require_write = required;
+        self
     }
 
     /// Enable or disable read verification.
@@ -92,12 +120,12 @@ impl ChecksumLayer {
 
 impl Layer for ChecksumLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        if !self.verify_read {
+        if self.write.is_none() && !self.verify_read {
             return inner;
         }
         Arc::new(ChecksumService {
             inner,
-            require_read: self.require_read,
+            layer: self.clone(),
         })
     }
 }
@@ -105,7 +133,7 @@ impl Layer for ChecksumLayer {
 #[derive(Debug)]
 struct ChecksumService {
     inner: Servicer,
-    require_read: bool,
+    layer: ChecksumLayer,
 }
 
 impl Service for ChecksumService {
@@ -121,7 +149,12 @@ impl Service for ChecksumService {
     }
 
     fn capability(&self) -> Capability {
-        self.inner.capability()
+        let mut capability = self.inner.capability();
+        if self.layer.write.is_some() && capability.write_with_checksum {
+            // The public writer selects copy dispatch before this layer injects its policy.
+            capability.write_can_copy_from = false;
+        }
+        capability
     }
 
     async fn create_dir(
@@ -138,17 +171,47 @@ impl Service for ChecksumService {
     }
 
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
-        let args = if self.inner.capability().read_with_checksum {
+        let args = if self.layer.verify_read && self.inner.capability().read_with_checksum {
             args.with_checksum_for_zero_offset()
         } else {
             args
         };
         let inner = self.inner.read(ctx, path, args)?;
-        Ok(ChecksumReader::new(inner, self.require_read))
+        Ok(ChecksumReader::new(
+            inner,
+            self.layer.verify_read,
+            self.layer.require_read,
+        ))
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        self.inner.write(ctx, path, args)
+        let (Some(policy), None) = (self.layer.write, args.checksum()) else {
+            return self.inner.write(ctx, path, args);
+        };
+
+        let capability = self.inner.capability();
+        if !capability.write_with_checksum {
+            if self.layer.require_write {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "write checksum policy requires native write checksum support",
+                )
+                .with_operation(Operation::Write));
+            }
+            return self.inner.write(ctx, path, args);
+        }
+
+        let result = args
+            .clone()
+            .with_checksum(policy.into(), &capability)
+            .and_then(|injected| self.inner.write(ctx, path, injected));
+        // The synchronous factory validates and selects a writer before any I/O.
+        match result {
+            Err(err) if err.kind() == ErrorKind::Unsupported && !self.layer.require_write => {
+                self.inner.write(ctx, path, args)
+            }
+            result => result,
+        }
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {

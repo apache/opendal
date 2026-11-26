@@ -360,9 +360,13 @@ impl OpList {
     ///
     /// # Errors
     ///
-    /// Returns [`ErrorKind::Unsupported`] if `start_after`, `versions`,
-    /// `deleted`, or `glob` is set without the matching capability flag.
+    /// Returns [`ErrorKind::Unsupported`] if `recursive`, `start_after`,
+    /// `versions`, `deleted`, or `glob` is set without the matching capability
+    /// flag.
     pub fn check(&self, capability: &Capability) -> Result<()> {
+        if self.recursive() && !capability.list_with_recursive {
+            return Err(new_unsupported_error(Operation::List, "recursive"));
+        }
         if self.start_after().is_some() && !capability.list_with_start_after {
             return Err(new_unsupported_error(Operation::List, "start_after"));
         }

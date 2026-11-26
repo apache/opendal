@@ -562,16 +562,16 @@ async fn test_list() {
         list: true,
         ..Default::default()
     });
-    for recursive in [false, true] {
-        let err = op
-            .list_with("path/")
-            .recursive(recursive)
-            .start_after("path/key")
-            .await
-            .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-        assert!(err.message().contains("start_after"));
-    }
+    let err = op.list_with("path/").recursive(true).await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Unsupported);
+    assert!(err.message().contains("recursive"));
+    let err = op
+        .list_with("path/")
+        .start_after("path/key")
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Unsupported);
+    assert!(err.message().contains("start_after"));
     let err = op.list_with("path/").versions(true).await.unwrap_err();
     assert_eq!(err.kind(), ErrorKind::Unsupported);
     assert!(err.message().contains("versions"));
@@ -583,6 +583,7 @@ async fn test_list() {
     assert!(err.message().contains("glob"));
     assert!(
         op.list_with("path/")
+            .recursive(false)
             .versions(false)
             .deleted(false)
             .await
@@ -591,26 +592,40 @@ async fn test_list() {
 
     let op = new_test_operator(Capability {
         list: true,
+        list_with_recursive: true,
+        ..Default::default()
+    });
+    let err = op
+        .list_with("path/")
+        .recursive(true)
+        .start_after("path/key")
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Unsupported);
+    assert!(err.message().contains("start_after"));
+
+    let op = new_test_operator(Capability {
+        list: true,
+        list_with_recursive: true,
         list_with_start_after: true,
         list_with_versions: true,
         list_with_deleted: true,
         ..Default::default()
     });
+    assert!(op.list_with("path/").recursive(true).await.is_ok());
     assert!(op.list_with("path/").start_after("path/key").await.is_ok());
     assert!(op.list_with("path/").versions(true).await.is_ok());
     assert!(op.list_with("path/").deleted(true).await.is_ok());
 }
 
-/// `limit` is a backend hint and `recursive` is simulated by `SimulateLayer`,
-/// so neither is gated on a capability.
+/// `limit` is a backend hint, so it is not gated on a capability.
 #[tokio::test]
-async fn test_list_limit_and_recursive_need_no_capability() {
+async fn test_list_limit_needs_no_capability() {
     let op = new_test_operator(Capability {
         list: true,
         ..Default::default()
     });
     assert!(op.list_with("path/").limit(1).await.is_ok());
-    assert!(op.list_with("path/").recursive(true).await.is_ok());
 }
 
 #[tokio::test]

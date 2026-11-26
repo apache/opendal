@@ -22,7 +22,12 @@ package org.apache.opendal.test;
 import static org.assertj.core.api.Assertions.assertThat;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.opendal.AsyncExecutor;
 import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.Operator;
@@ -57,6 +62,45 @@ public class HttpTransportTest {
             }
         } finally {
             server.stop(0);
+        }
+    }
+
+    @Test
+    void testConfiguredHttpTransportWithExplicitExecutor() throws Exception {
+        final byte[] content = "Hello from the proxy!".getBytes(StandardCharsets.UTF_8);
+        final AtomicReference<URI> requestTarget = new AtomicReference<>();
+        final HttpServer proxy = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        proxy.createContext("/", exchange -> {
+            try {
+                requestTarget.set(exchange.getRequestURI());
+                exchange.sendResponseHeaders(200, content.length);
+                exchange.getResponseBody().write(content);
+            } finally {
+                exchange.close();
+            }
+        });
+        proxy.start();
+        try {
+            final String endpoint = "http://127.0.0.1:1";
+            final Map<String, String> config = new HashMap<>();
+            config.put("endpoint", endpoint);
+            config.put(
+                    "context.http.proxy",
+                    "http://127.0.0.1:" + proxy.getAddress().getPort());
+            config.put("layers", "tracing,concurrent_limit,timeout");
+            config.put("layer.concurrent_limit.permits", "2");
+            // Replaying on the composed context would make the HTTP call acquire this permit twice.
+            config.put("layer.concurrent_limit.http_permits", "1");
+            // Bound the native task as well as the test's wait for completion.
+            config.put("layer.timeout.io_timeout", "5s");
+            try (final AsyncExecutor executor = AsyncExecutor.createTokioExecutor(1);
+                    final AsyncOperator async = AsyncOperator.of("http", config, executor)) {
+                assertThat(async.read("context-replay.txt").get(10, TimeUnit.SECONDS))
+                        .isEqualTo(content);
+                assertThat(requestTarget.get()).isEqualTo(URI.create(endpoint + "/context-replay.txt"));
+            }
+        } finally {
+            proxy.stop(0);
         }
     }
 }

@@ -38,6 +38,7 @@ pub struct Operator {
 impl Operator {
     #[frb(sync)]
     pub fn new(scheme: String, map: HashMap<String, String>) -> Operator {
+        od::install_default();
         let async_op = od::Operator::via_iter(scheme, map).unwrap();
         let handle = RUNTIME.handle();
         let _enter = handle.enter();

@@ -2071,7 +2071,24 @@ impl Operator {
     // Keep this async to preserve the public API.
     #[allow(clippy::unused_async)]
     pub async fn deleter(&self) -> Result<Deleter> {
-        Deleter::create(self.context().clone(), self.service().clone())
+        self.deleter_options(options::DeleterOptions::default())
+            .await
+    }
+
+    /// Create a [`Deleter`] with extra options.
+    ///
+    /// Refer to [`Self::deleter_with`] and [`options::DeleterOptions`] for
+    /// details on each option.
+    // Keep this async to match the other `*_options` methods.
+    #[allow(clippy::unused_async)]
+    pub async fn deleter_options(&self, opts: options::DeleterOptions) -> Result<Deleter> {
+        Self::deleter_inner(
+            self.context().clone(),
+            self.service().clone(),
+            String::new(),
+            opts,
+        )
+        .await
     }
 
     /// Create a [`Deleter`] with a configurable concurrency limit.
@@ -2102,7 +2119,7 @@ impl Operator {
             self.context().clone(),
             self.service().clone(),
             String::new(),
-            1,
+            options::DeleterOptions::default(),
             Self::deleter_inner,
         )
     }
@@ -2113,9 +2130,9 @@ impl Operator {
         ctx: OperationContext,
         srv: Servicer,
         _path: String,
-        concurrent: usize,
+        opts: options::DeleterOptions,
     ) -> Result<Deleter> {
-        Deleter::create_with(ctx, srv, concurrent)
+        Deleter::create_with(ctx, srv, opts.concurrent.max(1))
     }
 
     /// Recursively delete entries at the given path.

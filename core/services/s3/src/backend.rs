@@ -1707,18 +1707,23 @@ mod tests {
             let mut response = Response::builder()
                 .header(constants::X_AMZ_CHECKSUM_TYPE, "FULL_OBJECT")
                 .header("x-amz-checksum-crc32c", "4waSgw==");
-            let (payload, length): (&'static [u8], _) = match *request.method() {
-                Method::HEAD => (b"", 9),
-                Method::GET if request.headers().contains_key(http::header::RANGE) => {
-                    assert_eq!(request.headers()[http::header::RANGE], "bytes=2-4");
-                    response = response
-                        .status(StatusCode::PARTIAL_CONTENT)
-                        .header(http::header::CONTENT_RANGE, "bytes 2-4/9");
-                    (b"345", 3)
-                }
-                Method::GET => (b"123456789", 9),
-                _ => panic!("unexpected request"),
-            };
+            let range = request
+                .headers()
+                .get(http::header::RANGE)
+                .map(|v| v.to_str().unwrap());
+            let (payload, length, content_range): (&'static [u8], _, _) =
+                match (request.method(), range) {
+                    (&Method::HEAD, None) => (b"", 9, None),
+                    (&Method::GET, None) => (b"123456789", 9, None),
+                    (&Method::GET, Some("bytes=2-4")) => (b"345", 3, Some("bytes 2-4/9")),
+                    (&Method::GET, Some("bytes=0-8")) => (b"123456789", 9, Some("bytes 0-8/9")),
+                    _ => panic!("unexpected request"),
+                };
+            if let Some(content_range) = content_range {
+                response = response
+                    .status(StatusCode::PARTIAL_CONTENT)
+                    .header(http::header::CONTENT_RANGE, content_range);
+            }
             let body = Buffer::from(Bytes::from_static(payload));
             Ok(response
                 .header(http::header::CONTENT_LENGTH, length)
@@ -1758,11 +1763,16 @@ mod tests {
             assert_eq!(reader.metadata().unwrap().checksum(), expected);
         }
 
-        let reader = op.reader_with("object").checksum(true).await?;
-        assert_eq!(reader.read(2..5).await?.to_bytes(), "345");
-        let metadata = reader.metadata().unwrap();
-        assert_eq!(metadata.content_length(), 9);
-        assert_eq!(metadata.checksum(), None);
+        for (range, bytes, checksum) in [
+            (2..5, "345", None),
+            (0..9, "123456789", Some(full_checksum)),
+        ] {
+            let reader = op.reader_with("object").checksum(true).await?;
+            assert_eq!(reader.read(range).await?.to_bytes(), bytes);
+            let metadata = reader.metadata().unwrap();
+            assert_eq!(metadata.content_length(), 9);
+            assert_eq!(metadata.checksum(), checksum);
+        }
         assert_eq!(
             op.read_with("object").checksum(true).await?.to_bytes(),
             "123456789"
@@ -1787,6 +1797,7 @@ mod tests {
                 (Method::HEAD, false),
                 (Method::GET, false),
                 (Method::HEAD, true),
+                (Method::GET, true),
                 (Method::GET, true),
                 (Method::GET, true),
                 (Method::GET, true),

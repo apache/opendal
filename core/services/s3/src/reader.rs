@@ -64,8 +64,8 @@ impl oio::StreamRead for S3Reader {
         let status = resp.status();
         let checksum = args.checksum()
             && backend.core.read_checksum_mode
-            && status == StatusCode::OK
-            && !resp.headers().contains_key(http::header::CONTENT_RANGE);
+            && (status == StatusCode::OK
+                || resp.headers().contains_key(http::header::CONTENT_RANGE));
         let (rp, stream) = match status {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
                 RpRead::new(parse_into_s3_metadata(path, resp.headers(), checksum)?),
@@ -98,7 +98,16 @@ pub(super) fn parse_into_s3_metadata(
         meta.version(v);
     }
     if checksum_requested && let Some(checksum) = parse_s3_read_checksum(headers) {
-        meta.checksum(checksum);
+        // A 206 response can describe the entire object when the requested
+        // range spans all of its bytes.
+        let whole_object = parse_content_range(headers)?.is_none_or(|range| {
+            range
+                .size()
+                .is_some_and(|size| range.range() == Some(0..size))
+        });
+        if whole_object {
+            meta.checksum(checksum);
+        }
     }
     Ok(meta.build())
 }

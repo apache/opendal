@@ -26,8 +26,9 @@ its metadata through [`opendal_core::Reader::metadata`].
 [`opendal_core::Operator::read_with`] returns the bytes.
 
 OpenDAL exposes full-object CRC-64/NVME, CRC-32C, and SHA-256 checksums when S3
-returns them. Composite checksums and partial-content responses do not populate
-[`opendal_core::Metadata::checksum`]. OpenDAL omits checksum mode by default
+returns them. A ranged read can expose a checksum when the response covers the
+whole object. Composite checksums and responses that cover only part of the
+object leave [`opendal_core::Metadata::checksum`] empty. OpenDAL omits checksum mode by default
 and for presigned requests, anonymous access, directory buckets, and
 S3-compatible endpoints and presets.
 

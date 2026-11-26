@@ -4154,6 +4154,10 @@ mod tests {
             (false, WriteChecksum::Algo(ChecksumAlgo::Sha256)),
             (
                 false,
+                WriteChecksum::Expected(Checksum::new(ChecksumAlgo::Sha256, [0; 32])),
+            ),
+            (
+                false,
                 WriteChecksum::Expected(Checksum::new(ChecksumAlgo::Md5, [0; 16])),
             ),
         ] {

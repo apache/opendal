@@ -33,7 +33,8 @@ runs:
         OPENDAL_S3_SECRET_ACCESS_KEY: op://services/s3/secret_access_key
         OPENDAL_S3_REGION: op://services/s3/region
 
-    - name: Add capability overrides
+    - name: Configure behavior tests
       shell: bash
       run: |
         echo "OPENDAL_TEST_CAPABILITY_OVERRIDES=write_can_append=false" >> $GITHUB_ENV
+        echo "OPENDAL_TEST_AWS_S3_CHECKSUMS=true" >> $GITHUB_ENV

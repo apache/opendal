@@ -17,7 +17,7 @@
 
 use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{Context, Result, ensure};
 use futures::TryStreamExt;
 use opendal::layers::CapabilityOverrideLayer;
 
@@ -44,6 +44,16 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ));
         if cap.delete_with_recursive {
             tests.extend(async_trials!(op, test_delete_with_recursive_basic));
+            if op.info().scheme() == "gcs"
+                && cap.list_with_recursive
+                && cap.read_with_version
+                && cap.delete_with_version
+            {
+                tests.extend(async_trials!(
+                    op,
+                    test_delete_with_recursive_preserves_versions
+                ));
+            }
         }
         if cap.list_with_recursive {
             tests.extend(async_trials!(op, test_remove_all_basic));
@@ -500,6 +510,67 @@ pub async fn test_delete_with_recursive_basic(op: Operator) -> Result<()> {
     }
 
     Ok(())
+}
+
+pub async fn test_delete_with_recursive_preserves_versions(op: Operator) -> Result<()> {
+    let prefix = format!("delete_recursive_versions_{}/", uuid::Uuid::new_v4());
+    let path = format!("{prefix}nested/file.txt");
+    let older_bytes = "older version";
+    let live_bytes = "version live before recursive delete";
+    let mut versions = Vec::new();
+
+    let checks = async {
+        for payload in [older_bytes, live_bytes] {
+            let metadata = op.write(&path, payload).await?;
+            versions.push(
+                metadata
+                    .version()
+                    .context("the GCS fixture must return upload generations")?
+                    .to_owned(),
+            );
+        }
+        let [older, live] = versions.as_slice() else {
+            unreachable!("two uploads succeeded");
+        };
+        ensure!(older != live, "uploads must have distinct generations");
+        ensure!(
+            op.stat(&path).await?.version() == Some(live.as_str()),
+            "the second upload must be live before deletion"
+        );
+        let older_before = op
+            .read_with(&path)
+            .version(older)
+            .await
+            .context("the GCS fixture must retain older generations after overwrite")?;
+        ensure!(older_before.to_bytes() == older_bytes, "older bytes differ");
+
+        op.delete_with(&prefix).recursive(true).await?;
+        ensure!(
+            op.list_with(&prefix).recursive(true).await?.is_empty(),
+            "ordinary listing must be empty after recursive deletion"
+        );
+        ensure!(!op.exists(&path).await?, "the live path must be absent");
+        for (version, expected) in [(older, older_bytes), (live, live_bytes)] {
+            let body = op
+                .read_with(&path)
+                .version(version)
+                .await
+                .with_context(|| format!("generation {version} must remain readable"))?;
+            ensure!(
+                body.to_bytes() == expected,
+                "generation {version} changed bytes"
+            );
+        }
+        Ok(())
+    }
+    .await;
+
+    let mut cleanup = Ok(());
+    for version in versions {
+        let result = op.delete_with(&path).version(&version).await;
+        cleanup = cleanup.and(result);
+    }
+    checks.and(cleanup.context("cleaning up the test generations"))
 }
 
 pub async fn test_batch_delete(op: Operator) -> Result<()> {

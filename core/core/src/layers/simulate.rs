@@ -311,14 +311,9 @@ impl SimulateService {
         )?;
 
         while let Some(entry) = lister.next().await? {
-            let entry = entry.into_entry();
-            let mut entry_args = non_recursive.clone();
-            if entry_args.version().is_none()
-                && let Some(version) = entry.metadata().version()
-            {
-                entry_args = entry_args.into_version(version);
-            }
-            deleter.delete(entry.path(), entry_args).await?;
+            deleter
+                .delete(entry.into_entry().path(), non_recursive.clone())
+                .await?;
         }
 
         Ok(())
@@ -2751,7 +2746,7 @@ mod tests {
 
     #[tokio::test]
     async fn simulate_delete_recursive_capability_and_version_handling() -> Result<()> {
-        type DeletedRecords = Arc<Mutex<Vec<(String, Option<String>)>>>;
+        type DeletedRecords = Arc<Mutex<Vec<(String, OpDelete)>>>;
 
         struct VersionedListAndDelete {
             capability: Capability,
@@ -2776,7 +2771,7 @@ mod tests {
                 self.deleted
                     .lock()
                     .expect("mutex must not poison")
-                    .push((path.to_string(), args.version().map(str::to_owned)));
+                    .push((path.to_string(), args));
                 Ok(())
             }
 
@@ -2912,7 +2907,6 @@ mod tests {
             .layer(SimulateLayer::default().with_list_recursive(false));
         assert!(op.info().capability().delete_with_recursive);
 
-        // Use the listed version unless the caller supplied one.
         let deleted = Arc::new(Mutex::new(Vec::new()));
         let srv = Arc::new(VersionedListAndDelete {
             capability: Capability {
@@ -2921,6 +2915,7 @@ mod tests {
                 delete: true,
                 delete_with_recursive: false,
                 delete_with_version: true,
+                delete_with_if_match: true,
                 ..Default::default()
             },
             entries: vec![versioned_entry],
@@ -2930,13 +2925,55 @@ mod tests {
         op.delete_with("dir/").recursive(true).await?;
         op.delete_with("dir/")
             .recursive(true)
+            .if_match("etag")
+            .await?;
+        op.delete_with("dir/")
+            .recursive(true)
+            .version("explicit-v")
+            .if_match("etag")
+            .await?;
+        let entry = op.list("dir/").await?.pop().expect("listed entry");
+        let mut deleter = op.deleter().await?;
+        deleter.delete(entry).await?;
+        deleter.close().await?;
+
+        let native = Arc::new(VersionedListAndDelete {
+            capability: Capability {
+                delete: true,
+                delete_with_recursive: true,
+                delete_with_version: true,
+                ..Default::default()
+            },
+            entries: Vec::new(),
+            deleted: deleted.clone(),
+        }) as Servicer;
+        let op =
+            Operator::from_parts(OperationContext::new(), native).layer(SimulateLayer::default());
+        op.delete_with("dir/")
+            .recursive(true)
             .version("explicit-v")
             .await?;
+
+        let deleted = deleted.lock().expect("mutex must not poison");
+        let observed: Vec<_> = deleted
+            .iter()
+            .map(|(path, args)| {
+                (
+                    path.as_str(),
+                    args.recursive(),
+                    args.version(),
+                    args.if_match(),
+                )
+            })
+            .collect();
         assert_eq!(
-            *deleted.lock().expect("mutex must not poison"),
-            vec![
-                ("dir/a".to_string(), Some("g1".to_string())),
-                ("dir/a".to_string(), Some("explicit-v".to_string())),
+            observed,
+            [
+                ("dir/a", false, None, None),
+                ("dir/a", false, None, Some("etag")),
+                ("dir/a", false, Some("explicit-v"), Some("etag")),
+                ("dir/a", false, Some("g1"), None),
+                ("dir/", true, Some("explicit-v"), None),
             ]
         );
 

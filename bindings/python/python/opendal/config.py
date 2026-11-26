@@ -60,6 +60,8 @@ class AkamaiConfig(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style bucket addressing."""
     endpoint: Required[str]
@@ -223,6 +225,8 @@ class B2S3Config(TypedDict):
     """Backblaze application key ID (`keyID`)."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style addressing."""
     endpoint: NotRequired[str]
@@ -253,6 +257,8 @@ class CephRgwConfig(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style addressing when the gateway has a matching `rgw_dns_name` or zonegroup hostname."""
     endpoint: Required[str]
@@ -297,6 +303,8 @@ class CosS3Config(TypedDict):
     """Tencent Cloud `SecretId`."""
     bucket: Required[str]
     """Full COS bucket name including the numeric `APPID` suffix."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     endpoint: NotRequired[str]
     """HTTP(S) base endpoint override."""
     region: Required[str]
@@ -344,6 +352,8 @@ class ExoscaleConfig(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style bucket addressing."""
     endpoint: NotRequired[str]
@@ -416,6 +426,8 @@ class GarageConfig(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style addressing when the cluster has a matching `root_domain`."""
     endpoint: Required[str]
@@ -501,6 +513,8 @@ class GcsS3Config(TypedDict):
     """Cloud Storage HMAC access ID."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style addressing for DNS-compatible buckets without dots."""
     endpoint: NotRequired[str]
@@ -603,6 +617,8 @@ class HetznerConfig(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style bucket addressing."""
     endpoint: NotRequired[str]
@@ -668,6 +684,8 @@ class IbmCosConfig(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style bucket addressing."""
     endpoint: Required[str]
@@ -689,6 +707,8 @@ class IdriveE2Config(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     endpoint: Required[str]
     """Endpoint Access URL associated with the IDrive e2 access key."""
     region: NotRequired[str]
@@ -708,6 +728,8 @@ class IonosConfig(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     endpoint: NotRequired[str]
     """Explicit HTTP(S) S3 base endpoint. By default, OpenDAL selects the endpoint from the bucket’s region."""
     region: Required[str]
@@ -764,6 +786,8 @@ class LakefsS3Config(TypedDict):
     """lakeFS access key ID."""
     bucket: Required[str]
     """lakeFS repository name as exposed by the S3 Gateway."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style addressing when the gateway is configured for it."""
     endpoint: Required[str]
@@ -832,6 +856,8 @@ class MinioConfig(TypedDict):
     """Access key ID.  Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name.  This field is required."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  When enabled, signing requires both `access_key_id` and `secret_access_key`."""
     endpoint: Required[str]
     """MinIO endpoint.  This field is required because MinIO deployments do not share a universal endpoint."""
     region: NotRequired[str]
@@ -908,6 +934,8 @@ class NeonConfig(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     endpoint: Required[str]
     """HTTPS S3 endpoint of the Neon branch, or an HTTP(S) custom endpoint."""
     region: NotRequired[str]
@@ -952,6 +980,8 @@ class ObsS3Config(TypedDict):
     """Huawei Cloud access key ID (AK)."""
     bucket: Required[str]
     """OBS bucket name as a single lowercase DNS label."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     endpoint: NotRequired[str]
     """HTTP(S) base endpoint override. OpenDAL prepends the bucket to the host."""
     region: Required[str]
@@ -973,6 +1003,8 @@ class OciConfig(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     endpoint: NotRequired[str]
     """Explicit HTTP(S) base endpoint. The default is `https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com`."""
     namespace: NotRequired[str]
@@ -1066,6 +1098,8 @@ class OssS3Config(TypedDict):
     """Alibaba Cloud RAM AccessKey ID."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     endpoint: NotRequired[str]
     """HTTP(S) base endpoint override."""
     region: Required[str]
@@ -1087,6 +1121,8 @@ class OvhcloudConfig(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style bucket addressing."""
     endpoint: NotRequired[str]
@@ -1138,6 +1174,8 @@ class QingstorConfig(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style bucket addressing."""
     endpoint: NotRequired[str]
@@ -1161,6 +1199,8 @@ class R2Config(TypedDict):
     """Cloudflare account ID used to derive the R2 endpoint.  Set exactly one of `account_id` and `endpoint`."""
     bucket: Required[str]
     """Bucket name.  This field is required."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     endpoint: NotRequired[str]
     """Explicit R2-compatible endpoint.  Use this field for a proxy, gateway, or test server. Set exactly one of `endpoint` and `account_id`."""
     jurisdiction: NotRequired[str]
@@ -1220,6 +1260,8 @@ class RustfsConfig(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style addressing when the deployment has a matching `RUSTFS_SERVER_DOMAINS`."""
     endpoint: Required[str]
@@ -1330,6 +1372,8 @@ class ScalewayConfig(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style bucket addressing."""
     endpoint: NotRequired[str]
@@ -1368,6 +1412,8 @@ class SeaweedfsConfig(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style addressing when the gateway has a matching `domainName`."""
     endpoint: Required[str]
@@ -1429,6 +1475,8 @@ class SpacesConfig(TypedDict):
     """Bucket name."""
     datacenter: NotRequired[str]
     """Spaces datacenter slug. Required unless `endpoint` is set."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style bucket addressing."""
     endpoint: NotRequired[str]
@@ -1467,6 +1515,8 @@ class StorjConfig(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     endpoint: Required[str]
     """HTTPS gateway URL issued with the S3 key pair for the access grant."""
     region: NotRequired[str]
@@ -1486,6 +1536,8 @@ class SupabaseConfig(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     endpoint: NotRequired[str]
     """Explicit HTTP(S) base endpoint. The default is `https://<project_ref>.storage.supabase.co/storage/v1/s3`."""
     project_ref: NotRequired[str]
@@ -1528,6 +1580,8 @@ class SwiftS3apiConfig(TypedDict):
     """S3 access key ID, such as the access key from a Keystone EC2 credential."""
     bucket: Required[str]
     """Swift container name as exposed by `s3api`."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style addressing when the proxy defines a matching `storage_domain`."""
     endpoint: Required[str]
@@ -1549,6 +1603,8 @@ class TigrisConfig(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style bucket addressing."""
     endpoint: NotRequired[str]
@@ -1597,6 +1653,8 @@ class TosS3Config(TypedDict):
     """TOS access key ID."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     endpoint: Required[str]
     """HTTP(S) S3-compatible base endpoint for the selected TOS product and region."""
     region: Required[str]
@@ -1646,6 +1704,8 @@ class WasabiConfig(TypedDict):
     """Access key ID. Set this field together with `secret_access_key`."""
     bucket: Required[str]
     """Bucket name."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style bucket addressing."""
     endpoint: NotRequired[str]

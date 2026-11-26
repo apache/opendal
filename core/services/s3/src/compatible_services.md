@@ -31,6 +31,8 @@ shared S3 implementation. Check the provider guides for endpoint-specific limits
 Presets built on the shared credential chain accept a provider's key pair
 explicitly or load it from the standard AWS environment variables or shared
 credentials file. Explicit credentials take precedence.
+If a preset points to a third-party endpoint and your process also holds AWS
+credentials, set `disable_config_load = true` to use only explicitly configured keys.
 Use the generic [`crate::S3`] builder for AWS S3, for compatible services without
 a built-in preset, or when an application requires S3 options outside a preset's
 contract.

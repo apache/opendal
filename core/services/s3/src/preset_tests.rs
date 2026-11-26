@@ -20,6 +20,7 @@ use std::time::Duration;
 use http::{Method, Request, Response, StatusCode};
 use opendal_core::Configurator;
 use opendal_core::ErrorKind;
+use opendal_core::Operator;
 use opendal_core::OperatorRegistry;
 use opendal_core::{Buffer, HttpBody, HttpTransport, HttpTransporter, OperationContext, Result};
 use url::Url;
@@ -36,6 +37,7 @@ fn registry() -> &'static OperatorRegistry {
         register_cos_s3_service,
         register_gcs_s3_service,
         register_lakefs_s3_service,
+        register_minio_service,
         register_obs_s3_service,
         register_oss_s3_service,
         register_swift_s3api_service,
@@ -51,6 +53,7 @@ fn registry() -> &'static OperatorRegistry {
         register_oci_service,
         register_ovhcloud_service,
         register_qingstor_service,
+        register_r2_service,
         register_rustfs_service,
         register_scaleway_service,
         register_seaweedfs_service,
@@ -502,6 +505,16 @@ async fn presets_presign_with_the_supplied_session_token() {
         ),
         ("tigris://bucket/root", &[][..], "auto"),
         (
+            "r2://bucket/root",
+            &[("account_id", "example-account")][..],
+            "auto",
+        ),
+        (
+            "minio://bucket/root",
+            &[("endpoint", "https://minio.example.test")][..],
+            "auto",
+        ),
+        (
             "wasabi://bucket/root",
             &[("region", "us-east-1")][..],
             "us-east-1",
@@ -528,7 +541,10 @@ async fn presets_presign_with_the_supplied_session_token() {
         ),
     ] {
         let mut options = options.to_vec();
-        options.push(("session_token", "test-token"));
+        options.extend([
+            ("session_token", "test-token"),
+            ("disable_config_load", "true"),
+        ]);
         let (url, region) = presign(uri, &options).await;
         assert_eq!(region, expected_region, "{uri}");
         assert!(
@@ -600,6 +616,87 @@ async fn obs_s3_put_uses_sigv4_with_unsigned_payload() -> Result<()> {
         );
     op.write("file", "test payload").await?;
     Ok(())
+}
+
+#[test]
+fn provider_uris_require_explicit_credentials_when_config_loading_is_disabled() {
+    for uri in [
+        "tigris://bucket/root?disable_config_load=true",
+        "r2://bucket/root?account_id=example-account&disable_config_load=true",
+        "minio://bucket/root?endpoint=https%3A%2F%2Fminio.example.test&disable_config_load=true",
+    ] {
+        let error = registry().load(uri).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::ConfigInvalid, "{uri}");
+        assert!(
+            error.to_string().contains(
+                "access_key_id and secret_access_key are required when disable_config_load is true"
+            ),
+            "{error}"
+        );
+
+        let error = registry()
+            .load((uri, [("access_key_id", "test-access")]))
+            .unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::ConfigInvalid, "{uri}");
+        assert!(
+            error.to_string().contains("must be provided together"),
+            "{error}"
+        );
+
+        registry()
+            .load((
+                uri,
+                [
+                    ("access_key_id", "test-access"),
+                    ("secret_access_key", "test-secret"),
+                ],
+            ))
+            .unwrap_or_else(|error| panic!("{uri}: {error}"));
+    }
+}
+
+#[test]
+fn provider_builders_require_explicit_credentials_when_config_loading_is_disabled() {
+    for (scheme, result) in [
+        (
+            "tigris",
+            Operator::new(Tigris::default().bucket("bucket").disable_config_load()),
+        ),
+        (
+            "r2",
+            Operator::new(
+                R2::default()
+                    .bucket("bucket")
+                    .account_id("example-account")
+                    .disable_config_load(),
+            ),
+        ),
+        (
+            "minio",
+            Operator::new(
+                Minio::default()
+                    .bucket("bucket")
+                    .endpoint("https://minio.example.test")
+                    .disable_config_load(),
+            ),
+        ),
+    ] {
+        let error = result.unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::ConfigInvalid, "{scheme}");
+        assert!(
+            error.to_string().contains(
+                "access_key_id and secret_access_key are required when disable_config_load is true"
+            ),
+            "{error}"
+        );
+    }
+}
+
+#[test]
+fn minio_uri_can_disable_config_loading_in_anonymous_mode() {
+    registry()
+        .load("minio://bucket/root?endpoint=https%3A%2F%2Fminio.example.test&skip_signature=true&disable_config_load=true")
+        .unwrap();
 }
 
 #[test]

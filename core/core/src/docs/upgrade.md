@@ -1,5 +1,9 @@
 # Unreleased
 
+## Minimum supported Rust version
+
+OpenDAL now requires Rust 1.95 or later (up from 1.91).
+
 ## Path normalization
 
 Operation paths preserve leading and trailing whitespace, including paths made

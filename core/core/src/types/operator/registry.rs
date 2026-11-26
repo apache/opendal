@@ -107,10 +107,11 @@ impl OperatorRegistry {
 
     /// Register a context factory for `context.<name>.*` options.
     ///
-    /// Names are matched case-insensitively in ASCII and use only letters,
-    /// digits, underscores, and hyphens. Registering the same name replaces its
-    /// factory for subsequent lookups. The factory receives the current base
-    /// context and the options with `context.<name>.` removed from their keys.
+    /// Use a nonempty name containing only ASCII letters or digits,
+    /// underscores, or hyphens. Names are matched case-insensitively in ASCII.
+    /// Registering the same name replaces its factory for subsequent lookups.
+    /// The factory receives the current base context and the options with
+    /// `context.<name>.` removed from their keys.
     /// Return the input context unchanged when no options are recognized.
     pub fn register_context<F>(&self, name: &str, factory: F)
     where
@@ -129,10 +130,11 @@ impl OperatorRegistry {
 
     /// Register a layer factory for a name in `layers`.
     ///
-    /// Names are matched case-insensitively in ASCII and use only letters,
-    /// digits, underscores, and hyphens. Registering the same name replaces its
-    /// factory for subsequent lookups. The factory receives the options with
-    /// `layer.<name>.` removed from their keys, or an empty map if none are set.
+    /// Use a nonempty name containing only ASCII letters or digits,
+    /// underscores, or hyphens. Names are matched case-insensitively in ASCII.
+    /// Registering the same name replaces its factory for subsequent lookups.
+    /// The factory receives the options with `layer.<name>.` removed from
+    /// their keys, or an empty map if none are set.
     pub fn register_layer<L, F>(&self, name: &str, factory: F)
     where
         L: Layer,
@@ -189,7 +191,7 @@ impl OperatorRegistry {
     /// Returns [`ErrorKind::ConfigInvalid`] for malformed scoped keys, even
     /// for inactive layers, and for invalid, empty, or duplicate names in a
     /// nonempty layer list. Scoped keys require a nonempty field and a name
-    /// made of ASCII letters, digits, underscores, or hyphens. Returns
+    /// containing only ASCII letters or digits, underscores, or hyphens. Returns
     /// [`ErrorKind::Unsupported`] for an unregistered scheme, configured context,
     /// or listed layer. URI conversion and factory errors propagate to the caller.
     ///

@@ -74,16 +74,26 @@ opendal = { version = "0.58", default-features = false, features = [
 
 ## Configure HTTP per operator
 
-Use `context.http.*` options with [`opendal_core::Operator::from_uri`] or
-[`opendal_core::Operator::via_iter`] to set a proxy, timeout, or user agent on
-an individual operator. The `opendal` facade's `install_default()` registers the
-provider when a `http-transport-reqwest*` feature is enabled. The default
-`auto-register-services` feature calls it before `main`.
+Use `context.http.*` options with [`Operator::from_uri`] or
+[`Operator::via_iter`] to set a proxy, timeout, or user agent on an individual
+operator. On Wasm, only `user_agent` is supported, and the host Fetch API
+controls whether it is sent.
+
+The facade's `opendal::install_default()` registers the provider when a
+`http-transport-reqwest*` feature is enabled. The default
+`auto-register-services` feature uses a startup constructor to call it. Call
+`opendal::install_default()` explicitly before loading operators if you
+turn off this feature or your linker or target skips the constructor, as
+can happen with `staticlib` builds.
 
 With the split crates, call [`register_http_context`] with
-[`opendal_core::OperatorRegistry::get`] before loading the operator. This
-registers the provider for string-based configuration. The operator's
+[`OperatorRegistry::get`] before loading the operator. The operator's
 configured layers wrap its resulting base context.
+
+[`Operator::from_uri`]: https://opendal.apache.org/docs/rust/opendal_core/struct.Operator.html#method.from_uri
+[`Operator::via_iter`]: https://opendal.apache.org/docs/rust/opendal_core/struct.Operator.html#method.via_iter
+[`register_http_context`]: https://opendal.apache.org/docs/rust/opendal_http_transport_reqwest/fn.register_http_context.html
+[`OperatorRegistry::get`]: https://opendal.apache.org/docs/rust/opendal_core/struct.OperatorRegistry.html#method.get
 
 ## Use with `opendal-core`
 

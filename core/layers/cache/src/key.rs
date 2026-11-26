@@ -16,7 +16,6 @@
 // under the License.
 
 use sha2::{Digest, Sha256};
-use uuid::Uuid;
 
 use opendal_core::Metadata;
 use opendal_core::raw::{ServiceInfo, build_absolute_path, normalize_root};
@@ -62,9 +61,8 @@ pub(crate) fn strong_etag(metadata: &Metadata) -> Option<&str> {
 #[repr(u8)]
 pub(crate) enum Tier {
     Version = 1,
-    Etag,
-    Modified,
-    Nonce,
+    Etag = 2,
+    Modified = 3,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -74,14 +72,7 @@ pub(crate) struct Identity {
 }
 
 impl Identity {
-    pub(crate) fn new(metadata: &Metadata) -> Self {
-        Self::verifiable(metadata).unwrap_or_else(|| Self {
-            tier: Tier::Nonce,
-            token: Uuid::new_v4().into_bytes(),
-        })
-    }
-
-    pub(crate) fn verifiable(metadata: &Metadata) -> Option<Self> {
+    pub(crate) fn from_metadata(metadata: &Metadata) -> Option<Self> {
         let etag = strong_etag(metadata);
         let (tier, hash) = if let Some(version) = metadata.version() {
             (
@@ -112,18 +103,13 @@ impl Identity {
     }
 }
 
-pub(crate) fn meta_key(generation: u64, subject: &Subject) -> String {
-    format!("v1/meta/{generation:x}/{}", hex(subject))
+pub(crate) fn meta_key(subject: &Subject) -> String {
+    format!("v1/meta/{}", hex(subject))
 }
 
-pub(crate) fn data_prefix(
-    generation: u64,
-    subject: &Subject,
-    identity: Identity,
-    chunk_size: u64,
-) -> String {
+pub(crate) fn data_prefix(subject: &Subject, identity: Identity, chunk_size: u64) -> String {
     format!(
-        "v1/data/{generation:x}/{}/{}/{chunk_size:x}",
+        "v1/data/{}/{}/{chunk_size:x}",
         hex(subject),
         hex(&identity.token)
     )
@@ -145,23 +131,24 @@ mod tests {
     use opendal_core::MetadataBuilder;
 
     #[test]
-    fn v1_keys_keep_version_and_chunk_coordinates() {
+    fn v1_keys_are_deterministic_with_version_and_chunk_coordinates() {
         let info = ServiceInfo::new("s3", "/prefix/", "bucket");
         let versioned = subject(&info, "object", Some("v1"));
         let mut metadata = MetadataBuilder::file(30);
         metadata.etag("\"abc\"");
-        let identity = Identity::new(&metadata.build());
+        let identity = Identity::from_metadata(&metadata.build()).unwrap();
         assert_eq!(
-            meta_key(42, &versioned),
-            "v1/meta/2a/94b1016f87521408a1d701e6c37eb5fbb56798e59cfaa801566cc1525db819e3"
+            meta_key(&versioned),
+            "v1/meta/94b1016f87521408a1d701e6c37eb5fbb56798e59cfaa801566cc1525db819e3"
         );
         assert_eq!(
-            format!("{}/{:x}", data_prefix(42, &versioned, identity, 16), 10),
-            "v1/data/2a/94b1016f87521408a1d701e6c37eb5fbb56798e59cfaa801566cc1525db819e3/c27601d628122b577ca2db462e27d2f4/10/a"
+            format!("{}/{:x}", data_prefix(&versioned, identity, 16), 10),
+            "v1/data/94b1016f87521408a1d701e6c37eb5fbb56798e59cfaa801566cc1525db819e3/c27601d628122b577ca2db462e27d2f4/10/a"
         );
         assert_ne!(
             subject(&info, "object", None),
             subject(&info, "object", Some(""))
         );
+        assert!(Identity::from_metadata(&MetadataBuilder::file(30).build()).is_none());
     }
 }

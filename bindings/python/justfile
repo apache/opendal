@@ -112,6 +112,12 @@ test *args: install-dev
     @echo "{{ BOLD }}--- Running tests ---{{ NORMAL }}"
     @uv run pytest -v {{ args }}
 
+# Check typed config calls with mypy and pyright against the installed binding
+[group('dev')]
+test-typing:
+    @uv run --no-sync --with mypy mypy --strict tests/typing/from_config.py
+    @uv run --no-sync --with pyright pyright tests/typing/from_config.py
+
 # Execute the cookbook notebooks against the installed binding
 [group('dev')]
 test-notebooks:

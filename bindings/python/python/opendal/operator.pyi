@@ -23,7 +23,7 @@ from typing import Any, SupportsIndex, final
 from typing_extensions import Unpack
 
 from .capability import Capability
-from .config import ServiceConfig
+from .config import ContextConfig, LayerConfig, ServiceConfig
 from .file import AsyncFile, File
 from .layers import Layer
 from .options import OpenKwargs
@@ -207,23 +207,35 @@ class AsyncOperator:
             An awaitable that returns True if the path exists, False otherwise.
         """
     @classmethod
-    def from_config(cls, /, config: ServiceConfig) -> AsyncOperator:
+    def from_config(
+        cls,
+        /,
+        config: ServiceConfig,
+        *,
+        context: ContextConfig | None = None,
+        layers: collections.abc.Sequence[LayerConfig] | None = None,
+    ) -> AsyncOperator:
         """
-        Create a new `AsyncOperator` from a typed service config.
+        Create a new `AsyncOperator` from typed configuration.
 
-        The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
-        ``scheme`` key selects the service, so a static type checker rejects a
-        wrong scheme, a missing required key, an unknown key, and a wrong value
-        type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
-        ``os.PathLike[str]``, and flat ``list`` or ``tuple`` of those) are
-        converted to the string form core consumes. ``bytes``-like objects,
-        non-dict ``Mapping``s, nested sequences, and other iterables raise
-        ``Unsupported``.
+        A static type checker validates the service scheme and the options for
+        the service, context, and layers. The binding converts non-string values
+        such as booleans, integers, finite floats, durations, paths, and flat
+        lists or tuples to the strings the registry consumes.
+        Service config values such as bytes, mappings, and nested sequences
+        raise ``Unsupported``.
+
+        Construction options are stored when pickling the operator and may
+        include credentials. Reapply layers added via ``.layer()`` after unpickling.
 
         Parameters
         ----------
         config : ServiceConfig
             A service configuration such as ``opendal.config.S3Config``.
+        context : ContextConfig | None
+            Optional per-operator runtime settings, such as an HTTP proxy.
+        layers : Sequence[LayerConfig] | None
+            Optional declarative layers, applied in sequence order.
 
         Returns
         -------
@@ -933,23 +945,35 @@ class Operator:
             True if the path exists, False otherwise.
         """
     @classmethod
-    def from_config(cls, /, config: ServiceConfig) -> Operator:
+    def from_config(
+        cls,
+        /,
+        config: ServiceConfig,
+        *,
+        context: ContextConfig | None = None,
+        layers: collections.abc.Sequence[LayerConfig] | None = None,
+    ) -> Operator:
         """
-        Create a new blocking `Operator` from a typed service config.
+        Create a new blocking `Operator` from typed configuration.
 
-        The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
-        ``scheme`` key selects the service, so a static type checker rejects a
-        wrong scheme, a missing required key, an unknown key, and a wrong value
-        type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
-        ``os.PathLike[str]``, and flat ``list`` or ``tuple`` of those) are
-        converted to the string form core consumes. ``bytes``-like objects,
-        non-dict ``Mapping``s, nested sequences, and other iterables raise
-        ``Unsupported``.
+        A static type checker validates the service scheme and the options for
+        the service, context, and layers. The binding converts non-string values
+        such as booleans, integers, finite floats, durations, paths, and flat
+        lists or tuples to the strings the registry consumes.
+        Service config values such as bytes, mappings, and nested sequences
+        raise ``Unsupported``.
+
+        Construction options are stored when pickling the operator and may
+        include credentials. Reapply layers added via ``.layer()`` after unpickling.
 
         Parameters
         ----------
         config : ServiceConfig
             A service configuration such as ``opendal.config.S3Config``.
+        context : ContextConfig | None
+            Optional per-operator runtime settings, such as an HTTP proxy.
+        layers : Sequence[LayerConfig] | None
+            Optional declarative layers, applied in sequence order.
 
         Returns
         -------

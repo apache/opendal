@@ -286,19 +286,6 @@ impl OpDelete {
     }
 }
 
-/// Arguments for `delete` operation.
-///
-/// The path must be normalized.
-#[derive(Debug, Clone, Default)]
-pub struct OpDeleter {}
-
-impl OpDeleter {
-    /// Create a new `OpDelete`.
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
 /// Arguments for `list` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpList {

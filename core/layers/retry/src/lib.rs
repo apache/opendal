@@ -25,6 +25,7 @@ use std::panic::RefUnwindSafe;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
+use std::time::Duration;
 
 use backon::BackoffBuilder;
 use backon::BlockingSleeper as _;
@@ -35,6 +36,70 @@ use backon::ExponentialBuilder;
 use backon::Sleeper as _;
 use opendal_core::raw::*;
 use opendal_core::*;
+
+/// Register the `retry` layer with an operator registry.
+///
+/// `jitter` accepts `true`, `false`, `on`, and `off`, ignoring ASCII case.
+/// `factor` must be finite and at least `1`. `min_delay` and `max_delay` must
+/// be positive durations such as `500ms` or `PT1S`. `max_times` is the maximum
+/// number of retries after the first attempt and accepts `0`.
+/// Omitted options keep the defaults from [`RetryLayer::new`].
+pub fn register_retry_layer(registry: &OperatorRegistry) {
+    registry.register_layer("retry", |options| {
+        let mut layer = RetryLayer::new();
+
+        if let Some(value) = options.get("jitter") {
+            match value.to_ascii_lowercase().as_str() {
+                "true" | "on" => layer = layer.with_jitter(),
+                "false" | "off" => {}
+                _ => {
+                    return Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "jitter must be true, false, on, or off",
+                    ));
+                }
+            }
+        }
+        if let Some(value) = options.get("factor") {
+            let factor = match value.parse::<f32>() {
+                Ok(factor) if factor.is_finite() && factor >= 1.0 => factor,
+                _ => {
+                    return Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "factor must be finite and at least 1",
+                    ));
+                }
+            };
+            layer = layer.with_factor(factor);
+        }
+        if let Some(value) = options.get("min_delay") {
+            layer = layer.with_min_delay(parse_delay("min_delay", value)?);
+        }
+        if let Some(value) = options.get("max_delay") {
+            layer = layer.with_max_delay(parse_delay("max_delay", value)?);
+        }
+        if let Some(value) = options.get("max_times") {
+            let max_times = value.parse::<usize>().map_err(|_| {
+                Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "max_times must be a nonnegative integer",
+                )
+            })?;
+            layer = layer.with_max_times(max_times);
+        }
+        Ok(layer)
+    });
+}
+
+fn parse_delay(option: &'static str, value: &str) -> Result<Duration> {
+    match signed_to_duration(value) {
+        Ok(duration) if !duration.is_zero() => Ok(duration),
+        _ => Err(
+            Error::new(ErrorKind::ConfigInvalid, "expected a positive duration")
+                .with_context("option", option),
+        ),
+    }
+}
 
 /// `RetryLayer` retries temporarily failed operations.
 ///
@@ -1142,6 +1207,87 @@ mod tests {
     use opendal_layer_logging::LoggingLayer;
 
     use super::*;
+
+    #[test]
+    fn registered_retry_validates_options_without_echoing_values() {
+        let registry = OperatorRegistry::get();
+        register_retry_layer(registry);
+        assert!(registry.load("memory://?layers=retry").is_ok());
+        for value in ["TrUe", "On", "FaLsE", "OfF"] {
+            assert!(
+                registry
+                    .load(("memory://?layers=retry", [("layer.retry.jitter", value)]))
+                    .is_ok()
+            );
+        }
+
+        for (option, value) in [
+            ("jitter", ""),
+            ("jitter", "1"),
+            ("factor", ""),
+            ("factor", "NaN"),
+            ("factor", "1e100"),
+            ("factor", "0.9"),
+            ("min_delay", ""),
+            ("min_delay", "0s"),
+            ("min_delay", "invalid-config-marker"),
+            ("max_delay", ""),
+            ("max_delay", "0s"),
+            ("max_delay", "-1ns"),
+            ("max_times", ""),
+            ("max_times", "-1"),
+        ] {
+            let uri = format!("memory://?layers=retry&layer.retry.{option}={value}");
+            let err = registry.load(uri).unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+            assert!(err.to_string().contains(option));
+            assert!(!err.to_string().contains("invalid-config-marker"));
+            assert!(!format!("{err:?}").contains("invalid-config-marker"));
+        }
+    }
+
+    #[tokio::test]
+    async fn registered_retry_honors_max_times() -> Result<()> {
+        struct FailOnce(AtomicBool);
+
+        impl HttpTransport for FailOnce {
+            async fn fetch(&self, _: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
+                if !self.0.swap(true, Ordering::Relaxed) {
+                    return Err(
+                        Error::new(ErrorKind::RateLimited, "temporary failure").set_temporary()
+                    );
+                }
+                Ok(http::Response::builder()
+                    .header(http::header::CONTENT_LENGTH, "13")
+                    .body(HttpBody::new(stream::empty(), Some(0)))
+                    .unwrap())
+            }
+        }
+
+        let registry = OperatorRegistry::get();
+        opendal_service_http::register_http_service(registry);
+        registry.register_context("retry_test", |ctx, _| {
+            Ok(ctx.with_http_transport(HttpTransporter::new(FailOnce(AtomicBool::new(false)))))
+        });
+        register_retry_layer(registry);
+
+        let op = registry.load(concat!(
+            "http://localhost?context.retry_test.enabled=true",
+            "&layers=retry&layer.retry.max_times=0",
+        ))?;
+        let err = op.stat("object").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::RateLimited);
+        assert!(!err.is_temporary());
+
+        let op = registry.load(concat!(
+            "http://localhost?context.retry_test.enabled=true",
+            "&layers=retry&layer.retry.max_times=1",
+            "&layer.retry.jitter=OfF&layer.retry.factor=1.5",
+            "&layer.retry.min_delay=1ms&layer.retry.max_delay=PT0.01S&layer.retry.future_option=",
+        ))?;
+        assert_eq!(op.stat("object").await?.content_length(), 13);
+        Ok(())
+    }
 
     #[derive(Default, Clone)]
     struct MockBuilder {

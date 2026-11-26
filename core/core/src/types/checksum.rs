@@ -30,6 +30,8 @@ pub enum ChecksumAlgo {
     Md5,
     /// SHA-256, a 32-byte digest.
     Sha256,
+    /// SHA-1, a 20-byte digest.
+    Sha1,
 }
 
 impl ChecksumAlgo {
@@ -40,6 +42,7 @@ impl ChecksumAlgo {
             ChecksumAlgo::Crc32c => 4,
             ChecksumAlgo::Md5 => 16,
             ChecksumAlgo::Sha256 => 32,
+            ChecksumAlgo::Sha1 => 20,
         }
     }
 
@@ -49,6 +52,7 @@ impl ChecksumAlgo {
             ChecksumAlgo::Crc32c => 1,
             ChecksumAlgo::Md5 => 2,
             ChecksumAlgo::Sha256 => 3,
+            ChecksumAlgo::Sha1 => 4,
         }
     }
 
@@ -58,6 +62,7 @@ impl ChecksumAlgo {
             1 => ChecksumAlgo::Crc32c,
             2 => ChecksumAlgo::Md5,
             3 => ChecksumAlgo::Sha256,
+            4 => ChecksumAlgo::Sha1,
             _ => unreachable!("compact values only store tags written by to_tag"),
         }
     }
@@ -196,6 +201,26 @@ impl From<WriteChecksumPolicy> for WriteChecksum {
             WriteChecksumPolicy::Any => Self::Any,
             WriteChecksumPolicy::Fast => Self::Fast,
             WriteChecksumPolicy::Algo(algo) => Self::Algo(algo),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn checksum_algorithm_tags_and_digest_lengths() {
+        for (algo, tag, len) in [
+            (ChecksumAlgo::Crc64Nvme, 0, 8),
+            (ChecksumAlgo::Crc32c, 1, 4),
+            (ChecksumAlgo::Md5, 2, 16),
+            (ChecksumAlgo::Sha256, 3, 32),
+            (ChecksumAlgo::Sha1, 4, 20),
+        ] {
+            assert_eq!(algo.to_tag(), tag);
+            assert_eq!(ChecksumAlgo::from_tag(tag), algo);
+            assert_eq!(algo.digest_len(), len);
         }
     }
 }

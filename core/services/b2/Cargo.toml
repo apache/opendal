@@ -39,7 +39,9 @@ log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.59.5", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+sha1 = "0.11.0"
 
 [dev-dependencies]
 futures = { workspace = true }
+opendal-layer-retry = { path = "../../layers/retry", version = "0.59.5" }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

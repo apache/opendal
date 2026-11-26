@@ -7327,6 +7327,7 @@ dependencies = [
  "http 1.5.0",
  "opendal-core",
  "reqwest",
+ "serde",
  "tokio",
 ]
 

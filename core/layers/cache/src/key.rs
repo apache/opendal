@@ -57,6 +57,14 @@ pub(crate) fn strong_etag(metadata: &Metadata) -> Option<&str> {
     metadata.etag().filter(|etag| !etag.starts_with("W/\""))
 }
 
+/// Return whether a version identifier denotes an immutable object version.
+///
+/// S3-compatible services report `"null"` for objects in buckets with
+/// versioning disabled or suspended, which can be overwritten in place.
+pub(crate) fn is_immutable_version(version: &str) -> bool {
+    !version.is_empty() && version != "null"
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub(crate) enum Tier {
@@ -74,7 +82,8 @@ pub(crate) struct Identity {
 impl Identity {
     pub(crate) fn from_metadata(metadata: &Metadata) -> Option<Self> {
         let etag = strong_etag(metadata);
-        let (tier, hash) = if let Some(version) = metadata.version() {
+        let version = metadata.version().filter(|v| is_immutable_version(v));
+        let (tier, hash) = if let Some(version) = version {
             (
                 Tier::Version,
                 digest([
@@ -150,5 +159,29 @@ mod tests {
             subject(&info, "object", Some(""))
         );
         assert!(Identity::from_metadata(&MetadataBuilder::file(30).build()).is_none());
+    }
+
+    #[test]
+    fn non_immutable_versions_do_not_form_version_identity() {
+        for placeholder in ["", "null"] {
+            let mut only_placeholder = MetadataBuilder::file(30);
+            only_placeholder.version(placeholder);
+            assert!(
+                Identity::from_metadata(&only_placeholder.build()).is_none(),
+                "placeholder version {placeholder:?} alone must not be cacheable"
+            );
+
+            let mut with_etag = MetadataBuilder::file(30);
+            with_etag.version(placeholder).etag("\"v1\"");
+            let identity = Identity::from_metadata(&with_etag.build()).unwrap();
+            assert_eq!(identity.tier, Tier::Etag);
+        }
+
+        let mut immutable = MetadataBuilder::file(30);
+        immutable.version("v1");
+        assert_eq!(
+            Identity::from_metadata(&immutable.build()).unwrap().tier,
+            Tier::Version
+        );
     }
 }

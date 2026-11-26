@@ -94,14 +94,23 @@ const DEFAULT_CHUNK_SIZE: usize = 1024 * 1024;
 /// requests. If a cached stream detects that the source changed after yielding
 /// bytes, restart the whole read and discard the partial result.
 ///
-/// Sources must expose a verifiable identity (`version`, a strong `etag`, or
-/// `last_modified`) to be cached; reads without one pass through to the source.
+/// Sources must expose a verifiable identity (an immutable `version` other than
+/// `"null"`, a strong `etag`, or `last_modified` + `content_length`) to be
+/// cached; reads without one pass through to the source. When a source exposes
+/// only `last_modified` and `content_length`, equal-length overwrites within
+/// the backend's timestamp resolution (such as 1-second mtime granularity) can
+/// keep the same identity and serve cached chunks across `ttl` boundaries.
 ///
 /// Single-path mutations invalidate cached metadata for affected paths on
-/// completion. External writes, recursive deletes, cancelled mutations, and
-/// cross-instance read/write races are bounded by `ttl`. A reused `Reader`
-/// caches its resolved metadata pointer locally for up to `min(ttl, 1s)` across
-/// range reads, so completed cross-instance invalidations become visible to an
+/// completion. Reads explicitly selecting a non-immutable placeholder version
+/// such as `"null"` bypass the cache so local and external overwrites remain
+/// visible. For unversioned reads, external writes, recursive deletes,
+/// cancelled mutations, and cross-instance read/write races are bounded by
+/// `ttl` (subject to weak `last_modified` granularity above). Reads selecting
+/// an explicit immutable `version` skip `ttl` revalidation once cached until
+/// invalidated or evicted, even if the version is deleted externally. A reused `Reader` caches its
+/// resolved metadata pointer locally for up to `min(ttl, 1s)` across range
+/// reads, so completed cross-instance invalidations become visible to an
 /// already-reused `Reader` within `min(ttl, 1s)` and immediately to a newly
 /// opened `Reader` (or immediately when `ttl` is [`Duration::ZERO`]).
 #[derive(Clone)]

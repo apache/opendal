@@ -25,7 +25,7 @@ use opendal_core::raw::oio::{Read, ReadStream, ReadStreamDyn, Reader};
 use opendal_core::raw::{Instant, OpRead, OpStat, RpRead, Service, Servicer, Timestamp};
 use opendal_core::{Buffer, BytesRange, Error, ErrorKind, Metadata, OperationContext, Result};
 
-use crate::key::{Identity, Subject, Tier, data_prefix, strong_etag};
+use crate::key::{Identity, Subject, Tier, data_prefix, is_immutable_version, strong_etag};
 use crate::record::Pointer;
 use crate::state::State;
 
@@ -537,11 +537,16 @@ impl CachedReader {
             .saturating_add(self.chunk_size.saturating_mul(count as u64))
             .min(length);
         let cap = self.source.capability();
-        let version = if cap.read_with_version {
-            pointer.metadata.version().or(self.args.version())
-        } else {
-            self.args.version()
-        };
+        let version = self.args.version().or_else(|| {
+            cap.read_with_version
+                .then(|| {
+                    pointer
+                        .metadata
+                        .version()
+                        .filter(|v| is_immutable_version(v))
+                })
+                .flatten()
+        });
         let etag = cap
             .read_with_if_match
             .then(|| strong_etag(&pointer.metadata))

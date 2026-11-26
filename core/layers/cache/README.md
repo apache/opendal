@@ -21,19 +21,29 @@
 It preserves the source operator's capabilities and leaves conditional reads,
 response overrides, and other operations to the source.
 
-Caching requires a verifiable source identity (`version`, a strong `etag`, or
-`last_modified`). Reads from sources that provide none of these pass through
-directly to the source without caching.
+Caching requires a verifiable source identity: an immutable `version` (excluding
+non-immutable placeholders such as `"null"`), a strong `etag`, or
+`last_modified` + `content_length`. Reads from sources that provide none of
+these pass through directly to the source without caching. Note that
+`last_modified` + `content_length` is a weak identity: on backends with coarse
+timestamp granularity (for example, 1-second mtime precision on SFTP), an
+equal-length overwrite with the same timestamp produces the same identity and
+can continue serving cached chunks across `ttl` boundaries.
 
 Single-path mutations (`write`, `copy`, `compose`, `rename`, `restore`, and
 non-recursive `delete`) invalidate cached metadata for the affected paths on
 completion, including when an origin error leaves the outcome uncertain.
-External mutations, recursive deletes, cancelled in-flight mutations, and
-concurrent cross-instance read/write races are bounded by `ttl`. A reused
-`Reader` caches its resolved metadata pointer locally for up to `min(ttl, 1s)`
-across range reads, so a completed cross-instance invalidation becomes visible
-to an already-reused `Reader` within `min(ttl, 1s)` and immediately to a newly
-opened `Reader` (or immediately when `ttl` is zero).
+Reads explicitly selecting a non-immutable placeholder version such as `"null"`
+bypass the cache so local and external overwrites remain immediately visible.
+For unversioned reads, external mutations, recursive deletes, cancelled
+in-flight mutations, and concurrent cross-instance read/write races are bounded
+by `ttl` (subject to weak `last_modified` granularity above). Reads selecting
+an explicit immutable `version` skip `ttl` revalidation once cached until
+invalidated or evicted, even if that version is deleted externally. A reused `Reader` caches its
+resolved metadata pointer locally for up to `min(ttl, 1s)` across range reads,
+so a completed cross-instance invalidation becomes visible to an already-reused
+`Reader` within `min(ttl, 1s)` and immediately to a newly opened `Reader` (or
+immediately when `ttl` is zero).
 
 Attach a source retry layer before adding the cache. Retrying a cached stream
 by reopening it after a partial read can mix bytes from different versions.

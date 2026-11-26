@@ -183,18 +183,25 @@ fn parse_delete_objects_result_error(err: DeleteObjectsResultError, conditional:
 #[cfg(test)]
 mod tests {
     use std::error::Error as _;
+    use std::future::Future;
+    use std::pin::pin;
     use std::sync::Arc;
     use std::sync::Mutex;
-    use std::sync::atomic::AtomicUsize;
     use std::sync::atomic::Ordering;
+    use std::sync::atomic::{AtomicBool, AtomicUsize};
+    use std::sync::mpsc::{self, Sender};
+    use std::task::{Context, Poll};
 
     use bytes::Bytes;
+    use futures::channel::oneshot;
+    use futures::task::noop_waker_ref;
     use http::HeaderValue;
     use http::Method;
     use http::Request;
     use http::Response;
     use http::StatusCode;
     use http::header::IF_MATCH;
+    use opendal_core::raw::BoxedStaticFuture;
     use opendal_core::*;
 
     use crate::backend::S3Builder;
@@ -380,6 +387,146 @@ mod tests {
         assert!(failed_condition.lock().unwrap().is_some());
         deleter.close().await.unwrap();
         assert!(failed_condition.lock().unwrap().is_none());
+    }
+
+    #[derive(Clone, Default)]
+    struct BatchExecutor {
+        tasks: Arc<Mutex<Vec<BoxedStaticFuture<()>>>>,
+        reject_next: Arc<AtomicBool>,
+    }
+
+    impl Execute for BatchExecutor {
+        fn execute(&self, task: BoxedStaticFuture<()>) {
+            self.tasks.lock().unwrap().push(task);
+        }
+
+        fn try_execute(&self, task: BoxedStaticFuture<()>) -> Result<()> {
+            if self.reject_next.swap(false, Ordering::Relaxed) {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "executor rejected submission",
+                ));
+            }
+            self.execute(task);
+            Ok(())
+        }
+    }
+
+    impl BatchExecutor {
+        fn advance(&self, cx: &mut Context<'_>) {
+            self.tasks
+                .lock()
+                .unwrap()
+                .retain_mut(|task| task.as_mut().poll(cx).is_pending());
+        }
+    }
+
+    type BatchRequest = (String, oneshot::Sender<()>);
+
+    struct GatedBatchTransport(Sender<BatchRequest>);
+
+    impl HttpTransport for GatedBatchTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            assert_eq!(req.method(), Method::POST);
+            assert_eq!(req.uri().query(), Some("delete"));
+            let (release, wait) = oneshot::channel();
+            let xml = String::from_utf8(req.into_body().to_vec()).unwrap();
+            self.0.send((xml, release)).unwrap();
+            wait.await.unwrap();
+            let body = "<DeleteResult/>";
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .body(HttpBody::new(
+                    futures::stream::iter([Ok(Buffer::from(body))]),
+                    Some(body.len() as u64),
+                ))
+                .unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn concurrent_deleter_overlaps_a_full_batch_and_close_tail() -> Result<()> {
+        let (requests, recorded) = mpsc::channel();
+        let executor = BatchExecutor::default();
+        let op = operator_with_transport(GatedBatchTransport(requests));
+        let context = op.context().with_executor(Executor::with(executor.clone()));
+        let op = op.with_context(context);
+        let mut deleter = op.deleter_with().concurrent(4).await?;
+        let mut cx = Context::from_waker(noop_waker_ref());
+
+        deleter
+            .delete_iter((0..1_200).map(|index| format!("key-{index:04}")))
+            .await?;
+        executor.advance(&mut cx);
+        let (full, release_full) = recorded.try_recv().unwrap();
+        assert!(recorded.try_recv().is_err());
+        let mut close = pin!(deleter.close());
+        assert!(close.as_mut().poll(&mut cx).is_pending());
+        executor.advance(&mut cx);
+        let (tail, release_tail) = recorded.try_recv().unwrap();
+        assert!(recorded.try_recv().is_err());
+
+        for ((xml, release), range) in [(full, release_full), (tail, release_tail)]
+            .into_iter()
+            .zip([0..1_000, 1_000..1_200])
+        {
+            assert_eq!(xml.matches("<Key>").count(), range.len());
+            for index in range {
+                assert!(xml.contains(&format!("<Key>key-{index:04}</Key>")));
+            }
+            release.send(()).unwrap();
+        }
+        executor.advance(&mut cx);
+        let Poll::Ready(result) = close.as_mut().poll(&mut cx) else {
+            panic!("close must finish when both batches succeed");
+        };
+        result
+    }
+
+    #[tokio::test]
+    async fn rejected_full_batch_keeps_only_previously_accepted_entries() -> Result<()> {
+        let (requests, recorded) = mpsc::channel();
+        let executor = BatchExecutor::default();
+        let op = operator_with_transport(GatedBatchTransport(requests));
+        let context = op.context().with_executor(Executor::with(executor.clone()));
+        let op = op.with_context(context);
+        let mut deleter = op.deleter_with().concurrent(2).await?;
+        let mut cx = Context::from_waker(noop_waker_ref());
+        deleter
+            .delete_iter((0..999).map(|index| format!("key-{index:04}")))
+            .await?;
+
+        executor.reject_next.store(true, Ordering::Relaxed);
+        let error = deleter.delete("unaccepted").await.unwrap_err();
+        assert_eq!(error.message(), "executor rejected submission");
+        executor.advance(&mut cx);
+        assert!(recorded.try_recv().is_err());
+
+        executor.reject_next.store(true, Ordering::Relaxed);
+        {
+            let mut close = pin!(deleter.close());
+            let Poll::Ready(Err(error)) = close.as_mut().poll(&mut cx) else {
+                panic!("tail submission must be rejected");
+            };
+            assert_eq!(error.message(), "executor rejected submission");
+        }
+        executor.advance(&mut cx);
+        assert!(recorded.try_recv().is_err());
+
+        let mut close = pin!(deleter.close());
+        assert!(close.as_mut().poll(&mut cx).is_pending());
+        executor.advance(&mut cx);
+        let (xml, release) = recorded.try_recv().unwrap();
+        assert_eq!(xml.matches("<Key>").count(), 999);
+        assert!(!xml.contains("<Key>unaccepted</Key>"));
+        for index in 0..999 {
+            assert!(xml.contains(&format!("<Key>key-{index:04}</Key>")));
+        }
+        assert!(recorded.try_recv().is_err());
+        release.send(()).unwrap();
+        executor.advance(&mut cx);
+        assert!(matches!(close.as_mut().poll(&mut cx), Poll::Ready(Ok(()))));
+        Ok(())
     }
 
     #[tokio::test]

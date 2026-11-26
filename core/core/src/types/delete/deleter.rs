@@ -20,6 +20,7 @@ use std::pin::pin;
 use futures::Stream;
 use futures::StreamExt;
 
+use super::concurrent::ConcurrentDeleter;
 use crate::raw::oio::Delete;
 use crate::raw::*;
 use crate::*;
@@ -89,9 +90,26 @@ pub struct Deleter {
 
 impl Deleter {
     pub(crate) fn create(ctx: OperationContext, srv: Servicer) -> Result<Self> {
+        Self::create_with(ctx, srv, 1)
+    }
+
+    pub(crate) fn create_with(
+        ctx: OperationContext,
+        srv: Servicer,
+        concurrent: usize,
+    ) -> Result<Self> {
         let scheme = srv.info().scheme();
         let capability = srv.capability();
-        let deleter = srv.delete(&ctx)?;
+        let mut deleter = srv.delete(&ctx)?;
+        if concurrent > 1 {
+            deleter = Box::new(ConcurrentDeleter::new(
+                ctx,
+                srv,
+                deleter,
+                concurrent,
+                capability.delete_max_size.unwrap_or(1).max(1),
+            ));
+        }
 
         Ok(Self {
             deleter,
@@ -105,6 +123,13 @@ impl Deleter {
     /// Pass a path directly to use [`options::DeleteOptions::default`]. Pass
     /// `(String, DeleteOptions)` when this entry needs version or condition
     /// options.
+    ///
+    /// A successful call accepts the entry. Call [`Self::close`] to wait for
+    /// all accepted deletions to complete. With concurrency greater than one,
+    /// an error leaves the current entry unaccepted. This includes executor
+    /// rejection and errors from earlier backend tasks. Canceling a wait for
+    /// a task slot also leaves the entry unaccepted. If an interrupted close
+    /// is pending, this call resumes it before accepting another entry.
     pub async fn delete(&mut self, input: impl IntoDeleteInput) -> Result<()> {
         let (path, options) = input.into_delete_input();
         let path = normalize_path(&path);
@@ -191,7 +216,18 @@ impl Deleter {
         Ok(())
     }
 
-    /// Close the deleter, this will flush the deleter and wait until all paths are deleted.
+    /// Flush accepted entries and wait for their deletions to complete.
+    ///
+    /// With concurrency greater than one, this waits for every dispatched
+    /// task and returns the first error it observes, if any. Each call can
+    /// retry work whose failure was reported by an earlier call, using the
+    /// original paths and options. The deleter retains failed entries and
+    /// entries whose outcome is unknown. An accepted entry with a permanent
+    /// error, such as an unmet condition, can return that error again on a
+    /// later close. Dropping the future returned by
+    /// `close` preserves progress so the next call can resume it. Dropping
+    /// the deleter discards buffered work and cancels local tasks. Already
+    /// issued requests may still complete on the backend.
     pub async fn close(&mut self) -> Result<()> {
         self.deleter.close().await
     }

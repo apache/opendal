@@ -1483,10 +1483,20 @@ impl<F: Future<Output = Result<()>>> FutureDelete<F> {
     }
 }
 
-/// This future creates a [`Deleter`].
-///
-/// Use its methods to configure the operation before awaiting it.
-pub type FutureDeleter<F> = OperatorFuture<OpDeleter, (), F>;
+/// [`Operator::deleter_with`] returns this future.
+pub type FutureDeleter<F> = OperatorFuture<usize, Deleter, F>;
+
+impl<F: Future<Output = Result<Deleter>>> FutureDeleter<F> {
+    /// Set the maximum number of in-flight backend tasks.
+    ///
+    /// Defaults to 1. A value of 0 is treated as 1. Each task handles an
+    /// individual deletion or one batch when the service supports batching.
+    /// A service can use multiple requests to process a single task.
+    pub fn concurrent(mut self, concurrent: usize) -> Self {
+        self.args = concurrent.max(1);
+        self
+    }
+}
 
 /// [`Operator::list_with`] and [`Operator::lister_with`] return this future.
 ///

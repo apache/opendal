@@ -2051,8 +2051,9 @@ impl Operator {
     /// limits use the operator's configured executor. A one-shot service can
     /// process one entry per task. A batch service accumulates a full batch
     /// before dispatching a task, and [`Deleter::close`] submits any remaining
-    /// entries. Concurrent tasks may complete in any order, including tasks
-    /// that contain the same path.
+    /// entries. A recursive delete uses one task for the entire entry, including
+    /// any deletion work expanded by the service stack. Concurrent tasks may
+    /// complete in any order, including tasks that contain the same path.
     ///
     /// ```
     /// # use opendal_core::{Operator, Result};

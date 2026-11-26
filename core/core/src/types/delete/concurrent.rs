@@ -141,11 +141,12 @@ impl oio::Delete for ConcurrentDeleter {
         loop {
             while self.running.len() < self.concurrent {
                 let progress = self.closing.as_mut().expect("close has started");
-                let result = if let Some(state) = progress.retry.pop_front() {
-                    self.dispatch(state)
-                } else if !self.pending.is_empty() {
+                let result = if !self.pending.is_empty() {
+                    // Flush the accepted tail before assigning spare capacity to replay.
                     let entries = self.pending.drain().collect();
                     self.dispatch_entries(entries)
+                } else if let Some(state) = progress.retry.pop_front() {
+                    self.dispatch(state)
                 } else {
                     break;
                 };

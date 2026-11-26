@@ -24,3 +24,7 @@ pub mod conditional_operations {}
 /// The portable contract for owned metadata and result completion.
 #[doc = include_str!("metadata.md")]
 pub mod metadata {}
+
+/// The portable contract for registry-based operator configuration.
+#[doc = include_str!("operator-configuration.md")]
+pub mod operator_configuration {}

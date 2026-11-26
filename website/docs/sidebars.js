@@ -53,6 +53,7 @@ const sidebars = {
       items: [
         'specifications/conditional-operations',
         'specifications/metadata',
+        'specifications/operator-configuration',
       ],
     },
     // Divider between the concept docs and the per-language guides.

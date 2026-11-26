@@ -177,6 +177,10 @@ mod tests {
             cfg!(feature = "auto-simulate")
         );
         assert_eq!(
+            op.info().capability().list_with_recursive,
+            cfg!(feature = "auto-simulate")
+        );
+        assert_eq!(
             op.info().capability().list_with_glob,
             cfg!(feature = "auto-simulate")
         );

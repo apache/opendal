@@ -156,6 +156,10 @@ pub struct ListOptions {
     /// Setting this requires [`Capability::list_with_start_after`](crate::Capability::list_with_start_after).
     pub start_after: Option<String>,
     /// Whether to list recursively under the prefix; default `false`.
+    ///
+    /// Requires [`Capability::list_with_recursive`](crate::Capability::list_with_recursive).
+    /// Services without native recursive listing rely on [`crate::layers::SimulateLayer`]
+    /// (installed automatically by the default `auto-simulate` feature).
     pub recursive: bool,
     /// Include object versions; default `false`.
     ///
@@ -183,7 +187,9 @@ pub struct ListOptions {
     /// Requires [`Capability::list_with_glob`](crate::Capability::list_with_glob). Services with native glob
     /// support handle patterns directly; otherwise [`crate::layers::SimulateLayer`]
     /// (installed automatically by the default `auto-simulate` feature) evaluates
-    /// patterns client-side.
+    /// patterns client-side. Combining a multi-directory pattern with
+    /// `start_after`, `versions`, or `deleted` during client-side simulation
+    /// also requires [`Capability::list_with_recursive`](crate::Capability::list_with_recursive).
     /// Empty or malformed patterns fail with [`crate::ErrorKind::ConfigInvalid`].
     pub glob: Option<String>,
 }

@@ -98,6 +98,7 @@ impl DashmapBackend {
             delete: true,
             stat: true,
             list: true,
+            list_with_recursive: true,
             ..Default::default()
         };
 
@@ -308,6 +309,37 @@ mod tests {
                 "root {root}"
             );
         }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_recursive_list_without_simulation() -> Result<()> {
+        let service = DashmapBuilder::default().build()?;
+        let op = Operator::from_parts(OperationContext::default(), Arc::new(service));
+        assert!(op.info().capability().list_with_recursive);
+
+        op.write("dir/a.txt", "a").await?;
+        op.write("dir/sub/b.txt", "b").await?;
+
+        let mut recursive: Vec<_> = op
+            .list_with("dir/")
+            .recursive(true)
+            .await?
+            .into_iter()
+            .map(|e| e.path().to_owned())
+            .collect();
+        recursive.sort();
+        assert_eq!(recursive, ["dir/a.txt", "dir/sub/b.txt"]);
+
+        let mut flat: Vec<_> = op
+            .list("dir/")
+            .await?
+            .into_iter()
+            .map(|e| e.path().to_owned())
+            .collect();
+        flat.sort();
+        assert_eq!(flat, ["dir/a.txt", "dir/sub/"]);
+
         Ok(())
     }
 }

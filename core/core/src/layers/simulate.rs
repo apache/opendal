@@ -150,17 +150,16 @@ impl SimulateService {
         if self.config.read_with_suffix && cap.read {
             cap.read_with_suffix = true;
         }
+        if self.config.list_recursive && cap.list {
+            cap.list_with_recursive = true;
+        }
         if self.config.list_glob && cap.list {
             cap.list_with_glob = true;
         }
         if self.config.create_dir && cap.list && cap.write_can_empty {
             cap.create_dir = true;
         }
-        if self.config.delete_recursive
-            && cap.list
-            && cap.delete
-            && (cap.list_with_recursive || self.config.list_recursive)
-        {
+        if self.config.delete_recursive && cap.list && cap.delete && cap.list_with_recursive {
             cap.delete_with_recursive = true;
         }
         cap
@@ -3029,6 +3028,171 @@ mod tests {
                 ("dir/", true, Some("explicit-v"), None),
             ]
         );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn recursive_list_capability_and_check_match_simulation() -> Result<()> {
+        struct FlatOnlyService;
+
+        impl Debug for FlatOnlyService {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                f.debug_struct("FlatOnlyService").finish()
+            }
+        }
+
+        struct VecLister(std::vec::IntoIter<oio::Entry>);
+
+        impl oio::List for VecLister {
+            async fn next(&mut self) -> Result<Option<oio::Entry>> {
+                Ok(self.0.next())
+            }
+        }
+
+        impl Service for FlatOnlyService {
+            type Reader = ();
+            type Writer = ();
+            type Lister = VecLister;
+            type Deleter = ();
+            type Copier = ();
+            type Composer = ();
+
+            fn info(&self) -> ServiceInfo {
+                ServiceInfo::with_scheme("flat-only")
+            }
+
+            fn capability(&self) -> Capability {
+                Capability {
+                    list: true,
+                    list_with_recursive: false,
+                    ..Default::default()
+                }
+            }
+
+            async fn create_dir(
+                &self,
+                ctx: &OperationContext,
+                path: &str,
+                args: OpCreateDir,
+            ) -> Result<RpCreateDir> {
+                Service::create_dir(&(), ctx, path, args).await
+            }
+
+            async fn stat(
+                &self,
+                ctx: &OperationContext,
+                path: &str,
+                args: OpStat,
+            ) -> Result<RpStat> {
+                Service::stat(&(), ctx, path, args).await
+            }
+
+            fn read(
+                &self,
+                ctx: &OperationContext,
+                path: &str,
+                args: OpRead,
+            ) -> Result<Self::Reader> {
+                Service::read(&(), ctx, path, args)
+            }
+
+            fn write(
+                &self,
+                ctx: &OperationContext,
+                path: &str,
+                args: OpWrite,
+            ) -> Result<Self::Writer> {
+                Service::write(&(), ctx, path, args)
+            }
+
+            fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+                Service::delete(&(), ctx)
+            }
+
+            // Intentionally ignores OpList::recursive(), like services such as ftp/sftp.
+            fn list(&self, _: &OperationContext, path: &str, _: OpList) -> Result<Self::Lister> {
+                let entries = match path {
+                    "dir/" => vec![
+                        oio::Entry::new("dir/a.txt", MetadataBuilder::file(0).build()),
+                        oio::Entry::new("dir/sub/", MetadataBuilder::dir().build()),
+                    ],
+                    "dir/sub/" => vec![oio::Entry::new(
+                        "dir/sub/b.txt",
+                        MetadataBuilder::file(0).build(),
+                    )],
+                    _ => Vec::new(),
+                };
+                Ok(VecLister(entries.into_iter()))
+            }
+
+            fn copy(
+                &self,
+                ctx: &OperationContext,
+                from: &str,
+                to: &str,
+                args: OpCopy,
+            ) -> Result<Self::Copier> {
+                Service::copy(&(), ctx, from, to, args)
+            }
+
+            async fn rename(
+                &self,
+                ctx: &OperationContext,
+                from: &str,
+                to: &str,
+                args: OpRename,
+            ) -> Result<RpRename> {
+                Service::rename(&(), ctx, from, to, args).await
+            }
+
+            async fn presign(
+                &self,
+                ctx: &OperationContext,
+                path: &str,
+                args: OpPresign,
+            ) -> Result<RpPresign> {
+                Service::presign(&(), ctx, path, args).await
+            }
+        }
+
+        let srv = Arc::new(FlatOnlyService) as Servicer;
+
+        // Without SimulateLayer, list_with_recursive is false and recursive listing fails
+        // with Unsupported instead of silently returning only the first level.
+        let unsimulated = Operator::from_parts(OperationContext::new(), srv.clone());
+        assert!(!unsimulated.info().capability().list_with_recursive);
+        let err = unsimulated
+            .list_with("dir/")
+            .recursive(true)
+            .await
+            .expect_err("recursive list without simulation must fail");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        // With SimulateLayer::with_list_recursive(false), recursive listing also fails.
+        let disabled = Operator::from_parts(OperationContext::new(), srv.clone())
+            .layer(SimulateLayer::default().with_list_recursive(false));
+        assert!(!disabled.info().capability().list_with_recursive);
+        let err = disabled
+            .list_with("dir/")
+            .recursive(true)
+            .await
+            .expect_err("recursive list with disabled simulation must fail");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        // With SimulateLayer enabled, list_with_recursive is advertised and both levels return.
+        let simulated =
+            Operator::from_parts(OperationContext::new(), srv).layer(SimulateLayer::default());
+        assert!(simulated.info().capability().list_with_recursive);
+        let mut paths: Vec<_> = simulated
+            .list_with("dir/")
+            .recursive(true)
+            .await?
+            .into_iter()
+            .map(|e| e.path().to_owned())
+            .collect();
+        paths.sort();
+        assert_eq!(paths, ["dir/", "dir/a.txt", "dir/sub/", "dir/sub/b.txt"]);
 
         Ok(())
     }

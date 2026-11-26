@@ -34,6 +34,7 @@ all-features = true
 [dependencies]
 base64 = { workspace = true }
 bytes = { workspace = true }
+crc-fast = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.59.5", default-features = false, features = [
@@ -53,6 +54,8 @@ reqsign-command-execute-tokio = { version = "3.0.9", default-features = false }
 
 [dev-dependencies]
 futures = { workspace = true }
+opendal-executor-tokio = { path = "../../executors/tokio", version = "0.59.5" }
+opendal-layer-retry = { path = "../../layers/retry", version = "0.59.5" }
 pretty_assertions = "1"
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

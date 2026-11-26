@@ -22,6 +22,16 @@ endpoint such as `https://<account>.blob.core.windows.net`. Path-style
 endpoints such as Azurite (`http://127.0.0.1:10000/<account>`) require a
 pre-generated `sas_token` for presigning.
 
+### Write checksums
+
+On standard Azure Blob endpoints (`https://<account>.blob.core.windows.net`),
+`WriteChecksum::Any` and `WriteChecksum::Fast` enable transactional CRC64
+verification for each data request, including block uploads and appends.
+Write metadata leaves `Metadata::checksum()` empty because Azure verifies
+individual requests. `WriteChecksum::Algo` and `WriteChecksum::Expected`
+return `Unsupported` when opening a writer. Presigned writes do not support
+checksum intents.
+
 ## Configuration
 
 Use [`crate::AzblobConfig`] for serializable configuration and this builder's

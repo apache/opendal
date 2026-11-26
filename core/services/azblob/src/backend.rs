@@ -555,6 +555,17 @@ impl AzblobBuilder {
         let azblob_can_presign = !self.config.skip_signature
             && (has_sas_token || (has_shared_key && !is_path_style_endpoint));
 
+        // Restrict transactional CRC64 to the Azure Blob endpoints that enforce it.
+        let azblob_can_checksum = endpoint
+            .strip_prefix("https://")
+            .and_then(|host| host.strip_suffix(".blob.core.windows.net"))
+            .is_some_and(|account| {
+                !account.is_empty()
+                    && account
+                        .bytes()
+                        .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+            });
+
         let info = ServiceInfo::new(AZBLOB_SCHEME, &root, container);
         let capability = Capability {
             stat: true,
@@ -574,6 +585,7 @@ impl AzblobBuilder {
             write_can_empty: true,
             write_can_multi: true,
             write_with_cache_control: true,
+            write_with_checksum: azblob_can_checksum,
             write_with_content_type: true,
             write_with_if_match: true,
             write_with_if_not_exists: true,
@@ -689,6 +701,17 @@ impl Service for AzblobBackend {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        if let Some(checksum) = args.checksum()
+            && (!self.core.capability.write_with_checksum
+                || !matches!(checksum, WriteChecksum::Any | WriteChecksum::Fast))
+        {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "azblob supports only Any and Fast write checksums on standard Azure Blob endpoints",
+            )
+            .with_operation(Operation::Write));
+        }
+
         let output: AzblobWriters = {
             let w = AzblobWriter::new(
                 self.core.clone(),
@@ -791,6 +814,11 @@ impl Service for AzblobBackend {
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.azblob_head_blob_request(path, v),
             PresignOperation::Read(range, v) => self.core.azblob_get_blob_request(path, *range, v),
+            PresignOperation::Write(v) if v.checksum().is_some() => Err(Error::new(
+                ErrorKind::Unsupported,
+                "azblob does not support checksums on presigned writes",
+            )
+            .with_operation(Operation::Presign)),
             PresignOperation::Write(v) => {
                 self.core
                     .azblob_put_blob_request(path, None, v, Buffer::new())
@@ -892,6 +920,31 @@ mod tests {
         Operator::from_config(config).expect("Base64-encoded 32-byte key must build");
     }
 
+    #[test]
+    fn write_checksums_require_a_standard_azure_blob_endpoint() {
+        for (endpoint, supported) in [
+            ("https://account1.blob.core.windows.net/", true),
+            ("http://account1.blob.core.windows.net", false),
+            ("https://account1.blob.core.windows.net/proxy", false),
+            ("https://account1.blob.core.windows.net.example.org", false),
+            ("https://account1.example.blob.core.windows.net", false),
+            ("https://account1.blob.core.usgovcloudapi.net", false),
+            ("http://127.0.0.1:10000/devstoreaccount1", false),
+        ] {
+            let op = Operator::new(
+                AzblobBuilder::default()
+                    .container("test")
+                    .endpoint(endpoint),
+            )
+            .unwrap();
+            assert_eq!(
+                op.info().capability().write_with_checksum,
+                supported,
+                "{endpoint}"
+            );
+        }
+    }
+
     fn parse_query_params(uri: &http::Uri) -> std::collections::HashMap<String, String> {
         uri.query()
             .unwrap_or_default()
@@ -940,6 +993,10 @@ mod tests {
                     .unwrap(),
             ] {
                 assert_eq!(req.uri().path(), "/test/path/to/file.txt");
+                assert!(
+                    !req.header()
+                        .contains_key(crate::core::constants::X_MS_CONTENT_CRC64)
+                );
                 let params = parse_query_params(req.uri());
                 assert_eq!(params.get("sr").map(String::as_str), Some("b"));
                 assert_eq!(params.get("sp").map(String::as_str), Some("racwd"));

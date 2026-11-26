@@ -16,7 +16,7 @@
 // under the License.
 
 use crate::generate::parser::{Config, ConfigType, Services, sorted_services};
-use anyhow::Result;
+use anyhow::{Result, bail};
 use minijinja::value::ViaDeserialize;
 use minijinja::{Environment, context};
 use serde::Serialize;
@@ -24,6 +24,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::capability;
+use super::metadata::{self, MetadataKind};
 
 /// Fields present in the legacy 46-parameter public `Capability` constructor.
 const LEGACY_46_CAPABILITY_FIELDS: &[&str] = &[
@@ -75,6 +76,20 @@ const LEGACY_46_CAPABILITY_FIELDS: &[&str] = &[
     "read_with_if_unmodified_since",
 ];
 
+/// Order and types of the fields in the existing Java Metadata constructors.
+const EXISTING_METADATA_FIELDS: &[(&str, MetadataKind)] = &[
+    ("mode", MetadataKind::Mode),
+    ("content_length", MetadataKind::U64),
+    ("content_disposition", MetadataKind::OptionStr),
+    ("content_md5", MetadataKind::OptionStr),
+    ("content_type", MetadataKind::OptionStr),
+    ("cache_control", MetadataKind::OptionStr),
+    ("etag", MetadataKind::OptionStr),
+    ("last_modified", MetadataKind::OptionTimestamp),
+    ("version", MetadataKind::OptionStr),
+    ("user_metadata", MetadataKind::OptionUserMetadata),
+];
+
 /// Render model handed to the Java capability templates.
 #[derive(Serialize)]
 struct CapabilityField {
@@ -90,6 +105,18 @@ struct CapabilityField {
     doc: String,
 }
 
+#[derive(Debug, Serialize)]
+struct MetadataField {
+    camel: String,
+    doc: String,
+    java_type: &'static str,
+    constructor_type: &'static str,
+    constructor_value: String,
+    jni_type: &'static str,
+    rust_binding: String,
+    jni_argument: String,
+}
+
 fn enabled_service(srv: &str) -> bool {
     match srv {
         // not enabled in bindings/java/Cargo.toml
@@ -100,7 +127,8 @@ fn enabled_service(srv: &str) -> bool {
 
 pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     generate_service_config(&workspace_dir, services)?;
-    generate_capability(&workspace_dir)
+    generate_capability(&workspace_dir)?;
+    generate_metadata(&workspace_dir)
 }
 
 fn generate_service_config(workspace_dir: &Path, services: Services) -> Result<()> {
@@ -150,6 +178,116 @@ fn generate_capability(workspace_dir: &Path) -> Result<()> {
     for (template, relative) in outputs {
         let tmpl = env.get_template(template)?;
         let rendered = tmpl.render(context! { fields => fields, jni_sig => jni_sig })?;
+        fs::write(workspace_dir.join(relative), format!("{rendered}\n"))?;
+    }
+
+    Ok(())
+}
+
+fn select_metadata_fields(mut parsed: Vec<metadata::MetadataField>) -> Result<Vec<MetadataField>> {
+    EXISTING_METADATA_FIELDS
+        .iter()
+        .map(|&(name, expected)| {
+            let mut matches = parsed.extract_if(.., |field| field.name == name);
+            let Some(field) = matches.next() else {
+                bail!("core Metadata is missing Java field `{name}`");
+            };
+            if matches.next().is_some() {
+                bail!("core Metadata contains duplicate Java field `{name}`");
+            }
+            if field.kind != expected {
+                bail!(
+                    "core Metadata field `{name}` has kind {:?}; Java requires {expected:?}",
+                    field.kind
+                );
+            }
+
+            let accessor = format!("metadata.{name}()");
+            let (java_type, jni_type, rust_binding, jni_argument) = match field.kind {
+                MetadataKind::Mode => (
+                    "EntryMode",
+                    "I",
+                    format!("let {name} = convert::entry_mode_to_jint({accessor});"),
+                    format!("JValue::Int({name})"),
+                ),
+                MetadataKind::U64 => (
+                    "long",
+                    "J",
+                    format!("let {name} = {accessor} as jlong;"),
+                    format!("JValue::Long({name})"),
+                ),
+                MetadataKind::OptionStr => (
+                    "String",
+                    "Ljava/lang/String;",
+                    format!("let {name} = convert::string_to_jstring(env, {accessor})?;"),
+                    format!("JValue::Object(&{name})"),
+                ),
+                MetadataKind::OptionTimestamp => (
+                    "Instant",
+                    "Ljava/time/Instant;",
+                    format!("let {name} = convert::timestamp_to_jinstant(env, {accessor})?;"),
+                    format!("JValue::Object(&{name})"),
+                ),
+                MetadataKind::OptionUserMetadata => (
+                    "Map<String, String>",
+                    "Ljava/util/Map;",
+                    format!(
+                        "let {name} =\n        convert::hashmap_to_jmap(env, {accessor}.into_iter().flatten())?;"
+                    ),
+                    format!("JValue::Object(&{name})"),
+                ),
+                _ => bail!("unsupported Java Metadata kind {expected:?} for `{name}`"),
+            };
+            let camel = case_java_field_name(name);
+            let (constructor_type, constructor_value) = if field.kind == MetadataKind::Mode {
+                ("int", format!("EntryMode.of({camel})"))
+            } else {
+                (java_type, camel.clone())
+            };
+            let doc = if name == "user_metadata" {
+                "User-defined metadata of this entry. Empty when the service returns no user metadata."
+            } else {
+                &field.doc
+            };
+            let doc = markdown::to_html(doc);
+            let doc = doc
+                .strip_prefix("<p>")
+                .and_then(|doc| doc.strip_suffix("</p>"))
+                .unwrap_or(&doc)
+                .to_owned();
+
+            Ok(MetadataField {
+                camel,
+                doc,
+                java_type,
+                constructor_type,
+                constructor_value,
+                jni_type,
+                rust_binding,
+                jni_argument,
+            })
+        })
+        .collect()
+}
+
+fn generate_metadata(workspace_dir: &Path) -> Result<()> {
+    let source = workspace_dir.join("core/core/src/types/metadata.rs");
+    let fields = select_metadata_fields(metadata::parse(&source)?)?;
+
+    let mut env = Environment::new();
+    env.add_template("metadata_java", include_str!("java/metadata_java.j2"))?;
+    env.add_template("metadata_rs", include_str!("java/metadata_rs.j2"))?;
+
+    let outputs = [
+        (
+            "metadata_java",
+            "bindings/java/src/main/java/org/apache/opendal/Metadata.java",
+        ),
+        ("metadata_rs", "bindings/java/src/metadata.rs"),
+    ];
+    for (template, relative) in outputs {
+        let tmpl = env.get_template(template)?;
+        let rendered = tmpl.render(context! { fields => fields })?;
         fs::write(workspace_dir.join(relative), format!("{rendered}\n"))?;
     }
 
@@ -274,5 +412,88 @@ mod tests {
                 "legacy capability field `{legacy}` is missing from core Capability"
             );
         }
+    }
+
+    fn core_metadata_fields() -> Vec<metadata::MetadataField> {
+        let source = crate::workspace_dir().join("core/core/src/types/metadata.rs");
+        metadata::parse(&source).expect("core metadata must parse")
+    }
+
+    #[test]
+    fn test_metadata_fields_follow_existing_java_order() {
+        let mut parsed = core_metadata_fields();
+        parsed.reverse();
+        let fields = select_metadata_fields(parsed).unwrap();
+        let names: Vec<_> = fields.iter().map(|field| field.camel.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "mode",
+                "contentLength",
+                "contentDisposition",
+                "contentMd5",
+                "contentType",
+                "cacheControl",
+                "etag",
+                "lastModified",
+                "version",
+                "userMetadata",
+            ]
+        );
+    }
+
+    #[test]
+    fn test_metadata_fields_reject_missing_field() {
+        let mut parsed = core_metadata_fields();
+        parsed.retain(|field| field.name != "content_type");
+        let err = select_metadata_fields(parsed).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "core Metadata is missing Java field `content_type`"
+        );
+    }
+
+    #[test]
+    fn test_metadata_fields_reject_duplicate_field() {
+        let mut parsed = core_metadata_fields();
+        parsed.push(metadata::MetadataField {
+            name: "etag".to_owned(),
+            kind: MetadataKind::OptionStr,
+            doc: String::new(),
+        });
+        let err = select_metadata_fields(parsed).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "core Metadata contains duplicate Java field `etag`"
+        );
+    }
+
+    #[test]
+    fn test_metadata_fields_reject_mismatched_kind() {
+        let mut parsed = core_metadata_fields();
+        parsed
+            .iter_mut()
+            .find(|field| field.name == "mode")
+            .unwrap()
+            .kind = MetadataKind::U64;
+        let err = select_metadata_fields(parsed).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "core Metadata field `mode` has kind U64; Java requires Mode"
+        );
+    }
+
+    #[test]
+    fn test_metadata_jni_constructor_descriptor() {
+        let fields = select_metadata_fields(core_metadata_fields()).unwrap();
+        let rendered = Environment::new()
+            .render_str(
+                include_str!("java/metadata_rs.j2"),
+                context! { fields => fields },
+            )
+            .unwrap();
+        assert!(rendered.contains(
+            "\"(IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Ljava/lang/String;Ljava/util/Map;)V\""
+        ));
     }
 }

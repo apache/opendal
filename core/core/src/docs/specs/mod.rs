@@ -17,6 +17,10 @@
 
 #![doc = include_str!("README.md")]
 
+/// The portable contract for checksum metadata and verification.
+#[doc = include_str!("checksum.md")]
+pub mod checksum {}
+
 /// The portable contract for conditional operations.
 #[doc = include_str!("conditional-operations.md")]
 pub mod conditional_operations {}

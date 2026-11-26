@@ -47,6 +47,8 @@ use serde::Serialize;
 /// Developers should use `capability` to determine available operations.
 /// Conditional capability fields follow the
 /// [conditional operation specification][crate::docs::specs::conditional_operations].
+/// For [`Self::write_with_checksum`], see the
+/// [checksum specification][crate::docs::specs::checksum].
 ///
 /// # Field Naming Conventions
 ///

@@ -113,9 +113,13 @@ impl Checksum {
 
 /// The checksum verification requested for an individual write.
 ///
-/// A service that cannot fulfill the request returns [`crate::ErrorKind::Unsupported`].
-/// When the service verifies a full-file checksum, the successful write result
-/// includes it in [`crate::Metadata::checksum`].
+/// A service that cannot fulfill the request returns
+/// [`crate::ErrorKind::Unsupported`] before I/O. A successful write returns
+/// the full-file digest in [`crate::Metadata::checksum`] when the service
+/// verifies one. [`Self::Any`] and [`Self::Fast`] also allow success with
+/// verification of individual upload requests.
+///
+/// See the [checksum specification][crate::docs::specs::checksum].
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum WriteChecksum {
@@ -167,6 +171,7 @@ impl WriteChecksum {
 /// A checksum requirement that a layer can apply to writes across an operator.
 ///
 /// Convert a policy to [`WriteChecksum`] to apply it to an individual write.
+/// A caller-supplied digest applies to one write through [`WriteChecksum::Expected`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum WriteChecksumPolicy {

@@ -41,6 +41,7 @@ pub use header::parse_last_modified;
 pub use header::parse_location;
 pub use header::parse_multipart_boundary;
 pub use header::parse_prefixed_headers;
+pub use header::parse_retry_after;
 
 mod uri;
 pub use uri::QueryPairsWriter;

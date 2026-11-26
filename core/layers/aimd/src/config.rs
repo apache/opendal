@@ -16,7 +16,7 @@
 // under the License.
 
 use std::future::Future;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use crate::{AimdLayer, Bucket, Buckets, SleepFn};
@@ -122,13 +122,26 @@ impl AimdLayerBuilder {
             .initial_rate
             .unwrap_or_else(|| 2000.0_f64.max(config.min_rate).min(config.max_rate));
         config.validate(initial_rate)?;
+        let cooldown_until = Arc::new(RwLock::new(None));
         Ok(AimdLayer {
             sleep: self.sleep,
             buckets: Arc::new(Buckets {
-                read: Arc::new(Bucket::new(config.clone(), initial_rate)),
-                write: Arc::new(Bucket::new(config.clone(), initial_rate)),
-                delete: Arc::new(Bucket::new(config.clone(), initial_rate)),
-                list: Arc::new(Bucket::new(config, initial_rate)),
+                read: Arc::new(Bucket::new(
+                    config.clone(),
+                    initial_rate,
+                    cooldown_until.clone(),
+                )),
+                write: Arc::new(Bucket::new(
+                    config.clone(),
+                    initial_rate,
+                    cooldown_until.clone(),
+                )),
+                delete: Arc::new(Bucket::new(
+                    config.clone(),
+                    initial_rate,
+                    cooldown_until.clone(),
+                )),
+                list: Arc::new(Bucket::new(config, initial_rate, cooldown_until)),
             }),
         })
     }

@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use base64::Engine;
 use base64::engine::general_purpose;
@@ -29,9 +30,13 @@ use http::header::CONTENT_LANGUAGE;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
+use http::header::DATE;
 use http::header::ETAG;
 use http::header::LAST_MODIFIED;
 use http::header::LOCATION;
+use http::header::RETRY_AFTER;
+use jiff::ToSpan;
+use jiff::tz::Offset;
 use md5::Digest;
 
 use crate::EntryMode;
@@ -123,6 +128,73 @@ fn parse_http_date(s: &str) -> Result<Timestamp> {
     }
 
     Err(err)
+}
+
+/// Parse a positive `Retry-After` delay, in seconds or as an HTTP date.
+///
+/// For a date, use the response's `Date` header as the reference when valid,
+/// and use `now` otherwise. Missing, ambiguous, invalid, and elapsed hints
+/// return `None`.
+pub fn parse_retry_after(headers: &HeaderMap, now: Timestamp) -> Option<Duration> {
+    let single_value = |name| {
+        let mut values = headers.get_all(name).iter();
+        match (values.next(), values.next()) {
+            (Some(value), None) => value.to_str().ok().map(|s| s.trim_matches([' ', '\t'])),
+            _ => None,
+        }
+    };
+    let value = single_value(RETRY_AFTER)?;
+    let delay = if !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()) {
+        Duration::from_secs(value.parse().ok()?)
+    } else {
+        let now = now.into_inner();
+        let (retry_at, retry_leap_second) = parse_retry_after_date(value, now)?;
+        let (response_date, response_leap_second) = single_value(DATE)
+            .and_then(|value| parse_retry_after_date(value, now))
+            .unwrap_or((now, false));
+        let mut delay = retry_at.duration_since(response_date);
+        // Jiff represents an inserted leap second as 23:59:59.
+        if retry_leap_second && !(response_leap_second && retry_at == response_date) {
+            delay += jiff::SignedDuration::from_secs(1);
+        }
+        Duration::try_from(delay).ok()?
+    };
+    (!delay.is_zero()).then_some(delay)
+}
+
+fn parse_retry_after_date(value: &str, now: jiff::Timestamp) -> Option<(jiff::Timestamp, bool)> {
+    const RFC850: &str = "%A, %d-%b-%y %T GMT";
+    let format = match value.find(',') {
+        Some(3) => "%a, %d %b %Y %T GMT",
+        Some(_) => RFC850,
+        None if value.as_bytes().get(8) == Some(&b' ') => "%a %b %e %T %Y",
+        None => "%a %b %d %T %Y",
+    };
+    let mut fields = jiff::fmt::strtime::parse(format, value).ok()?;
+    let date = if format == RFC850 {
+        // RFC 9110 resolves RFC 850 years in a rolling 100-year window.
+        let now = Offset::UTC.to_datetime(now);
+        let start = now.checked_sub(50.years()).ok()?;
+        let end = now.checked_add(50.years()).ok()?;
+        let year = end.year() / 100 * 100 + fields.year()? % 100;
+        [year, year - 100].into_iter().find_map(|year| {
+            fields.set_year(Some(year)).ok()?;
+            let date = fields.to_datetime().ok()?;
+            (start < date && date <= end).then_some(date)
+        })?
+    } else {
+        fields.to_datetime().ok()?
+    };
+    let leap_second = value.contains("23:59:60") && date.day() == date.days_in_month();
+    let mut canonical = date.strftime(format).to_string();
+    if leap_second {
+        canonical = canonical.replace("23:59:59", "23:59:60");
+    }
+    // Strptime also accepts non-HTTP syntax, such as mismatched weekdays.
+    if canonical != value {
+        return None;
+    }
+    Some((Offset::UTC.to_timestamp(date).ok()?, leap_second))
 }
 
 /// Parse etag from header map.
@@ -343,6 +415,120 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(LAST_MODIFIED, HeaderValue::from_static("not a date"));
         assert!(parse_last_modified(&headers).is_err());
+    }
+
+    #[test]
+    fn test_parse_retry_after_seconds() {
+        let now = Timestamp::default();
+        let mut headers = HeaderMap::new();
+        assert_eq!(parse_retry_after(&headers, now), None);
+        headers.insert(RETRY_AFTER, HeaderValue::from_static(" \t033 "));
+        assert_eq!(
+            parse_retry_after(&headers, now),
+            Some(Duration::from_secs(33))
+        );
+        headers.append(RETRY_AFTER, HeaderValue::from_static("33"));
+        assert_eq!(parse_retry_after(&headers, now), None);
+
+        for value in ["", "0", "+1", "-1", "1.5", "1, 2", "18446744073709551616"] {
+            headers.insert(RETRY_AFTER, HeaderValue::from_static(value));
+            assert_eq!(parse_retry_after(&headers, now), None, "{value:?}");
+        }
+        headers.insert(RETRY_AFTER, HeaderValue::from_bytes(b"\xff").unwrap());
+        assert_eq!(parse_retry_after(&headers, now), None);
+    }
+
+    #[test]
+    fn test_parse_retry_after_dates() {
+        let now = "2026-11-26T01:00:00Z".parse().unwrap();
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            DATE,
+            HeaderValue::from_static("Sun, 06 Nov 1994 08:49:30 GMT"),
+        );
+        for value in [
+            "Sun, 06 Nov 1994 08:49:37 GMT",
+            "Sunday, 06-Nov-94 08:49:37 GMT",
+            "Sun Nov  6 08:49:37 1994",
+            "Sun Nov 06 08:49:37 1994",
+        ] {
+            headers.insert(RETRY_AFTER, HeaderValue::from_static(value));
+            assert_eq!(
+                parse_retry_after(&headers, now),
+                Some(Duration::from_secs(7)),
+                "{value}"
+            );
+        }
+        for value in [
+            "bad date",
+            "Sun, 06 Nov 1994 08:49:30 GMT",
+            "Sun, 06 Nov 1994 08:49:29 GMT",
+            "Mon, 06 Nov 1994 08:49:37 GMT",
+            "Sun, 06 Nov 1994 08:49:37 +0000",
+        ] {
+            headers.insert(RETRY_AFTER, HeaderValue::from_static(value));
+            assert_eq!(parse_retry_after(&headers, now), None, "{value}");
+        }
+        headers.insert(
+            RETRY_AFTER,
+            HeaderValue::from_static("Thu, 26 Nov 2026 01:00:05 GMT"),
+        );
+        headers.append(
+            DATE,
+            HeaderValue::from_static("Sun, 06 Nov 1994 08:49:30 GMT"),
+        );
+        assert_eq!(
+            parse_retry_after(&headers, now),
+            Some(Duration::from_secs(5))
+        );
+        headers.insert(DATE, HeaderValue::from_static("bad date"));
+        assert_eq!(
+            parse_retry_after(&headers, now),
+            Some(Duration::from_secs(5))
+        );
+        headers.remove(DATE);
+        assert_eq!(
+            parse_retry_after(&headers, now),
+            Some(Duration::from_secs(5))
+        );
+    }
+
+    #[test]
+    fn test_parse_retry_after_uses_rolling_year_and_preserves_leap_second() {
+        let now = "2026-11-21T00:00:00Z".parse().unwrap();
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            DATE,
+            HeaderValue::from_static("Fri, 20 Nov 2076 23:59:59 GMT"),
+        );
+        headers.insert(
+            RETRY_AFTER,
+            HeaderValue::from_static("Saturday, 21-Nov-76 00:00:00 GMT"),
+        );
+        assert_eq!(
+            parse_retry_after(&headers, now),
+            Some(Duration::from_secs(1))
+        );
+        headers.insert(
+            RETRY_AFTER,
+            HeaderValue::from_static("Sunday, 21-Nov-76 00:00:01 GMT"),
+        );
+        assert_eq!(parse_retry_after(&headers, now), None);
+
+        headers.insert(
+            DATE,
+            HeaderValue::from_static("Sat, 31 Dec 2016 23:59:59 GMT"),
+        );
+        headers.insert(
+            RETRY_AFTER,
+            HeaderValue::from_static("Sat, 31 Dec 2016 23:59:60 GMT"),
+        );
+        assert_eq!(
+            parse_retry_after(&headers, now),
+            Some(Duration::from_secs(1))
+        );
+        headers.insert(DATE, headers[RETRY_AFTER].clone());
+        assert_eq!(parse_retry_after(&headers, now), None);
     }
 
     /// Test cases is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html

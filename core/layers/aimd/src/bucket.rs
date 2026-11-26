@@ -15,17 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal_core::raw::Instant;
 use std::future::Future;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
 use asyncband::event::ManualResetEvent;
 use asyncband::mutex::Mutex as AsyncMutex;
 use futures::future::select;
+use opendal_core::raw::Instant;
 use opendal_core::{ErrorKind, Result};
 
-use crate::AimdConfig;
+use crate::{AimdConfig, monotonic_now};
+
+// Browser timers use a signed 32-bit millisecond delay. Long cooldowns can
+// use several timer intervals without changing the admission deadline.
+const MAX_COOLDOWN_TIMER: Duration = Duration::from_millis(i32::MAX as u64);
 
 /// One feedback window and token bucket share a lock so rate changes cannot
 /// race with token refill or overwrite a newer rate.
@@ -33,6 +37,7 @@ use crate::AimdConfig;
 pub(crate) struct Bucket {
     config: AimdConfig,
     state: Mutex<State>,
+    cooldown_until: Arc<RwLock<Option<Instant>>>,
     // The FIFO lock owns the waiting queue. Cancelling an acquire drops
     // its queue position without reserving tokens or leaving token debt.
     admission: AsyncMutex<()>,
@@ -72,8 +77,12 @@ impl State {
 }
 
 impl Bucket {
-    pub(crate) fn new(config: AimdConfig, initial_rate: f64) -> Self {
-        let now = Instant::now();
+    pub(crate) fn new(
+        config: AimdConfig,
+        initial_rate: f64,
+        cooldown_until: Arc<RwLock<Option<Instant>>>,
+    ) -> Self {
+        let now = monotonic_now();
         Self {
             state: Mutex::new(State {
                 rate: initial_rate,
@@ -84,6 +93,7 @@ impl Bucket {
                 throttled: false,
             }),
             config,
+            cooldown_until,
             admission: AsyncMutex::new(()),
             changed: ManualResetEvent::new(),
         }
@@ -101,20 +111,29 @@ impl Bucket {
             self.changed.reset();
             let wait = {
                 let mut state = self.state.lock().expect("AIMD state poisoned");
-                let now = Instant::now();
+                let now = monotonic_now();
                 state.advance(&self.config, now);
-                if state.tokens >= 1.0 {
-                    state.tokens -= 1.0;
-                    return;
+                // Hold the shared deadline stable through token deduction.
+                let cooldown = self.cooldown_until.read().expect("AIMD cooldown poisoned");
+                if let Some(deadline) = *cooldown
+                    && deadline > now
+                {
+                    deadline.duration_since(now).min(MAX_COOLDOWN_TIMER)
+                } else {
+                    if state.tokens >= 1.0 {
+                        state.tokens -= 1.0;
+                        return;
+                    }
+                    drop(cooldown);
+                    let mut wait = Duration::from_secs_f64((1.0 - state.tokens) / state.rate)
+                        .max(Duration::from_nanos(1));
+                    if state.active || state.throttled {
+                        // Revisit pending feedback before a token becomes available.
+                        wait =
+                            wait.min(self.config.window - now.duration_since(state.window_start));
+                    }
+                    wait
                 }
-                let mut wait = Duration::from_secs_f64((1.0 - state.tokens) / state.rate)
-                    .max(Duration::from_nanos(1));
-                if state.active || state.throttled {
-                    // Revisit a pending feedback window even if the next token
-                    // would otherwise arrive later than the window boundary.
-                    wait = wait.min(self.config.window - now.duration_since(state.window_start));
-                }
-                wait
             };
             let changed = std::pin::pin!(self.changed.wait());
             let timer = std::pin::pin!(sleep(wait));
@@ -122,9 +141,15 @@ impl Bucket {
         }
     }
 
-    pub(crate) fn complete_http(&self) {
+    pub(crate) fn complete_http(&self, retry_after: Option<Duration>) {
+        if let Some(deadline) = retry_after.and_then(|delay| monotonic_now().checked_add(delay)) {
+            let mut cooldown_until = self.cooldown_until.write().expect("AIMD cooldown poisoned");
+            // Waiters recheck the deadline before consuming a token. A later
+            // deadline cannot require any of them to wake sooner.
+            *cooldown_until = (*cooldown_until).max(Some(deadline));
+        }
         let mut state = self.state.lock().expect("AIMD state poisoned");
-        state.advance(&self.config, Instant::now());
+        state.advance(&self.config, monotonic_now());
         state.active = true;
         drop(state);
         self.changed.set();
@@ -136,7 +161,7 @@ impl Bucket {
             .is_err_and(|err| err.kind() == ErrorKind::RateLimited)
         {
             let mut state = self.state.lock().expect("AIMD state poisoned");
-            state.advance(&self.config, Instant::now());
+            state.advance(&self.config, monotonic_now());
             state.throttled = true;
             drop(state);
             self.changed.set();
@@ -171,7 +196,10 @@ mod tests {
     #[test]
     fn active_windows_grow_empty_windows_do_not_and_bounds_hold() {
         let config = config();
-        let mut state = Bucket::new(config.clone(), 4.0).state.into_inner().unwrap();
+        let mut state = Bucket::new(config.clone(), 4.0, Default::default())
+            .state
+            .into_inner()
+            .unwrap();
         let mut now = state.window_start;
         for expected in [6.0, 8.0, 8.0] {
             state.active = true;
@@ -199,7 +227,7 @@ mod tests {
 
     #[test]
     fn only_rate_limited_errors_trigger_decrease() {
-        let bucket = Bucket::new(config(), 4.0);
+        let bucket = Bucket::new(config(), 4.0, Default::default());
         bucket.observe::<()>(&Err(
             Error::new(ErrorKind::Unexpected, "retryable").set_temporary()
         ));
@@ -220,7 +248,10 @@ mod tests {
             (true, 2.0, Duration::from_millis(300)),
             (false, 6.0, Duration::from_millis(100)),
         ] {
-            let mut state = Bucket::new(config.clone(), 4.0).state.into_inner().unwrap();
+            let mut state = Bucket::new(config.clone(), 4.0, Default::default())
+                .state
+                .into_inner()
+                .unwrap();
             state.tokens = 0.0;
             state.active = true;
             state.throttled = throttled;
@@ -242,6 +273,7 @@ mod tests {
                     ..config()
                 },
                 0.001,
+                Default::default(),
             );
             bucket.acquire(|_| std::future::pending::<()>()).await;
             let mut head = Box::pin(bucket.acquire(|_| std::future::pending::<()>()));

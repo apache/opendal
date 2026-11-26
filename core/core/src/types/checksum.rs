@@ -113,3 +113,66 @@ impl Checksum {
         Self::new(ChecksumAlgo::from_tag(*tag), value)
     }
 }
+
+/// The checksum verification requested for an individual write.
+///
+/// A service that cannot fulfill the request returns [`crate::ErrorKind::Unsupported`].
+/// When the service verifies a full-file checksum, the successful write result
+/// includes it in [`crate::Metadata::checksum`].
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum WriteChecksum {
+    /// Use any native write checksum, preferring CRC-family algorithms.
+    ///
+    /// The service may verify individual parts or blocks without producing a
+    /// full-file checksum.
+    Any,
+    /// Use a native CRC-family checksum.
+    ///
+    /// Like [`Self::Any`], this allows verification of individual parts or blocks.
+    Fast,
+    /// Compute and verify a full-file checksum with this algorithm before commit.
+    ///
+    /// This request requires a non-append write.
+    Algo(ChecksumAlgo),
+    /// Verify the caller-supplied full-file checksum before commit.
+    ///
+    /// This request requires a non-append write.
+    Expected(Checksum),
+}
+
+/// A checksum requirement that a layer can apply to writes across an operator.
+///
+/// Convert a policy to [`WriteChecksum`] to apply it to an individual write.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum WriteChecksumPolicy {
+    /// Apply [`WriteChecksum::Any`] to writes.
+    Any,
+    /// Apply [`WriteChecksum::Fast`] to writes.
+    Fast,
+    /// Apply [`WriteChecksum::Algo`] with this algorithm to writes.
+    Algo(ChecksumAlgo),
+}
+
+impl From<Checksum> for WriteChecksum {
+    fn from(checksum: Checksum) -> Self {
+        Self::Expected(checksum)
+    }
+}
+
+impl From<ChecksumAlgo> for WriteChecksum {
+    fn from(algo: ChecksumAlgo) -> Self {
+        Self::Algo(algo)
+    }
+}
+
+impl From<WriteChecksumPolicy> for WriteChecksum {
+    fn from(policy: WriteChecksumPolicy) -> Self {
+        match policy {
+            WriteChecksumPolicy::Any => Self::Any,
+            WriteChecksumPolicy::Fast => Self::Fast,
+            WriteChecksumPolicy::Algo(algo) => Self::Algo(algo),
+        }
+    }
+}

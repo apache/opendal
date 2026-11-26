@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import COpenDAL
 import Foundation
 
 /// Describes an entry at the time it was inspected.
@@ -32,4 +33,16 @@ public struct Metadata {
     /// Any timestamp that the C binding truncates to -1 millisecond relative to the
     /// Unix epoch also returns `nil` because C reserves that value.
     public let lastModified: Date?
+
+    init(consuming metadata: UnsafeMutablePointer<opendal_metadata>) {
+        defer { opendal_metadata_free(metadata) }
+        let lastModifiedMilliseconds = opendal_metadata_last_modified_ms(metadata)
+        self.isFile = opendal_metadata_is_file(metadata)
+        self.isDirectory = opendal_metadata_is_dir(metadata)
+        self.contentLength = opendal_metadata_content_length(metadata)
+        self.lastModified =
+            lastModifiedMilliseconds == -1
+            ? nil
+            : Date(timeIntervalSince1970: TimeInterval(lastModifiedMilliseconds) / 1_000)
+    }
 }

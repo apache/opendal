@@ -114,17 +114,32 @@ public class Operator {
         guard let metadata = result else {
             throw OperatorError(code: OPENDAL_UNEXPECTED, message: "Stat returned no metadata.")
         }
-        defer { opendal_metadata_free(metadata) }
+        return Metadata(consuming: metadata)
+    }
 
-        let lastModifiedMilliseconds = opendal_metadata_last_modified_ms(metadata)
-        return Metadata(
-            isFile: opendal_metadata_is_file(metadata),
-            isDirectory: opendal_metadata_is_dir(metadata),
-            contentLength: opendal_metadata_content_length(metadata),
-            lastModified: lastModifiedMilliseconds == -1
-                ? nil
-                : Date(timeIntervalSince1970: TimeInterval(lastModifiedMilliseconds) / 1_000)
-        )
+    /// Opens a cursor for a nonrecursive listing at the given path.
+    /// Use a trailing slash to list a named directory. Some services also
+    /// return an entry for the directory itself. The service must support list.
+    /// Throws `OperatorError` if opening the cursor fails or the path contains
+    /// a NUL character (U+0000). Advancing the cursor can also throw.
+    ///
+    /// ```swift
+    /// let lister = try op.blockingLister("logs/")
+    /// while let entry = try lister.next() {
+    ///     print(entry.path)
+    /// }
+    /// ```
+    public func blockingLister(_ path: String) throws -> BlockingLister {
+        try Self.validatePath(path)
+
+        var result: UnsafeMutablePointer<opendal_lister>? = nil
+        if let err = opendal_operator_list(nativeOp, path, &result) {
+            throw OperatorError(consuming: err)
+        }
+        guard let lister = result else {
+            throw OperatorError(code: OPENDAL_UNEXPECTED, message: "List returned no lister.")
+        }
+        return BlockingLister(consuming: lister)
     }
 
     /// Returns `true` if the path exists or `false` if it is missing.

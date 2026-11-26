@@ -21,7 +21,7 @@ use bytes::BufMut;
 use opendal_core::raw::{SystemTime, Timestamp};
 use opendal_core::{Buffer, Checksum, ChecksumAlgo, EntryMode, Metadata, MetadataBuilder};
 
-use crate::key::{Identity, Tier};
+use crate::key::{Identity, Tier, is_immutable_version};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Pointer {
@@ -61,7 +61,7 @@ impl Pointer {
 
     pub(crate) fn is_fresh(&self, ttl: Duration, version: Option<&str>) -> bool {
         ttl == Duration::MAX
-            || version.is_some()
+            || version.is_some_and(is_immutable_version)
             || (ttl != Duration::ZERO
                 && SystemTime::from(Timestamp::now())
                     .duration_since(self.observed_at.into())
@@ -391,5 +391,18 @@ mod tests {
             Pointer::decode(large_encoded).unwrap().metadata,
             large_ptr.metadata
         );
+    }
+
+    #[test]
+    fn null_version_still_respects_ttl_revalidation() {
+        let mut meta = MetadataBuilder::file(4);
+        meta.etag("\"e1\"").version("null");
+        let pointer = Pointer::from_metadata(meta.build(), Timestamp::new(1, 0).unwrap()).unwrap();
+
+        assert!(!pointer.is_fresh(Duration::ZERO, Some("null")));
+        assert!(!pointer.is_fresh(Duration::ZERO, Some("")));
+        assert!(!pointer.is_fresh(Duration::from_secs(60), Some("null")));
+        assert!(pointer.is_fresh(Duration::ZERO, Some("v1")));
+        assert!(pointer.is_fresh(Duration::MAX, Some("null")));
     }
 }

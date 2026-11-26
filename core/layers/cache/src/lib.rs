@@ -102,12 +102,13 @@ const DEFAULT_CHUNK_SIZE: usize = 1024 * 1024;
 /// keep the same identity and serve cached chunks across `ttl` boundaries.
 ///
 /// Single-path mutations invalidate cached metadata for affected paths on
-/// completion. For unversioned reads and non-immutable versions such as
-/// `"null"`, external writes, recursive deletes, cancelled mutations, and
-/// cross-instance read/write races are bounded by `ttl` (subject to weak
-/// `last_modified` granularity above). Reads selecting an explicit immutable
-/// `version` skip `ttl` revalidation once cached until invalidated or evicted,
-/// even if the version is deleted externally. A reused `Reader` caches its
+/// completion. Reads explicitly selecting a non-immutable placeholder version
+/// such as `"null"` bypass the cache so local and external overwrites remain
+/// visible. For unversioned reads, external writes, recursive deletes,
+/// cancelled mutations, and cross-instance read/write races are bounded by
+/// `ttl` (subject to weak `last_modified` granularity above). Reads selecting
+/// an explicit immutable `version` skip `ttl` revalidation once cached until
+/// invalidated or evicted, even if the version is deleted externally. A reused `Reader` caches its
 /// resolved metadata pointer locally for up to `min(ttl, 1s)` across range
 /// reads, so completed cross-instance invalidations become visible to an
 /// already-reused `Reader` within `min(ttl, 1s)` and immediately to a newly

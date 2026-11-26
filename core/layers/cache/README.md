@@ -33,12 +33,13 @@ can continue serving cached chunks across `ttl` boundaries.
 Single-path mutations (`write`, `copy`, `compose`, `rename`, `restore`, and
 non-recursive `delete`) invalidate cached metadata for the affected paths on
 completion, including when an origin error leaves the outcome uncertain.
-For unversioned reads and non-immutable versions such as `"null"`, external
-mutations, recursive deletes, cancelled in-flight mutations, and concurrent
-cross-instance read/write races are bounded by `ttl` (subject to weak
-`last_modified` granularity above). Reads selecting an explicit immutable
-`version` skip `ttl` revalidation once cached until invalidated or evicted,
-even if that version is deleted externally. A reused `Reader` caches its
+Reads explicitly selecting a non-immutable placeholder version such as `"null"`
+bypass the cache so local and external overwrites remain immediately visible.
+For unversioned reads, external mutations, recursive deletes, cancelled
+in-flight mutations, and concurrent cross-instance read/write races are bounded
+by `ttl` (subject to weak `last_modified` granularity above). Reads selecting
+an explicit immutable `version` skip `ttl` revalidation once cached until
+invalidated or evicted, even if that version is deleted externally. A reused `Reader` caches its
 resolved metadata pointer locally for up to `min(ttl, 1s)` across range reads,
 so a completed cross-instance invalidation becomes visible to an already-reused
 `Reader` within `min(ttl, 1s)` and immediately to a newly opened `Reader` (or

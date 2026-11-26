@@ -47,17 +47,13 @@ wasm_bindgen_test_configure!(run_in_browser);
 
 static TEST_FIXTURE: Fixture = Fixture::new();
 
-type Trial = (&'static str, LocalBoxFuture<'static, anyhow::Result<()>>);
+type Trial = (String, LocalBoxFuture<'static, anyhow::Result<()>>);
 
-fn build_async_trial<F>(
-    name: &'static str,
-    op: &Operator,
-    test: impl FnOnce(Operator) -> F,
-) -> Trial
+fn build_async_trial<F>(name: &str, op: &Operator, test: impl FnOnce(Operator) -> F) -> Trial
 where
     F: Future<Output = anyhow::Result<()>> + 'static,
 {
-    (name, Box::pin(test(op.clone())))
+    (name.to_owned(), Box::pin(test(op.clone())))
 }
 
 struct BrowserExecutor;

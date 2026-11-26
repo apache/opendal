@@ -27,6 +27,11 @@ use sha2::Sha256;
 
 const DEFAULT_CONTENT_MAX_SIZE: usize = 4 * 1024 * 1024;
 
+pub fn aws_s3_checksum_fixture(op: &Operator) -> bool {
+    op.info().scheme() == "s3"
+        && std::env::var("OPENDAL_TEST_AWS_S3_CHECKSUMS").as_deref() == Ok("true")
+}
+
 pub fn sha256_digest(data: impl AsRef<[u8]>) -> String {
     use std::fmt::Write;
 

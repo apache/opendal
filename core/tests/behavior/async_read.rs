@@ -18,8 +18,12 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use bytes::Bytes;
 use futures::AsyncReadExt;
 use futures::TryStreamExt;
+use http::HeaderValue;
+use http::Request;
+use http::Response;
 use http::StatusCode;
 use reqwest::Url;
 use tokio::time::sleep;
@@ -88,6 +92,18 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
 
     if cap.read && !cap.write && cap.read_with_suffix {
         tests.extend(async_trials!(op, test_read_only_read_with_suffix))
+    }
+
+    if cap.read
+        && cap.read_with_version
+        && cap.stat
+        && cap.stat_with_version
+        && cap.write
+        && cap.write_with_checksum
+        && cap.write_can_multi
+        && aws_s3_checksum_fixture(op)
+    {
+        tests.extend(async_trials!(op, test_s3_read_and_stat_with_checksum));
     }
 }
 
@@ -497,6 +513,113 @@ pub async fn test_futures_bytes_stream_metadata_with_concurrent(
     );
 
     Ok(())
+}
+
+struct S3ReadChecksumTransport {
+    inner: HttpTransporter,
+    checksum_type: Option<&'static str>,
+}
+
+impl HttpTransport for S3ReadChecksumTransport {
+    async fn fetch(&self, request: Request<Buffer>) -> opendal::Result<Response<HttpBody>> {
+        let mode = self
+            .checksum_type
+            .map(|_| HeaderValue::from_static("ENABLED"));
+        assert_eq!(request.headers().get("x-amz-checksum-mode"), mode.as_ref());
+        let response = self.inner.fetch(request).await?;
+        if response.status().is_success()
+            && let Some(checksum_type) = self.checksum_type
+        {
+            // In particular, only a response carrying a composite checksum can
+            // test that OpenDAL omits it from public metadata.
+            assert_eq!(
+                response.headers().get("x-amz-checksum-type"),
+                Some(&HeaderValue::from_static(checksum_type))
+            );
+            assert!(response.headers().contains_key("x-amz-checksum-crc32c"));
+        }
+        Ok(response)
+    }
+}
+
+async fn assert_s3_read_and_stat_checksum(
+    op: &Operator,
+    path: &str,
+    metadata: Metadata,
+    content: &[u8],
+    checksum_type: &'static str,
+    checksum: Option<Checksum>,
+) -> anyhow::Result<()> {
+    let version = metadata
+        .version()
+        .filter(|version| !version.is_empty() && *version != "null")
+        .expect("AWS fixture must return a version");
+    for (wire_type, expected) in [(None, None), (Some(checksum_type), checksum)] {
+        let context = op.context();
+        let op = op
+            .clone()
+            .with_context(context.with_http_transport(HttpTransporter::new(
+                S3ReadChecksumTransport {
+                    inner: context.http_transport().clone(),
+                    checksum_type: wire_type,
+                },
+            )));
+        let mut stat = op.stat_with(path).version(version);
+        let mut reader = op.reader_with(path).version(version);
+        if wire_type.is_some() {
+            stat = stat.checksum(true);
+            reader = reader.checksum(true);
+        }
+        assert_eq!(stat.await?.checksum(), expected);
+        let reader = reader.await?;
+        assert!(reader.read(..).await?.to_bytes().as_ref() == content);
+        assert_eq!(
+            reader.metadata().expect("read metadata").checksum(),
+            expected
+        );
+    }
+    Ok(())
+}
+
+/// The checksum hint exposes only stored full-object digests on AWS S3.
+pub async fn test_s3_read_and_stat_with_checksum(op: Operator) -> anyhow::Result<()> {
+    let path = "s3-checksum-full-object";
+    TEST_FIXTURE.add_path(path.to_owned());
+    let content = Bytes::from_static(b"123456789");
+    let meta = op
+        .write_with(path, content.clone())
+        .checksum(ChecksumAlgo::Crc32c)
+        .await?;
+    let checksum = Checksum::new(ChecksumAlgo::Crc32c, [0xe3, 0x06, 0x92, 0x83]);
+    assert_s3_read_and_stat_checksum(&op, path, meta, &content, "FULL_OBJECT", Some(checksum))
+        .await?;
+
+    // The legacy CRC32C configuration creates composite multipart checksums.
+    // Keep that configuration local to the operator that seeds this object.
+    let mut config: std::collections::HashMap<_, _> = std::env::vars()
+        .filter_map(|(key, value)| {
+            let key = key.to_ascii_lowercase();
+            let key = key.strip_prefix("opendal_s3_")?;
+            (value != "__OPENDAL_TEST_UNSET__").then(|| (key.to_owned(), value))
+        })
+        .collect();
+    config.insert("root".to_string(), op.info().root().to_string());
+    config.insert("checksum_algorithm".to_string(), "crc32c".to_string());
+    let composite = Operator::via_iter("s3", config)?.with_context(op.context().clone());
+    let path = "s3-checksum-composite";
+    TEST_FIXTURE.add_path(path.to_owned());
+    let chunk = op
+        .info()
+        .capability()
+        .write_multi_min_size
+        .expect("S3 multipart minimum");
+    let mut content = vec![1; chunk + 1];
+    content[chunk] = 2;
+    let content = Bytes::from(content);
+    let mut writer = composite.writer_with(path).chunk(chunk).await?;
+    writer.write(content.clone()).await?;
+    let meta = writer.close().await?;
+    assert_s3_read_and_stat_checksum(&op, path, meta, &content, "COMPOSITE", None).await
 }
 
 /// Read not exist file should return NotFound

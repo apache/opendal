@@ -32,6 +32,15 @@ use toml_edit::{DocumentMut, Item};
 /// example `services-platform-linux`.
 const PLATFORM_FEATURE_PREFIX: &str = "services-platform-";
 
+// Declarative layers with Python config schemas in python_config.j2.
+const LAYER_CONFIGS: &[&str] = &[
+    "concurrent_limit",
+    "logging",
+    "mime_guess",
+    "retry",
+    "timeout",
+];
+
 /// Subset of the `cargo metadata --format-version 1` output consumed here.
 /// The schema is controlled by cargo, so only the fields this generator reads
 /// are declared; serde ignores everything else.
@@ -113,8 +122,7 @@ fn platform_features(workspace_dir: &Path) -> Result<Vec<String>> {
     Ok(platforms)
 }
 
-/// Union the services enabled by every `services-platform-*` feature, i.e. the
-/// service sets the PyPI wheels are built with on their respective platforms.
+/// Resolve the facade features enabled across the PyPI wheel platforms.
 /// `cargo metadata` only resolves features and never compiles, so services that
 /// build on a subset of the wheel platforms, such as SFTP and Foyer, are still
 /// resolved on every host.
@@ -123,7 +131,7 @@ fn platform_features(workspace_dir: &Path) -> Result<Vec<String>> {
 /// crate, whose `services-*` features are exactly one per service, instead of
 /// the binding's own feature namespace, which also carries aggregate sets such
 /// as `services-all` and `services-platform-*`.
-fn enabled_services(workspace_dir: &Path) -> Result<HashSet<String>> {
+fn enabled_facade_features(workspace_dir: &Path) -> Result<Vec<String>> {
     let platforms = platform_features(workspace_dir)?;
     let metadata = cargo_metadata(workspace_dir, &platforms)?;
 
@@ -135,28 +143,32 @@ fn enabled_services(workspace_dir: &Path) -> Result<HashSet<String>> {
     let node = metadata
         .resolve
         .nodes
-        .iter()
+        .into_iter()
         .find(|node| node.id == package.id)
         .with_context(|| "resolve node for `opendal` not found in `cargo metadata` output")?;
+    Ok(node.features)
+}
 
+pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
+    let features = enabled_facade_features(&workspace_dir)?;
     // Service keys are directory names under core/services, which mix `-` and
     // `_` (e.g. `aliyun-drive` vs `mini_moka`), so normalize both sides.
-    let services: HashSet<String> = node
-        .features
+    let enabled_services: HashSet<String> = features
         .iter()
         .filter_map(|name| name.strip_prefix("services-"))
         .map(|service| service.replace('-', "_"))
         .collect();
-    if services.is_empty() {
+    if enabled_services.is_empty() {
         bail!("no `services-*` feature enabled by the `{PLATFORM_FEATURE_PREFIX}*` features");
     }
-
-    Ok(services)
-}
-
-pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
-    let enabled = enabled_services(&workspace_dir)?;
-    let srvs = sorted_services(services, |srv| enabled.contains(&srv.replace('-', "_")));
+    let srvs = sorted_services(services, |srv| {
+        enabled_services.contains(&srv.replace('-', "_"))
+    });
+    let layers: Vec<_> = LAYER_CONFIGS
+        .iter()
+        .copied()
+        .filter(|name| features.contains(&format!("layers-{}", snake_to_kebab_case(name))))
+        .collect();
     let mut env = Environment::new();
     env.add_template("python", include_str!("python.j2"))?;
     env.add_template("python_config", include_str!("python_config.j2"))?;
@@ -179,10 +191,10 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     }
     fs::write(output, rendered)?;
 
-    // Generate the typed service config TypedDicts (Python).
+    // Generate the service, context, and layer config TypedDicts (Python).
     let tmpl = env.get_template("python_config")?;
     let output = workspace_dir.join("bindings/python/python/opendal/config.py");
-    let mut rendered = tmpl.render(context! { srvs => srvs })?;
+    let mut rendered = tmpl.render(context! { srvs => srvs, layers => layers })?;
     if !rendered.ends_with('\n') {
         rendered.push('\n');
     }

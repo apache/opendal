@@ -105,6 +105,10 @@ jobs:
       - name: Check diff
         run: git diff --exit-code
 
+      - name: Check typed operator configuration
+        working-directory: "bindings/python"
+        run: just test-typing
+
   examples:
     runs-on: ubuntu-latest
     steps:

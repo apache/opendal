@@ -41,6 +41,10 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? Datacenter { get; init; }
         /// <summary>
+        /// Disable loading credentials from AWS environment variables and shared profile files. Set both `access_key_id` and `secret_access_key` when enabled.
+        /// </summary>
+        public bool? DisableConfigLoad { get; init; }
+        /// <summary>
         /// Use virtual-hosted-style bucket addressing.
         /// </summary>
         public bool? EnableVirtualHostStyle { get; init; }
@@ -77,6 +81,10 @@ namespace OpenDAL.ServiceConfig
             if (Datacenter is not null)
             {
                 map["datacenter"] = Utilities.ToOptionString(Datacenter);
+            }
+            if (DisableConfigLoad is not null)
+            {
+                map["disable_config_load"] = Utilities.ToOptionString(DisableConfigLoad);
             }
             if (EnableVirtualHostStyle is not null)
             {

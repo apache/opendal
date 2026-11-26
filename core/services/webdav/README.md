@@ -25,10 +25,11 @@ WebDAV uses `Depth: infinity` for recursive listings by default. Nextcloud and
 nginx and ownCloud configurations reject infinity depth with HTTP 403 and 412,
 respectively. Jianguoyun has been reported to return only one level.
 
-Set `disable_depth_infinity = true` for those endpoints. With the default
-`auto-simulate` feature, OpenDAL walks the directory tree using `Depth: 1`
-requests for recursive listing and deletion. If you disable that feature in
-Rust, apply `SimulateLayer::default()` to the operator to enable the walk.
+Set `disable_depth_infinity = true` for those endpoints. The default
+`auto-simulate` feature installs `SimulateLayer`, which walks the directory
+tree with `Depth: 1` `PROPFIND` requests for recursive listing. If you disable
+`auto-simulate` in Rust, apply `SimulateLayer::default()` to the operator to
+enable the walk. Collection deletion still uses one native `DELETE` request.
 
 ## Use through `opendal`
 

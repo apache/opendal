@@ -46,10 +46,11 @@ reported nginx and ownCloud configurations reject that depth with HTTP 403
 and 412, respectively. Jianguoyun has been reported to return only one level.
 
 Set `disable_depth_infinity = true` in the affected endpoint's WebDAV
-configuration. With the default `auto-simulate` feature, OpenDAL walks the
-directory tree using `Depth: 1` requests for recursive listing and deletion.
-If `auto-simulate` is disabled, add `SimulateLayer::default()` to the Rust
-operator to enable the walk.
+configuration. The default `auto-simulate` feature installs `SimulateLayer`,
+which walks the directory tree with `Depth: 1` `PROPFIND` requests for
+recursive listing. If `auto-simulate` is disabled, add
+`SimulateLayer::default()` to the Rust operator to enable the walk. Collection
+deletion still uses one native `DELETE` request.
 
 ## Glob listing
 

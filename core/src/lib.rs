@@ -928,6 +928,8 @@ pub mod layers {
     pub use opendal_layer_capability_check::*;
     #[cfg(feature = "layers-chaos")]
     pub use opendal_layer_chaos::*;
+    #[cfg(feature = "layers-checksum")]
+    pub use opendal_layer_checksum::ChecksumLayer;
     #[cfg(feature = "layers-concurrent-limit")]
     pub use opendal_layer_concurrent_limit::*;
     #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]

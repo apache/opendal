@@ -70,6 +70,31 @@ A per-write intent takes precedence over [`crate::S3Config::checksum_algorithm`]
 for HTTP checksum headers. The configured algorithm still disables native writer
 copy, and configuring `md5` still limits writes to a single PUT.
 
+To apply a checksum policy to an entire operator, enable the `services-s3` and
+`layers-checksum` features on `opendal` and attach
+[`ChecksumLayer`](https://docs.rs/opendal/latest/opendal/layers/struct.ChecksumLayer.html).
+The default policy requests a fast native checksum for writes without an
+explicit checksum intent and verifies available whole-object checksums on reads.
+
+<!-- This example uses the facade, which depends on this service crate. -->
+
+```rust,ignore
+use opendal::layers::ChecksumLayer;
+use opendal::services::S3;
+use opendal::{Operator, Result};
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let op = Operator::new(S3::default().bucket("example-bucket").region("us-west-2"))?
+        .layer(ChecksumLayer::new());
+
+    op.write("example.txt", "hello").await?;
+    let data = op.read("example.txt").await?;
+    assert_eq!(data.to_vec(), b"hello");
+    Ok(())
+}
+```
+
 ## Configuration
 
 Use [`crate::S3Config`] for serializable configuration and this builder's

@@ -18,7 +18,7 @@
 [package]
 description = "Apache OpenDAL checksum layer"
 name = "opendal-layer-checksum"
-publish = false
+readme = "README.md"
 
 authors = { workspace = true }
 edition = { workspace = true }
@@ -27,6 +27,9 @@ license = { workspace = true }
 repository = { workspace = true }
 rust-version = { workspace = true }
 version = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
 
 [dependencies]
 crc-fast = { workspace = true }

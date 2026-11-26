@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -209,52 +210,76 @@ impl B2Core {
         }
     }
 
-    pub async fn get_download_authorization(
+    pub(super) async fn presign_download(
         &self,
         ctx: &OperationContext,
         path: &str,
         expire: Duration,
-    ) -> Result<GetDownloadAuthorizationResponse> {
+        range: BytesRange,
+        overrides: DownloadResponseOverrides<'_>,
+    ) -> Result<RpPresign> {
         let path = build_absolute_path(&self.root, path);
-
         let auth_info = self.get_auth_info(ctx).await?;
 
-        // Construct headers to add to the request
-        let url = format!(
+        // B2 requires the same override values when issuing and using the download token.
+        let response_overrides: BTreeMap<_, _> = [
+            ("b2ContentType", overrides.content_type),
+            ("b2ContentDisposition", overrides.content_disposition),
+            ("b2CacheControl", overrides.cache_control),
+        ]
+        .into_iter()
+        .filter_map(|(name, value)| value.map(|value| (name, value)))
+        .collect();
+        let authorization = GetDownloadAuthorizationRequest {
+            bucket_id: &self.bucket_id,
+            file_name_prefix: &path,
+            valid_duration_in_seconds: expire.as_secs(),
+            response_overrides: &response_overrides,
+        };
+        let body = serde_json::to_vec(&authorization).map_err(new_json_serialize_error)?;
+        let request = Request::post(format!(
             "{}/b2api/v2/b2_get_download_authorization",
             auth_info.api_url
-        );
-        let mut req = Request::post(&url);
-
-        req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
-
-        let body = GetDownloadAuthorizationRequest {
-            bucket_id: self.bucket_id.clone(),
-            file_name_prefix: path,
-            valid_duration_in_seconds: expire.as_secs(),
-        };
-        let body = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
-        let body = bytes::Bytes::from(body);
-
-        let req = req
-            .body(Buffer::from(body))
-            .map_err(new_request_build_error)?;
-
-        let resp = self.send(ctx, req).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK => {
-                let resp_body = resp.into_body();
-                let resp = serde_json::from_reader(resp_body.reader())
-                    .map_err(new_json_deserialize_error)?;
-                Ok(resp)
-            }
-            _ => Err(parse_error(
+        ))
+        .header(header::AUTHORIZATION, auth_info.authorization_token)
+        .body(Buffer::from(body))
+        .map_err(new_request_build_error)?;
+        let response = self.send(ctx, request).await?;
+        if response.status() != StatusCode::OK {
+            return Err(parse_error(
                 ErrorContext::new(ServiceOperation("GetDownloadAuthorization")),
-                resp,
-            )),
+                response,
+            ));
         }
+        let authorization: GetDownloadAuthorizationResponse =
+            serde_json::from_reader(response.into_body().reader())
+                .map_err(new_json_deserialize_error)?;
+
+        let mut url = format!(
+            "{}/file/{}/{}?Authorization={}",
+            auth_info.download_url,
+            self.bucket,
+            percent_encode_path(&path),
+            authorization.authorization_token
+        );
+        for (name, value) in response_overrides {
+            url.push('&');
+            url.push_str(name);
+            url.push('=');
+            url.push_str(&percent_encode_path(value));
+        }
+
+        let mut request = Request::get(url);
+        if !range.is_full() {
+            request = request.header(header::RANGE, range.to_header());
+        }
+        let request = request.body(()).map_err(new_request_build_error)?;
+        let (parts, _) = request.into_parts();
+        Ok(RpPresign::new(PresignedRequest::new(
+            parts.method,
+            parts.uri,
+            parts.headers,
+        )))
     }
 
     pub async fn upload_file(
@@ -982,18 +1007,26 @@ pub struct HideFileRequest {
     pub file_name: String,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GetDownloadAuthorizationRequest {
-    pub bucket_id: String,
-    pub file_name_prefix: String,
-    pub valid_duration_in_seconds: u64,
+pub(super) struct DownloadResponseOverrides<'a> {
+    pub content_type: Option<&'a str>,
+    pub content_disposition: Option<&'a str>,
+    pub cache_control: Option<&'a str>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetDownloadAuthorizationResponse {
-    pub authorization_token: String,
+struct GetDownloadAuthorizationRequest<'a> {
+    bucket_id: &'a str,
+    file_name_prefix: &'a str,
+    valid_duration_in_seconds: u64,
+    #[serde(flatten)]
+    response_overrides: &'a BTreeMap<&'static str, &'a str>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GetDownloadAuthorizationResponse {
+    authorization_token: String,
 }
 
 /// the error response of b2

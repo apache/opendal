@@ -29,7 +29,7 @@ use super::core::B2Signer;
 use super::core::constants;
 use super::core::parse_error;
 use super::core::parse_file_info;
-use super::core::{B2Core, ErrorContext, FileVersionAction};
+use super::core::{B2Core, DownloadResponseOverrides, ErrorContext, FileVersionAction};
 use super::deleter::B2Deleter;
 use super::lister::B2Lister;
 use super::reader::*;
@@ -163,8 +163,14 @@ impl Builder for B2Builder {
                 info: ServiceInfo::new(B2_SCHEME, &root, ""),
                 capability: Capability {
                     stat: true,
+                    stat_with_override_cache_control: true,
+                    stat_with_override_content_disposition: true,
+                    stat_with_override_content_type: true,
 
                     read: true,
+                    read_with_override_cache_control: true,
+                    read_with_override_content_disposition: true,
+                    read_with_override_content_type: true,
                     read_with_suffix: true,
 
                     write: true,
@@ -499,68 +505,35 @@ impl Service for B2Backend {
         args: OpPresign,
     ) -> Result<RpPresign> {
         match args.operation() {
-            PresignOperation::Stat(_) => {
-                let resp = self
-                    .core
-                    .get_download_authorization(ctx, path, args.expire())
-                    .await?;
-                let path = build_absolute_path(&self.core.root, path);
-
-                let auth_info = self.core.get_auth_info(ctx).await?;
-
-                let url = format!(
-                    "{}/file/{}/{}?Authorization={}",
-                    auth_info.download_url,
-                    self.core.bucket,
-                    percent_encode_path(&path),
-                    resp.authorization_token
-                );
-
-                let req = Request::get(url);
-
-                let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-                // We don't need this request anymore, consume
-                let (parts, _) = req.into_parts();
-
-                Ok(RpPresign::new(PresignedRequest::new(
-                    parts.method,
-                    parts.uri,
-                    parts.headers,
-                )))
+            PresignOperation::Stat(stat) => {
+                self.core
+                    .presign_download(
+                        ctx,
+                        path,
+                        args.expire(),
+                        BytesRange::default(),
+                        DownloadResponseOverrides {
+                            content_type: stat.override_content_type(),
+                            content_disposition: stat.override_content_disposition(),
+                            cache_control: stat.override_cache_control(),
+                        },
+                    )
+                    .await
             }
-            PresignOperation::Read(range, _) => {
-                let resp = self
-                    .core
-                    .get_download_authorization(ctx, path, args.expire())
-                    .await?;
-                let path = build_absolute_path(&self.core.root, path);
-
-                let auth_info = self.core.get_auth_info(ctx).await?;
-
-                let url = format!(
-                    "{}/file/{}/{}?Authorization={}",
-                    auth_info.download_url,
-                    self.core.bucket,
-                    percent_encode_path(&path),
-                    resp.authorization_token
-                );
-
-                let mut req = Request::get(url);
-                if !range.is_full() {
-                    req = req.header(http::header::RANGE, range.to_header());
-                }
-
-                let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-                // We don't need this request anymore, consume
-                let (parts, _) = req.into_parts();
-
-                Ok(RpPresign::new(PresignedRequest::new(
-                    parts.method,
-                    parts.uri,
-                    parts.headers,
-                )))
+            PresignOperation::Read(range, read) => {
+                self.core
+                    .presign_download(
+                        ctx,
+                        path,
+                        args.expire(),
+                        *range,
+                        DownloadResponseOverrides {
+                            content_type: read.override_content_type(),
+                            content_disposition: read.override_content_disposition(),
+                            cache_control: read.override_cache_control(),
+                        },
+                    )
+                    .await
             }
             PresignOperation::Write(write) => {
                 let resp = self.core.get_upload_url(ctx).await?;

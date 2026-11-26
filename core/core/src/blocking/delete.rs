@@ -131,4 +131,20 @@ mod tests {
 
         assert_eq!(op.list("dir/").unwrap().len(), 2);
     }
+
+    #[test]
+    fn test_deleter_options() {
+        let rt = new_runtime();
+        let op = new_blocking_operator(&rt);
+        op.write("dir/a", "a").unwrap();
+        op.write("dir/b", "b").unwrap();
+
+        let mut deleter = op
+            .deleter_options(options::DeleterOptions { concurrent: 0 })
+            .unwrap();
+        deleter.delete_iter(["dir/a", "dir/b"]).unwrap();
+        deleter.close().unwrap();
+
+        assert!(op.list("dir/").unwrap().is_empty());
+    }
 }

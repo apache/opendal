@@ -743,9 +743,16 @@ impl Operator {
     /// Use [`blocking::Deleter`] directly for more control over the deletion
     /// process.
     pub fn deleter(&self) -> Result<blocking::Deleter> {
+        self.deleter_options(options::DeleterOptions::default())
+    }
+
+    /// Create a [`blocking::Deleter`] with extra options.
+    ///
+    /// Refer to [`options::DeleterOptions`] for details on each option.
+    pub fn deleter_options(&self, opts: options::DeleterOptions) -> Result<blocking::Deleter> {
         blocking::Deleter::create(
             self.handle.clone(),
-            self.handle.block_on(self.op.deleter())?,
+            self.handle.block_on(self.op.deleter_options(opts))?,
         )
     }
 

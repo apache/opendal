@@ -123,6 +123,20 @@ pub struct DeleteOptions {
     pub if_not_changed: Option<Metadata>,
 }
 
+/// Options for creating a [`crate::Deleter`].
+///
+/// # Groups
+/// - Execution: `concurrent`.
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+pub struct DeleterOptions {
+    /// Maximum number of in-flight backend tasks.
+    ///
+    /// Defaults to `1`. A value of `0` is treated as `1`. Each task handles an
+    /// individual deletion or one batch when the service supports batching.
+    /// A service can use multiple requests to process a single task.
+    pub concurrent: usize,
+}
+
 /// Options for list operations.
 ///
 /// # Groups

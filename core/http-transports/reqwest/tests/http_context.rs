@@ -19,11 +19,13 @@
 
 use std::error::Error as _;
 use std::future::pending;
+use std::sync::Arc;
 use std::time::Duration;
 
 use http::{Request, Response};
-use opendal_core::{Buffer, Error, ErrorKind, HttpBody, HttpTransport, HttpTransporter, Operator};
-use opendal_core::{OperatorRegistry, Result};
+use opendal_core::raw::BoxedStaticFuture;
+use opendal_core::{Buffer, Error, ErrorKind, Execute, Executor, HttpBody};
+use opendal_core::{HttpTransport, HttpTransporter, Operator, OperatorRegistry, Result};
 use opendal_http_transport_reqwest::register_http_context;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
@@ -40,8 +42,7 @@ fn request(uri: &str) -> Request<Buffer> {
     Request::get(uri).body(Buffer::new()).unwrap()
 }
 
-#[tokio::test]
-async fn unknown_options_preserve_the_installed_default_transport() -> Result<()> {
+fn register_fixture_context(name: &str) -> Executor {
     struct Marker;
 
     impl HttpTransport for Marker {
@@ -54,12 +55,40 @@ async fn unknown_options_preserve_the_installed_default_transport() -> Result<()
         }
     }
 
-    HttpTransporter::install_default(Marker);
-    let op = load([("context.http.unrecognized", "")])?;
+    struct FixtureExecutor;
+
+    impl Execute for FixtureExecutor {
+        fn execute(&self, future: BoxedStaticFuture<()>) {
+            tokio::spawn(future);
+        }
+    }
+
+    let executor = Executor::with(FixtureExecutor);
+    let fixture_executor = executor.clone();
+    // The fixture slot sorts before `http`, providing the factory's input context.
+    OperatorRegistry::get().register_context(name, move |ctx, _| {
+        Ok(ctx
+            .with_http_transport(HttpTransporter::new(Marker))
+            .with_executor(fixture_executor.clone()))
+    });
+    executor
+}
+
+#[tokio::test]
+async fn unknown_options_preserve_the_incoming_context() -> Result<()> {
+    let executor = register_fixture_context("fixture_unknown");
+    let op = load([
+        ("context.fixture_unknown.enabled", "true"),
+        ("context.http.unrecognized", ""),
+    ])?;
+    assert!(Arc::ptr_eq(
+        &op.context().executor().clone().into_inner(),
+        &executor.into_inner(),
+    ));
     let response = op
         .context()
         .http_transport()
-        .send(request("http://127.0.0.1/"))
+        .send(request("/object"))
         .await?;
     assert_eq!(response.into_body().to_vec(), b"original");
     Ok(())
@@ -93,7 +122,9 @@ async fn proxy_and_bypass_apply_per_request_with_the_configured_user_agent() -> 
             .unwrap();
     });
 
+    let executor = register_fixture_context("fixture_proxy");
     let op = load([
+        ("context.fixture_proxy.enabled", "true"),
         ("context.http.proxy", &proxy_url),
         ("context.http.no_proxy", "127.0.0.1/32"),
         ("context.http.user_agent", "opendal-fixture/1"),
@@ -101,6 +132,10 @@ async fn proxy_and_bypass_apply_per_request_with_the_configured_user_agent() -> 
         ("context.http.read_timeout", "2s"),
         ("context.http.timeout", "PT5S"),
     ])?;
+    assert!(Arc::ptr_eq(
+        &op.context().executor().clone().into_inner(),
+        &executor.into_inner(),
+    ));
     let transport = op.context().http_transport();
     assert_eq!(
         transport

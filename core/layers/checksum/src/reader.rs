@@ -26,18 +26,24 @@ use sha2::Sha256;
 
 pub(crate) struct ChecksumReader {
     inner: oio::Reader,
+    verify_read: bool,
     require_read: bool,
 }
 
 impl ChecksumReader {
-    pub(crate) fn new(inner: oio::Reader, require_read: bool) -> Self {
+    pub(crate) fn new(inner: oio::Reader, verify_read: bool, require_read: bool) -> Self {
         Self {
             inner,
+            verify_read,
             require_read,
         }
     }
 
     fn verifier(&self, range: BytesRange, response: &RpRead) -> Result<Option<ReadVerifier>> {
+        if !self.verify_read {
+            return Ok(None);
+        }
+
         let metadata = response.metadata();
         let length = metadata
             .filter(|metadata| metadata.is_file())

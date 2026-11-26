@@ -18,7 +18,8 @@
 import 'dart:io' as io;
 import 'dart:typed_data';
 import 'package:system_info2/system_info2.dart';
-import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_io.dart';
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_io.dart'
+    show ExternalLibraryLoaderConfig, loadExternalLibrary;
 import 'src/rust/frb_generated.dart';
 import 'src/rust/api/opendal_api.dart';
 export 'src/rust/frb_generated.dart';

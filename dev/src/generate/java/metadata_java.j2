@@ -24,12 +24,18 @@ package org.apache.opendal;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NonNull;
 
 /**
  * Metadata carries all metadata associated with a path.
  */
 @Data
+@Builder(toBuilder = true)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Metadata {
 {% for f in fields %}
     /**
@@ -37,23 +43,70 @@ public class Metadata {
      */
     public final {{ f.java_type }} {{ f.camel }};
 {% endfor %}
-    public Metadata(
-{%- for f in fields[:-1] %}
+    /** Builder for {@link Metadata}. */
+    public static class MetadataBuilder {
+        private EntryMode mode = EntryMode.UNKNOWN;
+        private Map<String, String> userMetadata = Collections.emptyMap();
+    }
+
+    private Metadata(
+{%- for f in fields %}
             {{ f.constructor_type }} {{ f.camel }}{{ "," if not loop.last else ") {" }}
 {%- endfor %}
         this(
-{%- for f in fields[:-1] %}
-                {{ f.camel }},
+{%- for f in fields %}
+                {{ f.constructor_value }}{{ "," if not loop.last else ");" }}
 {%- endfor %}
+    }
+
+    /**
+     * Creates metadata with an empty user metadata map.
+     *
+     * @deprecated Use {@code Metadata.builder()} instead.
+     */
+    @Deprecated
+    public Metadata(
+            int mode,
+            long contentLength,
+            String contentDisposition,
+            String contentMd5,
+            String contentType,
+            String cacheControl,
+            String etag,
+            Instant lastModified,
+            String version) {
+        this(
+                mode,
+                contentLength,
+                contentDisposition,
+                contentMd5,
+                contentType,
+                cacheControl,
+                etag,
+                lastModified,
+                version,
                 Collections.emptyMap());
     }
 
+    /**
+     * Creates metadata with the supplied user metadata map.
+     *
+     * @deprecated Use {@code Metadata.builder()} instead.
+     */
+    @Deprecated
     public Metadata(
+            int mode,
+            long contentLength,
+            String contentDisposition,
+            String contentMd5,
+            String contentType,
+            String cacheControl,
+            String etag,
+            Instant lastModified,
+            String version,
+            Map<String, String> userMetadata) {
 {%- for f in fields %}
-            {{ f.constructor_type }} {{ f.camel }}{{ "," if not loop.last else ") {" }}
-{%- endfor %}
-{%- for f in fields %}
-        this.{{ f.camel }} = {{ f.constructor_value }};
+        this.{{ f.camel }} = {{ f.legacy_expr }};
 {%- endfor %}
     }
 

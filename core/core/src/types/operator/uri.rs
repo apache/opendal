@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::fmt;
 
 use http::Uri;
 use percent_encoding::percent_decode_str;
@@ -24,7 +25,7 @@ use url::Url;
 use crate::{Error, ErrorKind, Result};
 
 /// Parsed representation of an operator URI with normalized components.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct OperatorUri {
     scheme: String,
     authority: Option<String>,
@@ -33,6 +34,20 @@ pub struct OperatorUri {
     password: Option<String>,
     root: Option<String>,
     options: HashMap<String, String>,
+}
+
+impl fmt::Debug for OperatorUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut option_keys: Vec<_> = self.options.keys().collect();
+        option_keys.sort_unstable();
+        f.debug_struct("OperatorUri")
+            .field("scheme", &self.scheme)
+            .field("authority", &self.authority)
+            .field("name", &self.name)
+            .field("root", &self.root)
+            .field("option_keys", &option_keys)
+            .finish_non_exhaustive()
+    }
 }
 
 impl OperatorUri {
@@ -156,9 +171,17 @@ impl OperatorUri {
         self.root.as_deref()
     }
 
-    /// Normalized option map merged from query string and extra options (excluding reserved keys).
+    /// Normalized options merged from the query string and extra options.
     pub fn options(&self) -> &HashMap<String, String> {
         &self.options
+    }
+
+    /// Remove matching options while preserving the URI components.
+    pub(crate) fn extract_options(
+        &mut self,
+        mut matches: impl FnMut(&str) -> bool,
+    ) -> impl Iterator<Item = (String, String)> {
+        self.options.extract_if(move |key, _| matches(key))
     }
 
     /// Retrieve a specific option by key (case-insensitive).
@@ -279,6 +302,31 @@ where
 mod tests {
     use super::*;
     use crate::types::IntoOperatorUri;
+
+    #[test]
+    fn debug_omits_userinfo_and_all_option_values() -> Result<()> {
+        let uri = (
+            "demo://dummy-user:dummy%2Dpass@example.com:8080/sample",
+            [
+                ("master_key", "dummy-master-key"),
+                (
+                    "context.http.proxy",
+                    "http://dummy-proxy-user:dummy-proxy-pass@proxy.test",
+                ),
+                ("custom_option", "dummy-custom-value"),
+            ],
+        )
+            .into_operator_uri()?;
+
+        for output in [format!("{uri:?}"), format!("{uri:#?}")] {
+            assert!(output.contains("example.com:8080"));
+            for key in ["master_key", "context.http.proxy", "custom_option"] {
+                assert!(output.contains(key));
+            }
+            assert!(!output.contains("dummy-"), "{output}");
+        }
+        Ok(())
+    }
 
     #[test]
     fn parse_uri_with_name_and_root() {

@@ -78,7 +78,8 @@ pub use config::AimdLayerBuilder;
 /// for separate accounts, credentials, or operation-specific quotas, and
 /// install them in the HTTP transports used by the corresponding requests.
 ///
-/// Waiting uses Tokio timers by default. Use [`AimdLayerBuilder::with_sleep`] to supply a timer.
+/// Admission waits use the context executor, or Tokio if it does not provide
+/// a timer. Use [`AimdLayerBuilder::with_sleep`] to override this choice.
 /// Pacing happens after the service builds and signs a request. Bound operation
 /// duration when queued requests could outlive a backend's signature validity period. This layer
 /// limits dispatches to the next transport, not redirects or retries hidden
@@ -87,7 +88,7 @@ pub use config::AimdLayerBuilder;
 #[derive(Clone)]
 pub struct AimdLayer {
     buckets: Arc<Buckets>,
-    sleep: SleepFn,
+    sleep: Option<SleepFn>,
 }
 
 type SleepFn = Arc<dyn Fn(Duration) -> BoxedStaticFuture<()> + Send + Sync>;
@@ -136,9 +137,18 @@ impl Layer for AimdLayer {
     }
 
     fn apply_context(&self, _: Servicer, inner: OperationContext) -> OperationContext {
+        let sleep = self.sleep.clone().unwrap_or_else(|| {
+            let executor = inner.executor().clone();
+            Arc::new(move |duration| {
+                executor
+                    .inner()
+                    .sleep(duration)
+                    .unwrap_or_else(|| Box::pin(tokio::time::sleep(duration)))
+            })
+        });
         inner.with_http_transport(HttpTransporter::new(AimdTransport {
             inner: inner.http_transport().clone(),
-            sleep: self.sleep.clone(),
+            sleep,
             buckets: self.buckets.clone(),
         }))
     }

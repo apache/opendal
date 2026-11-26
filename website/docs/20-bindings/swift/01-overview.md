@@ -33,6 +33,7 @@ be built from source. It is not published to any package registry.
 | Blocking write | Supported |
 | Blocking existence check (`blockingExists`) | Supported |
 | Blocking delete (`blockingDelete`) | Supported |
+| Blocking directory creation (`blockingCreateDirectory`) | Supported on services with directory creation |
 | Async read/write | Not yet |
 | Stat / metadata | Not yet |
 | List | Not yet |

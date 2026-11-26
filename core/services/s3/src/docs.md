@@ -63,8 +63,9 @@ On general-purpose AWS S3 buckets, use [`opendal_core::WriteChecksum::Any`] or
 CRC-64/NVME checksum. Explicit algorithm and expected checksum requests
 support CRC-32C and CRC-64/NVME. The write returns the confirmed checksum in
 [`opendal_core::Metadata::checksum`] for both a single PUT and multipart upload.
-Append, S3 Express One Zone, and S3-compatible provider presets reject per-write
-checksum intents.
+Append and S3 Express One Zone reject per-write checksum intents, as do
+S3-compatible provider presets other than [`crate::Seaweedfs`]. The SeaweedFS
+preset supports opt-in write checksum verification on compatible gateways.
 
 A per-write intent takes precedence over [`crate::S3Config::checksum_algorithm`]
 for HTTP checksum headers. The configured algorithm still disables native writer

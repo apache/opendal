@@ -3967,6 +3967,7 @@
         "write_can_empty": true,
         "write_can_multi": "When `checksum_algorithm` is not `md5`",
         "write_with_cache_control": true,
+        "write_with_checksum": "Requires `enable_write_checksum=true` for non-append writes. Verified with signed path-style requests to SeaweedFS 4.52.",
         "write_with_content_disposition": true,
         "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
         "write_with_content_language": true,

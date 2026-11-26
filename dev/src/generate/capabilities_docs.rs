@@ -343,9 +343,23 @@ fn parse_capability_literal(
                     loc(rel_path, fv.span())
                 );
             }
-            // S3 presets share this literal, but these capabilities require the S3 scheme.
-            let s3_only = matches!(strip_parens(&fv.expr), Expr::Path(path) if path.path.is_ident("read_checksum_mode") || path.path.is_ident("s3_can_checksum"));
-            if s3_only && name != "s3" {
+            // S3 presets share the S3 capability literal but have separate checksum support.
+            if rel_path == "core/services/s3/src/backend.rs"
+                && name != "s3"
+                && matches!(
+                    field_name.as_str(),
+                    "read_with_checksum" | "write_with_checksum"
+                )
+            {
+                if name == "seaweedfs" && field_name == "write_with_checksum" {
+                    native.insert(
+                        field_name,
+                        NativeBoolDoc::Conditional(
+                            "Requires `enable_write_checksum=true` for non-append writes. Verified with signed path-style requests to SeaweedFS 4.52."
+                                .to_string(),
+                        ),
+                    );
+                }
                 continue;
             }
             if let Some(doc) = eval_bool_field(&fv.expr, platform_cond, rel_path)? {
@@ -1160,6 +1174,16 @@ mod tests {
         let minio = out.services.iter().find(|s| s.scheme == "minio").unwrap();
         assert!(!minio.native.contains_key("read_with_checksum"));
         assert!(!minio.native.contains_key("write_with_checksum"));
+        let seaweedfs = out
+            .services
+            .iter()
+            .find(|s| s.scheme == "seaweedfs")
+            .unwrap();
+        assert!(!seaweedfs.native.contains_key("read_with_checksum"));
+        assert!(matches!(
+            seaweedfs.native.get("write_with_checksum"),
+            Some(NativeBoolDoc::Conditional(condition)) if condition.contains("enable_write_checksum")
+        ));
         assert!(!s3.native.contains_key("create_dir"));
         assert_eq!(
             s3.limits.get("write_multi_min_size"),

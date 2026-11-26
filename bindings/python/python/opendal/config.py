@@ -1514,6 +1514,8 @@ class SeaweedfsConfig(TypedDict):
     """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style addressing when the gateway has a matching `domainName`."""
+    enable_write_checksum: NotRequired[bool]
+    """Opt in to native checksum verification for non-append writes. Defaults to false. Verified with signed path-style requests to SeaweedFS 4.52."""
     endpoint: Required[str]
     """HTTP(S) base URL of the deployment’s S3 gateway."""
     region: NotRequired[str]

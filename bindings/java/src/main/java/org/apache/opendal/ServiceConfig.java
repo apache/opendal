@@ -5316,6 +5316,11 @@ public interface ServiceConfig {
          */
         public final Boolean enableVirtualHostStyle;
         /**
+         * <p>Opt in to native checksum verification for non-append writes. Defaults to false.
+         * Verified with signed path-style requests to SeaweedFS 4.52.</p>
+         */
+        public final Boolean enableWriteChecksum;
+        /**
          * <p>HTTP(S) base URL of the deployment’s S3 gateway.</p>
          */
         public final @NonNull String endpoint;
@@ -5349,6 +5354,9 @@ public interface ServiceConfig {
             }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (enableWriteChecksum != null) {
+                map.put("enable_write_checksum", String.valueOf(enableWriteChecksum));
             }
             map.put("endpoint", endpoint);
             if (region != null) {

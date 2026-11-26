@@ -31,17 +31,33 @@ use crate::ReqwestTransport;
 
 /// Register the reqwest factory for `context.http.*` operator options.
 ///
-/// The factory supports `user_agent`, `proxy` (an HTTP or HTTPS URL),
-/// `no_proxy` (a comma-separated bypass list for that proxy), and positive
-/// `connect_timeout`, `read_timeout`, and `timeout` durations (for example,
-/// `500ms` or `PT5S`). Empty or invalid values return
-/// [`ErrorKind::ConfigInvalid`]. On native targets, `no_proxy` requires `proxy`.
-/// SOCKS proxy URLs return [`ErrorKind::Unsupported`]. On Wasm, only
-/// `user_agent` is supported, subject to the host Fetch API.
+/// This replaces any existing `http` context factory in the registry. When
+/// [`OperatorRegistry::load`] supplies at least one recognized option and
+/// validation succeeds, the factory builds a client for the base context. The
+/// client uses reqwest's defaults for omitted fields, including TLS selection.
+/// If the scope is omitted or contains only unknown options, the operator
+/// keeps its incoming HTTP transport.
 ///
-/// Recognized options replace the base HTTP transport with a new reqwest
-/// client. With only unknown options, the factory preserves the input context.
-/// The client uses the same TLS defaults as [`ReqwestTransport::default`].
+/// | Option under `context.http.` | Value |
+/// | --- | --- |
+/// | `proxy` | Absolute HTTP or HTTPS proxy URL with a host. An explicit proxy disables reqwest's automatic system proxy selection. |
+/// | `no_proxy` | Comma-separated bypass list for the explicit proxy. Requires `proxy` and at least one nonblank entry. |
+/// | `connect_timeout` | Deadline for the connection phase. |
+/// | `read_timeout` | Deadline for each read, reset after a successful read. |
+/// | `timeout` | Total request deadline through the end of the response body. |
+/// | `user_agent` | Default `User-Agent` header value. On Wasm, the host Fetch API controls whether it is sent. |
+///
+/// All three timeout fields require a positive duration such as `500ms` or
+/// `PT5S`.
+///
+/// # Errors
+///
+/// Errors surface when loading an operator. Empty strings for recognized
+/// options and invalid values for supported options return
+/// [`ErrorKind::ConfigInvalid`]. A SOCKS proxy URL returns
+/// [`ErrorKind::Unsupported`]. On Wasm, nonempty proxy, bypass, and timeout
+/// options return [`ErrorKind::Unsupported`]. A reqwest client build error
+/// returns [`ErrorKind::Unexpected`].
 pub fn register_http_context(registry: &OperatorRegistry) {
     registry.register_context("http", |ctx, options| {
         ReqwestConfig::parse(options)?.apply(ctx)

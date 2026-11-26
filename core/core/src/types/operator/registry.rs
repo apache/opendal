@@ -32,7 +32,14 @@ type ContextFactory =
     dyn Fn(OperationContext, HashMap<String, String>) -> Result<OperationContext> + Send + Sync;
 type LayerFactory = dyn Fn(HashMap<String, String>) -> Result<Arc<dyn Layer>> + Send + Sync;
 
-/// Global registry for constructing operators from configuration.
+/// Registry of service, context, and layer factories for string-based
+/// operator configuration.
+///
+/// [`Operator::from_uri`] and [`Operator::via_iter`] use the global registry
+/// returned by [`OperatorRegistry::get`]. Use [`OperatorRegistry::load`] to
+/// construct a service with its configured base context and ordered layers.
+/// Replacing a factory changes subsequent lookups. Operators already loaded
+/// keep their service, base context, and layers.
 pub struct OperatorRegistry {
     factories: Mutex<Factories>,
 }
@@ -56,7 +63,13 @@ impl fmt::Debug for OperatorRegistry {
 }
 
 impl OperatorRegistry {
-    /// Get the global registry.
+    /// Get the process-wide registry used for string-based operator construction.
+    ///
+    /// The `memory` service is always registered. Other schemes, context
+    /// providers, and layers must be registered before use. The `opendal`
+    /// facade installs the factories it provides for enabled Cargo features
+    /// when it initializes its defaults. With split crates, use the
+    /// component's registration function or register a factory directly.
     pub fn get() -> &'static Self {
         /// The global registry used by [`Operator::from_uri`].
         ///
@@ -82,7 +95,10 @@ impl OperatorRegistry {
             .expect("operator registry mutex poisoned")
     }
 
-    /// Register a builder for the given scheme.
+    /// Register a builder for the given service scheme.
+    ///
+    /// The scheme is matched case-insensitively in ASCII. Registering the same
+    /// scheme replaces its builder for subsequent lookups.
     pub fn register<B: Builder>(&self, scheme: &str) {
         self.lock_factories()
             .services
@@ -91,11 +107,12 @@ impl OperatorRegistry {
 
     /// Register a context factory for `context.<name>.*` options.
     ///
-    /// Names are matched case-insensitively in ASCII and use only letters,
-    /// digits, underscores, and hyphens. Registering the same name replaces its
-    /// factory for future loads. The factory receives the current base context
-    /// and the options with `context.<name>.` removed from their keys. Return
-    /// the input context unchanged when no options are recognized.
+    /// Use a nonempty name containing only ASCII letters or digits,
+    /// underscores, or hyphens. Names are matched case-insensitively in ASCII.
+    /// Registering the same name replaces its factory for subsequent lookups.
+    /// The factory receives the current base context and the options with
+    /// `context.<name>.` removed from their keys.
+    /// Return the input context unchanged when no options are recognized.
     pub fn register_context<F>(&self, name: &str, factory: F)
     where
         F: Fn(OperationContext, HashMap<String, String>) -> Result<OperationContext>
@@ -113,10 +130,11 @@ impl OperatorRegistry {
 
     /// Register a layer factory for a name in `layers`.
     ///
-    /// Names are matched case-insensitively in ASCII and use only letters,
-    /// digits, underscores, and hyphens. Registering the same name replaces its
-    /// factory for future loads. The factory receives the options with
-    /// `layer.<name>.` removed from their keys, or an empty map if none are set.
+    /// Use a nonempty name containing only ASCII letters or digits,
+    /// underscores, or hyphens. Names are matched case-insensitively in ASCII.
+    /// Registering the same name replaces its factory for subsequent lookups.
+    /// The factory receives the options with `layer.<name>.` removed from
+    /// their keys, or an empty map if none are set.
     pub fn register_layer<L, F>(&self, name: &str, factory: F)
     where
         L: Layer,
@@ -132,9 +150,8 @@ impl OperatorRegistry {
 
     /// Return the set of schemes currently registered.
     ///
-    /// For the global registry returned by [`OperatorRegistry::get`], this is
-    /// exactly the set of schemes that [`Operator::from_uri`] can construct, as
-    /// determined by the compiled-in `services-*` features.
+    /// This includes built-in and application-registered schemes. The set
+    /// reflects the registrations at the time of the call.
     ///
     /// ```
     /// use opendal_core::OperatorRegistry;
@@ -148,17 +165,39 @@ impl OperatorRegistry {
 
     /// Load an [`Operator`] from trusted URI and key-value configuration.
     ///
-    /// The URI scheme selects the service. Options under `context.<name>.` build
-    /// the base context in name order. The comma-separated `layers` option names
-    /// layers from inner to outer. Options under `layer.<name>.` configure a layer
-    /// only when that name appears in the list. Other options go to the service.
+    /// The registry partitions the normalized options, then builds the service
+    /// selected by the URI scheme from the URI components and unscoped options.
+    /// It starts with the default [`OperationContext`] and invokes context
+    /// factories with `context.<name>.<field>` options in ascending order of
+    /// their normalized names. Each factory receives the previous context and
+    /// the normalized field keys without their scope prefix.
     ///
-    /// Malformed scoped keys, invalid layer lists, and duplicate layer names
-    /// return [`ErrorKind::ConfigInvalid`]. An unregistered scheme, context, or
-    /// active layer returns [`ErrorKind::Unsupported`].
+    /// The `layers` option lists layers from inner to outer, just like chained
+    /// [`Operator::layer`] calls. For example, `layers=timeout,retry` places
+    /// retry outside timeout and both outside the default layers that
+    /// [`Operator::new`] applies. A missing, empty, or ASCII-whitespace-only
+    /// list adds no configured layers. The registry trims ASCII whitespace
+    /// around each comma-separated name and matches names case-insensitively in
+    /// ASCII. It passes `layer.<name>.<field>` options to listed layers and
+    /// ignores well-formed options for layers outside the list.
+    ///
+    /// The layers wrap the service and the configured base context. Use
+    /// [`Operator::with_context`] to replace that base context and replay the
+    /// same layers. Factories can access the registry while running. Each
+    /// lookup uses the registration in effect at the time of that lookup.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::ConfigInvalid`] for malformed scoped keys, even
+    /// for inactive layers, and for invalid, empty, or duplicate names in a
+    /// nonempty layer list. Scoped keys require a nonempty field and a name
+    /// containing only ASCII letters or digits, underscores, or hyphens. Returns
+    /// [`ErrorKind::Unsupported`] for an unregistered scheme, configured context,
+    /// or listed layer. URI conversion and factory errors propagate to the caller.
     ///
     /// Only pass URIs and options from trusted sources. URI query parameters can
-    /// specify context and layers even when extra options are supplied.
+    /// specify context and layers even when extra options are supplied. See the
+    /// [operator configuration specification][crate::docs::specs::operator_configuration].
     pub fn load(&self, uri: impl IntoOperatorUri) -> Result<Operator> {
         let mut uri = uri.into_operator_uri()?;
         let mut context_options = BTreeMap::<_, HashMap<_, _>>::new();

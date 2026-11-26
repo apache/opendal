@@ -15,6 +15,10 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+For signed full-object reads and stat requests, OSS can override the response
+`Cache-Control` and `Content-Disposition` headers. These options also apply to
+presigned requests and leave the stored object metadata unchanged.
+
 ## Configuration
 
 Use [`crate::OssConfig`] for serializable configuration and this builder's

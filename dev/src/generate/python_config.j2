@@ -136,7 +136,7 @@ class {{ service_to_pascal(name) }}LayerConfig(TypedDict):
 {%- endif %}
 
 {% endfor %}
-{% if layers %}
+{%- if layers %}
 LayerConfig = (
 {%- for name in layers %}
 {% if loop.first %}    {{ service_to_pascal(name) }}LayerConfig{% else %}    | {{ service_to_pascal(name) }}LayerConfig{% endif %}

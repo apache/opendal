@@ -970,6 +970,32 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
         self
     }
 
+    /// Sets the expected full-file checksum of the written content.
+    ///
+    /// Refer to [`options::WriteOptions::checksum`] for the full contract.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
+    /// use opendal_core::Checksum;
+    /// use opendal_core::ChecksumAlgo;
+    ///
+    /// # async fn test(op: Operator, crc32c: [u8; 4]) -> Result<()> {
+    /// let meta = op
+    ///     .write_with("path/to/file", vec![0; 4096])
+    ///     .checksum(Checksum::new(ChecksumAlgo::Crc32c, crc32c))
+    ///     .await?;
+    /// assert_eq!(meta.checksum().map(|c| c.algo), Some(ChecksumAlgo::Crc32c));
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn checksum(mut self, checksum: Checksum) -> Self {
+        self.args.0.checksum = Some(checksum);
+        self
+    }
+
     /// Sets user metadata for this write request.
     ///
     /// Refer to [`options::WriteOptions::user_metadata`] for more details.
@@ -1338,6 +1364,16 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     /// ```
     pub fn if_not_exists(mut self, b: bool) -> Self {
         self.args.if_not_exists = b;
+        self
+    }
+
+    /// Sets the expected full-file checksum of everything written through
+    /// this writer.
+    ///
+    /// The service verifies the checksum when the writer closes. Refer to
+    /// [`options::WriteOptions::checksum`] for the full contract.
+    pub fn checksum(mut self, checksum: Checksum) -> Self {
+        self.args.checksum = Some(checksum);
         self
     }
 

@@ -250,6 +250,35 @@ fn format_crc32c_iter(body: Buffer) -> String {
     BASE64_STANDARD.encode(crc.to_be_bytes())
 }
 
+fn format_crc64nvme_iter(body: Buffer) -> String {
+    let mut digest = CrcDigest::new(CrcAlgorithm::Crc64Nvme);
+    body.for_each(|b| digest.update(&b));
+
+    BASE64_STANDARD.encode(digest.finalize().to_be_bytes())
+}
+
+/// Map a caller-supplied checksum to the S3 algorithm that verifies it as a
+/// full-object checksum on both PutObject and multipart uploads.
+///
+/// S3 supports full-object multipart checksums only for CRC algorithms, so
+/// other algorithms are rejected even though PutObject alone would accept them.
+pub fn s3_full_object_checksum_algorithm(checksum: &Checksum) -> Result<ChecksumAlgorithm> {
+    match checksum.algo {
+        ChecksumAlgo::Crc32c => Ok(ChecksumAlgorithm::Crc32c),
+        ChecksumAlgo::Crc64Nvme => Ok(ChecksumAlgorithm::Crc64Nvme),
+        algo => Err(Error::new(
+            ErrorKind::Unsupported,
+            format!("S3 does not support a full-object {algo:?} checksum"),
+        )),
+    }
+}
+
+/// Parse the full-object checksum S3 reports for `algo` from a base64 value.
+pub fn parse_s3_checksum(algo: ChecksumAlgo, value: &str) -> Option<Checksum> {
+    let value = BASE64_STANDARD.decode(value).ok()?;
+    (value.len() == algo.digest_len()).then(|| Checksum::new(algo, value))
+}
+
 impl Debug for S3Core {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("S3Core")
@@ -461,11 +490,8 @@ impl S3Core {
         req
     }
     pub fn calculate_checksum(&self, body: &Buffer) -> Option<String> {
-        match self.checksum_algorithm {
-            None => None,
-            Some(ChecksumAlgorithm::Crc32c) => Some(format_crc32c_iter(body.clone())),
-            Some(ChecksumAlgorithm::Md5) => Some(format_content_md5_iter(body.clone())),
-        }
+        self.checksum_algorithm
+            .map(|algorithm| algorithm.calculate(body))
     }
     pub fn insert_checksum_header(
         &self,
@@ -751,10 +777,18 @@ impl S3Core {
             );
         }
 
-        // Calculate checksum only when we have an actual payload (`size.is_some()`).
-        // Presigned PUT requests pass `size = None` with a placeholder empty buffer
-        // and must not sign an empty-body checksum header into the presigned URL.
-        if size.is_some()
+        // A caller-supplied checksum replaces the configured one: S3 accepts
+        // only one `x-amz-checksum-*` header per request.
+        if let Some(checksum) = args.checksum() {
+            let algorithm = s3_full_object_checksum_algorithm(&checksum)?;
+            req = req.header(
+                algorithm.to_header_name(),
+                BASE64_STANDARD.encode(&checksum.value),
+            );
+        } else if size.is_some()
+            // Calculate checksum only when we have an actual payload (`size.is_some()`).
+            // Presigned PUT requests pass `size = None` with a placeholder empty buffer
+            // and must not sign an empty-body checksum header into the presigned URL.
             && let Some(checksum) = self.calculate_checksum(&body)
         {
             // Set Checksum header.
@@ -1171,14 +1205,24 @@ impl S3Core {
         // Set checksum type headers.
         // For multipart upload creation, only CRC32 | CRC32C | SHA1 | SHA256 | CRC64NVME are accepted.
         // Reference: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
-        if matches!(self.checksum_algorithm, Some(ChecksumAlgorithm::Md5)) {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "checksum_algorithm \"md5\" is not supported for multipart uploads. \
-                 S3 CreateMultipartUpload only accepts: CRC32, CRC32C, SHA1, SHA256.",
-            ));
+        if let Some(checksum) = args.checksum() {
+            // A caller-supplied checksum covers the whole object, so the upload
+            // must use the FULL_OBJECT checksum type that
+            // CompleteMultipartUpload verifies.
+            let algorithm = s3_full_object_checksum_algorithm(&checksum)?;
+            req = req
+                .header("x-amz-checksum-algorithm", algorithm.to_string())
+                .header("x-amz-checksum-type", "FULL_OBJECT");
+        } else {
+            if matches!(self.checksum_algorithm, Some(ChecksumAlgorithm::Md5)) {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "checksum_algorithm \"md5\" is not supported for multipart uploads. \
+                     S3 CreateMultipartUpload only accepts: CRC32, CRC32C, SHA1, SHA256.",
+                ));
+            }
+            req = self.insert_checksum_type_header(req);
         }
-        req = self.insert_checksum_type_header(req);
 
         // Inject operation to the request.
         req = req
@@ -1355,7 +1399,7 @@ impl S3Core {
         part_number: usize,
         size: u64,
         body: Buffer,
-        checksum: Option<String>,
+        checksum: Option<(ChecksumAlgorithm, &str)>,
     ) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path);
 
@@ -1377,9 +1421,8 @@ impl S3Core {
         // Set SSE headers.
         req = self.insert_sse_headers(req, false);
 
-        if let Some(checksum) = checksum {
-            // Set Checksum header.
-            req = self.insert_checksum_header(req, &checksum);
+        if let Some((algorithm, checksum)) = checksum {
+            req = req.header(algorithm.to_header_name(), checksum);
         }
 
         // Inject operation to the request.
@@ -1428,6 +1471,18 @@ impl S3Core {
         }
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
+        }
+
+        // S3 compares the supplied full-object checksum with the assembled
+        // object and fails the upload with BadDigest on mismatch.
+        if let Some(checksum) = args.checksum() {
+            let algorithm = s3_full_object_checksum_algorithm(&checksum)?;
+            req = req
+                .header(
+                    algorithm.to_header_name(),
+                    BASE64_STANDARD.encode(&checksum.value),
+                )
+                .header("x-amz-checksum-type", "FULL_OBJECT");
         }
 
         // Set request payer header if enabled.
@@ -1678,6 +1733,8 @@ pub struct CompleteMultipartUploadRequestPart {
     pub etag: String,
     #[serde(rename = "ChecksumCRC32C", skip_serializing_if = "Option::is_none")]
     pub checksum_crc32c: Option<String>,
+    #[serde(rename = "ChecksumCRC64NVME", skip_serializing_if = "Option::is_none")]
+    pub checksum_crc64nvme: Option<String>,
 }
 
 /// Output of `CompleteMultipartUpload` operation
@@ -1689,6 +1746,10 @@ pub struct CompleteMultipartUploadResult {
     pub location: String,
     #[serde(rename = "ETag")]
     pub etag: String,
+    #[serde(rename = "ChecksumCRC32C")]
+    pub checksum_crc32c: Option<String>,
+    #[serde(rename = "ChecksumCRC64NVME")]
+    pub checksum_crc64nvme: Option<String>,
     pub code: String,
     pub message: String,
     pub request_id: String,
@@ -1838,16 +1899,29 @@ pub struct ListObjectVersionsOutputDeleteMarker {
     pub last_modified: String,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChecksumAlgorithm {
     Crc32c,
+    /// Only used for caller-supplied checksums; not accepted as a config value.
+    Crc64Nvme,
     /// Mapping to the `Content-MD5` header from S3.
     Md5,
 }
 impl ChecksumAlgorithm {
-    pub fn to_header_name(&self) -> HeaderName {
+    pub fn to_header_name(self) -> HeaderName {
         match self {
             Self::Crc32c => HeaderName::from_static("x-amz-checksum-crc32c"),
+            Self::Crc64Nvme => HeaderName::from_static("x-amz-checksum-crc64nvme"),
             Self::Md5 => HeaderName::from_static("content-md5"),
+        }
+    }
+
+    /// Compute the base64 digest of `body` in the format S3 expects.
+    pub fn calculate(self, body: &Buffer) -> String {
+        match self {
+            Self::Crc32c => format_crc32c_iter(body.clone()),
+            Self::Crc64Nvme => format_crc64nvme_iter(body.clone()),
+            Self::Md5 => format_content_md5_iter(body.clone()),
         }
     }
 }
@@ -1858,6 +1932,7 @@ impl Display for ChecksumAlgorithm {
             "{}",
             match self {
                 Self::Crc32c => "CRC32C",
+                Self::Crc64Nvme => "CRC64NVME",
                 Self::Md5 => "MD5",
             }
         )
@@ -2529,6 +2604,12 @@ pub fn parse_s3_error_code(ctx: ErrorContext, code: &str) -> Option<(ErrorKind, 
         | "ExceedBucketQPSLimit"
         | "ExceedBucketRateLimit" => Some((ErrorKind::RateLimited, true)),
         "InvalidRange" => Some((ErrorKind::RangeNotSatisfied, false)),
+        // > The Content-MD5 or checksum value that you specified did not
+        // > match what the server received.
+        //
+        // MinIO reports the same failure for `x-amz-checksum-*` headers as
+        // XAmzContentChecksumMismatch.
+        "BadDigest" | "XAmzContentChecksumMismatch" => Some((ErrorKind::ChecksumMismatch, false)),
         "PreconditionFailed" | "412 Precondition Failed" if ctx.caller_condition => {
             Some((ErrorKind::ConditionNotMatch, false))
         }
@@ -2546,6 +2627,16 @@ pub fn parse_s3_error_code(ctx: ErrorContext, code: &str) -> Option<(ErrorKind, 
 #[cfg(test)]
 mod error_tests {
     use super::*;
+
+    #[test]
+    fn checksum_mismatch_codes() {
+        for code in ["BadDigest", "XAmzContentChecksumMismatch"] {
+            assert_eq!(
+                parse_s3_error_code(ErrorContext::new(ServiceOperation("PutObject")), code),
+                Some((ErrorKind::ChecksumMismatch, false))
+            );
+        }
+    }
 
     #[test]
     fn precondition_failed_uses_operation_context() {

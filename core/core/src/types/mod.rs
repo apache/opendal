@@ -83,6 +83,10 @@ pub use error::Result;
 mod capability;
 pub use capability::Capability;
 
+mod checksum;
+pub use checksum::Checksum;
+pub use checksum::ChecksumAlgo;
+
 mod bytes_range;
 pub use bytes_range::BytesRange;
 

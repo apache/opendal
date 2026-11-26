@@ -116,6 +116,14 @@ pub struct Capability {
     pub write_multi_min_size: usize,
     /// Maximum total size supported for write operations. For example, Cloudflare D1 has a 1MB total size limit.
     pub write_total_max_size: usize,
+    /// Indicates if writes accept a full-file CRC-64/NVME checksum, verify it, and return it in the write result.
+    pub checksum_crc64_nvme: bool,
+    /// Indicates if writes accept a full-file CRC-32C checksum, verify it, and return it in the write result.
+    pub checksum_crc32c: bool,
+    /// Indicates if writes accept a full-file MD5 checksum, verify it, and return it in the write result.
+    pub checksum_md5: bool,
+    /// Indicates if writes accept a full-file SHA-256 checksum, verify it, and return it in the write result.
+    pub checksum_sha256: bool,
     /// Indicates if directory creation is supported.
     pub create_dir: bool,
     /// Indicates if delete operations are supported.
@@ -271,6 +279,10 @@ impl Capability {
             write_multi_max_size: cap.write_multi_max_size.unwrap_or(usize::MAX),
             write_multi_min_size: cap.write_multi_min_size.unwrap_or(usize::MAX),
             write_total_max_size: cap.write_total_max_size.unwrap_or(usize::MAX),
+            checksum_crc64_nvme: cap.checksum_crc64_nvme,
+            checksum_crc32c: cap.checksum_crc32c,
+            checksum_md5: cap.checksum_md5,
+            checksum_sha256: cap.checksum_sha256,
             create_dir: cap.create_dir,
             delete: cap.delete,
             delete_with_version: cap.delete_with_version,

@@ -30,7 +30,7 @@ pub(crate) fn make_capability<'a>(env: &mut Env<'a>, cap: Capability) -> Result<
     let capability = env.new_object(
         jni_str!("org/apache/opendal/Capability"),
         jni_sig!(
-            "(ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZJJJZZZZZZZZJZZZZZZZZZZZJJZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ)V"
+            "(ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZJJJZZZZZZZZZZZZJZZZZZZZZZZZJJZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ)V"
         ),
         &[
             JValue::Bool(cap.stat),
@@ -76,6 +76,10 @@ pub(crate) fn make_capability<'a>(env: &mut Env<'a>, cap: Capability) -> Result<
             JValue::Long(convert::usize_to_jlong(cap.write_multi_max_size)),
             JValue::Long(convert::usize_to_jlong(cap.write_multi_min_size)),
             JValue::Long(convert::usize_to_jlong(cap.write_total_max_size)),
+            JValue::Bool(cap.checksum_crc64_nvme),
+            JValue::Bool(cap.checksum_crc32c),
+            JValue::Bool(cap.checksum_md5),
+            JValue::Bool(cap.checksum_sha256),
             JValue::Bool(cap.create_dir),
             JValue::Bool(cap.delete),
             JValue::Bool(cap.delete_with_version),

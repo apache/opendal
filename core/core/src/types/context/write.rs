@@ -170,7 +170,12 @@ impl WriteState {
     /// Create the write state for the given write context.
     pub fn create(ctx: Arc<WriteContext>) -> Result<Self> {
         let (chunk_size, exact) = ctx.calculate_chunk_size();
-        let can_copy_from = ctx.service().capability().write_can_copy_from && !ctx.args().append();
+        // A native copy assembles the source range on the service without
+        // passing it through the writer, so a full-file checksum write streams
+        // copied ranges like any other content.
+        let can_copy_from = ctx.service().capability().write_can_copy_from
+            && !ctx.args().append()
+            && ctx.args().checksum().is_none();
         let w = ctx.srv.write(&ctx.ctx, ctx.path(), ctx.args().clone())?;
 
         Ok(Self {

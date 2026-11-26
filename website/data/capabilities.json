@@ -216,6 +216,13 @@
       "doc": "Indicates if suffix read operations are supported."
     },
     {
+      "name": "read_with_checksum",
+      "short": "with_checksum",
+      "group": "read",
+      "kind": "bool",
+      "doc": "Indicates if the operator supports requesting a stored full-file checksum during reads. Individual responses may omit the checksum."
+    },
+    {
       "name": "write",
       "short": "write",
       "group": "write",
@@ -3739,6 +3746,7 @@
         "presign_stat": true,
         "presign_write": true,
         "read": true,
+        "read_with_checksum": "Signed requests to standard AWS S3 endpoints for general-purpose buckets",
         "read_with_if_match": true,
         "read_with_if_modified_since": true,
         "read_with_if_none_match": true,

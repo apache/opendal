@@ -152,6 +152,11 @@ public class Capability {
     public final boolean readWithSuffix;
 
     /**
+     * Indicates if the operator supports requesting a stored full-file checksum during reads. Individual responses may omit the checksum.
+     */
+    public final boolean readWithChecksum;
+
+    /**
      * Indicates if the operator supports write operations.
      */
     public final boolean write;
@@ -706,6 +711,7 @@ public class Capability {
         this.readWithOverrideContentType = readWithOverrideContentType;
         this.readWithVersion = readWithVersion;
         this.readWithSuffix = false;
+        this.readWithChecksum = false;
         this.write = write;
         this.writeCanMulti = writeCanMulti;
         this.writeCanEmpty = false;

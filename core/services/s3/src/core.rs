@@ -119,7 +119,6 @@ pub struct S3Core {
     pub server_side_encryption_customer_key_md5: Option<HeaderValue>,
     pub default_storage_class: Option<HeaderValue>,
     pub skip_signature: bool,
-    pub read_checksum_mode: bool,
     pub disable_list_objects_v2: bool,
     pub enable_request_payer: bool,
     pub default_acl: Option<String>,
@@ -743,7 +742,7 @@ impl S3Core {
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let mut req = self.s3_get_object_request(path, range, args)?;
-        if args.checksum() && self.read_checksum_mode {
+        if args.checksum() && self.capability.read_with_checksum {
             req.headers_mut().insert(
                 constants::X_AMZ_CHECKSUM_MODE,
                 HeaderValue::from_static("ENABLED"),
@@ -882,7 +881,7 @@ impl S3Core {
         path: &str,
         args: OpStat,
     ) -> Result<Response<Buffer>> {
-        let checksum = args.checksum() && self.read_checksum_mode;
+        let checksum = args.checksum() && self.capability.read_with_checksum;
         let mut req = self.s3_head_object_request(path, args)?;
         if checksum {
             req.headers_mut().insert(

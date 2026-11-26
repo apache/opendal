@@ -24,11 +24,22 @@ has been permanently deleted, belongs to a different path, or is a hide marker
 returns `NotFound`. Ordinary `stat` and `list` expose current file IDs through
 `Metadata::version()`.
 
+## File reads by version
+
+`read_with(path).version(file_id)` and `reader_with(path).version(file_id)`
+read a B2 data version of the specified file. The application key needs
+`readFiles` permission. A version belonging to a different path returns
+`NotFound`. The reader checks the version against the configured bucket and
+path before each download. Range reads report the selected version's full length
+in the reader's metadata. Response overrides with a selected version return
+`Unsupported`.
+
 ## Presigned downloads
 
 `presign_read` and `presign_stat` both return a B2 download request that uses
-GET and addresses the file by name. `presign_stat_options` returns `Unsupported`
-when a version is set. The option-bearing variants support overriding the response
+GET and addresses the file by name. `presign_read_options` and
+`presign_stat_options` return `Unsupported` when a version is set. The
+option-bearing variants support overriding the response
 `Content-Type`, `Content-Disposition`, and `Cache-Control`. Use the returned
 method, URL, and headers to execute the request.
 

@@ -2728,6 +2728,7 @@ version = "0.59.5"
 dependencies = [
  "anyhow",
  "bytes",
+ "crc-fast",
  "futures",
  "getrandom 0.4.2",
  "http 1.5.0",

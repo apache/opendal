@@ -865,6 +865,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_reader_read_suffix_after_overwrite() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let path = "test_file";
+
+        for (original, replacement, expected_suffix) in
+            [("ab", "abcdef", "cdef"), ("abcdef", "ab", "ab")]
+        {
+            op.write(path, original).await?;
+            let reader = op.reader(path).await?;
+            assert_eq!(reader.read(..).await?.to_bytes(), original);
+            let first_metadata = reader
+                .metadata()
+                .expect("first read must observe metadata")
+                .clone();
+
+            op.write(path, replacement).await?;
+            let suffix = reader.read(BytesRange::suffix(4)).await?;
+
+            assert_eq!(suffix.to_bytes(), expected_suffix);
+            assert_eq!(reader.metadata(), Some(&first_metadata));
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_reader_read_suffix_larger_than_content() -> Result<()> {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         let path = "test_file";

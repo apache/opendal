@@ -145,7 +145,6 @@ pub struct Capability {
     /// Indicates if custom user metadata can be attached during write operations.
     pub write_with_user_metadata: bool,
     /// Indicates if writes can set a lifetime for the new file.
-    #[serde(default)]
     pub write_with_expires: bool,
     /// Maximum size supported for multipart uploads.
     /// For example, AWS S3 supports up to 5GiB per part in multipart uploads.

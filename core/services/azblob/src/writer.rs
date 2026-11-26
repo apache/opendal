@@ -676,6 +676,11 @@ mod tests {
             }
             assert_eq!(recorded[2].headers[X_MS_BLOB_CONDITION_APPENDPOS], "0");
             assert_eq!(&recorded[2].body[..], b"a");
+            assert_eq!(
+                recorded[2].headers.get(X_MS_CONTENT_CRC64),
+                Some(&http::HeaderValue::from_static("PPzLtEWEL4w=")),
+                "the first nonempty Append Block must carry the CRC64 of its body"
+            );
             for request in &recorded[3..] {
                 assert!(request.uri.ends_with("?comp=appendblock"));
                 assert_eq!(request.headers[X_MS_BLOB_CONDITION_APPENDPOS], "1");

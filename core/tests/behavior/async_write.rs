@@ -88,22 +88,27 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ));
     }
 
-    if cap.write && cap.stat {
+    let is_s3 = op.info().scheme() == "s3";
+    if cap.write && cap.stat && (!cap.write_with_checksum || is_s3) {
         tests.extend(async_trials!(op, test_write_with_unsupported_checksum));
     }
 
-    if cap.read && cap.write && cap.stat && (cap.checksum_crc32c || cap.checksum_crc64_nvme) {
-        tests.extend(async_trials!(
-            op,
-            test_write_with_checksum,
-            test_write_with_checksum_mismatch
-        ));
-        if cap.write_can_multi {
+    if cap.read && cap.write && cap.write_with_checksum {
+        tests.extend(async_trials!(op, test_write_with_any_checksum));
+        if is_s3 && cap.stat {
             tests.extend(async_trials!(
                 op,
-                test_writer_with_checksum_multipart,
-                test_writer_with_checksum_multipart_mismatch
+                test_write_with_checksum,
+                test_write_with_checksum_mismatch
             ));
+            if cap.write_can_multi {
+                tests.extend(async_trials!(
+                    op,
+                    test_writer_with_checksum_multipart,
+                    test_writer_with_checksum_multipart_mismatch,
+                    test_writer_with_any_checksum_multipart
+                ));
+            }
         }
     }
 
@@ -1348,19 +1353,13 @@ pub async fn test_writer_write_non_contiguous_data(op: Operator) -> Result<()> {
     Ok(())
 }
 
-/// Return the CRC checksums of `content` for every CRC algorithm `op` supports.
-fn supported_crc_checksums(op: &Operator, content: &[u8]) -> Vec<Checksum> {
-    let cap = op.info().capability();
-    let mut checksums = Vec::new();
-    if cap.checksum_crc32c {
-        let crc = crc_fast::checksum(crc_fast::CrcAlgorithm::Crc32Iscsi, content) as u32;
-        checksums.push(Checksum::new(ChecksumAlgo::Crc32c, crc.to_be_bytes()));
-    }
-    if cap.checksum_crc64_nvme {
-        let crc = crc_fast::checksum(crc_fast::CrcAlgorithm::Crc64Nvme, content);
-        checksums.push(Checksum::new(ChecksumAlgo::Crc64Nvme, crc.to_be_bytes()));
-    }
-    checksums
+fn s3_crc_checksums(content: &[u8]) -> [Checksum; 2] {
+    let crc32c = crc_fast::checksum(crc_fast::CrcAlgorithm::Crc32Iscsi, content) as u32;
+    let crc64nvme = crc_fast::checksum(crc_fast::CrcAlgorithm::Crc64Nvme, content);
+    [
+        Checksum::new(ChecksumAlgo::Crc32c, crc32c.to_be_bytes()),
+        Checksum::new(ChecksumAlgo::Crc64Nvme, crc64nvme.to_be_bytes()),
+    ]
 }
 
 /// Return a checksum of the same algorithm and length that does not match.
@@ -1370,26 +1369,18 @@ fn corrupt_checksum(checksum: &Checksum) -> Checksum {
     Checksum::new(checksum.algo, value)
 }
 
-/// Write with a checksum whose algorithm the service does not advertise
-/// should fail before writing anything.
+/// An unsupported checksum intent fails before writing anything.
 pub async fn test_write_with_unsupported_checksum(op: Operator) -> Result<()> {
-    let cap = op.info().capability();
-    let unsupported = [
-        (ChecksumAlgo::Crc64Nvme, cap.checksum_crc64_nvme),
-        (ChecksumAlgo::Crc32c, cap.checksum_crc32c),
-        (ChecksumAlgo::Md5, cap.checksum_md5),
-        (ChecksumAlgo::Sha256, cap.checksum_sha256),
-    ]
-    .into_iter()
-    .find(|(_, supported)| !supported);
-    let Some((algo, _)) = unsupported else {
-        return Ok(());
+    let intent = if op.info().capability().write_with_checksum {
+        WriteChecksum::Expected(Checksum::new(ChecksumAlgo::Md5, [0; 16]))
+    } else {
+        WriteChecksum::Any
     };
 
     let path = TEST_FIXTURE.new_file_path();
     let err = op
         .write_with(&path, "content")
-        .checksum(Checksum::new(algo, vec![0; algo.digest_len()]))
+        .checksum(intent)
         .await
         .expect_err("write with an unsupported checksum must fail");
     assert_eq!(err.kind(), ErrorKind::Unsupported);
@@ -1403,11 +1394,21 @@ pub async fn test_write_with_unsupported_checksum(op: Operator) -> Result<()> {
     Ok(())
 }
 
+pub async fn test_write_with_any_checksum(op: Operator) -> Result<()> {
+    let (_, content, _) = TEST_FIXTURE.new_file(op.clone());
+    let path = TEST_FIXTURE.new_file_path();
+    op.write_with(&path, content.clone())
+        .checksum(WriteChecksum::Any)
+        .await?;
+    assert_eq!(op.read(&path).await?.to_bytes(), Bytes::from(content));
+    Ok(())
+}
+
 /// Write with a matching checksum should succeed and return the checksum.
 pub async fn test_write_with_checksum(op: Operator) -> Result<()> {
     let (_, content, _) = TEST_FIXTURE.new_file(op.clone());
 
-    for checksum in supported_crc_checksums(&op, &content) {
+    for checksum in s3_crc_checksums(&content) {
         let path = TEST_FIXTURE.new_file_path();
         let meta = op
             .write_with(&path, content.clone())
@@ -1426,7 +1427,7 @@ pub async fn test_write_with_checksum(op: Operator) -> Result<()> {
 pub async fn test_write_with_checksum_mismatch(op: Operator) -> Result<()> {
     let (_, content, _) = TEST_FIXTURE.new_file(op.clone());
 
-    for checksum in supported_crc_checksums(&op, &content) {
+    for checksum in s3_crc_checksums(&content) {
         let path = TEST_FIXTURE.new_file_path();
         let err = op
             .write_with(&path, content.clone())
@@ -1458,7 +1459,7 @@ fn multipart_checksum_content(op: &Operator) -> (usize, Vec<u8>) {
 pub async fn test_writer_with_checksum_multipart(op: Operator) -> Result<()> {
     let (chunk, content) = multipart_checksum_content(&op);
 
-    for checksum in supported_crc_checksums(&op, &content) {
+    for checksum in s3_crc_checksums(&content) {
         let path = TEST_FIXTURE.new_file_path();
         let mut writer = op
             .writer_with(&path)
@@ -1478,11 +1479,34 @@ pub async fn test_writer_with_checksum_multipart(op: Operator) -> Result<()> {
     Ok(())
 }
 
+/// S3 verifies and returns the whole-object CRC for a concurrent checksum write.
+pub async fn test_writer_with_any_checksum_multipart(op: Operator) -> Result<()> {
+    let (chunk, content) = multipart_checksum_content(&op);
+    let path = TEST_FIXTURE.new_file_path();
+    let mut writer = op
+        .writer_with(&path)
+        .chunk(chunk)
+        .concurrent(3)
+        .checksum(WriteChecksum::Any)
+        .await?;
+    for part in content.chunks(chunk) {
+        writer.write(part.to_vec()).await?;
+    }
+    let meta = writer.close().await?;
+    let crc = crc_fast::checksum(crc_fast::CrcAlgorithm::Crc64Nvme, &content);
+    assert_eq!(
+        meta.checksum(),
+        Some(Checksum::new(ChecksumAlgo::Crc64Nvme, crc.to_be_bytes()))
+    );
+    assert_eq!(op.read(&path).await?.to_bytes(), Bytes::from(content));
+    Ok(())
+}
+
 /// A mismatching full-file checksum fails a multipart write on close.
 pub async fn test_writer_with_checksum_multipart_mismatch(op: Operator) -> Result<()> {
     let (chunk, content) = multipart_checksum_content(&op);
 
-    for checksum in supported_crc_checksums(&op, &content) {
+    for checksum in s3_crc_checksums(&content) {
         let path = TEST_FIXTURE.new_file_path();
         let mut writer = op
             .writer_with(&path)

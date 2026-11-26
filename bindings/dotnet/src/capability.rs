@@ -110,20 +110,14 @@ pub struct Capability {
     pub write_with_user_metadata: bool,
     /// Indicates if writes can set a lifetime for the new file.
     pub write_with_expires: bool,
+    /// Indicates if non-append writes support native checksum verification. A service with this capability supports at least [`crate::WriteChecksum::Any`] and validates each requested intent before performing I/O.
+    pub write_with_checksum: bool,
     /// Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads.
     pub write_multi_max_size: usize,
     /// Minimum size required for multipart uploads (except for the last part). For example, AWS S3 requires at least 5MiB per part.
     pub write_multi_min_size: usize,
     /// Maximum total size supported for write operations. For example, Cloudflare D1 has a 1MB total size limit.
     pub write_total_max_size: usize,
-    /// Indicates if writes accept a full-file CRC-64/NVME checksum, verify it, and return it in the write result.
-    pub checksum_crc64_nvme: bool,
-    /// Indicates if writes accept a full-file CRC-32C checksum, verify it, and return it in the write result.
-    pub checksum_crc32c: bool,
-    /// Indicates if writes accept a full-file MD5 checksum, verify it, and return it in the write result.
-    pub checksum_md5: bool,
-    /// Indicates if writes accept a full-file SHA-256 checksum, verify it, and return it in the write result.
-    pub checksum_sha256: bool,
     /// Indicates if directory creation is supported.
     pub create_dir: bool,
     /// Indicates if delete operations are supported.
@@ -276,13 +270,10 @@ impl Capability {
             write_with_if_not_exists: cap.write_with_if_not_exists,
             write_with_user_metadata: cap.write_with_user_metadata,
             write_with_expires: cap.write_with_expires,
+            write_with_checksum: cap.write_with_checksum,
             write_multi_max_size: cap.write_multi_max_size.unwrap_or(usize::MAX),
             write_multi_min_size: cap.write_multi_min_size.unwrap_or(usize::MAX),
             write_total_max_size: cap.write_total_max_size.unwrap_or(usize::MAX),
-            checksum_crc64_nvme: cap.checksum_crc64_nvme,
-            checksum_crc32c: cap.checksum_crc32c,
-            checksum_md5: cap.checksum_md5,
-            checksum_sha256: cap.checksum_sha256,
             create_dir: cap.create_dir,
             delete: cap.delete,
             delete_with_version: cap.delete_with_version,

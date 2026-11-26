@@ -56,6 +56,20 @@ Add `.if_not_exists(true)` when a selected version must not overwrite an
 object recreated by another writer. This condition requires an explicit
 version.
 
+## Write verification
+
+On general-purpose AWS S3 buckets, use [`opendal_core::WriteChecksum::Any`] or
+[`opendal_core::WriteChecksum::Fast`] to compute and verify a full-object
+CRC-64/NVME checksum. Explicit algorithm and expected checksum requests
+support CRC-32C and CRC-64/NVME. The write returns the confirmed checksum in
+[`opendal_core::Metadata::checksum`] for both a single PUT and multipart upload.
+Append, S3 Express One Zone, and S3-compatible provider presets reject per-write
+checksum intents.
+
+A per-write intent takes precedence over [`crate::S3Config::checksum_algorithm`]
+for HTTP checksum headers. The configured algorithm still disables native writer
+copy, and configuring `md5` still limits writes to a single PUT.
+
 ## Configuration
 
 Use [`crate::S3Config`] for serializable configuration and this builder's

@@ -336,6 +336,13 @@
       "doc": "Indicates if writes can set a lifetime for the new file."
     },
     {
+      "name": "write_with_checksum",
+      "short": "with_checksum",
+      "group": "write",
+      "kind": "bool",
+      "doc": "Indicates if non-append writes support native checksum verification."
+    },
+    {
       "name": "write_multi_max_size",
       "short": "multi_max_size",
       "group": "write",
@@ -355,34 +362,6 @@
       "group": "write",
       "kind": "bytes",
       "doc": "Maximum total size supported for write operations. For example, Cloudflare D1 has a 1MB total size limit."
-    },
-    {
-      "name": "checksum_crc64_nvme",
-      "short": "checksum_crc64_nvme",
-      "group": "other",
-      "kind": "bool",
-      "doc": "Indicates if writes accept a full-file CRC-64/NVME checksum, verify it, and return it in the write result."
-    },
-    {
-      "name": "checksum_crc32c",
-      "short": "checksum_crc32c",
-      "group": "other",
-      "kind": "bool",
-      "doc": "Indicates if writes accept a full-file CRC-32C checksum, verify it, and return it in the write result."
-    },
-    {
-      "name": "checksum_md5",
-      "short": "checksum_md5",
-      "group": "other",
-      "kind": "bool",
-      "doc": "Indicates if writes accept a full-file MD5 checksum, verify it, and return it in the write result."
-    },
-    {
-      "name": "checksum_sha256",
-      "short": "checksum_sha256",
-      "group": "other",
-      "kind": "bool",
-      "doc": "Indicates if writes accept a full-file SHA-256 checksum, verify it, and return it in the write result."
     },
     {
       "name": "create_dir",
@@ -770,8 +749,6 @@
       "name": "akamai",
       "scheme": "akamai",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -1043,8 +1020,6 @@
       "name": "b2-s3",
       "scheme": "b2-s3",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -1142,8 +1117,6 @@
       "name": "ceph-rgw",
       "scheme": "ceph-rgw",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -1339,8 +1312,6 @@
       "name": "cos-s3",
       "scheme": "cos-s3",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -1506,8 +1477,6 @@
       "name": "exoscale",
       "scheme": "exoscale",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -1662,8 +1631,6 @@
       "name": "garage",
       "scheme": "garage",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -1863,8 +1830,6 @@
       "name": "gcs-s3",
       "scheme": "gcs-s3",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -2076,8 +2041,6 @@
       "name": "hetzner",
       "scheme": "hetzner",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -2223,8 +2186,6 @@
       "name": "ibm-cos",
       "scheme": "ibm-cos",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -2312,8 +2273,6 @@
       "name": "idrive-e2",
       "scheme": "idrive-e2",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -2401,8 +2360,6 @@
       "name": "ionos",
       "scheme": "ionos",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -2546,8 +2503,6 @@
       "name": "lakefs-s3",
       "scheme": "lakefs-s3",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -2684,8 +2639,6 @@
       "name": "minio",
       "scheme": "minio",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -2832,8 +2785,6 @@
       "name": "neon",
       "scheme": "neon",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -2961,8 +2912,6 @@
       "name": "obs-s3",
       "scheme": "obs-s3",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -3050,8 +2999,6 @@
       "name": "oci",
       "scheme": "oci",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -3250,8 +3197,6 @@
       "name": "oss-s3",
       "scheme": "oss-s3",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -3339,8 +3284,6 @@
       "name": "ovhcloud",
       "scheme": "ovhcloud",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -3470,8 +3413,6 @@
       "name": "qingstor",
       "scheme": "qingstor",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -3559,8 +3500,6 @@
       "name": "r2",
       "scheme": "r2",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -3690,8 +3629,6 @@
       "name": "rustfs",
       "scheme": "rustfs",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -3779,8 +3716,6 @@
       "name": "s3",
       "scheme": "s3",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -3832,6 +3767,7 @@
         "write_can_empty": true,
         "write_can_multi": "When `checksum_algorithm` is not `md5`",
         "write_with_cache_control": true,
+        "write_with_checksum": "Standard S3 buckets (not S3 Express One Zone)",
         "write_with_content_disposition": true,
         "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
         "write_with_content_language": true,
@@ -3868,8 +3804,6 @@
       "name": "scaleway",
       "scheme": "scaleway",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -3971,8 +3905,6 @@
       "name": "seaweedfs",
       "scheme": "seaweedfs",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -4090,8 +4022,6 @@
       "name": "spaces",
       "scheme": "spaces",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -4193,8 +4123,6 @@
       "name": "storj",
       "scheme": "storj",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -4282,8 +4210,6 @@
       "name": "supabase",
       "scheme": "supabase",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -4430,8 +4356,6 @@
       "name": "swift-s3api",
       "scheme": "swift-s3api",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -4519,8 +4443,6 @@
       "name": "tigris",
       "scheme": "tigris",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -4685,8 +4607,6 @@
       "name": "tos-s3",
       "scheme": "tos-s3",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,
@@ -4836,8 +4756,6 @@
       "name": "wasabi",
       "scheme": "wasabi",
       "native": {
-        "checksum_crc32c": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
-        "checksum_crc64_nvme": "Standard S3 buckets (not S3 Express One Zone or provider presets)",
         "copy": true,
         "copy_can_multi": true,
         "copy_with_content_language": true,

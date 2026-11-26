@@ -994,9 +994,11 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
         self
     }
 
-    /// Sets the expected full-file checksum of the written content.
+    /// Request native checksum verification for this write.
     ///
-    /// Refer to [`options::WriteOptions::checksum`] for the full contract.
+    /// Pass a [`WriteChecksum`], a [`crate::ChecksumAlgo`] to compute, or a
+    /// caller-supplied [`crate::Checksum`] to verify. Refer to
+    /// [`options::WriteOptions::checksum`] for the full contract.
     ///
     /// ### Example
     ///
@@ -1015,8 +1017,8 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn checksum(mut self, checksum: Checksum) -> Self {
-        self.args.0.checksum = Some(checksum);
+    pub fn checksum(mut self, checksum: impl Into<WriteChecksum>) -> Self {
+        self.args.0.checksum = Some(checksum.into());
         self
     }
 
@@ -1391,13 +1393,13 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
         self
     }
 
-    /// Sets the expected full-file checksum of everything written through
-    /// this writer.
+    /// Request native checksum verification for this writer.
     ///
-    /// The service verifies the checksum when the writer closes. Refer to
+    /// Pass a [`WriteChecksum`], a [`crate::ChecksumAlgo`] to compute, or a
+    /// caller-supplied [`crate::Checksum`] to verify. Refer to
     /// [`options::WriteOptions::checksum`] for the full contract.
-    pub fn checksum(mut self, checksum: Checksum) -> Self {
-        self.args.checksum = Some(checksum);
+    pub fn checksum(mut self, checksum: impl Into<WriteChecksum>) -> Self {
+        self.args.checksum = Some(checksum.into());
         self
     }
 

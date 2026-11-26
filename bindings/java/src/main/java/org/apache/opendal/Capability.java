@@ -237,6 +237,11 @@ public class Capability {
     public final boolean writeWithExpires;
 
     /**
+     * Indicates if non-append writes support native checksum verification. A service with this capability supports at least [`crate::WriteChecksum::Any`] and validates each requested intent before performing I/O.
+     */
+    public final boolean writeWithChecksum;
+
+    /**
      * Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads.
      */
     public final long writeMultiMaxSize;
@@ -250,26 +255,6 @@ public class Capability {
      * Maximum total size supported for write operations. For example, Cloudflare D1 has a 1MB total size limit.
      */
     public final long writeTotalMaxSize;
-
-    /**
-     * Indicates if writes accept a full-file CRC-64/NVME checksum, verify it, and return it in the write result.
-     */
-    public final boolean checksumCrc64Nvme;
-
-    /**
-     * Indicates if writes accept a full-file CRC-32C checksum, verify it, and return it in the write result.
-     */
-    public final boolean checksumCrc32c;
-
-    /**
-     * Indicates if writes accept a full-file MD5 checksum, verify it, and return it in the write result.
-     */
-    public final boolean checksumMd5;
-
-    /**
-     * Indicates if writes accept a full-file SHA-256 checksum, verify it, and return it in the write result.
-     */
-    public final boolean checksumSha256;
 
     /**
      * Indicates if directory creation is supported.
@@ -738,13 +723,10 @@ public class Capability {
         this.writeWithIfNotExists = writeWithIfNotExists;
         this.writeWithUserMetadata = writeWithUserMetadata;
         this.writeWithExpires = false;
+        this.writeWithChecksum = false;
         this.writeMultiMaxSize = writeMultiMaxSize;
         this.writeMultiMinSize = writeMultiMinSize;
         this.writeTotalMaxSize = -1L;
-        this.checksumCrc64Nvme = false;
-        this.checksumCrc32c = false;
-        this.checksumMd5 = false;
-        this.checksumSha256 = false;
         this.createDir = createDir;
         this.delete = delete;
         this.deleteWithVersion = false;

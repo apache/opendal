@@ -740,7 +740,6 @@ mod tests {
                 write_can_multi: true,
                 write_multi_min_size: Some(10),
                 write_can_copy_from: self.faults.can_copy_from,
-                checksum_sha256: true,
                 read_with_if_match: self.faults.read_with_if_match,
                 ..self.inner.capability()
             }
@@ -1306,6 +1305,11 @@ mod tests {
         let data = b"0123456789abcdefghij";
         op.write("source", data.to_vec()).await?;
         let (fault_op, copy_ranges, _) = with_write_faults(&op, WriteFaults::default());
+        // Override checksum admission to exercise copy dispatch with the Memory writer.
+        let fault_op = fault_op.layer(layers::CapabilityOverrideLayer::new(|mut capability| {
+            capability.write_with_checksum = true;
+            capability
+        }));
         let mut writer = fault_op
             .writer_with("target")
             .checksum(Checksum::new(

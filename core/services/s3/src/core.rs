@@ -260,13 +260,13 @@ fn format_crc64nvme_iter(body: Buffer) -> String {
     BASE64_STANDARD.encode(digest.finalize().to_be_bytes())
 }
 
-/// Map a caller-supplied checksum to the S3 algorithm that verifies it as a
-/// full-object checksum on both PutObject and multipart uploads.
+/// Map an algorithm supported for full-object verification on both PutObject
+/// and multipart uploads.
 ///
 /// S3 supports full-object multipart checksums only for CRC algorithms, so
 /// other algorithms are rejected even though PutObject alone would accept them.
-pub fn s3_full_object_checksum_algorithm(checksum: &Checksum) -> Result<ChecksumAlgorithm> {
-    match checksum.algo {
+pub fn s3_full_object_checksum_algorithm(algo: ChecksumAlgo) -> Result<ChecksumAlgorithm> {
+    match algo {
         ChecksumAlgo::Crc32c => Ok(ChecksumAlgorithm::Crc32c),
         ChecksumAlgo::Crc64Nvme => Ok(ChecksumAlgorithm::Crc64Nvme),
         algo => Err(Error::new(
@@ -757,6 +757,7 @@ impl S3Core {
         path: &str,
         size: Option<u64>,
         args: &OpWrite,
+        checksum: Option<(ChecksumAlgorithm, &str)>,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path);
@@ -786,14 +787,9 @@ impl S3Core {
             );
         }
 
-        // A caller-supplied checksum replaces the configured one: S3 accepts
-        // only one `x-amz-checksum-*` header per request.
-        if let Some(checksum) = args.checksum() {
-            let algorithm = s3_full_object_checksum_algorithm(&checksum)?;
-            req = req.header(
-                algorithm.to_header_name(),
-                BASE64_STANDARD.encode(&checksum.value),
-            );
+        // A per-write checksum takes precedence over the configured one.
+        if let Some((algorithm, value)) = checksum {
+            req = req.header(algorithm.to_header_name(), value);
         } else if size.is_some()
             // Calculate checksum only when we have an actual payload (`size.is_some()`).
             // Presigned PUT requests pass `size = None` with a placeholder empty buffer
@@ -1162,6 +1158,7 @@ impl S3Core {
         ctx: &OperationContext,
         path: &str,
         args: &OpWrite,
+        full_object_checksum: Option<ChecksumAlgorithm>,
     ) -> Result<Response<Buffer>> {
         let p = build_absolute_path(&self.root, path);
 
@@ -1221,11 +1218,7 @@ impl S3Core {
         // Set checksum type headers.
         // For multipart upload creation, only CRC32 | CRC32C | SHA1 | SHA256 | CRC64NVME are accepted.
         // Reference: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
-        if let Some(checksum) = args.checksum() {
-            // A caller-supplied checksum covers the whole object, so the upload
-            // must use the FULL_OBJECT checksum type that
-            // CompleteMultipartUpload verifies.
-            let algorithm = s3_full_object_checksum_algorithm(&checksum)?;
+        if let Some(algorithm) = full_object_checksum {
             req = req
                 .header("x-amz-checksum-algorithm", algorithm.to_string())
                 .header("x-amz-checksum-type", "FULL_OBJECT");
@@ -1459,6 +1452,7 @@ impl S3Core {
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
         args: &OpWrite,
+        checksum: Option<(ChecksumAlgorithm, &str)>,
     ) -> Result<Response<Buffer>> {
         let p = build_absolute_path(&self.root, path);
 
@@ -1489,15 +1483,11 @@ impl S3Core {
             req = req.header(IF_NONE_MATCH, "*");
         }
 
-        // S3 compares the supplied full-object checksum with the assembled
-        // object and fails the upload with BadDigest on mismatch.
-        if let Some(checksum) = args.checksum() {
-            let algorithm = s3_full_object_checksum_algorithm(&checksum)?;
+        // S3 compares the full-object checksum with the assembled object
+        // before committing the upload.
+        if let Some((algorithm, value)) = checksum {
             req = req
-                .header(
-                    algorithm.to_header_name(),
-                    BASE64_STANDARD.encode(&checksum.value),
-                )
+                .header(algorithm.to_header_name(), value)
                 .header("x-amz-checksum-type", "FULL_OBJECT");
         }
 
@@ -1760,6 +1750,7 @@ pub struct CompleteMultipartUploadResult {
     pub bucket: String,
     pub key: String,
     pub location: String,
+    pub checksum_type: Option<String>,
     #[serde(rename = "ETag")]
     pub etag: String,
     #[serde(rename = "ChecksumCRC32C")]
@@ -1918,12 +1909,20 @@ pub struct ListObjectVersionsOutputDeleteMarker {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ChecksumAlgorithm {
     Crc32c,
-    /// Only used for caller-supplied checksums; not accepted as a config value.
+    /// Used by per-write checksum intents. The builder config does not accept it.
     Crc64Nvme,
     /// Mapping to the `Content-MD5` header from S3.
     Md5,
 }
 impl ChecksumAlgorithm {
+    pub fn checksum_algo(self) -> ChecksumAlgo {
+        match self {
+            Self::Crc32c => ChecksumAlgo::Crc32c,
+            Self::Crc64Nvme => ChecksumAlgo::Crc64Nvme,
+            Self::Md5 => ChecksumAlgo::Md5,
+        }
+    }
+
     pub fn to_header_name(self) -> HeaderName {
         match self {
             Self::Crc32c => HeaderName::from_static("x-amz-checksum-crc32c"),

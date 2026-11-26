@@ -14,6 +14,20 @@ Operation paths and service roots remove components equal to `.`. For example,
 `./data/./file` addresses `data/file`. Operation paths still use a trailing `/`
 to mark directories.
 
+## Write checksum intents
+
+Check `Capability::write_with_checksum` to discover native write checksum
+support. It replaces the four unreleased per-algorithm checksum flags. A service
+with this capability accepts `WriteChecksum::Any` on non-append writes and
+checks support for a requested algorithm before starting I/O.
+
+Existing `.write_with(...).checksum(checksum)` and
+`.writer_with(...).checksum(checksum)` calls continue to accept a `Checksum`.
+Convert a checksum with `.into()` when assigning it directly to
+`WriteOptions::checksum`, and match `WriteChecksum::Expected` when reading a
+caller-supplied digest from `OpWrite::checksum()`. `Metadata::checksum()` still
+returns a verified full-file `Checksum` when available.
+
 ## Per-write expiration
 
 `WriteOptions` and `Capability` now have `expires` and `write_with_expires`

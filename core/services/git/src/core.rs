@@ -277,6 +277,7 @@ impl GitCore {
         let (tree, commit_time) = self.get_commit_tree(&repo, commit_oid)?;
 
         let rooted_path = build_rooted_absolute_path(&self.root, path);
+        let is_dir_path = rooted_path.ends_with('/');
         let path = rooted_path.trim_matches('/');
         if path.is_empty() {
             return Ok(GitEntry::dir(commit_time));
@@ -294,6 +295,9 @@ impl GitCore {
                 ErrorKind::Unsupported,
                 "submodule entries are not supported",
             ));
+        }
+        if is_dir_path {
+            return Err(Error::new(ErrorKind::NotFound, "path not found"));
         }
 
         let blob_oid = entry.oid().to_string();
@@ -337,11 +341,14 @@ impl GitCore {
             else {
                 return Ok(Vec::new());
             };
-            if !entry.mode().is_tree() {
+            if entry.mode().is_commit() {
                 return Err(Error::new(
-                    ErrorKind::NotADirectory,
-                    "path is not a directory",
+                    ErrorKind::Unsupported,
+                    "submodule entries are not supported",
                 ));
+            }
+            if !entry.mode().is_tree() {
+                return Ok(Vec::new());
             }
             tree = entry
                 .object()

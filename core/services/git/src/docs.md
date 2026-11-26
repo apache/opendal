@@ -41,8 +41,12 @@ This service can be used to:
   instead. Directories have no ETag.
 - LFS resolution requires an HTTPS repository URL without userinfo, a query,
   or a fragment. Use the username and password options for authentication.
-- LFS payloads are streamed from the composed HTTP transport. The service does
-  not buffer a complete LFS object before returning the reader.
+- Git fetches over HTTP use gix's HTTP transport, bypassing OpenDAL's configured
+  `HttpTransport` and its per-request logging, concurrency limits, and proxy
+  settings. Service layers still wrap the Git operator's storage operations.
+  Only Git LFS batch and payload requests use the composed OpenDAL HTTP
+  transport. The service streams LFS payloads without buffering a complete
+  object before returning the reader.
 - Repository credentials are sent to the Git remote and to same-origin LFS
   requests. They are not sent to a cross-origin LFS download action. An
   action-provided `Authorization` header takes precedence.

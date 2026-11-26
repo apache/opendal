@@ -34,6 +34,7 @@ be built from source. It is not published to any package registry.
 | Blocking existence check (`blockingExists`) | Supported |
 | Blocking delete (`blockingDelete`) | Supported |
 | Blocking directory creation (`blockingCreateDirectory`) | Supported on services with directory creation |
+| Blocking object copy (`blockingCopy`) | Supported on services with copy |
 | Async read/write | Not yet |
 | Stat / metadata | Not yet |
 | List | Not yet |

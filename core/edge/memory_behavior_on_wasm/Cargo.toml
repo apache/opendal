@@ -43,4 +43,6 @@ wasm-bindgen-test = "0.3.41"
 
 # The shared write module also compiles in the facade's native behavior target.
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("services-ghac", "services-vercel-blob"))'] }
+unexpected_cfgs = { level = "warn", check-cfg = [
+  'cfg(feature, values("services-ghac", "services-vercel-blob"))',
+] }

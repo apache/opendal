@@ -43,8 +43,9 @@ pub extern crate opendal_testkit as tests;
 /// Install the global defaults provided by the facade crate.
 ///
 /// This function is safe to call multiple times. It registers enabled services
-/// and installs the default executor and HTTP transport when their features are
-/// enabled.
+/// and configuration-driven layers. On the first call, it installs the enabled
+/// default executor and HTTP transport and registers the reqwest `http` context
+/// factory when reqwest is enabled.
 ///
 /// # Process-wide defaults
 ///
@@ -59,19 +60,29 @@ pub extern crate opendal_testkit as tests;
 /// facade defaults, or configure your own defaults with
 /// [`HttpTransporter::install_default`] and [`Executor::install_default`].
 /// Use [`OperationContext`] to configure runtime resources for one operator.
+///
+/// The first call replaces any previously registered `http` context factory
+/// when reqwest is enabled. Register a custom factory after that call to keep
+/// it across later calls to `install_default`.
 pub fn install_default() {
-    init_default_registry();
+    static DEFAULTS_INIT: std::sync::Once = std::sync::Once::new();
+    DEFAULTS_INIT.call_once(|| {
+        init_default_registry();
 
-    #[cfg(feature = "executors-tokio")]
-    opendal_executor_tokio::install_default();
+        #[cfg(feature = "executors-tokio")]
+        opendal_executor_tokio::install_default();
 
-    #[cfg(any(
-        feature = "http-transport-reqwest",
-        feature = "http-transport-reqwest-native-tls",
-        feature = "http-transport-reqwest-rustls",
-        feature = "http-transport-reqwest-rustls-no-provider"
-    ))]
-    opendal_http_transport_reqwest::install_default();
+        #[cfg(any(
+            feature = "http-transport-reqwest",
+            feature = "http-transport-reqwest-native-tls",
+            feature = "http-transport-reqwest-rustls",
+            feature = "http-transport-reqwest-rustls-no-provider"
+        ))]
+        {
+            opendal_http_transport_reqwest::install_default();
+            opendal_http_transport_reqwest::register_http_context(OperatorRegistry::get());
+        }
+    });
 }
 
 #[cfg(all(
@@ -96,10 +107,11 @@ mod default_executor_tests {
     }
 }
 
-/// Initialize the global [`OperatorRegistry`] with enabled services.
+/// Initialize the global [`OperatorRegistry`] with enabled services and
+/// configuration-driven layers.
 ///
-/// This function is safe to call multiple times and will only perform
-/// initialization once.
+/// This function runs once. Use [`install_default`] to also install the
+/// process-wide runtime defaults and the reqwest `http` context factory.
 ///
 /// # Notes
 ///
@@ -405,6 +417,30 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
 
     #[cfg(any(feature = "services-redis", feature = "services-redis-native-tls"))]
     opendal_service_redis::register_redis_service(registry);
+
+    #[cfg(feature = "layers-chaos")]
+    opendal_layer_chaos::register_chaos_layer(registry);
+
+    #[cfg(feature = "layers-concurrent-limit")]
+    opendal_layer_concurrent_limit::register_concurrent_limit_layer(registry);
+
+    #[cfg(feature = "layers-logging")]
+    opendal_layer_logging::register_logging_layer(registry);
+
+    #[cfg(feature = "layers-mime-guess")]
+    opendal_layer_mime_guess::register_mime_guess_layer(registry);
+
+    #[cfg(feature = "layers-retry")]
+    opendal_layer_retry::register_retry_layer(registry);
+
+    #[cfg(feature = "layers-throttle")]
+    opendal_layer_throttle::register_throttle_layer(registry);
+
+    #[cfg(feature = "layers-timeout")]
+    opendal_layer_timeout::register_timeout_layer(registry);
+
+    #[cfg(feature = "layers-tracing")]
+    opendal_layer_tracing::register_tracing_layer(registry);
 }
 
 #[cfg(feature = "auto-register-services")]

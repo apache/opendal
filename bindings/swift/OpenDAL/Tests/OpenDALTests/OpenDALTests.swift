@@ -66,6 +66,38 @@ final class OpenDALTests: XCTestCase {
         }
     }
 
+    func testBlockingStatReturnsFileAndDirectoryMetadata() throws {
+        let op = try Operator(scheme: "memory")
+        let path = "文档/café-🦀"
+        var data = Data([1, 2, 3, 4])
+        try op.blockingWrite(&data, to: path)
+
+        let file = try op.blockingStat(path)
+        XCTAssertTrue(file.isFile)
+        XCTAssertFalse(file.isDirectory)
+        XCTAssertEqual(file.contentLength, 4)
+
+        let root = try op.blockingStat("/")
+        XCTAssertTrue(root.isDirectory)
+        XCTAssertFalse(root.isFile)
+        XCTAssertEqual(root.contentLength, 0)
+        XCTAssertNil(root.lastModified)
+    }
+
+    func testBlockingStatErrors() throws {
+        let op = try Operator(scheme: "memory")
+        let path = "file"
+        var data = Data([1])
+        try op.blockingWrite(&data, to: path)
+
+        XCTAssertThrowsError(try op.blockingStat("missing")) { error in
+            XCTAssertEqual((error as? OperatorError)?.code, OPENDAL_NOT_FOUND.rawValue)
+        }
+        XCTAssertThrowsError(try op.blockingStat(path + "\0suffix")) { error in
+            XCTAssertEqual((error as? OperatorError)?.code, OPENDAL_UNEXPECTED.rawValue)
+        }
+    }
+
     func testBlockingExistsAndDelete() throws {
         let op = try Operator(scheme: "memory")
         let path = "文档/café-🦀"

@@ -91,6 +91,8 @@ pub mod constants {
     pub const X_AMZ_META_PREFIX: &str = "x-amz-meta-";
 
     pub const X_AMZ_VERSION_ID: &str = "x-amz-version-id";
+    pub const X_AMZ_CHECKSUM_MODE: &str = "x-amz-checksum-mode";
+    pub const X_AMZ_CHECKSUM_TYPE: &str = "x-amz-checksum-type";
     pub const X_AMZ_OBJECT_SIZE: &str = "x-amz-object-size";
 
     pub const X_AMZ_ACL: &str = "x-amz-acl";
@@ -117,6 +119,7 @@ pub struct S3Core {
     pub server_side_encryption_customer_key_md5: Option<HeaderValue>,
     pub default_storage_class: Option<HeaderValue>,
     pub skip_signature: bool,
+    pub read_checksum_mode: bool,
     pub disable_list_objects_v2: bool,
     pub enable_request_payer: bool,
     pub default_acl: Option<String>,
@@ -739,7 +742,13 @@ impl S3Core {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let req = self.s3_get_object_request(path, range, args)?;
+        let mut req = self.s3_get_object_request(path, range, args)?;
+        if args.checksum() && self.read_checksum_mode {
+            req.headers_mut().insert(
+                constants::X_AMZ_CHECKSUM_MODE,
+                HeaderValue::from_static("ENABLED"),
+            );
+        }
         self.fetch(ctx, req).await
     }
 
@@ -877,7 +886,14 @@ impl S3Core {
         path: &str,
         args: OpStat,
     ) -> Result<Response<Buffer>> {
-        let req = self.s3_head_object_request(path, args)?;
+        let checksum = args.checksum() && self.read_checksum_mode;
+        let mut req = self.s3_head_object_request(path, args)?;
+        if checksum {
+            req.headers_mut().insert(
+                constants::X_AMZ_CHECKSUM_MODE,
+                HeaderValue::from_static("ENABLED"),
+            );
+        }
         self.send(ctx, req).await
     }
 

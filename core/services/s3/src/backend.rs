@@ -663,6 +663,47 @@ impl S3Builder {
         endpoint
     }
 
+    fn is_standard_aws_s3_endpoint(config: &S3Config, region: &str, endpoint: &str) -> bool {
+        let Ok(endpoint) = Url::parse(endpoint) else {
+            return false;
+        };
+        if endpoint.scheme() != "https"
+            || endpoint.port().is_some()
+            || !endpoint.username().is_empty()
+            || endpoint.password().is_some()
+            || endpoint.query().is_some()
+            || endpoint.fragment().is_some()
+        {
+            return false;
+        }
+
+        let Some(host) = endpoint.host_str() else {
+            return false;
+        };
+        let host = if config.enable_virtual_host_style {
+            if endpoint.path() != "/" {
+                return false;
+            }
+            let Some(host) = host
+                .strip_prefix(config.bucket.as_str())
+                .and_then(|host| host.strip_prefix('.'))
+            else {
+                return false;
+            };
+            host
+        } else {
+            if endpoint.path().strip_prefix('/') != Some(config.bucket.as_str()) {
+                return false;
+            }
+            host
+        };
+
+        host.strip_suffix(".amazonaws.com").and_then(|host| {
+            host.strip_prefix("s3.")
+                .or_else(|| host.strip_prefix("s3-"))
+        }) == Some(region)
+    }
+
     fn invalid_s3_express_config(message: &'static str) -> Error {
         Error::new(ErrorKind::ConfigInvalid, message)
             .with_operation("Builder::build")
@@ -1091,6 +1132,10 @@ impl S3Builder {
             (endpoint, s3_express_config)
         };
         let is_s3_express = s3_express_config.is_some();
+        let read_checksum_mode = scheme == S3_SCHEME
+            && !config.skip_signature
+            && !is_s3_express
+            && Self::is_standard_aws_s3_endpoint(&config, &region, &endpoint);
         debug!("backend use endpoint: {endpoint}");
 
         // The base signer context carries local config readers and command
@@ -1336,6 +1381,7 @@ impl S3Builder {
                 server_side_encryption_customer_key_md5,
                 default_storage_class,
                 skip_signature: config.skip_signature,
+                read_checksum_mode,
                 disable_list_objects_v2: config.disable_list_objects_v2,
                 enable_request_payer: config.enable_request_payer,
                 signer_spec,
@@ -1384,12 +1430,17 @@ impl Service for S3Backend {
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let error_ctx = ErrorContext::new(ServiceOperation("HeadObject"))
             .with_caller_condition(args.is_conditional());
+        let checksum = args.checksum() && self.core.read_checksum_mode;
         let resp = self.core.s3_head_object(ctx, path, args).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(RpStat::new(parse_into_s3_metadata(path, resp.headers())?)),
+            StatusCode::OK => Ok(RpStat::new(parse_into_s3_metadata(
+                path,
+                resp.headers(),
+                checksum,
+            )?)),
             _ => Err(parse_error(error_ctx, resp)),
         }
     }
@@ -1640,6 +1691,203 @@ mod tests {
     use reqsign_core::ProvideCredential;
 
     use super::*;
+
+    struct ReadChecksumTransport {
+        requests: Arc<Mutex<Vec<(Method, bool)>>>,
+    }
+
+    impl HttpTransport for ReadChecksumTransport {
+        async fn fetch(&self, request: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let mode = request.headers().get(constants::X_AMZ_CHECKSUM_MODE);
+            assert!(mode.is_none_or(|value| value == "ENABLED"));
+            self.requests
+                .lock()
+                .unwrap()
+                .push((request.method().clone(), mode.is_some()));
+            let mut response = Response::builder()
+                .header(constants::X_AMZ_CHECKSUM_TYPE, "FULL_OBJECT")
+                .header("x-amz-checksum-crc32c", "4waSgw==");
+            let range = request
+                .headers()
+                .get(http::header::RANGE)
+                .map(|v| v.to_str().unwrap());
+            let (payload, length, content_range): (&'static [u8], _, _) =
+                match (request.method(), range) {
+                    (&Method::HEAD, None) => (b"", 9, None),
+                    (&Method::GET, None) => (b"123456789", 9, None),
+                    (&Method::GET, Some("bytes=2-4")) => (b"345", 3, Some("bytes 2-4/9")),
+                    (&Method::GET, Some("bytes=0-8")) => (b"123456789", 9, Some("bytes 0-8/9")),
+                    _ => panic!("unexpected request"),
+                };
+            if let Some(content_range) = content_range {
+                response = response
+                    .status(StatusCode::PARTIAL_CONTENT)
+                    .header(http::header::CONTENT_RANGE, content_range);
+            }
+            let body = Buffer::from(Bytes::from_static(payload));
+            Ok(response
+                .header(http::header::CONTENT_LENGTH, length)
+                .body(HttpBody::new(
+                    futures::stream::iter([Ok(body)]),
+                    Some(payload.len() as u64),
+                ))
+                .unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_read_checksum_mode_and_metadata() -> Result<()> {
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let transport = HttpTransporter::new(ReadChecksumTransport {
+            requests: requests.clone(),
+        });
+        let op = Operator::new(
+            S3Builder::default()
+                .bucket("example")
+                .region("us-west-2")
+                .access_key_id("test-access-key")
+                .secret_access_key("test-secret-key")
+                .disable_config_load()
+                .disable_ec2_metadata(),
+        )?
+        .with_context(OperationContext::new().with_http_transport(transport.clone()));
+        let full_checksum = Checksum::new(ChecksumAlgo::Crc32c, [0xe3, 0x06, 0x92, 0x83]);
+        for hint in [false, true] {
+            let expected = hint.then_some(full_checksum.clone());
+            assert_eq!(
+                op.stat_with("object").checksum(hint).await?.checksum(),
+                expected
+            );
+            let reader = op.reader_with("object").checksum(hint).await?;
+            assert_eq!(reader.read(..).await?.to_bytes(), "123456789");
+            assert_eq!(reader.metadata().unwrap().checksum(), expected);
+        }
+
+        for (range, bytes, checksum) in [
+            (2..5, "345", None),
+            (0..9, "123456789", Some(full_checksum)),
+        ] {
+            let reader = op.reader_with("object").checksum(true).await?;
+            assert_eq!(reader.read(range).await?.to_bytes(), bytes);
+            let metadata = reader.metadata().unwrap();
+            assert_eq!(metadata.content_length(), 9);
+            assert_eq!(metadata.checksum(), checksum);
+        }
+        assert_eq!(
+            op.read_with("object").checksum(true).await?.to_bytes(),
+            "123456789"
+        );
+        let preset = Operator::new(
+            crate::Minio::default()
+                .endpoint("https://s3.us-west-2.amazonaws.com")
+                .bucket("example")
+                .region("us-west-2")
+                .access_key_id("test-access-key")
+                .secret_access_key("test-secret-key")
+                .disable_config_load(),
+        )?
+        .with_context(OperationContext::new().with_http_transport(transport));
+        assert_eq!(
+            preset.stat_with("object").checksum(true).await?.checksum(),
+            None
+        );
+        assert_eq!(
+            *requests.lock().unwrap(),
+            [
+                (Method::HEAD, false),
+                (Method::GET, false),
+                (Method::HEAD, true),
+                (Method::GET, true),
+                (Method::GET, true),
+                (Method::GET, true),
+                (Method::GET, true),
+                (Method::HEAD, false),
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_read_checksum_mode_endpoint_scope() -> Result<()> {
+        let builder = || {
+            S3Builder::default()
+                .bucket("example")
+                .region("us-west-2")
+                .disable_config_load()
+                .disable_ec2_metadata()
+        };
+        assert!(builder().build_inner(S3_SCHEME)?.core.read_checksum_mode);
+        for endpoint in [
+            "s3.amazonaws.com",
+            "https://s3.us-west-2.amazonaws.com",
+            "https://s3-us-west-2.amazonaws.com",
+        ] {
+            let path_style = builder().endpoint(endpoint).build_inner(S3_SCHEME)?;
+            let virtual_style = builder()
+                .endpoint(endpoint)
+                .enable_virtual_host_style()
+                .build_inner(S3_SCHEME)?;
+            assert!(path_style.core.read_checksum_mode);
+            assert!(virtual_style.core.read_checksum_mode);
+        }
+        for endpoint in [
+            "https://s3.us-west-2.amazonaws.com.example.test",
+            "https://other.us-west-2.amazonaws.com",
+            "https://s3.us-west-2.amazonaws.com/base-path",
+            "https://s3.us-west-2.amazonaws.com:8443",
+            "http://s3.us-west-2.amazonaws.com",
+        ] {
+            let backend = builder().endpoint(endpoint).build_inner(S3_SCHEME)?;
+            assert!(!backend.core.read_checksum_mode);
+        }
+        let anonymous = builder().skip_signature().build_inner(S3_SCHEME)?;
+        let express = builder()
+            .bucket("example--usw2-az1--x-s3")
+            .build_inner(S3_SCHEME)?;
+        assert!(!anonymous.core.read_checksum_mode);
+        assert!(!express.core.read_checksum_mode);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_presign_ignores_read_checksum_hint() -> Result<()> {
+        let backend = S3Builder::default()
+            .bucket("example")
+            .region("us-west-2")
+            .access_key_id("test-access-key")
+            .secret_access_key("test-secret-key")
+            .disable_config_load()
+            .disable_ec2_metadata()
+            .build()?;
+        let stat = options::StatOptions {
+            checksum: true,
+            ..Default::default()
+        };
+        let stat = OpStat::from_options(&backend.capability(), stat)?;
+        let read = OpRead::new().with_checksum(true);
+        for operation in [
+            PresignOperation::Stat(stat),
+            PresignOperation::Read(BytesRange::default(), read),
+        ] {
+            let request = backend
+                .presign(
+                    &OperationContext::new(),
+                    "object",
+                    OpPresign::new(operation, Duration::from_secs(60)),
+                )
+                .await?
+                .into_presigned_request();
+            assert!(
+                !request
+                    .header()
+                    .contains_key(constants::X_AMZ_CHECKSUM_MODE)
+            );
+            let query = request.uri().query().unwrap();
+            assert!(query.contains("X-Amz-Signature="));
+            assert!(!query.contains(constants::X_AMZ_CHECKSUM_MODE));
+        }
+        Ok(())
+    }
 
     #[tokio::test]
     async fn test_bucket_key_presign_headers() {

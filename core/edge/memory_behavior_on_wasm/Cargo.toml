@@ -27,6 +27,7 @@ version.workspace = true
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dev-dependencies]
 anyhow = "1.0"
 bytes = { workspace = true }
+crc-fast = "1.9.0"
 futures = { workspace = true, default-features = true }
 getrandom = { version = "0.4", features = ["wasm_js"] }
 http = { workspace = true }

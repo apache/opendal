@@ -681,6 +681,12 @@ fn describe_bool_condition(expr: &Expr, rel_path: &str) -> Result<String> {
         }
         Expr::Path(ExprPath { path, .. }) => {
             if let Some(ident) = path.get_ident().map(ToString::to_string) {
+                if ident == "azblob_can_checksum" {
+                    return Ok(
+                        "Standard Azure Blob endpoints (`https://<account>.blob.core.windows.net`)"
+                            .to_string(),
+                    );
+                }
                 if ident == "azblob_can_presign" {
                     return Ok(
                         "Requires `sas_token` or a host-style endpoint with `account_key` (and `account_name`), with `skip_signature` disabled"

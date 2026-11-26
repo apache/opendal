@@ -16,6 +16,21 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+## Read and stat checksums
+
+For signed requests to standard AWS S3 endpoints, use
+[`opendal_core::Operator::stat_with`] or [`opendal_core::Operator::reader_with`]
+with `.checksum(true)` to request stored full-object checksums. Stat returns the
+metadata directly. A reader that observes a full-object response first exposes
+its metadata through [`opendal_core::Reader::metadata`].
+[`opendal_core::Operator::read_with`] returns the bytes.
+
+OpenDAL exposes full-object CRC-64/NVME, CRC-32C, and SHA-256 checksums when S3
+returns them. Composite checksums and partial-content responses do not populate
+[`opendal_core::Metadata::checksum`]. OpenDAL omits checksum mode by default
+and for presigned requests, anonymous access, directory buckets, and
+S3-compatible endpoints and presets.
+
 ## Object restoration
 
 S3 restoration requires bucket versioning. [`opendal_core::Operator::restore`]

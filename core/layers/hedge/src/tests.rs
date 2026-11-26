@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::Poll;
 
@@ -177,6 +178,20 @@ fn setup(layer: HedgeLayer) -> (Operator, mpsc::UnboundedReceiver<Attempt>, Arc<
     (op, received, readers)
 }
 
+#[derive(Clone, Default)]
+struct RecordingExecutor(Arc<Mutex<Vec<Duration>>>);
+
+impl Execute for RecordingExecutor {
+    fn execute(&self, _: BoxedStaticFuture<()>) {
+        panic!("hedging should not spawn background tasks");
+    }
+
+    fn sleep(&self, duration: Duration) -> Option<BoxedStaticFuture<()>> {
+        self.0.lock().unwrap().push(duration);
+        Some(Box::pin(tokio::time::sleep(duration)))
+    }
+}
+
 fn temporary(message: &'static str) -> Error {
     Error::new(ErrorKind::Unexpected, message)
         .with_context("status", 503)
@@ -305,11 +320,15 @@ async fn hedges_are_capped_and_spaced_after_a_stall_and_cancel_with_the_caller()
 }
 
 #[tokio::test(start_paused = true)]
-async fn stat_hedge_uses_its_delay_override() {
+async fn stat_hedge_uses_its_delay_override_on_the_context_executor() {
     let delay = Duration::from_secs(1);
     let (op, mut attempts, _) = setup(HedgeLayer::new().with_stat_delay(delay));
+    let executor = RecordingExecutor::default();
+    let context = op.context().with_executor(Executor::with(executor.clone()));
+    let op = op.with_context(context);
     let mut stat = pin!(op.stat("object"));
     assert!(poll!(&mut stat).is_pending());
+    assert_eq!(*executor.0.lock().unwrap(), [delay]);
     let primary = attempts.try_recv().unwrap();
     advance(delay).await;
     assert!(poll!(&mut stat).is_pending());
@@ -366,6 +385,9 @@ async fn hedging_can_be_disabled_globally_or_per_operation() {
 async fn read_hedges_preserve_options_and_return_the_winning_stream_intact() {
     let delay = Duration::from_secs(1);
     let (op, mut attempts, readers) = setup(HedgeLayer::new().with_read_delay(delay));
+    let executor = RecordingExecutor::default();
+    let context = op.context().with_executor(Executor::with(executor.clone()));
+    let op = op.with_context(context);
     let (args, _) = ReaderOptions {
         version: Some("version-1".to_string()),
         if_match: Some("etag-1".to_string()),
@@ -373,6 +395,7 @@ async fn read_hedges_preserve_options_and_return_the_winning_stream_intact() {
     }
     .into();
     let reader = op.service().read(op.context(), "object", args).unwrap();
+    drop(op);
     let range = BytesRange::from(7..10);
     let mut open = pin!(reader.open(range));
     let mut read = pin!(reader.read(range));
@@ -380,6 +403,7 @@ async fn read_hedges_preserve_options_and_return_the_winning_stream_intact() {
     assert!(poll!(&mut read).is_pending());
     let primary_open = attempts.try_recv().unwrap();
     let primary_read = attempts.try_recv().unwrap();
+    assert_eq!(*executor.0.lock().unwrap(), [delay, delay]);
     advance(delay).await;
     assert!(poll!(&mut open).is_pending());
     assert!(poll!(&mut read).is_pending());

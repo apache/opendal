@@ -89,12 +89,12 @@ Waiters use a FIFO queue within each category, including when the cooldown
 ends. Cancelling a waiter removes its queue position without leaving token
 debt, and rate changes update pending waits. Buckets start full;
 only a request admitted to the next transport consumes a token. The layer does
-not spawn background tasks. Waiting uses Tokio timers by default and requires
-an active Tokio runtime with time enabled. Use `with_sleep` on the builder to
-supply a function that accepts a `Duration` and returns a future completing
-after that duration. A custom sleep allows admission to run without a Tokio
-runtime. Rate calculations use the platform's monotonic clock independently of
-the sleep function.
+not spawn background tasks. Admission waits use the context executor. If the
+executor does not provide a timer, the layer uses Tokio and requires an active
+Tokio runtime with time enabled. Use `with_sleep` on the builder to override
+the timer with a function that accepts a `Duration` and returns a future
+completing after that duration. Rate calculations use the platform's monotonic
+clock independently of the timer.
 
 Services sign requests before transport admission. Bound operation duration
 when a queue could outlive the service's signature validity period. Configure

@@ -98,12 +98,12 @@ fn unmarked_and_presign_requests_bypass_admission() {
         let transport = AimdTransport {
             inner: HttpTransporter::new(counting.clone()),
             buckets: layer.buckets.clone(),
-            sleep: layer.sleep.clone(),
+            sleep: layer.sleep.clone().unwrap(),
         };
-        layer.buckets.read.acquire(&*layer.sleep).await;
-        layer.buckets.write.acquire(&*layer.sleep).await;
-        layer.buckets.delete.acquire(&*layer.sleep).await;
-        layer.buckets.list.acquire(&*layer.sleep).await;
+        layer.buckets.read.acquire(transport.sleep.as_ref()).await;
+        layer.buckets.write.acquire(transport.sleep.as_ref()).await;
+        layer.buckets.delete.acquire(transport.sleep.as_ref()).await;
+        layer.buckets.list.acquire(transport.sleep.as_ref()).await;
         transport.fetch(Request::new(Buffer::new())).await.unwrap();
         transport
             .fetch(
@@ -125,7 +125,7 @@ fn every_operation_uses_its_expected_budget() {
         let transport = AimdTransport {
             inner: HttpTransporter::new(CountingTransport::default()),
             buckets: layer.buckets.clone(),
-            sleep: layer.sleep.clone(),
+            sleep: layer.sleep.clone().unwrap(),
         };
         for (bucket, operations) in [
             (&layer.buckets.read, vec![Operation::Read, Operation::Stat]),
@@ -143,7 +143,7 @@ fn every_operation_uses_its_expected_budget() {
             (&layer.buckets.delete, vec![Operation::Delete]),
             (&layer.buckets.list, vec![Operation::List]),
         ] {
-            bucket.acquire(&*layer.sleep).await;
+            bucket.acquire(transport.sleep.as_ref()).await;
             for operation in operations {
                 let req = Request::builder()
                     .extension(operation)
@@ -163,14 +163,29 @@ fn every_operation_uses_its_expected_budget() {
 fn memory_operations_are_not_paced() {
     block_on(async {
         let layer = builder().build().unwrap();
-        layer.buckets.read.acquire(&*layer.sleep).await;
-        layer.buckets.write.acquire(&*layer.sleep).await;
+        let sleep = layer.sleep.as_deref().unwrap();
+        layer.buckets.read.acquire(sleep).await;
+        layer.buckets.write.acquire(sleep).await;
         let op = Operator::new(opendal_core::services::Memory::default())
             .unwrap()
             .layer(layer);
         op.write("file", "value").await.unwrap();
         assert_eq!(op.read("file").await.unwrap().to_bytes().as_ref(), b"value");
     });
+}
+
+#[derive(Clone, Default)]
+struct RecordingExecutor(Arc<Mutex<Vec<Duration>>>);
+
+impl Execute for RecordingExecutor {
+    fn execute(&self, _: BoxedStaticFuture<()>) {
+        panic!("admission should not spawn background tasks");
+    }
+
+    fn sleep(&self, duration: Duration) -> Option<BoxedStaticFuture<()>> {
+        self.0.lock().unwrap().push(duration);
+        Some(Box::pin(tokio::time::sleep(duration)))
+    }
 }
 
 #[test]
@@ -187,8 +202,11 @@ fn cloned_layers_and_context_replay_share_request_admission() {
             .build()
             .unwrap();
         let counting = CountingTransport::default();
-        let context =
-            OperationContext::new().with_http_transport(HttpTransporter::new(counting.clone()));
+        let executor = RecordingExecutor::default();
+        let context = OperationContext::from_parts(
+            HttpTransporter::new(counting.clone()),
+            Executor::with(executor.clone()),
+        );
         let first = Operator::new(opendal_core::services::Memory::default())
             .unwrap()
             .with_context(context.clone())
@@ -245,12 +263,13 @@ fn cloned_layers_and_context_replay_share_request_admission() {
         );
         assert_eq!(counting.0.load(std::sync::atomic::Ordering::Relaxed), 1);
         assert_eq!(sleeps.load(std::sync::atomic::Ordering::Relaxed), 2);
+        assert!(executor.0.lock().unwrap().is_empty());
     });
 }
 
-#[tokio::test]
-async fn default_timer_wakes_request_admission() {
-    let start = opendal_core::raw::Instant::now();
+#[tokio::test(start_paused = true)]
+async fn default_timer_uses_executor_after_context_replacement() {
+    let start = tokio::time::Instant::now();
     let layer = AimdLayer::builder()
         .initial_rate(100.0)
         .max_rate(100.0)
@@ -262,20 +281,26 @@ async fn default_timer_wakes_request_admission() {
         OperationContext::new().with_http_transport(HttpTransporter::new(counting.clone()));
     let op = Operator::new(opendal_core::services::Memory::default())
         .unwrap()
-        .with_context(context)
+        .with_context(context.clone())
         .layer(layer);
-    for _ in 0..2 {
-        op.context()
-            .http_transport()
-            .fetch(
-                Request::builder()
-                    .extension(Operation::Read)
-                    .body(Buffer::new())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-    }
+    op.context()
+        .http_transport()
+        .fetch(request("/first", Operation::Read))
+        .await
+        .unwrap();
+
+    let executor = RecordingExecutor::default();
+    let op = op.with_context(context.with_executor(Executor::with(executor.clone())));
+    op.context()
+        .http_transport()
+        .fetch(request("/second", Operation::Read))
+        .await
+        .unwrap();
+
+    assert!(
+        !executor.0.lock().unwrap().is_empty(),
+        "admission must use the replacement executor"
+    );
     assert!(start.elapsed() >= Duration::from_millis(10));
     assert_eq!(counting.0.load(std::sync::atomic::Ordering::Relaxed), 2);
 }

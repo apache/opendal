@@ -825,8 +825,8 @@ pub struct WriteOptions {
     ///
     /// Returns [`crate::ErrorKind::Unsupported`] before I/O if the service
     /// lacks [`crate::Capability::write_with_checksum`] or cannot fulfill the
-    /// requested intent. Append always rejects `Algo` and `Expected`. A
-    /// digest whose length does not match its algorithm returns
+    /// requested intent, algorithm, or write mode. Append always rejects
+    /// `Algo` and `Expected`. An expected digest of the wrong length returns
     /// [`crate::ErrorKind::ConfigInvalid`].
     ///
     /// A checksum rejection before commit returns

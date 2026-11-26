@@ -29,7 +29,7 @@ public struct Metadata {
     public let contentLength: UInt64
 
     /// The modification date at millisecond precision, or `nil` if unavailable.
-    /// A timestamp exactly one millisecond before the Unix epoch also returns `nil`
-    /// because the C binding reserves that value.
+    /// Any timestamp that the C binding truncates to -1 millisecond relative to the
+    /// Unix epoch also returns `nil` because C reserves that value.
     public let lastModified: Date?
 }

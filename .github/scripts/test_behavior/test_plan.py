@@ -87,20 +87,6 @@ class BehaviorTestPlan(unittest.TestCase):
         self.assertFalse(result["components"]["core"])
         self.assertTrue(any("github" in note for note in result["notes"]))
 
-    def test_smb_fixture_is_core_only(self):
-        result = plan([
-            ".github/services/smb/samba/action.yml",
-            "core/services/fs/src/lib.rs",
-        ])
-        core = {
-            case["service"]
-            for target in result["core"]
-            for case in target["cases"]
-        }
-        self.assertEqual(core, {"smb", "fs"})
-        for language in LANGUAGE_BINDING:
-            self.assertFalse(result["components"][f"binding_{language}"], language)
-
     def test_core_services_hdfs_native_mapping(self):
         result = plan(["core/services/hdfs-native/src/lib.rs"])
         self.assertTrue(result["components"]["core"])

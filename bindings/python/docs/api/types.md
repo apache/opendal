@@ -1,29 +1,27 @@
-# Types   
+# Types
 
 This page documents all types in OpenDAL.
 
-::: opendal.types.Entry
-    options:
-      heading: "opendal.types.Entry"
-      heading_level: 2
-      show_source: false
-      show_bases: false
+```{eval-rst}
+.. automodule:: opendal.types
+   :members:
+   :exclude-members: EntryMode
+   :show-inheritance:
 
-::: opendal.types.EntryMode
-    options:
-      heading: "opendal.types.EntryMode"
-      heading_level: 2
+.. autoclass:: opendal.types.EntryMode
+   :members:
 
-::: opendal.types.Metadata
-    options:
-      heading: "opendal.types.Metadata"
-      heading_level: 2
-      show_source: false
-      show_bases: false
+   .. py:attribute:: Dir
 
-::: opendal.types.PresignedRequest
-    options:
-      heading: "opendal.types.PresignedRequest"
-      heading_level: 2
-      show_source: false
-      show_bases: false
+      The entry is a directory and can be listed.
+
+   .. py:attribute:: File
+
+      The entry is a file and has data to read.
+
+   .. py:attribute:: Unknown
+
+      The mode of the entry is unknown.
+
+.. autoclass:: opendal.options.OpenKwargs
+```

@@ -29,3 +29,6 @@ runs:
         OPENDAL_GCS_ROOT: op://services/gcs/root
         OPENDAL_GCS_BUCKET: op://services/gcs/bucket
         OPENDAL_GCS_CREDENTIAL: op://services/gcs/credential
+    - name: Enable version history tests
+      shell: bash
+      run: echo "OPENDAL_TEST_GCS_VERSION_HISTORY=true" >> "$GITHUB_ENV"

@@ -46,8 +46,12 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             tests.extend(async_trials!(op, test_delete_with_recursive_basic));
             if op.info().scheme() == "gcs"
                 && cap.list_with_recursive
+                && cap.list_with_versions
                 && cap.read_with_version
                 && cap.delete_with_version
+                && std::env::var("OPENDAL_TEST_GCS_VERSION_HISTORY").as_deref() == Ok("true")
+                && !std::env::vars_os()
+                    .any(|(key, _)| key.eq_ignore_ascii_case("OPENDAL_GCS_ENDPOINT"))
             {
                 tests.extend(async_trials!(
                     op,
@@ -517,24 +521,18 @@ pub async fn test_delete_with_recursive_preserves_versions(op: Operator) -> Resu
     let path = format!("{prefix}nested/file.txt");
     let older_bytes = "older version";
     let live_bytes = "version live before recursive delete";
-    let mut versions = Vec::new();
-
     let checks = async {
-        for payload in [older_bytes, live_bytes] {
-            let metadata = op.write(&path, payload).await?;
-            versions.push(
-                metadata
-                    .version()
-                    .context("the GCS fixture must return upload generations")?
-                    .to_owned(),
-            );
-        }
-        let [older, live] = versions.as_slice() else {
-            unreachable!("two uploads succeeded");
-        };
+        let older_metadata = op.write(&path, older_bytes).await?;
+        let older = older_metadata
+            .version()
+            .context("the older upload must return its generation")?;
+        let live_metadata = op.write(&path, live_bytes).await?;
+        let live = live_metadata
+            .version()
+            .context("the live upload must return its generation")?;
         ensure!(older != live, "uploads must have distinct generations");
         ensure!(
-            op.stat(&path).await?.version() == Some(live.as_str()),
+            op.stat(&path).await?.version() == Some(live),
             "the second upload must be live before deletion"
         );
         let older_before = op
@@ -565,12 +563,52 @@ pub async fn test_delete_with_recursive_preserves_versions(op: Operator) -> Resu
     }
     .await;
 
-    let mut cleanup = Ok(());
-    for version in versions {
-        let result = op.delete_with(&path).version(&version).await;
-        cleanup = cleanup.and(result);
+    let cleanup = cleanup_recursive_delete_versions(&op, &prefix, &path).await;
+    match (checks, cleanup) {
+        (Err(check), Err(cleanup)) => {
+            anyhow::bail!(
+                "recursive delete check failed: {check:#}\nfixture cleanup failed: {cleanup:#}"
+            )
+        }
+        (checks, cleanup) => checks.and(cleanup),
     }
-    checks.and(cleanup.context("cleaning up the test generations"))
+}
+
+async fn cleanup_recursive_delete_versions(op: &Operator, prefix: &str, path: &str) -> Result<()> {
+    // A failed write or a retried request can leave generations that the writer
+    // did not return. Validate the full owned inventory before deleting any.
+    let entries = op.list_with(prefix).recursive(true).versions(true).await?;
+    let mut versions = Vec::with_capacity(entries.len());
+    for entry in &entries {
+        ensure!(
+            entry.path() == path,
+            "unexpected path in fixture version inventory"
+        );
+        let version = entry
+            .metadata()
+            .version()
+            .context("fixture entry has no generation")?;
+        versions.push(version);
+    }
+
+    let mut failures = Vec::new();
+    for version in versions {
+        if let Err(err) = op.delete_with(path).version(version).await {
+            failures.push(format!("deleting generation {version}: {err:#}"));
+        }
+    }
+    match op.list_with(prefix).recursive(true).versions(true).await {
+        Ok(entries) if entries.is_empty() => {}
+        Ok(entries) => failures.push(format!(
+            "{} entries remain in the fixture version inventory",
+            entries.len()
+        )),
+        Err(err) => failures.push(format!(
+            "checking the final fixture version inventory: {err:#}"
+        )),
+    }
+    ensure!(failures.is_empty(), "{}", failures.join("\n"));
+    Ok(())
 }
 
 pub async fn test_batch_delete(op: Operator) -> Result<()> {

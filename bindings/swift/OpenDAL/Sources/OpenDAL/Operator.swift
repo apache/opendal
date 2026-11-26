@@ -150,6 +150,19 @@ public class Operator {
         }
     }
 
+    /// Moves a file within this operator, overwriting an existing destination file.
+    /// The service must support rename. Throws `OperatorError` on failure, including
+    /// directory paths, identical normalized paths, or embedded NUL characters
+    /// (U+0000) in either path.
+    public func blockingRename(_ source: String, to destination: String) throws {
+        try Self.validatePath(source)
+        try Self.validatePath(destination)
+
+        if let err = opendal_operator_rename(nativeOp, source, destination) {
+            throw OperatorError(consuming: err)
+        }
+    }
+
     private static func validatePath(_ path: String) throws {
         // The C API treats the first NUL byte as the end of the path.
         if path.utf8.contains(0) {

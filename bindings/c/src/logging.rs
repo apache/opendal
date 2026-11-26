@@ -38,9 +38,10 @@ pub type opendal_log_callback = Option<
 
 /// \brief Installs one process-global native callback for the library's Rust log facade.
 ///
-/// The default C operator constructor emits operation events through this
-/// callback. The explicit `opendal_operator_new_with_layers` constructor applies
-/// only its supplied layers. The callback can also receive records from other
+/// The default C operator constructor adds a logging layer that emits
+/// operation events through this callback. With
+/// `opendal_operator_new_with_layers`, set `layers=logging` in the options to
+/// enable operation logging. The callback can also receive records from other
 /// Rust components using the same log facade.
 ///
 /// Returns NULL on success. A null callback or an already installed logger

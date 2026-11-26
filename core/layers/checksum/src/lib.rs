@@ -40,9 +40,10 @@ use crate::reader::ChecksumReader;
 /// On services that advertise read checksum support, verification requests the
 /// checksum on unbounded and nonempty bounded forward reads starting at offset zero.
 /// A prefix read or the first chunk of a chunked read can therefore request a
-/// checksum. The layer keeps the original range and only verifies a bounded
-/// read when its response metadata shows that it covers the whole object.
-/// Partial reads are exempt even when a checksum is required.
+/// checksum. The layer keeps the original range and uses the object length from
+/// the response to verify whole-object coverage for bounded forward and suffix
+/// reads. Partial reads and reads with unknown coverage are exempt even when a
+/// checksum is required.
 ///
 /// Place this layer outside the retry layer to verify the entire stream across
 /// a resumed read. With mixed routing capabilities, install this layer on the

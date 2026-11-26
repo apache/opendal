@@ -274,6 +274,96 @@ async fn exact_limit_checks_corruption_and_prefix_keeps_its_range() -> Result<()
 }
 
 #[tokio::test]
+async fn suffix_read_detects_corruption_with_an_explicit_hint() -> Result<()> {
+    let fixture = Fixture::opt_in(CORRUPT);
+    let op = fixture.operator()?.layer(ChecksumLayer::new());
+    let range = BytesRange::suffix(9);
+    let result = op.read_with("object").range(range).checksum(true).await;
+    assert_eq!(fixture.requests(), [(ReadMethod::Open, range, true)]);
+    assert_mismatch(result.unwrap_err());
+    Ok(())
+}
+
+#[tokio::test]
+async fn suffix_stream_withholds_corrupt_final_chunk_with_an_unsolicited_checksum() -> Result<()> {
+    let fixture = Fixture {
+        hint_required: false,
+        ..Fixture::opt_in(CORRUPT)
+    };
+    let op = fixture.operator()?.layer(ChecksumLayer::new());
+    let range = BytesRange::suffix(12);
+    let mut stream = op.reader("object").await?.into_stream(range).await?;
+    assert_eq!(stream.try_next().await?.unwrap().to_bytes(), "1234");
+    assert_eq!(fixture.requests(), [(ReadMethod::Open, range, false)]);
+    assert_mismatch(stream.try_next().await.unwrap_err());
+    Ok(())
+}
+
+#[tokio::test]
+async fn suffix_with_whole_object_coverage_requires_a_checksum_in_strict_mode() -> Result<()> {
+    let fixture = Fixture {
+        read_with_checksum: true,
+        ..Fixture::new(GOOD)
+    };
+    let op = fixture
+        .operator()?
+        .layer(ChecksumLayer::new().require_read(true));
+    let range = BytesRange::suffix(12);
+    let result = op.read_with("object").range(range).await;
+    assert_eq!(fixture.requests(), [(ReadMethod::Open, range, false)]);
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::Unsupported);
+    Ok(())
+}
+
+#[tokio::test]
+async fn suffix_with_partial_or_unknown_coverage_is_exempt_in_strict_mode() -> Result<()> {
+    for (full_length, size, expected) in [(Some(9), 3, "78X"), (None, 9, CORRUPT)] {
+        let fixture = Fixture {
+            full_length,
+            ..Fixture::opt_in(CORRUPT)
+        };
+        let op = fixture
+            .operator()?
+            .layer(ChecksumLayer::new().require_read(true));
+        let range = BytesRange::suffix(size);
+        for hint in [false, true] {
+            let buffer = op.read_with("object").range(range).checksum(hint).await?;
+            assert_eq!(buffer.to_bytes(), expected);
+        }
+        assert_eq!(
+            fixture.requests(),
+            [
+                (ReadMethod::Open, range, false),
+                (ReadMethod::Open, range, true),
+            ]
+        );
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn suffix_zero_size_skips_the_read_but_a_nonempty_suffix_verifies_an_empty_file() -> Result<()>
+{
+    let fixture = Fixture::opt_in("");
+    let op = fixture
+        .operator()?
+        .layer(ChecksumLayer::new().require_read(true));
+    let buffer = op
+        .read_with("object")
+        .range(BytesRange::suffix(0))
+        .checksum(true)
+        .await?;
+    assert!(buffer.is_empty());
+    assert!(fixture.requests().is_empty());
+
+    let range = BytesRange::suffix(1);
+    let result = op.read_with("object").range(range).checksum(true).await;
+    assert_eq!(fixture.requests(), [(ReadMethod::Open, range, true)]);
+    assert_mismatch(result.unwrap_err());
+    Ok(())
+}
+
+#[tokio::test]
 async fn final_chunk_is_withheld_and_mismatch_stays_latched() -> Result<()> {
     let fixture = Fixture::opt_in(CORRUPT);
     let op = fixture.operator()?.layer(ChecksumLayer::new());

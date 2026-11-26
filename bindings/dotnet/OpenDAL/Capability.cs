@@ -251,7 +251,7 @@ public struct Capability
     public bool ReadWithSuffix { get; private set; }
 
     /// <summary>
-    /// Indicates if the operator supports requesting a stored full-file checksum during reads. Individual responses may omit the checksum.
+    /// Indicates if the operator supports requesting stored full-file checksum metadata. Stat and read responses may include that metadata when requested.
     /// </summary>
     public bool ReadWithChecksum { get; private set; }
 

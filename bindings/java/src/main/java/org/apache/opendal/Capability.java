@@ -152,7 +152,7 @@ public class Capability {
     public final boolean readWithSuffix;
 
     /**
-     * Indicates if the operator supports requesting a stored full-file checksum during reads. Individual responses may omit the checksum.
+     * Indicates if the operator supports requesting stored full-file checksum metadata. Stat and read responses may include that metadata when requested.
      */
     public final boolean readWithChecksum;
 

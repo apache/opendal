@@ -76,7 +76,7 @@ pub struct Capability {
     pub read_with_version: bool,
     /// Indicates if suffix read operations are supported.
     pub read_with_suffix: bool,
-    /// Indicates if the operator supports requesting a stored full-file checksum during reads. Individual responses may omit the checksum.
+    /// Indicates if the operator supports requesting stored full-file checksum metadata. Stat and read responses may include that metadata when requested.
     pub read_with_checksum: bool,
     /// Indicates if the operator supports write operations.
     pub write: bool,

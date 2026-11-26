@@ -42,10 +42,15 @@ impl ChecksumReader {
         let length = metadata
             .filter(|metadata| metadata.is_file())
             .map(Metadata::content_length);
-        if !range.is_full()
-            && !matches!(range, BytesRange::Range { offset: 0, size: Some(size) }
-                if length.is_some_and(|length| length <= size))
-        {
+        let covers_whole_object = match range {
+            BytesRange::Range {
+                offset: 0,
+                size: Some(size),
+            }
+            | BytesRange::Suffix { size } => length.is_some_and(|length| length <= size),
+            _ => range.is_full(),
+        };
+        if !covers_whole_object {
             return Ok(None);
         }
 

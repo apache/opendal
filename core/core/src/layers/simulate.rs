@@ -177,7 +177,7 @@ impl SimulateService {
     ) -> Result<RpStat> {
         let capability = self.srv.capability();
 
-        if path == "/" {
+        if path == "/" && args.version().is_none() {
             return Ok(RpStat::new(MetadataBuilder::dir().build()));
         }
 
@@ -199,7 +199,7 @@ impl SimulateService {
                 return Ok(RpStat::new(meta));
             }
 
-            if self.config.stat_dir && capability.list {
+            if self.config.stat_dir && capability.list && args.version().is_none() {
                 let mut l = self.srv.list(
                     ctx,
                     path,
@@ -1242,6 +1242,27 @@ mod tests {
             .into_metadata();
 
         assert_eq!(metadata.mode(), EntryMode::DIR);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn versioned_stat_bypasses_simulated_directories() -> Result<()> {
+        let srv = Arc::new(MockService {
+            capability: Capability {
+                stat: true,
+                stat_with_version: true,
+                list: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        }) as Servicer;
+        let op = Operator::from_parts(OperationContext::new(), srv).layer(SimulateLayer::default());
+
+        for path in ["/", "parent/"] {
+            assert_eq!(op.stat(path).await?.mode(), EntryMode::DIR);
+            let error = op.stat_with(path).version("version").await.unwrap_err();
+            assert_eq!(error.kind(), ErrorKind::Unsupported);
+        }
         Ok(())
     }
 

@@ -43,9 +43,11 @@ When using an HTTP concurrency limit, add `ConcurrentLimitLayer` first, then
 acquiring an HTTP concurrency permit. To exclude this wait from HTTP latency
 metrics, also add the HTTP metrics layer before AIMD.
 
-Cloning a layer shares its budgets across operators. Construct separate layers
-for independent quotas. Each category receives the configured rate and burst;
-`max_rate` is not a combined ceiling across all four categories.
+One layer represents one shared quota. Clones share the budgets and cooldown
+across operators. Build separate layers for separate accounts, credentials, or
+operation-specific quotas, and install them in the HTTP transports used by the
+corresponding requests. Each category receives its own configured rate and
+burst.
 
 ## Admission and feedback
 
@@ -76,8 +78,16 @@ operation may send requests in other categories, such as stat requests during
 a copy. Admission follows each request's marker, while semantic feedback follows
 the enclosing operation; errors are not correlated with individual HTTP requests.
 
-Waiters use a FIFO queue. Cancelling a waiter removes its queue position without
-leaving token debt, and rate changes update pending waits. Buckets start full;
+A marked HTTP 429 or 503 response with a usable `Retry-After` pauses new
+admissions across all four categories. The value may be a delay in seconds or
+an HTTP date. For an HTTP date, AIMD uses the response's `Date` header when
+available and valid, and the local clock otherwise. An overlapping response can
+extend the deadline. AIMD returns each response as soon as it arrives and lets
+already admitted requests finish.
+
+Waiters use a FIFO queue within each category, including when the cooldown
+ends. Cancelling a waiter removes its queue position without leaving token
+debt, and rate changes update pending waits. Buckets start full;
 only a request admitted to the next transport consumes a token. The layer does
 not spawn background tasks. Waiting uses Tokio timers by default and requires
 an active Tokio runtime with time enabled. Use `with_sleep` on the builder to

@@ -146,6 +146,11 @@ pub struct Capability {
     pub write_with_user_metadata: bool,
     /// Indicates if writes can set a lifetime for the new file.
     pub write_with_expires: bool,
+    /// Indicates if non-append writes support native checksum verification.
+    /// A service with this capability supports at least [`crate::WriteChecksum::Any`]
+    /// and validates each requested intent before performing I/O.
+    #[serde(default)]
+    pub write_with_checksum: bool,
     /// Maximum size supported for multipart uploads.
     /// For example, AWS S3 supports up to 5GiB per part in multipart uploads.
     pub write_multi_max_size: Option<usize>,
@@ -155,23 +160,6 @@ pub struct Capability {
     /// Maximum total size supported for write operations.
     /// For example, Cloudflare D1 has a 1MB total size limit.
     pub write_total_max_size: Option<usize>,
-
-    /// Indicates if writes accept a full-file CRC-64/NVME checksum, verify it,
-    /// and return it in the write result.
-    #[serde(default)]
-    pub checksum_crc64_nvme: bool,
-    /// Indicates if writes accept a full-file CRC-32C checksum, verify it,
-    /// and return it in the write result.
-    #[serde(default)]
-    pub checksum_crc32c: bool,
-    /// Indicates if writes accept a full-file MD5 checksum, verify it, and
-    /// return it in the write result.
-    #[serde(default)]
-    pub checksum_md5: bool,
-    /// Indicates if writes accept a full-file SHA-256 checksum, verify it,
-    /// and return it in the write result.
-    #[serde(default)]
-    pub checksum_sha256: bool,
 
     /// Indicates if directory creation is supported.
     pub create_dir: bool,

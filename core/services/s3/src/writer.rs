@@ -15,13 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::borrow::Cow;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use bytes::Buf;
 use constants::X_AMZ_OBJECT_SIZE;
 use constants::X_AMZ_VERSION_ID;
+use crc_fast::CrcAlgorithm;
+use crc_fast::checksum_combine;
 use http::Response;
 use http::StatusCode;
 
@@ -38,18 +43,126 @@ pub struct S3Writer {
 
     op: OpWrite,
     path: String,
+    full_object_checksum: Option<FullObjectChecksum>,
     appended: AtomicBool,
 }
 
+struct FullObjectChecksum {
+    algorithm: ChecksumAlgorithm,
+    expected: Option<String>,
+}
+
+impl FullObjectChecksum {
+    fn complete_value(&self, parts: &[oio::MultipartPart]) -> Result<Cow<'_, str>> {
+        if let Some(expected) = &self.expected {
+            return Ok(Cow::Borrowed(expected));
+        }
+        let crc_algorithm = match self.algorithm {
+            ChecksumAlgorithm::Crc32c => CrcAlgorithm::Crc32Iscsi,
+            ChecksumAlgorithm::Crc64Nvme => CrcAlgorithm::Crc64Nvme,
+            ChecksumAlgorithm::Md5 => {
+                unreachable!("only CRC algorithms support full-object verification")
+            }
+        };
+        let algo = self.algorithm.checksum_algo();
+        let mut combined = None;
+        // MultipartWriter yields parts in submission order even when uploads finish out of order.
+        for part in parts {
+            let size = part.size.ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "multipart part is missing its byte length",
+                )
+                .with_context("part_number", part.part_number.to_string())
+            })?;
+            let checksum = part
+                .checksum
+                .as_deref()
+                .and_then(|value| parse_s3_checksum(algo, value))
+                .ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "multipart part is missing a valid checksum",
+                    )
+                    .with_context("part_number", part.part_number.to_string())
+                })?;
+            let mut bytes = [0; 8];
+            bytes[8 - algo.digest_len()..].copy_from_slice(&checksum.value);
+            let part_crc = u64::from_be_bytes(bytes);
+            combined = Some(match combined {
+                None => part_crc,
+                Some(prefix_crc) => checksum_combine(crc_algorithm, prefix_crc, part_crc, size),
+            });
+        }
+        let combined = combined.ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "multipart upload is missing parts")
+        })?;
+        Ok(Cow::Owned(
+            BASE64_STANDARD.encode(&combined.to_be_bytes()[8 - algo.digest_len()..]),
+        ))
+    }
+
+    fn verify(&self, meta: Metadata, sent: &str, returned: Option<&str>) -> Result<Metadata> {
+        let parsed =
+            returned.and_then(|value| parse_s3_checksum(self.algorithm.checksum_algo(), value));
+        match parsed {
+            Some(checksum) if returned == Some(sent) => {
+                let mut meta = meta.into_builder();
+                meta.checksum(checksum);
+                Ok(meta.build())
+            }
+            Some(_) => Err(Error::new(
+                ErrorKind::Unexpected,
+                "service completed the write but reported a different checksum; \
+                 the content may have been stored unverified",
+            )),
+            None => Err(Error::new(
+                ErrorKind::Unexpected,
+                "service completed the write without confirming the checksum; \
+                 the content may have been stored unverified",
+            )),
+        }
+    }
+}
+
 impl S3Writer {
-    pub fn new(core: Arc<S3Core>, ctx: OperationContext, path: &str, op: OpWrite) -> Self {
-        S3Writer {
+    pub fn new(core: Arc<S3Core>, ctx: OperationContext, path: &str, op: OpWrite) -> Result<Self> {
+        let full_object_checksum = if let Some(intent) = op.checksum() {
+            if !core.capability.write_with_checksum || op.append() {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "S3 write cannot fulfill the checksum intent",
+                ));
+            }
+            let (algorithm, expected) = match intent {
+                WriteChecksum::Any | WriteChecksum::Fast => (ChecksumAlgorithm::Crc64Nvme, None),
+                WriteChecksum::Algo(algo) => (s3_full_object_checksum_algorithm(algo)?, None),
+                WriteChecksum::Expected(checksum) => (
+                    s3_full_object_checksum_algorithm(checksum.algo)?,
+                    Some(BASE64_STANDARD.encode(checksum.value)),
+                ),
+                _ => {
+                    return Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "S3 does not support the checksum intent",
+                    ));
+                }
+            };
+            Some(FullObjectChecksum {
+                algorithm,
+                expected,
+            })
+        } else {
+            None
+        };
+        Ok(Self {
             core,
             ctx,
             path: path.to_string(),
+            full_object_checksum,
             op,
             appended: AtomicBool::new(false),
-        }
+        })
     }
 
     fn parse_header_into_meta(path: &str, headers: &http::HeaderMap) -> Result<Metadata> {
@@ -77,52 +190,33 @@ impl S3Writer {
         ErrorContext::new(service_operation).with_caller_condition(self.op.is_conditional())
     }
 
-    /// Return the algorithm used for per-part checksums.
-    ///
-    /// A caller-supplied full-object checksum requires every part to use its
-    /// algorithm, so it takes precedence over the configured one.
-    fn part_checksum_algorithm(&self) -> Result<Option<ChecksumAlgorithm>> {
-        match self.op.checksum() {
-            Some(checksum) => s3_full_object_checksum_algorithm(&checksum).map(Some),
-            None => Ok(self.core.checksum_algorithm),
-        }
-    }
-
-    /// Attach the full-object checksum S3 verified for a caller-supplied
-    /// checksum.
-    ///
-    /// S3 echoes every checksum it verified. Some S3-compatible services
-    /// accept unknown `x-amz-checksum-*` headers without verifying them, so a
-    /// missing or different echo means the write was not verified.
-    fn with_verified_checksum(&self, meta: Metadata, value: Option<&str>) -> Result<Metadata> {
-        let Some(expected) = self.op.checksum() else {
-            return Ok(meta);
-        };
-        match value.and_then(|value| parse_s3_checksum(expected.algo, value)) {
-            Some(returned) if returned == expected => {
-                let mut meta = meta.into_builder();
-                meta.checksum(returned);
-                Ok(meta.build())
-            }
-            Some(_) => Err(Error::new(
-                ErrorKind::Unexpected,
-                "service completed the write but reported a different checksum; \
-                 the content may have been stored unverified",
-            )),
-            None => Err(Error::new(
-                ErrorKind::Unexpected,
-                "service completed the write without confirming the supplied checksum; \
-                 the content may have been stored unverified",
-            )),
-        }
+    /// A per-write checksum takes precedence over the configured checksum.
+    fn part_checksum_algorithm(&self) -> Option<ChecksumAlgorithm> {
+        self.full_object_checksum
+            .as_ref()
+            .map(|checksum| checksum.algorithm)
+            .or(self.core.checksum_algorithm)
     }
 }
 
 impl oio::MultipartWrite for S3Writer {
     async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
-        let req = self
-            .core
-            .s3_put_object_request(&self.path, Some(size), &self.op, body)?;
+        let checksum = self.full_object_checksum.as_ref().map(|checksum| {
+            let value = match &checksum.expected {
+                Some(expected) => Cow::Borrowed(expected.as_str()),
+                None => Cow::Owned(checksum.algorithm.calculate(&body)),
+            };
+            (checksum, value)
+        });
+        let req = self.core.s3_put_object_request(
+            &self.path,
+            Some(size),
+            &self.op,
+            checksum
+                .as_ref()
+                .map(|(checksum, value)| (checksum.algorithm, value.as_ref())),
+            body,
+        )?;
 
         let resp = self.core.send(&self.ctx, req).await?;
 
@@ -132,17 +226,21 @@ impl oio::MultipartWrite for S3Writer {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => {
-                let returned = match self.op.checksum() {
-                    Some(checksum) => {
-                        let header = s3_full_object_checksum_algorithm(&checksum)?.to_header_name();
-                        parse_header_to_str(resp.headers(), header)?
-                    }
-                    None => None,
+                let Some((checksum, sent)) = checksum else {
+                    return Ok(meta);
                 };
-                self.with_verified_checksum(meta, returned)
+                let returned =
+                    parse_header_to_str(resp.headers(), checksum.algorithm.to_header_name())?;
+                checksum.verify(meta, &sent, returned)
             }
             _ => {
                 let err = parse_error(self.error_context(ServiceOperation("PutObject")), resp);
+                if err.kind() == ErrorKind::ChecksumMismatch
+                    && checksum.is_some_and(|(checksum, _)| checksum.expected.is_none())
+                {
+                    // The writer retains the body and can retry a rejected computed checksum.
+                    return Err(err.set_temporary());
+                }
                 if self.op.if_match().is_some() && err.kind() == ErrorKind::NotFound {
                     Err(Error::new(
                         ErrorKind::ConditionNotMatch,
@@ -158,7 +256,14 @@ impl oio::MultipartWrite for S3Writer {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
-            .s3_initiate_multipart_upload(&self.ctx, &self.path, &self.op)
+            .s3_initiate_multipart_upload(
+                &self.ctx,
+                &self.path,
+                &self.op,
+                self.full_object_checksum
+                    .as_ref()
+                    .map(|checksum| checksum.algorithm),
+            )
             .await?;
 
         let status = resp.status();
@@ -189,7 +294,7 @@ impl oio::MultipartWrite for S3Writer {
         // AWS S3 requires part number must between [1..=10000]
         let part_number = part_number + 1;
 
-        let algorithm = self.part_checksum_algorithm()?;
+        let algorithm = self.part_checksum_algorithm();
         let checksum = algorithm.map(|algorithm| algorithm.calculate(&body));
 
         let req = self.core.s3_upload_part_request(
@@ -220,14 +325,29 @@ impl oio::MultipartWrite for S3Writer {
                     part_number,
                     etag,
                     checksum,
-                    size: None,
+                    size: Some(size),
                 })
             }
-            _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("UploadPart")),
-                resp,
-            )),
+            _ => {
+                let err = parse_error(ErrorContext::new(ServiceOperation("UploadPart")), resp);
+                if err.kind() == ErrorKind::ChecksumMismatch && self.full_object_checksum.is_some()
+                {
+                    // UploadPart always uses a checksum computed over its replayable buffer.
+                    return Err(err.set_temporary());
+                }
+                Err(err)
+            }
         }
+    }
+
+    fn check_copy_part(&self) -> Result<()> {
+        if self.full_object_checksum.is_some() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "S3 checksum writes require uploading the copied bytes",
+            ));
+        }
+        Ok(())
     }
 
     async fn copy_part(
@@ -292,7 +412,12 @@ impl oio::MultipartWrite for S3Writer {
         upload_id: &str,
         parts: &[oio::MultipartPart],
     ) -> Result<Metadata> {
-        let algorithm = self.part_checksum_algorithm()?;
+        let full_object_checksum = self
+            .full_object_checksum
+            .as_ref()
+            .map(|checksum| Ok::<_, Error>((checksum, checksum.complete_value(parts)?)))
+            .transpose()?;
+        let algorithm = self.part_checksum_algorithm();
         let parts = parts
             .iter()
             .map(|p| match algorithm {
@@ -318,7 +443,16 @@ impl oio::MultipartWrite for S3Writer {
 
         let resp = self
             .core
-            .s3_complete_multipart_upload(&self.ctx, &self.path, upload_id, parts, &self.op)
+            .s3_complete_multipart_upload(
+                &self.ctx,
+                &self.path,
+                upload_id,
+                parts,
+                &self.op,
+                full_object_checksum
+                    .as_ref()
+                    .map(|(checksum, value)| (checksum.algorithm, value.as_ref())),
+            )
             .await?;
 
         let status = resp.status();
@@ -350,13 +484,24 @@ impl oio::MultipartWrite for S3Writer {
                 }
                 let mut meta = meta.into_builder();
                 meta.etag(&ret.etag);
-                let returned = match self.op.checksum().map(|checksum| checksum.algo) {
-                    Some(ChecksumAlgo::Crc32c) => ret.checksum_crc32c.as_deref(),
-                    Some(ChecksumAlgo::Crc64Nvme) => ret.checksum_crc64nvme.as_deref(),
-                    _ => None,
+                let Some((checksum, sent)) = full_object_checksum else {
+                    return Ok(meta.build());
                 };
-
-                self.with_verified_checksum(meta.build(), returned)
+                let mut returned = match checksum.algorithm {
+                    ChecksumAlgorithm::Crc32c => ret.checksum_crc32c.as_deref(),
+                    ChecksumAlgorithm::Crc64Nvme => ret.checksum_crc64nvme.as_deref(),
+                    ChecksumAlgorithm::Md5 => {
+                        unreachable!("only CRC algorithms support full-object verification")
+                    }
+                };
+                if ret
+                    .checksum_type
+                    .as_deref()
+                    .is_some_and(|kind| kind != "FULL_OBJECT")
+                {
+                    returned = None;
+                }
+                checksum.verify(meta.build(), &sent, returned)
             }
             _ => {
                 let err = parse_error(
@@ -560,6 +705,40 @@ mod tests {
         }
     }
 
+    #[tokio::test]
+    async fn checksum_writer_rejects_native_copy_before_initiation() {
+        use opendal_core::raw::{OpRead, OpWrite, Service, oio::Write};
+
+        struct NoRequests;
+        impl HttpTransport for NoRequests {
+            async fn fetch(&self, _: Request<Buffer>) -> Result<Response<HttpBody>> {
+                panic!("native copy must fail before sending a request");
+            }
+        }
+
+        let service = S3Builder::default()
+            .bucket("example")
+            .region("us-west-2")
+            .skip_signature()
+            .build()
+            .unwrap();
+        let (args, _) = OpWrite::from_options(
+            &service.capability(),
+            options::WriteOptions {
+                checksum: Some(WriteChecksum::Any),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let context = OperationContext::new().with_http_transport(HttpTransporter::new(NoRequests));
+        let mut writer = service.write(&context, "destination", args).unwrap();
+        let error = writer
+            .copy_from("source", OpRead::default(), BytesRange::from(0..4))
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::Unsupported);
+    }
+
     #[derive(Clone)]
     struct ChecksumEchoTransport {
         echo: Option<&'static str>,
@@ -573,6 +752,7 @@ mod tests {
                 "AQIDBA==",
                 "PutObject must send the caller-supplied checksum"
             );
+            assert!(!req.headers().contains_key("content-md5"));
             let mut resp = Response::builder()
                 .status(StatusCode::OK)
                 .header(ETAG, "\"single-put-etag\"");
@@ -598,6 +778,7 @@ mod tests {
                     .bucket("example")
                     .region("us-east-1")
                     .skip_signature()
+                    .checksum_algorithm("md5")
                     .disable_config_load()
                     .disable_ec2_metadata(),
             )

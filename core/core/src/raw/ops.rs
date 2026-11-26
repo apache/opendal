@@ -26,7 +26,7 @@ use crate::raw::*;
 use crate::types::compact::CompactValues;
 use crate::types::metadata::user_metadata_encoded_len;
 use crate::types::metadata::write_user_metadata;
-use crate::{Capability, Checksum, ChecksumAlgo, Error, ErrorKind, Result};
+use crate::{Capability, Error, ErrorKind, Result, WriteChecksum};
 
 use std::collections::HashMap;
 
@@ -1269,26 +1269,15 @@ impl OpWrite {
             }
         }
 
-        if let Some(checksum) = &options.checksum
-            && checksum.value.len() != checksum.algo.digest_len()
-        {
-            return Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                format!(
-                    "checksum {:?} requires a {}-byte digest, got {} bytes",
-                    checksum.algo,
-                    checksum.algo.digest_len(),
-                    checksum.value.len()
-                ),
-            )
-            .with_operation(Operation::Write));
+        if let Some(checksum) = &options.checksum {
+            Self::check_checksum_value(checksum)?;
         }
 
         let writer = OpWriter {
             chunk: options.chunk.filter(|&chunk| chunk != 0),
         };
         let user_metadata = options.user_metadata.take().map(sorted_user_metadata);
-        let checksum = options.checksum.as_ref().map(Checksum::encode);
+        let checksum = options.checksum.as_ref().map(WriteChecksum::encode);
         let mut flags = 0;
         if options.append {
             flags |= OP_WRITE_APPEND;
@@ -1350,30 +1339,25 @@ impl OpWrite {
     ///
     /// Returns [`ErrorKind::Unsupported`] if any set append, expiration,
     /// checksum, or conditional option is not advertised by `capability`, or
-    /// if a checksum is combined with append.
+    /// if a full-file checksum is requested on an append. The service checks
+    /// support for the individual checksum intent before performing I/O.
     pub fn check(&self, capability: &Capability) -> Result<()> {
         if self.append() && !capability.write_can_append {
             return Err(new_unsupported_error(Operation::Write, "append"));
         }
         if let Some(checksum) = self.checksum() {
-            let supported = match checksum.algo {
-                ChecksumAlgo::Crc64Nvme => capability.checksum_crc64_nvme,
-                ChecksumAlgo::Crc32c => capability.checksum_crc32c,
-                ChecksumAlgo::Md5 => capability.checksum_md5,
-                ChecksumAlgo::Sha256 => capability.checksum_sha256,
-            };
-            if !supported {
-                return Err(new_unsupported_error(
-                    Operation::Write,
-                    &format!("checksum({:?})", checksum.algo),
-                ));
+            if !capability.write_with_checksum {
+                return Err(new_unsupported_error(Operation::Write, "checksum"));
             }
-            // An append extends an existing file, so a checksum of the
-            // appended bytes cannot describe the full file.
-            if self.append() {
+            if self.append()
+                && matches!(
+                    checksum,
+                    WriteChecksum::Algo(_) | WriteChecksum::Expected(_)
+                )
+            {
                 return Err(new_unsupported_error(
                     Operation::Write,
-                    "checksum with append",
+                    "full-file checksum with append",
                 ));
             }
         }
@@ -1416,12 +1400,52 @@ impl OpWrite {
         self.flags & OP_WRITE_APPEND != 0
     }
 
-    /// Get the expected full-file checksum of the written content.
+    /// Return the requested checksum verification for this write.
     #[inline]
-    pub fn checksum(&self) -> Option<Checksum> {
+    pub fn checksum(&self) -> Option<WriteChecksum> {
         self.values
             .get(WriteField::Checksum as usize)
-            .map(Checksum::decode)
+            .map(WriteChecksum::decode)
+    }
+
+    /// Set the checksum intent and validate the resulting write arguments.
+    ///
+    /// Returns [`ErrorKind::ConfigInvalid`] for an expected digest of the wrong
+    /// length and [`ErrorKind::Unsupported`] for an unsupported option, as in
+    /// [`Self::from_options`].
+    ///
+    /// # Panics
+    ///
+    /// Panics when the compact value block, including its index, exceeds `u16::MAX` bytes.
+    pub fn with_checksum(
+        mut self,
+        checksum: WriteChecksum,
+        capability: &Capability,
+    ) -> Result<Self> {
+        Self::check_checksum_value(&checksum)?;
+        self.values = self
+            .values
+            .replace(WriteField::Checksum as usize, &checksum.encode());
+        self.check(capability)?;
+        Ok(self)
+    }
+
+    fn check_checksum_value(checksum: &WriteChecksum) -> Result<()> {
+        if let WriteChecksum::Expected(checksum) = checksum
+            && checksum.value.len() != checksum.algo.digest_len()
+        {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                format!(
+                    "checksum {:?} requires a {}-byte digest, got {} bytes",
+                    checksum.algo,
+                    checksum.algo.digest_len(),
+                    checksum.value.len()
+                ),
+            )
+            .with_operation(Operation::Write));
+        }
+        Ok(())
     }
 
     /// Get the content type from option
@@ -2261,6 +2285,7 @@ mod tests {
     use super::*;
     use crate::Metadata;
     use crate::MetadataBuilder;
+    use crate::{Checksum, ChecksumAlgo};
 
     fn condition_metadata() -> Metadata {
         let mut metadata = MetadataBuilder::file(42);
@@ -2426,63 +2451,98 @@ mod tests {
     }
 
     #[test]
-    fn write_checksum_requires_matching_capability() {
-        let checksum = Checksum::new(ChecksumAlgo::Crc32c, [1, 2, 3, 4]);
-        let options = options::WriteOptions {
-            checksum: Some(checksum.clone()),
+    fn write_checksum_checks_capability_and_append() {
+        let supported = Capability {
+            write_with_checksum: true,
+            write_can_append: true,
             ..Default::default()
         };
+        let unsupported = Capability {
+            write_with_checksum: false,
+            ..supported
+        };
+        for (intent, append_allowed) in [
+            (WriteChecksum::Any, true),
+            (WriteChecksum::Fast, true),
+            (WriteChecksum::Algo(ChecksumAlgo::Crc64Nvme), false),
+            (
+                Checksum::new(ChecksumAlgo::Crc32c, [1, 2, 3, 4]).into(),
+                false,
+            ),
+        ] {
+            let options = options::WriteOptions {
+                checksum: Some(intent.clone()),
+                ..Default::default()
+            };
+            let (args, _) = OpWrite::from_options(&supported, options.clone()).unwrap();
+            assert_eq!(args.checksum(), Some(intent.clone()));
+            assert_eq!(
+                args.check(&unsupported).unwrap_err().kind(),
+                ErrorKind::Unsupported
+            );
 
+            let append = OpWrite::from_options(
+                &supported,
+                options::WriteOptions {
+                    append: true,
+                    ..options
+                },
+            );
+            if append_allowed {
+                assert_eq!(append.unwrap().0.checksum(), Some(intent));
+            } else {
+                assert_eq!(append.unwrap_err().kind(), ErrorKind::Unsupported);
+            }
+        }
+        assert_eq!(OpWrite::default().checksum(), None);
+    }
+
+    #[test]
+    fn write_checksum_injection_preserves_other_fields_and_checks_options() {
+        let capability = Capability {
+            write_with_checksum: true,
+            write_with_if_not_exists: true,
+            ..Default::default()
+        };
         let (args, _) = OpWrite::from_options(
-            &Capability {
-                checksum_crc32c: true,
+            &capability,
+            options::WriteOptions {
+                if_not_exists: true,
+                content_type: Some("text/plain".to_owned()),
                 ..Default::default()
             },
-            options.clone(),
         )
         .unwrap();
-        assert_eq!(args.checksum(), Some(checksum));
-        assert_eq!(OpWrite::default().checksum(), None);
-
-        let err = OpWrite::from_options(
-            &Capability {
-                checksum_crc64_nvme: true,
-                checksum_sha256: true,
-                ..Default::default()
-            },
-            options.clone(),
-        )
-        .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-
-        let err = OpWrite::from_options(
-            &Capability {
-                checksum_crc32c: true,
-                write_can_append: true,
-                ..Default::default()
-            },
-            options::WriteOptions {
-                append: true,
-                ..options
-            },
-        )
-        .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        let with_checksum = args
+            .clone()
+            .with_checksum(WriteChecksum::Fast, &capability)
+            .unwrap();
+        assert!(with_checksum.if_not_exists());
+        assert_eq!(with_checksum.content_type(), Some("text/plain"));
+        assert_eq!(with_checksum.checksum(), Some(WriteChecksum::Fast));
+        assert_eq!(args.checksum(), None);
+        let error = args
+            .with_checksum(WriteChecksum::Any, &Capability::default())
+            .unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::Unsupported);
     }
 
     #[test]
     fn write_checksum_rejects_wrong_digest_length() {
+        let checksum: WriteChecksum = Checksum::new(ChecksumAlgo::Sha256, [0; 31]).into();
+        let capability = Capability::default();
         let err = OpWrite::from_options(
-            &Capability {
-                checksum_sha256: true,
-                ..Default::default()
-            },
+            &capability,
             options::WriteOptions {
-                checksum: Some(Checksum::new(ChecksumAlgo::Sha256, [0; 31])),
+                checksum: Some(checksum.clone()),
                 ..Default::default()
             },
         )
         .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        let err = OpWrite::default()
+            .with_checksum(checksum, &capability)
+            .unwrap_err();
         assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
 

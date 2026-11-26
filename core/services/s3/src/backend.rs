@@ -1191,10 +1191,8 @@ impl S3Builder {
         // S3 CreateMultipartUpload does not support MD5 checksum_algorithm;
         // only single-shot PutObject supports Content-MD5.
         let s3_write_can_multi = !matches!(checksum_algorithm, Some(ChecksumAlgorithm::Md5));
-        // S3 verifies a caller-supplied full-object checksum on both PutObject
-        // and multipart uploads only for CRC algorithms. Provider presets keep
-        // checksum capabilities disabled because some S3-compatible services
-        // accept checksum headers without verifying them.
+        // General-purpose S3 verifies full-object CRCs on PutObject and multipart uploads.
+        // Provider presets may accept checksum headers without verifying them.
         //
         // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity-upload.html>
         let s3_can_checksum = scheme == S3_SCHEME && !is_s3_express;
@@ -1236,8 +1234,7 @@ impl S3Builder {
             write_with_if_not_exists: true,
             write_with_user_metadata: true,
 
-            checksum_crc32c: s3_can_checksum,
-            checksum_crc64_nvme: s3_can_checksum,
+            write_with_checksum: s3_can_checksum,
 
             // The min multipart size of S3 is 5 MiB.
             //
@@ -1407,25 +1404,18 @@ impl Service for S3Backend {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        let output: S3Writers = {
-            let writer = S3Writer::new(self.core.clone(), ctx.clone(), path, args.clone());
-
-            let w = if args.append() {
-                S3Writers::Two(oio::AppendWriter::new(writer))
-            } else {
-                // Multipart uploads schedule work through the operation
-                // executor supplied by the caller.
-                S3Writers::One(oio::MultipartWriter::new(
-                    ctx.executor().clone(),
-                    writer,
-                    args.concurrent(),
-                ))
-            };
-
-            Ok(w)
-        }?;
-
-        Ok(output)
+        let append = args.append();
+        let concurrent = args.concurrent();
+        let writer = S3Writer::new(self.core.clone(), ctx.clone(), path, args)?;
+        if append {
+            Ok(S3Writers::Two(oio::AppendWriter::new(writer)))
+        } else {
+            Ok(S3Writers::One(oio::MultipartWriter::new(
+                ctx.executor().clone(),
+                writer,
+                concurrent,
+            )))
+        }
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -1600,8 +1590,28 @@ impl Service for S3Backend {
                 "S3 presigned writes do not support append",
             )),
             PresignOperation::Write(v) => {
-                self.core
-                    .s3_put_object_request(path, None, &v, Buffer::new())
+                let checksum = match v.checksum() {
+                    None => None,
+                    Some(WriteChecksum::Expected(checksum)) => Some((
+                        s3_full_object_checksum_algorithm(checksum.algo)?,
+                        BASE64_STANDARD.encode(checksum.value),
+                    )),
+                    Some(_) => {
+                        return Err(Error::new(
+                            ErrorKind::Unsupported,
+                            "S3 presigned writes require a precomputed checksum when specifying a checksum",
+                        ));
+                    }
+                };
+                self.core.s3_put_object_request(
+                    path,
+                    None,
+                    &v,
+                    checksum
+                        .as_ref()
+                        .map(|(algorithm, value)| (*algorithm, value.as_str())),
+                    Buffer::new(),
+                )
             }
             PresignOperation::Delete(v) => self.core.s3_delete_object_request(path, &v),
             _ => Err(Error::new(
@@ -3848,14 +3858,44 @@ mod tests {
         };
 
         let cap = builder().build().unwrap().capability();
-        assert!(cap.checksum_crc32c && cap.checksum_crc64_nvme);
-        assert!(!cap.checksum_md5 && !cap.checksum_sha256);
+        assert!(cap.write_with_checksum);
 
         let cap = builder()
             .build_with_scheme(crate::MINIO_SCHEME)
             .unwrap()
             .capability();
-        assert!(!cap.checksum_crc32c && !cap.checksum_crc64_nvme);
+        assert!(!cap.write_with_checksum);
+    }
+
+    #[test]
+    fn test_s3_write_rejects_unsupported_checksum_intents_synchronously() {
+        let backend = S3Builder::default()
+            .bucket("test")
+            .region("us-west-2")
+            .build()
+            .unwrap();
+        let capability = backend.capability();
+        for (append, intent) in [
+            (true, WriteChecksum::Any),
+            (true, WriteChecksum::Fast),
+            (false, WriteChecksum::Algo(ChecksumAlgo::Sha256)),
+            (
+                false,
+                WriteChecksum::Expected(Checksum::new(ChecksumAlgo::Md5, [0; 16])),
+            ),
+        ] {
+            let (args, _) = OpWrite::from_options(
+                &capability,
+                options::WriteOptions {
+                    append,
+                    checksum: Some(intent),
+                    ..Default::default()
+                },
+            )
+            .expect("core leaves these intents for the service to validate");
+            let result = backend.write(&OperationContext::new(), "file", args);
+            assert!(matches!(result, Err(error) if error.kind() == ErrorKind::Unsupported));
+        }
     }
 
     #[test]

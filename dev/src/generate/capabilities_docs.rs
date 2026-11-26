@@ -343,6 +343,12 @@ fn parse_capability_literal(
                     loc(rel_path, fv.span())
                 );
             }
+            // S3 provider presets share its Capability literal, but only the S3 scheme
+            // enables per-write checksums at runtime.
+            let s3_only = matches!(strip_parens(&fv.expr), Expr::Path(path) if path.path.is_ident("s3_can_checksum"));
+            if s3_only && name != "s3" {
+                continue;
+            }
             if let Some(doc) = eval_bool_field(&fv.expr, platform_cond, rel_path)? {
                 native.insert(field_name, doc);
             }
@@ -698,10 +704,7 @@ fn describe_bool_condition(expr: &Expr, rel_path: &str) -> Result<String> {
                     return Ok("When `checksum_algorithm` is not `md5`".to_string());
                 }
                 if ident == "s3_can_checksum" {
-                    return Ok(
-                        "Standard S3 buckets (not S3 Express One Zone or provider presets)"
-                            .to_string(),
-                    );
+                    return Ok("Standard S3 buckets (not S3 Express One Zone)".to_string());
                 }
                 if let Some(rest) = ident.strip_prefix("has_") {
                     return Ok(format!("Requires `{rest}`"));
@@ -1133,6 +1136,14 @@ mod tests {
                 "When `checksum_algorithm` is not set".to_string()
             ))
         );
+        assert_eq!(
+            s3.native.get("write_with_checksum"),
+            Some(&NativeBoolDoc::Conditional(
+                "Standard S3 buckets (not S3 Express One Zone)".to_string()
+            ))
+        );
+        let minio = out.services.iter().find(|s| s.scheme == "minio").unwrap();
+        assert!(!minio.native.contains_key("write_with_checksum"));
         assert!(!s3.native.contains_key("create_dir"));
         assert_eq!(
             s3.limits.get("write_multi_min_size"),

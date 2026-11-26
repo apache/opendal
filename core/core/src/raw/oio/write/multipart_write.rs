@@ -91,6 +91,11 @@ pub trait MultipartWrite: Send + Sync + Unpin + 'static {
         body: Buffer,
     ) -> impl Future<Output = Result<MultipartPart>> + MaybeSend;
 
+    /// Check whether this writer can copy a part before initiating an upload.
+    fn check_copy_part(&self) -> Result<()> {
+        Ok(())
+    }
+
     /// Copy one absolute bounded source range into a multipart part.
     fn copy_part(
         &self,
@@ -296,6 +301,7 @@ where
     }
 
     async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        self.w.check_copy_part()?;
         if range.is_suffix() || range.size().is_none() {
             return Err(Error::new(
                 ErrorKind::Unexpected,

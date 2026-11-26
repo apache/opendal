@@ -75,13 +75,10 @@ public struct Capability
         WriteWithIfNotExists = native.writeWithIfNotExists != 0;
         WriteWithUserMetadata = native.writeWithUserMetadata != 0;
         WriteWithExpires = native.writeWithExpires != 0;
+        WriteWithChecksum = native.writeWithChecksum != 0;
         WriteMultiMaxSize = native.writeMultiMaxSize == nuint.MaxValue ? null : native.writeMultiMaxSize;
         WriteMultiMinSize = native.writeMultiMinSize == nuint.MaxValue ? null : native.writeMultiMinSize;
         WriteTotalMaxSize = native.writeTotalMaxSize == nuint.MaxValue ? null : native.writeTotalMaxSize;
-        ChecksumCrc64Nvme = native.checksumCrc64Nvme != 0;
-        ChecksumCrc32c = native.checksumCrc32c != 0;
-        ChecksumMd5 = native.checksumMd5 != 0;
-        ChecksumSha256 = native.checksumSha256 != 0;
         CreateDir = native.createDir != 0;
         Delete = native.delete != 0;
         DeleteWithVersion = native.deleteWithVersion != 0;
@@ -338,6 +335,11 @@ public struct Capability
     public bool WriteWithExpires { get; private set; }
 
     /// <summary>
+    /// Indicates if non-append writes support native checksum verification. A service with this capability supports at least [`crate::WriteChecksum::Any`] and validates each requested intent before performing I/O.
+    /// </summary>
+    public bool WriteWithChecksum { get; private set; }
+
+    /// <summary>
     /// Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads.
     /// </summary>
     public ulong? WriteMultiMaxSize { get; private set; }
@@ -351,26 +353,6 @@ public struct Capability
     /// Maximum total size supported for write operations. For example, Cloudflare D1 has a 1MB total size limit.
     /// </summary>
     public ulong? WriteTotalMaxSize { get; private set; }
-
-    /// <summary>
-    /// Indicates if writes accept a full-file CRC-64/NVME checksum, verify it, and return it in the write result.
-    /// </summary>
-    public bool ChecksumCrc64Nvme { get; private set; }
-
-    /// <summary>
-    /// Indicates if writes accept a full-file CRC-32C checksum, verify it, and return it in the write result.
-    /// </summary>
-    public bool ChecksumCrc32c { get; private set; }
-
-    /// <summary>
-    /// Indicates if writes accept a full-file MD5 checksum, verify it, and return it in the write result.
-    /// </summary>
-    public bool ChecksumMd5 { get; private set; }
-
-    /// <summary>
-    /// Indicates if writes accept a full-file SHA-256 checksum, verify it, and return it in the write result.
-    /// </summary>
-    public bool ChecksumSha256 { get; private set; }
 
     /// <summary>
     /// Indicates if directory creation is supported.

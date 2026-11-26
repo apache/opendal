@@ -66,13 +66,10 @@ internal struct OpenDALCapability
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithIfNotExists;
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithUserMetadata;
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithExpires;
+    [MarshalAs(UnmanagedType.U1)] internal byte writeWithChecksum;
     internal nuint writeMultiMaxSize;
     internal nuint writeMultiMinSize;
     internal nuint writeTotalMaxSize;
-    [MarshalAs(UnmanagedType.U1)] internal byte checksumCrc64Nvme;
-    [MarshalAs(UnmanagedType.U1)] internal byte checksumCrc32c;
-    [MarshalAs(UnmanagedType.U1)] internal byte checksumMd5;
-    [MarshalAs(UnmanagedType.U1)] internal byte checksumSha256;
     [MarshalAs(UnmanagedType.U1)] internal byte createDir;
     [MarshalAs(UnmanagedType.U1)] internal byte delete;
     [MarshalAs(UnmanagedType.U1)] internal byte deleteWithVersion;

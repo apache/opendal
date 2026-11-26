@@ -17,10 +17,8 @@
 
 /// An algorithm that computes a full-file [`Checksum`].
 ///
-/// Each algorithm has a matching capability flag, for example
-/// [`crate::Capability::checksum_crc32c`]. A service that sets the flag
-/// accepts a checksum of that algorithm on write, verifies it against the
-/// stored content, and returns it in the write result.
+/// A service can advertise [`crate::Capability::write_with_checksum`] and
+/// still reject an individual algorithm with [`crate::ErrorKind::Unsupported`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ChecksumAlgo {
@@ -97,8 +95,7 @@ impl Checksum {
         }
     }
 
-    /// Encode as a one-byte algorithm tag followed by the digest, the layout
-    /// compact operation arguments and metadata store.
+    /// Encode as a one-byte algorithm tag followed by the digest.
     pub(crate) fn encode(&self) -> Vec<u8> {
         let mut encoded = Vec::with_capacity(1 + self.value.len());
         encoded.push(self.algo.to_tag());
@@ -139,6 +136,32 @@ pub enum WriteChecksum {
     ///
     /// This request requires a non-append write.
     Expected(Checksum),
+}
+
+impl WriteChecksum {
+    pub(crate) fn encode(&self) -> Vec<u8> {
+        match self {
+            Self::Any => vec![0],
+            Self::Fast => vec![1],
+            Self::Algo(algo) => vec![2, algo.to_tag()],
+            Self::Expected(checksum) => {
+                let mut encoded = Vec::with_capacity(2 + checksum.value.len());
+                encoded.extend_from_slice(&[3, checksum.algo.to_tag()]);
+                encoded.extend_from_slice(&checksum.value);
+                encoded
+            }
+        }
+    }
+
+    pub(crate) fn decode(encoded: &[u8]) -> Self {
+        match encoded {
+            [0] => Self::Any,
+            [1] => Self::Fast,
+            [2, algo] => Self::Algo(ChecksumAlgo::from_tag(*algo)),
+            [3, checksum @ ..] => Self::Expected(Checksum::decode(checksum)),
+            _ => unreachable!("compact write arguments only store encoded checksum intents"),
+        }
+    }
 }
 
 /// A checksum requirement that a layer can apply to writes across an operator.

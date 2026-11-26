@@ -17,8 +17,8 @@
 
 //! Options module provides options definitions for operations.
 
-use crate::Checksum;
 use crate::Metadata;
+use crate::WriteChecksum;
 use crate::raw::{Duration, Timestamp};
 use crate::types::BytesRange;
 use std::collections::HashMap;
@@ -807,35 +807,28 @@ pub struct WriteOptions {
     /// advertise [`crate::Capability::write_with_expires`]. A zero or
     /// unrepresentable duration returns [`crate::ErrorKind::ConfigInvalid`].
     pub expires: Option<Duration>,
-    /// Sets the expected full-file checksum of the written content.
+    /// Request native checksum verification for this write.
     ///
-    /// The service verifies the stored content against this checksum before
-    /// the write commits. A mismatch fails the write with
-    /// [`crate::ErrorKind::ChecksumMismatch`] and leaves the previously
-    /// visible file unchanged. On success, the returned [`Metadata`] carries
-    /// the checksum the service verified, available through
-    /// [`Metadata::checksum`].
+    /// [`WriteChecksum::Any`] and [`WriteChecksum::Fast`] allow verification
+    /// at the part or block level. [`WriteChecksum::Algo`] and
+    /// [`WriteChecksum::Expected`] require full-file verification before
+    /// commit. The write result's [`Metadata::checksum`] carries a verified
+    /// full-file checksum when the service produces one.
     ///
-    /// The checksum covers the whole file, regardless of how the content is
-    /// split into chunks or parts.
+    /// A writer with a checksum reads every copied range from the source and
+    /// uploads it again when using [`crate::Writer::copy_from`]. Each copied
+    /// byte costs download and upload bandwidth.
     ///
-    /// A writer with a checksum never uses native copies for
-    /// [`crate::Writer::copy_from`], even when the service advertises
-    /// [`crate::Capability::write_can_copy_from`]. It reads every copied
-    /// range from the source and uploads it again, so each copied byte costs
-    /// download and upload bandwidth.
-    ///
-    /// If the service completes the write but does not confirm the
-    /// checksum, the write returns [`crate::ErrorKind::Unexpected`]. In that
-    /// case the content may already be stored without verification.
-    ///
-    /// Returns [`crate::ErrorKind::Unsupported`] when the service does not
-    /// advertise the capability flag for the checksum's algorithm, for
-    /// example [`crate::Capability::checksum_crc32c`] for
-    /// [`crate::ChecksumAlgo::Crc32c`], and when combined with `append`.
-    /// A digest whose length does not match the algorithm returns
-    /// [`crate::ErrorKind::ConfigInvalid`].
-    pub checksum: Option<Checksum>,
+    /// Returns [`crate::ErrorKind::Unsupported`] before I/O if the service
+    /// lacks [`crate::Capability::write_with_checksum`] or cannot fulfill the
+    /// requested intent. Append always rejects `Algo` and `Expected`. A
+    /// digest whose length does not match its algorithm returns
+    /// [`crate::ErrorKind::ConfigInvalid`]. A checksum mismatch returns
+    /// [`crate::ErrorKind::ChecksumMismatch`]. If the service rejects a
+    /// full-file checksum before commit, the previously visible file stays
+    /// intact. Failure to confirm a required checksum after commit returns
+    /// [`crate::ErrorKind::Unexpected`] and the new file may already be visible.
+    pub checksum: Option<WriteChecksum>,
 
     /// Write only when the file at the write path has this exact ETag.
     ///

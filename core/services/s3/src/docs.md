@@ -16,6 +16,20 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+## Write verification
+
+On general-purpose AWS S3 buckets, use [`opendal_core::WriteChecksum::Any`] or
+[`opendal_core::WriteChecksum::Fast`] to compute and verify a full-object
+CRC-64/NVME checksum. Explicit algorithm and expected checksum requests
+support CRC-32C and CRC-64/NVME. The write returns the confirmed checksum in
+[`opendal_core::Metadata::checksum`] for both a single PUT and multipart upload.
+Append, S3 Express One Zone, and S3-compatible provider presets reject per-write
+checksum intents.
+
+A per-write intent takes precedence over [`crate::S3Config::checksum_algorithm`]
+for HTTP checksum headers. The configured algorithm still disables native writer
+copy, and configuring `md5` still limits writes to a single PUT.
+
 ## Object restoration
 
 S3 restoration requires bucket versioning. [`opendal_core::Operator::restore`]

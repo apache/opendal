@@ -2731,6 +2731,7 @@ dependencies = [
  "crc-fast",
  "futures",
  "getrandom 0.4.2",
+ "gloo-timers 0.4.1",
  "http 1.5.0",
  "opendal",
  "rand 0.10.1",

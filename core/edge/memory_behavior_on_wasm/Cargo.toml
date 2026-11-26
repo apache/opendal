@@ -30,6 +30,7 @@ bytes = { workspace = true }
 crc-fast = "1.9.0"
 futures = { workspace = true, default-features = true }
 getrandom = { version = "0.4", features = ["wasm_js"] }
+gloo-timers = { version = "0.4", features = ["futures"] }
 http = { workspace = true }
 opendal = { path = "../..", default-features = false, features = [
   "auto-simulate",
@@ -42,8 +43,8 @@ uuid = { workspace = true, features = ["js", "v4"] }
 wasm-bindgen-futures = "0.4.39"
 wasm-bindgen-test = "0.3.41"
 
-# The shared write module also compiles in the facade's native behavior target.
+# The shared modules also compile in the facade's native behavior target.
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [
-  'cfg(feature, values("services-ghac", "services-vercel-blob"))',
+  'cfg(feature, values("services-gdrive", "services-ghac", "services-hf", "services-vercel-blob"))',
 ] }

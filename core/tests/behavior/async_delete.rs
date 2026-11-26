@@ -242,13 +242,10 @@ pub async fn test_remove_all_basic(op: Operator) -> Result<()> {
     // COS ListObjects is eventually consistent after deletes, so the removed
     // directory can stay visible to existence checks that list its prefix.
     // See apache/opendal#7502.
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    let deadline = Instant::now() + Duration::from_secs(5);
     while op.exists(&directory).await? {
-        assert!(
-            tokio::time::Instant::now() < deadline,
-            "{directory} should be removed"
-        );
-        tokio::time::sleep(Duration::from_millis(250)).await;
+        assert!(Instant::now() < deadline, "{directory} should be removed");
+        sleep(Duration::from_millis(250)).await;
     }
     for path in descendants {
         assert!(!op.exists(&path).await?, "{path} should be removed");

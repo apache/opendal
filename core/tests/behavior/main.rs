@@ -45,6 +45,7 @@ use opendal::raw::MaybeSend;
 use opendal::tests::TEST_RUNTIME;
 use opendal::tests::init_test_service;
 use opendal::*;
+use tokio::time::{Instant, sleep};
 
 pub static TEST_FIXTURE: Fixture = Fixture::new();
 

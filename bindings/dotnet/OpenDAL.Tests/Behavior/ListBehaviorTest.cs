@@ -164,7 +164,13 @@ public sealed class ListBehaviorTest : BehaviorTestBase
             .ToList();
 
         Assert.True(versions.Count >= 2, $"expected at least two versions, got {versions.Count}");
-        Assert.All(versions, e => Assert.False(string.IsNullOrEmpty(e.Metadata.Version)));
+        Assert.All(versions, entry =>
+        {
+            Assert.False(string.IsNullOrEmpty(entry.Metadata.Version));
+            DeleteInput target = entry;
+            Assert.Equal(path, target.Path);
+            Assert.Equal(entry.Metadata.Version, target.Options?.Version);
+        });
 
         var currentCount = versions.Count(e => e.Metadata.IsCurrent == true);
         Assert.InRange(currentCount, 0, 1);

@@ -30,10 +30,12 @@ use opendal::options::{
 use tokio::sync::Mutex;
 
 use crate::layer::Layer;
+use crate::metadata::Metadata;
 use crate::validate::parse_expires_secs;
 
 mod capability;
 mod layer;
+mod metadata;
 mod options;
 mod validate;
 
@@ -137,7 +139,7 @@ impl Operator {
             .await
             .map_err(format_napi_error)?;
 
-        Ok(Metadata(meta))
+        Ok(Metadata::new(meta))
     }
 
     /// Get current path's metadata **without cache** directly and synchronously.
@@ -164,7 +166,7 @@ impl Operator {
             .stat_options(&path, options)
             .map_err(format_napi_error)?;
 
-        Ok(Metadata(meta))
+        Ok(Metadata::new(meta))
     }
 
     /// Check if this operator can work correctly.
@@ -350,7 +352,7 @@ impl Operator {
             .write_options(&path, c, options)
             .await
             .map_err(format_napi_error)?;
-        Ok(Metadata(metadata))
+        Ok(Metadata::new(metadata))
     }
 
     //noinspection DuplicatedCode
@@ -418,7 +420,7 @@ impl Operator {
             .blocking_op
             .write_options(&path, c, options)
             .map_err(format_napi_error)?;
-        Ok(Metadata(metadata))
+        Ok(Metadata::new(metadata))
     }
 
     /// Copy file according to given `from` and `to` path.
@@ -892,7 +894,7 @@ impl Entry {
     /// Return the metadata of this entry.
     #[napi]
     pub fn metadata(&self) -> Metadata {
-        Metadata(self.0.metadata().clone())
+        Metadata::new(self.0.metadata().clone())
     }
 }
 
@@ -913,105 +915,6 @@ impl From<opendal::EntryMode> for EntryMode {
             opendal::EntryMode::DIR => EntryMode::DIR,
             opendal::EntryMode::Unknown => EntryMode::Unknown,
         }
-    }
-}
-
-/// Metadata carries all metadata associated with a path.
-#[napi]
-pub struct Metadata(opendal::Metadata);
-
-#[napi]
-impl Metadata {
-    /// Returns true if the <op.stat> object describes a file system directory.
-    #[napi]
-    pub fn is_directory(&self) -> bool {
-        self.0.is_dir()
-    }
-
-    /// Returns true if the <op.stat> object describes a regular file.
-    #[napi]
-    pub fn is_file(&self) -> bool {
-        self.0.is_file()
-    }
-
-    /// This function returns `true` if the file represented by this metadata has been marked for
-    /// deletion or has been permanently deleted.
-    #[napi]
-    pub fn is_deleted(&self) -> bool {
-        self.0.is_deleted()
-    }
-
-    /// Cache-Control of this object.
-    #[napi(getter)]
-    pub fn cache_control(&self) -> Option<String> {
-        self.0.cache_control().map(|s| s.to_string())
-    }
-
-    /// Content-Disposition of this object
-    #[napi(getter)]
-    pub fn content_disposition(&self) -> Option<String> {
-        self.0.content_disposition().map(|s| s.to_string())
-    }
-
-    /// Content Length of this object
-    #[napi(getter)]
-    pub fn content_length(&self) -> Option<u64> {
-        self.0.content_length().into()
-    }
-
-    /// Content Encoding of this object
-    #[napi(getter)]
-    pub fn content_encoding(&self) -> Option<String> {
-        self.0.content_encoding().map(|s| s.to_string())
-    }
-
-    /// Content MD5 of this object.
-    #[napi(getter)]
-    pub fn content_md5(&self) -> Option<String> {
-        self.0.content_md5().map(|s| s.to_string())
-    }
-
-    /// Content Type of this object.
-    #[napi(getter)]
-    pub fn content_type(&self) -> Option<String> {
-        self.0.content_type().map(|s| s.to_string())
-    }
-
-    /// User Metadata of this object.
-    #[napi(getter)]
-    pub fn user_metadata(&self) -> Option<HashMap<String, String>> {
-        self.0.user_metadata().map(|metadata| {
-            metadata
-                .into_iter()
-                .map(|(key, value)| (key.to_string(), value.to_string()))
-                .collect()
-        })
-    }
-
-    /// ETag of this object.
-    #[napi(getter)]
-    pub fn etag(&self) -> Option<String> {
-        self.0.etag().map(|s| s.to_string())
-    }
-
-    /// Last Modified of this object.
-    ///
-    /// We will output this time in RFC3339 format like `1996-12-19T16:39:57+08:00`.
-    #[napi(getter)]
-    pub fn last_modified(&self) -> Option<String> {
-        self.0.last_modified().map(|ta| ta.to_string())
-    }
-
-    /// mode represent this entry's mode.
-    #[napi(getter)]
-    pub fn mode(&self) -> Option<EntryMode> {
-        Some(self.0.mode().into())
-    }
-
-    /// Retrieves the `version` of the file, if available.
-    #[napi(getter)]
-    pub fn version(&self) -> Option<String> {
-        self.0.version().map(|v| v.to_string())
     }
 }
 

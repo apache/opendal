@@ -441,41 +441,50 @@ export declare class LoggingLayer {
 
 /** Metadata carries all metadata associated with a path. */
 export declare class Metadata {
-  /** Returns true if the <op.stat> object describes a file system directory. */
-  isDirectory(): boolean
-  /** Returns true if the <op.stat> object describes a regular file. */
+  /** Return this entry's mode. */
+  get mode(): EntryMode | null
+  /** Return `true` if this metadata is for a file. */
   isFile(): boolean
+  /** Return `true` if this metadata is for a directory. */
+  isDirectory(): boolean
   /**
-   * This function returns `true` if the file represented by this metadata has been marked for
-   * deletion or has been permanently deleted.
-   */
-  isDeleted(): boolean
-  /** Cache-Control of this object. */
-  get cacheControl(): string | null
-  /** Content-Disposition of this object */
-  get contentDisposition(): string | null
-  /** Content Length of this object */
-  get contentLength(): bigint | null
-  /** Content Encoding of this object */
-  get contentEncoding(): string | null
-  /** Content MD5 of this object. */
-  get contentMd5(): string | null
-  /** Content Type of this object. */
-  get contentType(): string | null
-  /** User Metadata of this object. */
-  get userMetadata(): Record<string, string> | null
-  /** ETag of this object. */
-  get etag(): string | null
-  /**
-   * Last Modified of this object.
+   * Return whether this metadata describes the current object version.
    *
-   * We will output this time in RFC3339 format like `1996-12-19T16:39:57+08:00`.
+   * Returns `null` when the service does not report it.
+   */
+  isCurrent(): boolean | null
+  /** Return whether this metadata describes a deleted object or delete marker. */
+  isDeleted(): boolean
+  /** Return this entry's Cache-Control value. */
+  get cacheControl(): string | null
+  /** Return the full content length of this entry. */
+  get contentLength(): bigint | null
+  /** Return this entry's Content-MD5 value. */
+  get contentMd5(): string | null
+  /** Return this entry's Content-Type value. */
+  get contentType(): string | null
+  /** Return this entry's Content-Encoding value. */
+  get contentEncoding(): string | null
+  /** Return this entry's Content-Language value, if available. */
+  get contentLanguage(): string | null
+  /**
+   * Return this entry's Last-Modified timestamp.
+   *
+   * The time is formatted as RFC 3339, like `1996-12-19T16:39:57Z`.
    */
   get lastModified(): string | null
-  /** mode represent this entry's mode. */
-  get mode(): EntryMode | null
-  /** Retrieves the `version` of the file, if available. */
+  /** Return this entry's service-provided ETag as-is. */
+  get etag(): string | null
+  /** Return this entry's Content-Disposition value. */
+  get contentDisposition(): string | null
+  /** Return this entry's service-specific version identifier. */
   get version(): string | null
+  /**
+   * Return a borrowed view of this entry's user metadata.
+   *
+   * The pairs are copied into a plain object.
+   */
+  get userMetadata(): Record<string, string> | null
 }
 
 export declare class Operator {

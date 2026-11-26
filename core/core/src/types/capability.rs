@@ -150,9 +150,13 @@ pub struct Capability {
     pub write_with_user_metadata: bool,
     /// Indicates if writes can set a lifetime for the new file.
     pub write_with_expires: bool,
-    /// Indicates if non-append writes support native checksum verification.
+    /// Indicates support for native checksum verification on writes.
     /// A service with this capability supports at least [`crate::WriteChecksum::Any`]
-    /// and validates each requested intent before performing I/O.
+    /// on non-append writes. It validates the requested intent, algorithm, and
+    /// write mode before I/O and returns [`crate::ErrorKind::Unsupported`] if
+    /// it cannot fulfill the request.
+    ///
+    /// See the [checksum specification][crate::docs::specs::checksum].
     #[serde(default)]
     pub write_with_checksum: bool,
     /// Maximum size supported for multipart uploads.

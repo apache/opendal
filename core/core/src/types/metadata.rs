@@ -348,12 +348,19 @@ impl Metadata {
             .map(UserMetadata::new)
     }
 
-    /// Return this entry's full-file checksum.
+    /// Return this entry's full-file checksum, if available.
     ///
-    /// Services return the checksum they verified or stored for the content.
-    /// A write with
-    /// [`WriteOptions::checksum`][crate::options::WriteOptions::checksum]
-    /// returns metadata that carries the verified checksum.
+    /// Successful [`crate::WriteChecksum::Algo`] and
+    /// [`crate::WriteChecksum::Expected`] writes return a verified full-file
+    /// checksum. [`crate::WriteChecksum::Any`] and [`crate::WriteChecksum::Fast`]
+    /// also allow verification of each upload request independently. This
+    /// method returns `None` when those writes succeed without a verified
+    /// full-file digest.
+    ///
+    /// On stat and read, this is a checksum the service reports for the whole
+    /// object. Verifying bytes returned by a read is a separate step.
+    ///
+    /// See the [checksum specification][crate::docs::specs::checksum].
     #[inline]
     pub fn checksum(&self) -> Option<Checksum> {
         self.values

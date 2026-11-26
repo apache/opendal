@@ -378,6 +378,8 @@ pub struct ReadOptions {
     /// This hint defaults to `false`. Services can ignore it or return checksum
     /// metadata by default. It does not require a checksum or verify the read.
     /// Use [`crate::Reader::metadata`] to inspect metadata from a reader.
+    ///
+    /// See the [checksum specification][crate::docs::specs::checksum].
     pub checksum: bool,
 }
 
@@ -651,6 +653,8 @@ pub struct StatOptions {
     ///
     /// This hint defaults to `false`. Services can ignore it or return checksum
     /// metadata by default. OpenDAL does not read object data to obtain it.
+    ///
+    /// See the [checksum specification][crate::docs::specs::checksum].
     pub checksum: bool,
 }
 
@@ -823,11 +827,15 @@ pub struct WriteOptions {
     /// lacks [`crate::Capability::write_with_checksum`] or cannot fulfill the
     /// requested intent. Append always rejects `Algo` and `Expected`. A
     /// digest whose length does not match its algorithm returns
-    /// [`crate::ErrorKind::ConfigInvalid`]. A checksum mismatch returns
-    /// [`crate::ErrorKind::ChecksumMismatch`]. If the service rejects a
-    /// full-file checksum before commit, the previously visible file stays
-    /// intact. Failure to confirm a required checksum after commit returns
-    /// [`crate::ErrorKind::Unexpected`] and the new file may already be visible.
+    /// [`crate::ErrorKind::ConfigInvalid`].
+    ///
+    /// A checksum rejection before commit returns
+    /// [`crate::ErrorKind::ChecksumMismatch`] and leaves previously committed
+    /// data intact, including any earlier successful append blocks. Failure
+    /// to confirm a required checksum after commit returns
+    /// [`crate::ErrorKind::Unexpected`] and new data may already be visible.
+    ///
+    /// See the [checksum specification][crate::docs::specs::checksum].
     pub checksum: Option<WriteChecksum>,
 
     /// Write only when the file at the write path has this exact ETag.

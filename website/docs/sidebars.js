@@ -51,6 +51,7 @@ const sidebars = {
       link: { type: 'doc', id: 'specifications/overview' },
       collapsed: true,
       items: [
+        'specifications/checksum',
         'specifications/conditional-operations',
         'specifications/metadata',
       ],

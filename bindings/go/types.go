@@ -19,66 +19,6 @@ package opendal
 
 import "unsafe"
 
-type opendalCapability struct {
-	stat                               uint8
-	statWithIfMatch                    uint8
-	statWithIfNoneMatch                uint8
-	statWithIfModifiedSince            uint8
-	statWithIfUnmodifiedSince          uint8
-	statWithOverrideCacheControl       uint8
-	statWithOverrideContentDisposition uint8
-	statWithOverrideContentType        uint8
-	statWithVersion                    uint8
-	read                               uint8
-	readWithIfMatch                    uint8
-	readWithIfNoneMatch                uint8
-	readWithOverrideCacheControl       uint8
-	readWithOverrideContentDisposition uint8
-	readWithOverrideContentType        uint8
-	readWithIfModifiedSince            uint8
-	readWithIfUnmodifiedSince          uint8
-	readWithVersion                    uint8
-	write                              uint8
-	writeCanMulti                      uint8
-	writeCanEmpty                      uint8
-	writeCanAppend                     uint8
-	writeWithContentType               uint8
-	writeWithContentDisposition        uint8
-	writeWithContentEncoding           uint8
-	writeWithCacheControl              uint8
-	writeWithIfMatch                   uint8
-	writeWithIfNoneMatch               uint8
-	writeWithIfNotExists               uint8
-	writeWithUserMetadata              uint8
-	writeMultiMaxSize                  uint
-	writeMultiMinSize                  uint
-	writeTotalMaxSize                  uint
-	createDir                          uint8
-	delete                             uint8
-	deleteWithVersion                  uint8
-	deleteWithRecursive                uint8
-	copy                               uint8
-	copyWithIfNotExists                uint8
-	copyWithIfMatch                    uint8
-	copyWithSourceVersion              uint8
-	copyCanMulti                       uint8
-	copyMultiMaxSize                   uint
-	copyMultiMinSize                   uint
-	rename                             uint8
-	list                               uint8
-	listWithLimit                      uint8
-	listWithStartAfter                 uint8
-	listWithRecursive                  uint8
-	listWithVersions                   uint8
-	listWithDeleted                    uint8
-	presign                            uint8
-	presignRead                        uint8
-	presignStat                        uint8
-	presignWrite                       uint8
-	presignDelete                      uint8
-	shared                             uint8
-}
-
 type opendalOperator struct{}
 
 type opendalCancelToken struct{}

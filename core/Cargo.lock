@@ -2961,6 +2961,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "edge_test_memory_behavior_on_wasm"
+version = "0.59.5"
+dependencies = [
+ "anyhow",
+ "futures",
+ "getrandom 0.4.2",
+ "http 1.5.0",
+ "opendal",
+ "rand 0.10.1",
+ "reqwest 0.13.5",
+ "sha2 0.11.0",
+ "tokio",
+ "uuid",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+]
+
+[[package]]
 name = "edge_test_opfs_wasm32"
 version = "0.59.5"
 dependencies = [

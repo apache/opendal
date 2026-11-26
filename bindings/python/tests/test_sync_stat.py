@@ -71,3 +71,18 @@ def test_sync_stat_metadata_fields(service_name, operator, async_operator):
     assert meta.content_type is not None or meta.content_type is None
 
     operator.delete(path)
+
+
+@pytest.mark.need_capability("write", "delete", "stat", "write_with_cache_control")
+def test_sync_stat_generated_metadata_fields(service_name, operator, async_operator):
+    path = f"test_sync_stat_generated_meta_{uuid4()}.txt"
+    operator.write(path, b"hello world", cache_control="no-cache")
+
+    meta = operator.stat(path)
+    assert meta.cache_control == "no-cache"
+    assert meta.content_language is None or isinstance(meta.content_language, str)
+    assert meta.is_current is None or isinstance(meta.is_current, bool)
+    assert meta.is_deleted is False
+    assert "cache_control=" in repr(meta)
+
+    operator.delete(path)

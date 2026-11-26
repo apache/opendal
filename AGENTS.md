@@ -309,6 +309,12 @@ Operation wrappers implement `raw::Service`, store the inner `Servicer`, forward
 - Do not add AI-tool marketing banners or AI co-author trailers to commits or PR descriptions; record AI usage in the AI Usage Statement section.
 - If public APIs or user-facing behavior change, update docs and call out the user-facing impact in the PR template.
 
+## Discussions and Mailing Lists
+
+- GitHub Discussions sync to `dev@opendal.apache.org` (configured in `.asf.yaml` under `notifications.discussions`).
+- Start or continue public development discussions—such as design proposals, RFC feedback requests, and general community threads—in GitHub Discussions rather than sending a separate email to `dev@opendal.apache.org`.
+- GitHub commits, issues, and pull requests mirror to `commits@opendal.apache.org`, not `dev@opendal.apache.org`.
+
 ## Important Notes
 
 - Minimum Rust version is 1.95, configured in `core/Cargo.toml` and checked by CI.

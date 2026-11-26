@@ -420,3 +420,9 @@ sha2 = { workspace = true }
 size = "0.6"
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }
 uuid = { workspace = true, features = ["serde", "v4"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+  "registry",
+] }

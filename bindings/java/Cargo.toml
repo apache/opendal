@@ -57,6 +57,7 @@ opendal = { version = ">=0", path = "../../core", default-features = false, feat
   "layers-tail-cut",
   "layers-throttle",
   "layers-timeout",
+  "layers-tracing",
 
   # enabled services
   "services-azblob",

@@ -26,6 +26,8 @@ version.workspace = true
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dev-dependencies]
 anyhow = "1.0"
+bytes = { workspace = true }
+crc-fast = "1.9.0"
 futures = { workspace = true, default-features = true }
 getrandom = { version = "0.4", features = ["wasm_js"] }
 http = { workspace = true }
@@ -39,3 +41,9 @@ tokio = { workspace = true, features = ["time"] }
 uuid = { workspace = true, features = ["js", "v4"] }
 wasm-bindgen-futures = "0.4.39"
 wasm-bindgen-test = "0.3.41"
+
+# The shared write module also compiles in the facade's native behavior target.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+  'cfg(feature, values("services-ghac", "services-vercel-blob"))',
+] }

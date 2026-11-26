@@ -358,6 +358,13 @@ jobs:
             -p opendal -p opendal-core \
             --features opendal/auto-register-services,opendal/executors-tokio
 
+      - name: Test explicit HTTP context initialization
+        working-directory: core
+        run: |
+          cargo nextest run --locked --no-default-features \
+            -p opendal --features http-transport-reqwest-rustls,layers-retry \
+            --test http_context_init
+
   doc-test:
     runs-on: ubuntu-latest
 

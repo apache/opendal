@@ -7176,6 +7176,8 @@ dependencies = [
  "sha2 0.11.0",
  "size",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
  "uuid",
 ]
 

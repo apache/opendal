@@ -32,6 +32,7 @@ on:
       - "core/core/src/**"
       - "!core/core/src/docs/**"
       - "core/http-transports/**"
+      - "dev/src/generate/**"
       - "bindings/c/**"
       - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_c.yml"
@@ -72,6 +73,11 @@ jobs:
       - name: Run Rust unit tests
         working-directory: "bindings/c"
         run: cargo test
+
+      - name: Regenerate code from core
+        run: |
+          cargo run --manifest-path=dev/Cargo.toml -- generate -l c
+          cargo fmt --manifest-path bindings/c/Cargo.toml --all
 
       - name: Build C binding
         working-directory: "bindings/c"

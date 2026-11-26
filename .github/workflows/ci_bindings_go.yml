@@ -32,6 +32,7 @@ on:
       - "core/core/src/**"
       - "!core/core/src/docs/**"
       - "core/http-transports/**"
+      - "dev/src/generate/**"
       - "bindings/c/**"
       - "bindings/go/**"
       - ".github/actions/setup/**"
@@ -60,6 +61,24 @@ jobs:
         with:
           version: "v2.12.2"
           working-directory: bindings/go
+
+  check_generated:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: bindings/go/go.mod
+          cache-dependency-path: bindings/go/go.sum
+      - name: Regenerate code from core
+        run: |
+          cargo run --manifest-path=dev/Cargo.toml -- generate -l go
+          unformatted=$(gofmt -l bindings/go)
+          if [ -n "$unformatted" ]; then echo "gofmt needed: $unformatted"; exit 1; fi
+      - name: Check diff
+        run: git diff --exit-code
 
   run_examples:
     runs-on: ubuntu-latest

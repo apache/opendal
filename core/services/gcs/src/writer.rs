@@ -628,6 +628,7 @@ mod tests {
 
     use super::super::core::constants::X_GOOG_GCS_IDEMPOTENCY_TOKEN;
     use super::*;
+    use crate::Gcs;
     use crate::backend::GcsBackend;
 
     #[derive(Default)]
@@ -656,6 +657,7 @@ mod tests {
     #[derive(Clone)]
     struct MockResumableTransport {
         state: Arc<Mutex<MockState>>,
+        insert_checksums: Option<(&'static str, &'static str)>,
         final_hash: Option<&'static str>,
         final_response: MockFinalResponse,
     }
@@ -667,6 +669,7 @@ mod tests {
                     honor_idempotency_tokens: true,
                     ..Default::default()
                 })),
+                insert_checksums: None,
                 final_hash: None,
                 final_response: MockFinalResponse::Committed(None),
             }
@@ -809,6 +812,29 @@ mod tests {
                 let mut state = self.state.lock().unwrap();
                 state.requests.push(kind);
                 state.idempotency_tokens.push(token.clone());
+            }
+
+            if let Some((request_crc32c, receipt_crc32c)) = self.insert_checksums {
+                assert_eq!(req.method(), http::Method::POST);
+                assert!(
+                    query
+                        .split('&')
+                        .any(|param| param == "uploadType=multipart")
+                );
+                let boundary = parse_multipart_boundary(req.headers())
+                    .unwrap()
+                    .expect("insert must contain multipart object metadata");
+                let body = String::from_utf8(req.body().to_vec()).unwrap();
+                let (_, parts) = body.split_once("\r\n\r\n").unwrap();
+                let (metadata, media) = parts.split_once(&format!("\r\n--{boundary}\r\n")).unwrap();
+                let metadata: serde_json::Value = serde_json::from_str(metadata).unwrap();
+                assert_eq!(
+                    metadata["crc32c"], request_crc32c,
+                    "CRC32C in insert metadata"
+                );
+                let (_, media) = media.split_once("\r\n\r\n").unwrap();
+                let (media, _) = media.split_once(&format!("\r\n--{boundary}--")).unwrap();
+                return Self::completed_response(media.len(), 1, Some(receipt_crc32c));
             }
 
             if req.method() == http::Method::POST && !query.contains("uploadType=resumable") {
@@ -1222,6 +1248,55 @@ mod tests {
             transport.requests(),
             vec!["insert uploadType=media&name=object&ifGenerationMatch=0".to_string()]
         );
+    }
+
+    #[tokio::test]
+    async fn close_small_object_requires_matching_crc32c_receipt() {
+        let body = "a complete GCS CRC32C control\n";
+        // CRC32C of the payload from the GCS insert control, in big-endian byte order.
+        let checksum = Checksum::new(ChecksumAlgo::Crc32c, [0xcf, 0xc6, 0x9a, 0x90]);
+        for (receipt_crc32c, expected) in [
+            ("z8aakA==", Ok(checksum)),
+            ("AAAAAA==", Err(ErrorKind::Unexpected)),
+        ] {
+            let transport = MockResumableTransport {
+                insert_checksums: Some(("z8aakA==", receipt_crc32c)),
+                ..Default::default()
+            };
+            let op = Operator::new(
+                Gcs::default()
+                    .bucket("example")
+                    .token("test-token".to_string())
+                    .disable_config_load()
+                    .disable_vm_metadata(),
+            )
+            .unwrap()
+            .with_context(
+                OperationContext::new()
+                    .with_http_transport(HttpTransporter::new(transport.clone())),
+            );
+            let mut writer = op
+                .writer_with("object")
+                .content_type("application/octet-stream")
+                .checksum(WriteChecksum::Fast)
+                .await
+                .unwrap();
+            writer.write(body).await.unwrap();
+
+            let result = writer.close().await;
+            assert_eq!(transport.requests().len(), 1);
+            match expected {
+                Ok(checksum) => {
+                    let metadata = result.expect("close must accept the matching CRC32C receipt");
+                    assert_eq!(metadata.checksum(), Some(checksum));
+                    assert_eq!(metadata.content_length(), body.len() as u64);
+                }
+                Err(kind) => {
+                    let error = result.expect_err("close must reject a mismatched CRC32C receipt");
+                    assert_eq!(error.kind(), kind);
+                }
+            }
+        }
     }
 
     #[tokio::test]

@@ -60,6 +60,8 @@ const (
 	CodeConflict
 	// The operation was cancelled via a context.
 	CodeCancelled
+	// CodeChecksumMismatch indicates that a checksum did not match the expected value.
+	CodeChecksumMismatch
 )
 
 func parseError(ctx context.Context, err *opendalError) error {

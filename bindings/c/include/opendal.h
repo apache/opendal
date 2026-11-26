@@ -101,6 +101,10 @@ typedef enum opendal_code {
    * The operation was cancelled via an `opendal_cancel_token`.
    */
   OPENDAL_CANCELLED,
+  /**
+   * A checksum did not match the expected value.
+   */
+  OPENDAL_CHECKSUM_MISMATCH,
 } opendal_code;
 
 typedef struct opendal_presigned_request_inner opendal_presigned_request_inner;

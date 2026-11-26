@@ -40,6 +40,7 @@ use state::State;
 
 /// The source path supplied to the read cache policy.
 #[non_exhaustive]
+#[derive(Debug, Clone, Copy)]
 pub struct CacheReadRequest<'a> {
     path: &'a str,
 }
@@ -93,14 +94,16 @@ const DEFAULT_CHUNK_SIZE: usize = 1024 * 1024;
 /// requests. If a cached stream detects that the source changed after yielding
 /// bytes, restart the whole read and discard the partial result.
 ///
-/// Cross-instance invalidation is bounded by `min(ttl, 1s)`: each `CacheLayer`
-/// instance caches the shared recursive-delete generation key for up to
-/// `min(ttl, 1s)`, and a reused `Reader` caches its resolved metadata pointer
-/// locally for up to `min(ttl, 1s)` across range reads. Another instance
-/// sharing the same cache backend can therefore observe a recursive delete—or,
-/// on an already-reused `Reader`, a non-recursive mutation—up to `min(ttl, 1s)`
-/// later unless `ttl` is [`Duration::ZERO`]. A newly opened `Reader` checks
-/// shared cached metadata immediately for non-recursive mutations.
+/// Sources must expose a verifiable identity (`version`, a strong `etag`, or
+/// `last_modified`) to be cached; reads without one pass through to the source.
+///
+/// Single-path mutations invalidate cached metadata for affected paths on
+/// completion. External writes, recursive deletes, cancelled mutations, and
+/// cross-instance read/write races are bounded by `ttl`. A reused `Reader`
+/// caches its resolved metadata pointer locally for up to `min(ttl, 1s)` across
+/// range reads, so completed cross-instance invalidations become visible to an
+/// already-reused `Reader` within `min(ttl, 1s)` and immediately to a newly
+/// opened `Reader` (or immediately when `ttl` is [`Duration::ZERO`]).
 #[derive(Clone)]
 pub struct CacheLayer {
     state: Arc<State>,

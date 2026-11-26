@@ -19,8 +19,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use futures::StreamExt;
-use opendal_core::options::{DeleteOptions, ReadOptions};
+use opendal_core::options::ReadOptions;
 use opendal_core::raw::oio::{self, Copy as _, Read, ReadStream, Write};
 use opendal_core::raw::*;
 use opendal_core::services::Memory;
@@ -51,9 +50,19 @@ struct Probe {
     gate: Option<Arc<Gate>>,
     stat_gate: Option<Arc<Gate>>,
     version: Option<Arc<AtomicUsize>>,
+    etag: Option<Arc<AtomicUsize>>,
     faults: Option<Arc<AtomicUsize>>,
     expose_version: bool,
     max_write_size: Option<usize>,
+}
+
+impl Probe {
+    fn verifiable() -> Self {
+        Self {
+            etag: Some(Arc::new(AtomicUsize::new(1))),
+            ..Self::default()
+        }
+    }
 }
 
 const FAIL_READ: usize = 1;
@@ -111,6 +120,20 @@ impl ObservedService {
             None => (path.to_owned(), None),
         }
     }
+    fn current_etag(&self, version: Option<&str>) -> Option<String> {
+        version.map(str::to_owned).or_else(|| {
+            self.probe
+                .etag
+                .as_ref()
+                .map(|counter| format!("e-{}", counter.load(Ordering::Relaxed)))
+        })
+    }
+
+    fn bump_etag(&self) {
+        if let Some(counter) = &self.probe.etag {
+            counter.fetch_add(1, Ordering::Relaxed);
+        }
+    }
 }
 
 impl Service for ObservedService {
@@ -149,17 +172,23 @@ impl Service for ObservedService {
             let _ = gate.release.acquire().await.unwrap();
         }
         let (path, version) = self.selection(path, args.version());
+        let etag = self.current_etag(version.as_deref());
         Ok(self
             .inner
             .stat(ctx, &path, OpStat::new())
             .await?
             .map_metadata(|metadata| {
-                observed_metadata(metadata, version.as_deref(), self.probe.expose_version)
+                observed_metadata(
+                    metadata,
+                    etag.as_deref(),
+                    version.as_deref(),
+                    self.probe.expose_version,
+                )
             }))
     }
 
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
-        if self.faults() & FAIL_READ != 0 && path != "v1/gen" {
+        if self.faults() & FAIL_READ != 0 {
             self.probe
                 .observed
                 .failed_reads
@@ -186,6 +215,7 @@ impl Service for ObservedService {
         Ok(ObservedWriter {
             inner: self.inner.write(ctx, path, args)?,
             fail_close: self.faults() & FAIL_AFTER_WRITE != 0,
+            etag: self.probe.etag.clone(),
         })
     }
 
@@ -218,9 +248,11 @@ impl Service for ObservedService {
         to: &str,
         args: OpCopy,
     ) -> Result<Self::Copier> {
+        self.bump_etag();
         self.inner.copy(ctx, from, to, args)
     }
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.bump_etag();
         self.inner.compose(ctx, to, args)
     }
     async fn rename(
@@ -230,6 +262,7 @@ impl Service for ObservedService {
         to: &str,
         args: OpRename,
     ) -> Result<RpRename> {
+        self.bump_etag();
         self.inner.rename(ctx, from, to, args).await
     }
     async fn presign(
@@ -242,13 +275,22 @@ impl Service for ObservedService {
     }
 }
 
-fn observed_metadata(metadata: Metadata, version: Option<&str>, expose_version: bool) -> Metadata {
-    let Some(version) = version else {
+fn observed_metadata(
+    metadata: Metadata,
+    etag: Option<&str>,
+    version: Option<&str>,
+    expose_version: bool,
+) -> Metadata {
+    let Some(etag) = etag else {
         return metadata;
     };
     let mut builder = metadata.into_builder();
-    builder.etag(format!("\"{version}\""));
-    if expose_version {
+    builder.etag(format!("\"{etag}\""));
+    builder.checksum(Checksum::new(
+        ChecksumAlgo::Crc32c,
+        [0x12, 0x34, 0x56, 0x78],
+    ));
+    if expose_version && let Some(version) = version {
         builder.version(version);
     }
     builder.build()
@@ -271,14 +313,15 @@ impl Read for ObservedReader {
                 .map(str::to_owned)
                 .unwrap_or_else(|| current.load(Ordering::Relaxed).to_string())
         });
-        if let Some(etag) = self.args.if_match() {
-            self.probe.observed.pinned.fetch_add(1, Ordering::Relaxed);
-            if version
+        let etag = version.clone().or_else(|| {
+            self.probe
+                .etag
                 .as_ref()
-                .map(|version| format!("\"{version}\""))
-                .as_deref()
-                != Some(etag)
-            {
+                .map(|counter| format!("e-{}", counter.load(Ordering::Relaxed)))
+        });
+        if let Some(if_match) = self.args.if_match() {
+            self.probe.observed.pinned.fetch_add(1, Ordering::Relaxed);
+            if etag.as_ref().map(|tag| format!("\"{tag}\"")).as_deref() != Some(if_match) {
                 return Err(Error::new(ErrorKind::ConditionNotMatch, "changed ETag"));
             }
         }
@@ -292,8 +335,12 @@ impl Read for ObservedReader {
             .await?;
         let response = match response.into_metadata() {
             Some(metadata) => {
-                let mut metadata =
-                    observed_metadata(metadata, version.as_deref(), self.probe.expose_version);
+                let mut metadata = observed_metadata(
+                    metadata,
+                    etag.as_deref(),
+                    version.as_deref(),
+                    self.probe.expose_version,
+                );
                 if let Some(content_type) = self.args.override_content_type() {
                     self.probe
                         .observed
@@ -329,6 +376,7 @@ impl Read for ObservedReader {
 struct ObservedWriter {
     inner: oio::Writer,
     fail_close: bool,
+    etag: Option<Arc<AtomicUsize>>,
 }
 
 impl oio::Write for ObservedWriter {
@@ -337,6 +385,9 @@ impl oio::Write for ObservedWriter {
     }
     async fn close(&mut self) -> Result<Metadata> {
         let metadata = self.inner.close().await?;
+        if let Some(counter) = &self.etag {
+            counter.fetch_add(1, Ordering::Relaxed);
+        }
         if self.fail_close {
             return Err(
                 Error::new(ErrorKind::Unexpected, "response lost after commit").set_temporary(),
@@ -351,7 +402,7 @@ impl oio::Write for ObservedWriter {
 
 #[tokio::test]
 async fn memory_ranges_and_policy_use_cached_chunks() -> Result<()> {
-    let probe = Probe::default();
+    let probe = Probe::verifiable();
     let origin = memory()?.layer(probe.clone());
     let cache = memory()?;
     for path in ["cache", "bypass"] {
@@ -364,6 +415,8 @@ async fn memory_ranges_and_policy_use_cached_chunks() -> Result<()> {
         CacheLayer::new(cache.clone())?
             .with_chunk_size(4)
             .with_policy(move |request: &CacheReadRequest<'_>| {
+                let copy = *request;
+                assert!(!format!("{copy:?}").is_empty());
                 called.fetch_add(1, Ordering::Relaxed);
                 if request.path() == "bypass" {
                     CacheDecision::Bypass
@@ -432,7 +485,7 @@ async fn chunk_size_controls_range_alignment_and_cache_keys() -> Result<()> {
             D1_MAX_WRITE_SIZE,
         ),
     ] {
-        let origin = memory()?;
+        let origin = memory()?.layer(Probe::verifiable());
         let cache_storage = memory()?;
         let cache = cache_storage.clone().layer(Probe {
             max_write_size: limit,
@@ -499,7 +552,7 @@ async fn bounded_cache_configuration_and_backend_failures() -> Result<()> {
     );
     let flags = probe.faults.as_ref().unwrap();
     flags.store(0, Ordering::Relaxed);
-    let origin = memory()?;
+    let origin = memory()?.layer(Probe::verifiable());
     let op = origin
         .clone()
         .layer(CacheLayer::new(cache.clone())?.with_chunk_size(50));
@@ -531,7 +584,7 @@ async fn bounded_cache_configuration_and_backend_failures() -> Result<()> {
 async fn disk_cache_reuses_persisted_metadata_and_chunks() -> Result<()> {
     let directory = tempfile::tempdir().unwrap();
     let open_cache = || Operator::new(Fs::default().root(directory.path().to_str().unwrap()));
-    let probe = Probe::default();
+    let probe = Probe::verifiable();
     let origin = memory()?.layer(probe.clone());
     origin
         .write_with("object", "abcdefg")
@@ -547,6 +600,13 @@ async fn disk_cache_reuses_persisted_metadata_and_chunks() -> Result<()> {
         let metadata = response.into_metadata().unwrap();
         assert_eq!(metadata.content_length(), 7);
         assert_eq!(metadata.content_type(), Some("text/plain"));
+        assert_eq!(
+            metadata.checksum(),
+            Some(Checksum::new(
+                ChecksumAlgo::Crc32c,
+                [0x12, 0x34, 0x56, 0x78]
+            ))
+        );
         assert_eq!(stream.read_all().await?.to_vec(), b"cdefg");
     }
     assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 1);
@@ -591,13 +651,15 @@ async fn fs_origin_handles_missing_read_metadata_and_mutations() -> Result<()> {
     op.write("other", "independent").await?;
     assert_eq!(op.read("other").await?.to_vec(), b"independent");
     op.delete_with("dir/").recursive(true).await?;
-    assert_eq!(cache.read("v1/gen").await?.to_vec(), b"2");
     assert_eq!(
-        op.read("dir/file").await.unwrap_err().kind(),
+        cache.read("v1/gen").await.unwrap_err().kind(),
+        ErrorKind::NotFound,
+        "deterministic v1 keys do not maintain a v1/gen key"
+    );
+    assert_eq!(
+        origin.read("dir/file").await.unwrap_err().kind(),
         ErrorKind::NotFound
     );
-    origin.write("other", "changed").await?;
-    assert_eq!(op.read("other").await?.to_vec(), b"changed");
     Ok(())
 }
 
@@ -738,7 +800,7 @@ async fn canceled_reader_does_not_cancel_shared_fill() -> Result<()> {
     let gate = Gate::new();
     let probe = Probe {
         gate: Some(gate.clone()),
-        ..Probe::default()
+        ..Probe::verifiable()
     };
     let origin = memory()?.layer(probe.clone());
     origin.write("object", "shared").await?;
@@ -766,7 +828,7 @@ async fn mutation_discards_inflight_pointer_even_after_ambiguous_close_failure()
     let probe = Probe {
         gate: Some(gate.clone()),
         faults: Some(Arc::new(AtomicUsize::new(0))),
-        ..Probe::default()
+        ..Probe::verifiable()
     };
     let origin = memory()?.layer(probe.clone());
     origin.write("object", "old").await?;
@@ -799,7 +861,9 @@ async fn mutation_discards_inflight_pointer_even_after_ambiguous_close_failure()
 #[tokio::test]
 async fn deleter_delete_invalidates_cache_before_close() -> Result<()> {
     let cache = memory()?;
-    let op = memory()?.layer(CacheLayer::new(cache.clone())?.with_ttl(Duration::MAX));
+    let op = memory()?
+        .layer(Probe::verifiable())
+        .layer(CacheLayer::new(cache.clone())?.with_ttl(Duration::MAX));
 
     op.write("object", "value").await?;
     assert_eq!(op.read("object").await?.to_vec(), b"value");
@@ -815,58 +879,34 @@ async fn deleter_delete_invalidates_cache_before_close() -> Result<()> {
         op.read("object").await.unwrap_err().kind(),
         ErrorKind::NotFound
     );
-
-    op.write("dir/a", "first").await?;
-    op.write("dir/b", "second").await?;
-    assert_eq!(op.read("dir/a").await?.to_vec(), b"first");
-    assert_eq!(op.read("dir/b").await?.to_vec(), b"second");
-
-    let mut deleter = op.deleter().await?;
-    deleter
-        .delete((
-            "dir/".to_owned(),
-            DeleteOptions {
-                recursive: true,
-                ..Default::default()
-            },
-        ))
-        .await?;
-    assert_eq!(cache.read("v1/gen").await?.to_vec(), b"1");
-    assert_eq!(
-        op.read("dir/a").await.unwrap_err().kind(),
-        ErrorKind::NotFound
-    );
-    assert_eq!(
-        op.read("dir/b").await.unwrap_err().kind(),
-        ErrorKind::NotFound
-    );
-    deleter.close().await?;
-    assert_eq!(cache.read("v1/gen").await?.to_vec(), b"2");
-    assert_eq!(
-        op.read("dir/a").await.unwrap_err().kind(),
-        ErrorKind::NotFound
-    );
     Ok(())
 }
 
 #[tokio::test]
 async fn buffered_deleter_invalidates_again_on_close() -> Result<()> {
-    #[derive(Debug, Clone)]
-    struct BufferedDeleteLayer;
+    struct BufferedDeleter {
+        inner: oio::Deleter,
+        pending: Vec<(String, OpDelete)>,
+        fail_next_delete: Arc<AtomicUsize>,
+    }
+
+    #[derive(Debug, Clone, Default)]
+    struct BufferedDeleteLayer {
+        fail_next_delete: Arc<AtomicUsize>,
+    }
 
     #[derive(Debug)]
     struct BufferedDeleteService {
         inner: Servicer,
-    }
-
-    struct BufferedDeleter {
-        inner: oio::Deleter,
-        pending: Vec<(String, OpDelete)>,
+        fail_next_delete: Arc<AtomicUsize>,
     }
 
     impl Layer for BufferedDeleteLayer {
         fn apply_service(&self, inner: Servicer) -> Servicer {
-            Arc::new(BufferedDeleteService { inner })
+            Arc::new(BufferedDeleteService {
+                inner,
+                fail_next_delete: self.fail_next_delete.clone(),
+            })
         }
     }
 
@@ -915,6 +955,7 @@ async fn buffered_deleter_invalidates_again_on_close() -> Result<()> {
             Ok(BufferedDeleter {
                 inner: self.inner.delete(ctx)?,
                 pending: Vec::new(),
+                fail_next_delete: self.fail_next_delete.clone(),
             })
         }
 
@@ -951,6 +992,11 @@ async fn buffered_deleter_invalidates_again_on_close() -> Result<()> {
     impl oio::Delete for BufferedDeleter {
         async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
             self.pending.push((path.to_owned(), args));
+            if self.fail_next_delete.swap(0, Ordering::Relaxed) != 0 {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "transient flush error").set_temporary()
+                );
+            }
             Ok(())
         }
 
@@ -962,8 +1008,10 @@ async fn buffered_deleter_invalidates_again_on_close() -> Result<()> {
         }
     }
 
+    let buffered = BufferedDeleteLayer::default();
     let op = memory()?
-        .layer(BufferedDeleteLayer)
+        .layer(Probe::verifiable())
+        .layer(buffered.clone())
         .layer(CacheLayer::new(memory()?)?.with_ttl(Duration::MAX));
 
     op.write("object", "value").await?;
@@ -978,189 +1026,46 @@ async fn buffered_deleter_invalidates_again_on_close() -> Result<()> {
         ErrorKind::NotFound
     );
 
-    op.write("dir/a", "first").await?;
-    assert_eq!(op.read("dir/a").await?.to_vec(), b"first");
+    // A buffered deleter that returns an error from `delete` while keeping the
+    // path queued for retry on `close` must still invalidate that path on `close`.
+    op.write("retry-target", "still-here").await?;
+    assert_eq!(op.read("retry-target").await?.to_vec(), b"still-here");
     let mut deleter = op.deleter().await?;
-    deleter
-        .delete((
-            "dir/".to_owned(),
-            DeleteOptions {
-                recursive: true,
-                ..Default::default()
-            },
-        ))
-        .await?;
-    // Buffered recursive delete has not hit origin yet; reading re-populates under the new generation.
-    assert_eq!(op.read("dir/a").await?.to_vec(), b"first");
+    buffered.fail_next_delete.store(1, Ordering::Relaxed);
+    assert!(deleter.delete("retry-target").await.is_err());
+    // Re-populate cache before `close` retries the buffered delete.
+    assert_eq!(op.read("retry-target").await?.to_vec(), b"still-here");
     deleter.close().await?;
     assert_eq!(
-        op.read("dir/a").await.unwrap_err().kind(),
+        op.read("retry-target").await.unwrap_err().kind(),
         ErrorKind::NotFound
     );
     Ok(())
 }
 
 #[tokio::test]
-async fn nonce_large_read_caches_all_chunks_and_partial_miss_preserves_pointer() -> Result<()> {
+async fn unverifiable_source_bypasses_cache() -> Result<()> {
     let probe = Probe::default();
     let origin = memory()?.layer(probe.clone());
-    let payload: Vec<u8> = (0_u8..24).map(|i| b'a' + i).collect();
-    origin.write("big", payload.clone()).await?;
-    origin.write("pair", "abcdefgh").await?;
-
+    origin.write("object", "abcdefgh").await?;
     let cache = memory()?;
     let op = origin.layer(
         CacheLayer::new(cache.clone())?
-            .with_chunk_size(1)
-            .with_ttl(Duration::MAX),
-    );
-
-    // 24 chunks exceeds FILL_CHUNKS (16): cold read populates all 24 chunks via
-    // single-open NonceFillStream, and subsequent reads hit cache with zero origin reads.
-    assert_eq!(op.read("big").await?.to_vec(), payload);
-    let reads_after_cold = probe.observed.reads.load(Ordering::Relaxed);
-    assert_eq!(op.read("big").await?.to_vec(), payload);
-    assert_eq!(
-        op.read_with("big").range(5..20).await?.to_vec(),
-        &payload[5..20]
-    );
-    assert_eq!(
-        probe.observed.reads.load(Ordering::Relaxed),
-        reads_after_cold,
-        "hot large Tier 4 reads must not hit origin"
-    );
-
-    // Evicting a middle chunk after a large Tier 4 stream has opened must fail
-    // with a temporary error rather than splicing from origin, then recover cleanly.
-    let mut stream = op.reader("big").await?.into_stream(..).await?;
-    let first_part = stream
-        .next()
-        .await
-        .transpose()?
-        .expect("first chunk must be yielded before mid-stream eviction");
-    assert_eq!(first_part.to_vec(), &payload[..1]);
-
-    let mut data_keys: Vec<String> = cache
-        .list_with("v1/data/")
-        .recursive(true)
-        .await?
-        .into_iter()
-        .filter(|entry| entry.metadata().is_file())
-        .map(|entry| entry.path().to_owned())
-        .collect();
-    data_keys.sort();
-    let middle_keys: Vec<String> = data_keys
-        .into_iter()
-        .filter(|key| key.ends_with("/a"))
-        .collect();
-    assert!(
-        !middle_keys.is_empty(),
-        "chunk index 10 (0xa) must be cached"
-    );
-    for key in middle_keys {
-        cache.delete(&key).await?;
-    }
-    let mut err = None;
-    while let Some(item) = stream.next().await {
-        if let Err(e) = item {
-            err = Some(e);
-            break;
-        }
-    }
-    let err = err.expect("mid-stream eviction of Tier 4 chunk must not splice");
-    assert!(err.is_temporary());
-    assert_eq!(op.read("big").await?.to_vec(), payload);
-
-    // Caching disjoint boundary chunks of a large Tier 4 object (first and last)
-    // must not trick a subsequent full read into failing mid-stream; it should
-    // populate the missing middle chunks and serve future full reads from cache.
-    let probe_sparse = Probe::default();
-    let origin_sparse = memory()?.layer(probe_sparse.clone());
-    origin_sparse.write("sparse", payload.clone()).await?;
-    let op_sparse = origin_sparse.layer(
-        CacheLayer::new(memory()?)?
-            .with_chunk_size(1)
-            .with_ttl(Duration::MAX),
-    );
-    assert_eq!(
-        op_sparse.read_with("sparse").range(0..1).await?.to_vec(),
-        &payload[..1]
-    );
-    assert_eq!(
-        op_sparse
-            .read_with("sparse")
-            .range((payload.len() as u64 - 1)..payload.len() as u64)
-            .await?
-            .to_vec(),
-        &payload[payload.len() - 1..]
-    );
-    assert_eq!(op_sparse.read("sparse").await?.to_vec(), payload);
-    let reads_after_fill = probe_sparse.observed.reads.load(Ordering::Relaxed);
-    assert_eq!(op_sparse.read("sparse").await?.to_vec(), payload);
-    assert_eq!(
-        probe_sparse.observed.reads.load(Ordering::Relaxed),
-        reads_after_fill,
-        "full read after filling sparse large Tier 4 object must hit cache"
-    );
-
-    // Partial miss on a fresh Tier 4 pointer must populate missing chunks under
-    // the existing nonce without discarding the pointer or orphaning chunk 0.
-    let probe_pair = Probe::default();
-    let origin_pair = memory()?.layer(probe_pair.clone());
-    origin_pair.write("pair", "abcdefgh").await?;
-    let op_pair = origin_pair.clone().layer(
-        CacheLayer::new(memory()?)?
             .with_chunk_size(4)
             .with_ttl(Duration::MAX),
     );
-    assert_eq!(
-        op_pair.read_with("pair").range(0..4).await?.to_vec(),
-        b"abcd"
-    );
-    assert_eq!(probe_pair.observed.reads.load(Ordering::Relaxed), 1);
-    assert_eq!(
-        op_pair.read_with("pair").range(4..8).await?.to_vec(),
-        b"efgh"
-    );
-    assert_eq!(probe_pair.observed.reads.load(Ordering::Relaxed), 2);
-    assert_eq!(
-        op_pair.read_with("pair").range(4..8).await?.to_vec(),
-        b"efgh"
-    );
-    assert_eq!(
-        probe_pair.observed.reads.load(Ordering::Relaxed),
-        2,
-        "partial miss on chunk 1 must cache chunk 1 under the existing nonce"
-    );
-    assert_eq!(
-        op_pair.read_with("pair").range(0..4).await?.to_vec(),
-        b"abcd"
-    );
-    assert_eq!(
-        probe_pair.observed.reads.load(Ordering::Relaxed),
-        2,
-        "partial miss on chunk 1 must not invalidate chunk 0"
-    );
-    assert_eq!(op_pair.read("pair").await?.to_vec(), b"abcdefgh");
-    assert_eq!(
-        probe_pair.observed.reads.load(Ordering::Relaxed),
-        2,
-        "full read must hit both chunks under the existing nonce"
-    );
 
-    // If origin length changes externally before a Tier 4 partial miss fills,
-    // the stale pointer must be discarded and the read must recover cleanly.
-    origin_pair.write("growing", "abcdefgh").await?;
-    assert_eq!(
-        op_pair.read_with("growing").range(0..4).await?.to_vec(),
-        b"abcd"
+    for _ in 0..2 {
+        assert_eq!(op.read("object").await?.to_vec(), b"abcdefgh");
+    }
+    assert!(
+        cache.list_with("").recursive(true).await?.is_empty(),
+        "sources without version, strong ETag, or last_modified must bypass the cache"
     );
-    origin_pair.write("growing", "0123456789ab").await?;
-    assert_eq!(
-        op_pair.read_with("growing").range(4..8).await?.to_vec(),
-        b"4567"
+    assert!(
+        probe.observed.reads.load(Ordering::Relaxed) >= 2,
+        "unverifiable reads must pass through to origin"
     );
-    assert_eq!(op_pair.read("growing").await?.to_vec(), b"0123456789ab");
     Ok(())
 }
 
@@ -1515,7 +1420,7 @@ async fn singleflight_uses_operation_context_executor() -> Result<()> {
     let gate = Gate::new();
     let probe = Probe {
         gate: Some(gate.clone()),
-        ..Probe::default()
+        ..Probe::verifiable()
     };
     let origin = memory()?.layer(probe.clone());
     origin.write("obj", "payload").await?;
@@ -2084,38 +1989,32 @@ async fn observe_stat_preserves_matching_and_unrelated_cold_publish_but_blocks_s
         "unrelated or matching stat must not cancel cold-read pointer publish"
     );
 
-    // Part 2: A newer contradicting `stat` on the SAME subject MUST suppress stale publish.
-    let stale_gate = Gate::new();
-    let stale_version = Arc::new(AtomicUsize::new(1));
-    let stale_probe = Probe {
-        gate: Some(stale_gate.clone()),
-        version: Some(stale_version.clone()),
+    // Part 2: `discard` after `FillError::Changed` increments the shard epoch so
+    // another reused Reader's local pointer cache invalidates immediately.
+    let sibling_version = Arc::new(AtomicUsize::new(1));
+    let sibling_probe = Probe {
+        version: Some(sibling_version.clone()),
         ..Probe::default()
     };
-    let stale_op = source.layer(stale_probe.clone()).layer(
+    let sibling_op = source.layer(sibling_probe.clone()).layer(
         CacheLayer::new(memory()?)?
             .with_chunk_size(4)
             .with_ttl(Duration::MAX),
     );
-    let stale_reader = stale_op.reader("stale").await?;
-    let stale_task = tokio::spawn({
-        let reader = stale_reader.clone();
-        async move { reader.read(0..8).await }
-    });
-    let _ = stale_gate.entered.acquire().await.unwrap();
-    // Flip origin to version 2 while the V1 cold read is still in flight, then observe via stat.
-    stale_version.store(2, Ordering::Relaxed);
-    assert_eq!(stale_op.stat("stale").await?.etag(), Some("\"2\""));
-    stale_gate.release.add_permits(1);
-    assert_eq!(stale_task.await.unwrap()?.to_vec(), b"v1stale!");
+    let reader_a = sibling_op.reader("stale").await?;
+    let reader_b = sibling_op.reader("stale").await?;
+    // Both readers warm chunk 0 and remember the V1 pointer locally.
+    assert_eq!(reader_a.read(0..4).await?.to_vec(), b"v1st");
+    assert_eq!(reader_b.read(0..4).await?.to_vec(), b"v1st");
+    assert_eq!(sibling_probe.observed.reads.load(Ordering::Relaxed), 1);
 
-    // Because `stat` observed version 2, the stale V1 pointer must neither be published
-    // to shared cache nor remembered in the reused Reader's local pointer cache.
-    assert_eq!(stale_probe.observed.reads.load(Ordering::Relaxed), 1);
-    assert_eq!(stale_reader.read(0..8).await?.to_vec(), b"v2stale!");
-    assert_eq!(stale_probe.observed.reads.load(Ordering::Relaxed), 2);
-    assert_eq!(stale_op.read("stale").await?.to_vec(), b"v2stale!");
-    assert_eq!(stale_probe.observed.reads.load(Ordering::Relaxed), 2);
+    // Flip origin to version 2. Reading uncached chunk 1 on `reader_a` triggers
+    // `ConditionNotMatch` -> `discard()` -> retry with V2.
+    sibling_version.store(2, Ordering::Relaxed);
+    assert_eq!(reader_a.read(4..8).await?.to_vec(), b"ale!");
+    // Because `discard()` bumped the shard epoch, `reader_b` must immediately
+    // drop its local V1 pointer and observe V2 on chunk 0.
+    assert_eq!(reader_b.read(0..4).await?.to_vec(), b"v2st");
     Ok(())
 }
 
@@ -2350,7 +2249,7 @@ async fn partial_chunk_miss_reuses_cached_trailing_chunks_without_rereading() ->
     );
 
     // Mutating through the operator invalidates the reused Reader's cached pointer.
-    let origin_mem = memory()?;
+    let origin_mem = memory()?.layer(Probe::verifiable());
     origin_mem.write("mut", "old-data").await?;
     let mut_op = origin_mem.layer(
         CacheLayer::new(memory()?)?
@@ -2578,7 +2477,7 @@ async fn copier_next_invalidates_cache_before_close_and_blocks_inflight_publish(
         let gate = Gate::new();
         let probe = Probe {
             gate: Some(gate.clone()),
-            ..Probe::default()
+            ..Probe::verifiable()
         };
         let origin = memory()?.layer(probe).layer(OneShotCopyLayer);
         origin.write("src", "fresh").await?;
@@ -2793,7 +2692,7 @@ async fn writer_pre_close_write_invalidates_cache_and_blocks_inflight_publish() 
         let gate = Gate::new();
         let probe = Probe {
             gate: Some(gate.clone()),
-            ..Probe::default()
+            ..Probe::verifiable()
         };
         let origin = memory()?.layer(probe).layer(InPlaceWriteLayer);
         origin.write("doc", "old00").await?;

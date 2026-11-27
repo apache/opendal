@@ -28,8 +28,13 @@ import org.apache.opendal.OpenDALException;
 import org.apache.opendal.Operator;
 
 /**
- * Caches aligned chunks of reads in a separate operator. Writes and deletes through the layered
- * operator invalidate cached metadata for the affected paths.
+ * Caches aligned chunks of reads in a separate operator.
+ *
+ * <p>Sources must expose a verifiable identity ({@code version}, a strong {@code etag}, or
+ * {@code last_modified}) to be cached; reads from sources without one pass through directly.
+ *
+ * <p>Single-path writes and deletes through the layered operator invalidate cached metadata for the
+ * affected paths. External mutations and recursive deletes are bounded by {@code ttl}.
  *
  * <p>Use a cache backend with capacity eviction to reclaim chunks from old object identities.
  * Use separate cache roots or instances for different tenants, endpoints, or credentials because

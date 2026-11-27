@@ -7374,9 +7374,11 @@ version = "0.59.5"
 dependencies = [
  "bytes",
  "futures",
+ "http 1.5.0",
  "opendal-core",
  "opendal-executor-tokio",
  "opendal-service-fs",
+ "opendal-service-http",
  "sha2 0.11.0",
  "tempfile",
  "tokio",

@@ -718,6 +718,12 @@ fn describe_bool_condition(expr: &Expr, rel_path: &str) -> Result<String> {
                             .to_string(),
                     );
                 }
+                if ident == "gcs_grpc_can_checksum" {
+                    return Ok(
+                        "Requires authenticated writes to the default gRPC endpoint (`https://storage.googleapis.com`)"
+                            .to_string(),
+                    );
+                }
                 if ident == "gcs_can_list_deleted" {
                     return Ok(
                         "Requires a bucket with a soft-delete policy at the default endpoint (`https://storage.googleapis.com`) with `skip_signature` and `allow_anonymous` disabled. Entries requiring a hierarchical namespace restore token are unsupported"

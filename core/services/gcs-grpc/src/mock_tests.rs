@@ -28,21 +28,58 @@ use opendal_core::raw::oio::Read as _;
 use opendal_core::raw::oio::Write as _;
 use opendal_core::raw::*;
 use opendal_core::*;
+use reqsign_core::{Context as SignContext, ProvideCredentialChain};
+use reqsign_google::RequestSigner;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tonic::body::Body;
 use tonic::codegen::{Service as TowerService, http};
 use tonic::server::{ClientStreamingService, Grpc, ServerStreamingService, UnaryService};
-use tonic::transport::Server;
 use tonic::transport::server::TcpIncoming;
+use tonic::transport::{Endpoint, Server};
 use tonic::{Request, Response, Status, Streaming};
 use tonic_prost::ProstCodec;
 
-use crate::GcsGrpc;
+use crate::core::GcsGrpcCore;
 use crate::generated::google::storage::v2::*;
+use crate::writer::GcsGrpcWriter;
+use crate::{GCS_GRPC_SCHEME, GcsGrpc};
 
 const ALIGNMENT: usize = 256 * 1024;
 const TEST_TIMEOUT: Duration = Duration::from_secs(5);
+const CHECKSUM_TEST_BUCKET: &str = "example-bucket";
+
+pub(super) fn test_writer(
+    endpoint: &str,
+    path: &str,
+    checksum: Option<WriteChecksum>,
+) -> GcsGrpcWriter {
+    let capability = Capability {
+        write_with_checksum: true,
+        ..Capability::default()
+    };
+    let args = match checksum {
+        Some(intent) => OpWrite::default()
+            .with_checksum(intent, &capability)
+            .unwrap(),
+        None => OpWrite::default(),
+    };
+    let core = Arc::new(GcsGrpcCore {
+        info: ServiceInfo::new(GCS_GRPC_SCHEME, "/", CHECKSUM_TEST_BUCKET),
+        capability,
+        endpoint: endpoint.to_string(),
+        bucket: CHECKSUM_TEST_BUCKET.to_string(),
+        root: "/".to_string(),
+        channel_endpoint: Endpoint::from_shared(endpoint.to_string()).unwrap(),
+        channel: Default::default(),
+        sign_ctx: SignContext::new(),
+        credential_provider: Arc::new(ProvideCredentialChain::new()),
+        request_signer: Arc::new(RequestSigner::new("storage")),
+        signers: HttpTransportCache::new(),
+        skip_signature: true,
+    });
+    GcsGrpcWriter::new(core, OperationContext::default(), path, args).unwrap()
+}
 
 #[derive(Debug, Clone)]
 enum WriteObjectAction {
@@ -60,6 +97,7 @@ enum WriteObjectAction {
 enum QueryStatusAction {
     Normal,
     NotFound,
+    Finalized(Box<Object>),
 }
 
 #[derive(Debug, Clone)]
@@ -67,6 +105,7 @@ struct RecordedWriteCall {
     write_offset: i64,
     bytes_len: usize,
     finish_write: bool,
+    crc32c: Option<u32>,
 }
 
 #[derive(Default)]
@@ -130,6 +169,7 @@ impl MockStorageService {
         let mut spec_object_name: Option<String> = None;
         let mut first_offset: Option<i64> = None;
         let mut finish_write = false;
+        let mut crc32c = None;
         let mut payload = Vec::new();
 
         while let Some(msg) = stream.next().await {
@@ -152,6 +192,9 @@ impl MockStorageService {
             if msg.finish_write {
                 finish_write = true;
             }
+            if let Some(checksums) = msg.object_checksums {
+                crc32c = checksums.crc32c;
+            }
         }
 
         let write_offset = first_offset.unwrap_or(0);
@@ -160,6 +203,7 @@ impl MockStorageService {
             write_offset,
             bytes_len: payload.len(),
             finish_write,
+            crc32c,
         });
 
         let action = state
@@ -257,6 +301,9 @@ impl MockStorageService {
                 state.sessions.remove(&upload_id);
                 Err(Status::not_found("upload session expired"))
             }
+            QueryStatusAction::Finalized(object) => Ok(Response::new(QueryWriteStatusResponse {
+                write_status: Some(query_write_status_response::WriteStatus::Resource(*object)),
+            })),
             QueryStatusAction::Normal => {
                 let Some((_, buf)) = state.sessions.get(&upload_id) else {
                     return Err(Status::not_found("upload session not found"));
@@ -1094,4 +1141,107 @@ async fn gcs_grpc_2_close_retry_still_recovers_while_rejecting_write() {
             .len(),
         ALIGNMENT + 4
     );
+}
+
+#[tokio::test]
+async fn checksum_survives_partial_write_retry_and_final_status_recovery() {
+    let server = MockServer::start().await;
+    // CRC32C of b"p" followed by 512 KiB of b'k', independently calculated.
+    let crc32c = 0x81b8_3288u32;
+    {
+        let mut state = server.state.lock().unwrap();
+        state.write_actions.extend([
+            WriteObjectAction::PartialPersist(ALIGNMENT),
+            WriteObjectAction::Fail(tonic::Code::Unavailable, "lost chunk response"),
+            WriteObjectAction::Normal,
+            WriteObjectAction::PartialPersist(1),
+            WriteObjectAction::Fail(tonic::Code::Unavailable, "lost final response"),
+        ]);
+        state.query_actions.extend([
+            QueryStatusAction::Normal,
+            QueryStatusAction::Finalized(Box::new(Object {
+                name: "checked".to_string(),
+                bucket: format!("projects/_/buckets/{CHECKSUM_TEST_BUCKET}"),
+                generation: 42,
+                size: (ALIGNMENT * 2 + 1) as i64,
+                checksums: Some(ObjectChecksums {
+                    crc32c: Some(crc32c),
+                }),
+                ..Default::default()
+            })),
+        ]);
+    }
+    let mut writer = test_writer(&server.endpoint, "checked", Some(WriteChecksum::Fast));
+    writer
+        .write(Buffer::from(Bytes::from_static(b"p")))
+        .await
+        .unwrap();
+    let chunk = Buffer::from(vec![b'k'; ALIGNMENT * 2]);
+    let err = writer.write(chunk.clone()).await.unwrap_err();
+    assert!(err.is_temporary());
+    writer.write(chunk).await.unwrap();
+
+    let err = writer.close().await.unwrap_err();
+    assert!(err.is_temporary());
+    let metadata = writer.close().await.unwrap();
+    assert_eq!(metadata.version(), Some("42"));
+    assert_eq!(metadata.content_length(), (ALIGNMENT * 2 + 1) as u64);
+    assert_eq!(
+        metadata.checksum(),
+        Some(Checksum::new(ChecksumAlgo::Crc32c, crc32c.to_be_bytes()))
+    );
+
+    let state = server.state.lock().unwrap();
+    assert_eq!(state.query_calls.len(), 2);
+    let [first, continuation, retry, final_data, finish] = state.write_calls.as_slice() else {
+        panic!("expected the final data and an empty finish after the persisted-size response");
+    };
+    assert_eq!(first.write_offset, 0);
+    assert_eq!(continuation.write_offset, ALIGNMENT as i64);
+    assert_eq!(retry.write_offset, ALIGNMENT as i64);
+    assert_eq!(final_data.write_offset, (ALIGNMENT * 2) as i64);
+    assert_eq!(final_data.bytes_len, 1);
+    assert_eq!(finish.write_offset, final_data.write_offset + 1);
+    assert_eq!(finish.bytes_len, 0);
+    for call in [final_data, finish] {
+        assert!(call.finish_write);
+        assert_eq!(call.crc32c, Some(crc32c));
+    }
+    assert!(
+        [first, continuation, retry]
+            .iter()
+            .all(|call| call.crc32c.is_none())
+    );
+}
+
+#[tokio::test]
+async fn checksum_single_request_close_does_not_replay_an_ambiguous_write() {
+    let server = MockServer::start().await;
+    server
+        .state
+        .lock()
+        .unwrap()
+        .write_actions
+        .push_back(WriteObjectAction::Fail(
+            tonic::Code::Unavailable,
+            "lost final response",
+        ));
+    let mut writer = test_writer(&server.endpoint, "checked", Some(WriteChecksum::Any));
+    writer
+        .write(Buffer::from(Bytes::from_static(b"123456789")))
+        .await
+        .unwrap();
+
+    let err = writer.close().await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Unexpected);
+    assert!(!err.is_temporary());
+    let err = writer.close().await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Unexpected);
+    writer.abort().await.unwrap();
+
+    let state = server.state.lock().unwrap();
+    assert_eq!(state.write_calls.len(), 1);
+    assert_eq!(state.write_calls[0].crc32c, Some(0xe306_9283));
+    assert_eq!(state.start_calls, 0);
+    assert!(state.query_calls.is_empty());
 }

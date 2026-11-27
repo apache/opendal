@@ -70,6 +70,8 @@ pub struct WriteObjectSpec {
 pub struct WriteObjectRequest {
     #[prost(int64, tag = "3")]
     pub write_offset: i64,
+    #[prost(message, optional, tag = "6")]
+    pub object_checksums: ::core::option::Option<ObjectChecksums>,
     #[prost(bool, tag = "7")]
     pub finish_write: bool,
     #[prost(oneof = "write_object_request::FirstMessage", tags = "1, 2")]
@@ -194,6 +196,11 @@ pub struct ChecksummedData {
     #[prost(bytes = "bytes", tag = "1")]
     pub content: ::prost::bytes::Bytes,
 }
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ObjectChecksums {
+    #[prost(fixed32, optional, tag = "1")]
+    pub crc32c: ::core::option::Option<u32>,
+}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Object {
     #[prost(string, tag = "1")]
@@ -214,6 +221,8 @@ pub struct Object {
     pub content_type: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "14")]
     pub create_time: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(message, optional, tag = "16")]
+    pub checksums: ::core::option::Option<ObjectChecksums>,
     #[prost(message, optional, tag = "17")]
     pub update_time: ::core::option::Option<::prost_types::Timestamp>,
     #[prost(map = "string, string", tag = "22")]

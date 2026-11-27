@@ -8006,6 +8006,7 @@ name = "opendal-service-gcs-grpc"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "crc-fast",
  "futures",
  "http 1.5.0",
  "log",

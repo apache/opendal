@@ -491,6 +491,28 @@ module Wrapped_operator : module type of Opendal.Operator = struct
   end
 end
 
+(* Compile-time check: every [Capability] accessor that [operator.mli] declared
+   before [Capability] was generated from core keeps its name and type. *)
+module Historical_capability : sig
+  val stat : Opendal_core.Operator.capability -> bool
+  val read : Opendal_core.Operator.capability -> bool
+  val write : Opendal_core.Operator.capability -> bool
+  val create_dir : Opendal_core.Operator.capability -> bool
+  val delete : Opendal_core.Operator.capability -> bool
+  val copy : Opendal_core.Operator.capability -> bool
+  val rename : Opendal_core.Operator.capability -> bool
+  val list : Opendal_core.Operator.capability -> bool
+  val list_with_limit : Opendal_core.Operator.capability -> bool
+  val list_with_start_after : Opendal_core.Operator.capability -> bool
+  val list_with_recursive : Opendal_core.Operator.capability -> bool
+  val presign : Opendal_core.Operator.capability -> bool
+  val presign_read : Opendal_core.Operator.capability -> bool
+  val presign_stat : Opendal_core.Operator.capability -> bool
+  val presign_write : Opendal_core.Operator.capability -> bool
+  val shared : Opendal_core.Operator.capability -> bool
+end =
+  Opendal.Operator.Capability
+
 (** Test that a structurally re-exported Capability module still works *)
 let test_capability_wrapper _ =
   let bo = new_test_memory_operator () in

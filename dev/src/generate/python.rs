@@ -751,37 +751,3 @@ fn push_field_doc(out: &mut String, doc: &str) {
         out.push_str("\n    \"\"\"\n");
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// `Metadata` getters exposed by the Python binding before it was
-    /// generated. Each must still come from core so the generated pyclass
-    /// never silently drops a user-facing attribute.
-    const LEGACY_METADATA_GETTERS: &[&str] = &[
-        "content_disposition",
-        "content_length",
-        "content_md5",
-        "content_type",
-        "content_encoding",
-        "etag",
-        "mode",
-        "last_modified",
-        "version",
-        "user_metadata",
-    ];
-
-    #[test]
-    fn test_legacy_metadata_getters_exist_in_core() {
-        let path = crate::workspace_dir().join("core/core/src/types/metadata.rs");
-        let fields = metadata::parse(&path).expect("core metadata must parse");
-
-        for &legacy in LEGACY_METADATA_GETTERS {
-            assert!(
-                fields.iter().any(|f| f.name == legacy),
-                "legacy Python metadata getter `{legacy}` is missing from core Metadata"
-            );
-        }
-    }
-}

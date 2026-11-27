@@ -275,6 +275,7 @@ NONE_WRITE_OPTIONS = {
     "if_none_match": None,
     "if_not_exists": None,
     "user_metadata": None,
+    "checksum": None,
     "offset": None,
 }
 
@@ -291,6 +292,7 @@ NONE_READ_OPTIONS = {
     "if_modified_since": None,
     "if_unmodified_since": None,
     "append": None,
+    "checksum": None,
     "content_type": None,
     "cache_control": None,
     "content_disposition": None,
@@ -323,6 +325,7 @@ INVALID_OPEN_KWARGS = [
     ("rb", {"if_matches": None}, "if_matches"),
     ("wb", {"if_not_exist": True}, "if_not_exist"),
     ("rb", {"append": True}, "append"),
+    ("rb", {"checksum": "crc32c"}, "checksum"),
     ("rb", {"if_not_exists": True}, "if_not_exists"),
     ("rb", {"content_encoding": "gzip"}, "content_encoding"),
     ("rb", {"user_metadata": {"a": "b"}}, "user_metadata"),

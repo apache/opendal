@@ -27,6 +27,25 @@ use opendal_core::*;
 use rand::prelude::*;
 use rand::rngs::StdRng;
 
+/// Register the `chaos` layer with an operator registry.
+///
+/// Requires a finite `error_ratio` between `0` and `1`, inclusive. Each load
+/// creates its own random number generator.
+pub fn register_chaos_layer(registry: &OperatorRegistry) {
+    registry.register_layer("chaos", |options| {
+        let value = options
+            .get("error_ratio")
+            .ok_or_else(|| Error::new(ErrorKind::ConfigInvalid, "error_ratio is required"))?;
+        match value.parse::<f64>() {
+            Ok(ratio) if (0.0..=1.0).contains(&ratio) => Ok(ChaosLayer::new(ratio)),
+            _ => Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "error_ratio must be between 0 and 1 inclusive",
+            )),
+        }
+    });
+}
+
 /// `ChaosLayer` injects errors into services to test robustness.
 ///
 /// # Chaos
@@ -256,7 +275,61 @@ impl<R: oio::Read> oio::Read for ChaosReader<R> {
 
 #[cfg(test)]
 mod tests {
+    use std::task::{Context, Poll, Waker};
+
     use super::*;
+
+    #[test]
+    fn registered_chaos_requires_a_finite_ratio() {
+        let registry = OperatorRegistry::get();
+        register_chaos_layer(registry);
+        let uri = "memory://?layers=chaos";
+        let err = registry.load(uri).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        assert!(err.message().contains("error_ratio"));
+
+        for value in [
+            "",
+            "-0.01",
+            "1.01",
+            "NaN",
+            "inf",
+            "-inf",
+            "invalid-ratio-marker",
+        ] {
+            let err = registry
+                .load((uri, [("layer.chaos.error_ratio", value)]))
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+            assert!(err.message().contains("error_ratio"));
+            assert!(!err.to_string().contains("invalid-ratio-marker"));
+            assert!(!format!("{err:?}").contains("invalid-ratio-marker"));
+        }
+    }
+
+    #[test]
+    fn registered_chaos_applies_ratio_boundaries() -> Result<()> {
+        let registry = OperatorRegistry::get();
+        register_chaos_layer(registry);
+        let uri = "memory://?layers=chaos&layer.chaos.future_option=";
+        let no_fault = registry.load((uri, [("layer.chaos.error_ratio", "0")]))?;
+        let always_fault = registry.load((uri, [("layer.chaos.error_ratio", "1")]))?;
+
+        let mut check = std::pin::pin!(async {
+            no_fault.write("object", "data").await?;
+            always_fault.write("object", "data").await?;
+            assert_eq!(no_fault.read("object").await?.to_vec(), b"data");
+            let err = always_fault.read("object").await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(err.is_temporary());
+            Ok(())
+        });
+        let Poll::Ready(result) = check.as_mut().poll(&mut Context::from_waker(Waker::noop()))
+        else {
+            panic!("Memory operations should complete without waiting for I/O");
+        };
+        result
+    }
 
     fn count_failures(error_ratio: f64, trials: usize) -> usize {
         let reader = ChaosReader::new(

@@ -44,7 +44,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  RUST_TOOLCHAIN: nightly-2025-10-10
+  RUST_TOOLCHAIN: nightly-2026-09-22
 
 jobs:
   fuzz:

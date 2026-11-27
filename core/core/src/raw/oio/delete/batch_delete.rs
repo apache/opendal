@@ -141,11 +141,17 @@ impl<D: BatchDelete> BatchDeleter<D> {
 }
 
 impl<D: BatchDelete> oio::Delete for BatchDeleter<D> {
-    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+    async fn delete(&mut self, path: &str, mut args: OpDelete) -> Result<()> {
+        // A concurrent task fills its own handle, then lets close own the flush
+        // and any layer-level retries of that flush.
+        let deferred = args.take_deferred_batch_flush();
+        if deferred && self.buffer.len() >= self.max_batch_size {
+            // An outer layer may advertise a larger batch than this backend accepts.
+            self.flush_buffer().await?;
+        }
         self.buffer.insert((path.to_string(), args));
-        if self.buffer.len() >= self.max_batch_size {
-            let _ = self.flush_buffer().await?;
-            return Ok(());
+        if !deferred && self.buffer.len() >= self.max_batch_size {
+            self.flush_buffer().await?;
         }
 
         Ok(())

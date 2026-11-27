@@ -71,6 +71,9 @@ pub struct MetadataField {
 /// Accessors derived from another field, which have no FFI representation.
 const DERIVED: &[&str] = &["is_file", "is_dir"];
 
+/// Accessors whose types bindings do not mirror yet.
+const NOT_MIRRORED: &[&str] = &["checksum"];
+
 /// Parse the `impl Metadata` accessors out of the given core source file.
 pub fn parse(path: &Path) -> Result<Vec<MetadataField>> {
     let content =
@@ -95,7 +98,7 @@ pub fn parse(path: &Path) -> Result<Vec<MetadataField>> {
             }
 
             let name = func.sig.ident.to_string();
-            if DERIVED.contains(&name.as_str()) {
+            if DERIVED.contains(&name.as_str()) || NOT_MIRRORED.contains(&name.as_str()) {
                 continue;
             }
 

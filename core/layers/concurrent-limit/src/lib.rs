@@ -20,6 +20,7 @@
 #![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
 use std::future::Future;
+use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -31,6 +32,46 @@ use futures::Stream;
 use futures::StreamExt;
 use opendal_core::raw::*;
 use opendal_core::*;
+
+/// Register the `concurrent_limit` layer with an operator registry.
+///
+/// Requires `permits`. The `read_permits`, `write_permits`, `list_permits`, and
+/// `http_permits` options set dedicated limits. Every supplied limit must be
+/// positive. Operators loaded separately have independent limits.
+pub fn register_concurrent_limit_layer(registry: &OperatorRegistry) {
+    registry.register_layer("concurrent_limit", |options| {
+        let permits = options
+            .get("permits")
+            .ok_or_else(|| Error::new(ErrorKind::ConfigInvalid, "permits is required"))?;
+        let mut layer = ConcurrentLimitLayer::new(parse_permits("permits", permits)?);
+        if let Some(value) = options.get("read_permits") {
+            layer = layer.with_read_concurrent_limit(parse_permits("read_permits", value)?);
+        }
+        if let Some(value) = options.get("write_permits") {
+            layer = layer.with_write_concurrent_limit(parse_permits("write_permits", value)?);
+        }
+        if let Some(value) = options.get("list_permits") {
+            layer = layer.with_list_concurrent_limit(parse_permits("list_permits", value)?);
+        }
+        if let Some(value) = options.get("http_permits") {
+            layer = layer.with_http_concurrent_limit(parse_permits("http_permits", value)?);
+        }
+        Ok(layer)
+    });
+}
+
+fn parse_permits(option: &'static str, value: &str) -> Result<usize> {
+    value
+        .parse::<NonZeroUsize>()
+        .map(NonZeroUsize::get)
+        .map_err(|_| {
+            Error::new(
+                ErrorKind::ConfigInvalid,
+                "expected a positive number of permits",
+            )
+            .with_context("option", option)
+        })
+}
 
 /// ConcurrentLimitSemaphore abstracts a semaphore-like concurrency primitive
 /// that yields an owned permit released on drop.
@@ -599,6 +640,67 @@ mod tests {
     use futures::FutureExt;
     use futures::stream;
     use http::Response;
+
+    #[test]
+    fn registered_concurrent_limit_requires_positive_permits() {
+        let registry = OperatorRegistry::get();
+        register_concurrent_limit_layer(registry);
+        let err = registry
+            .load("memory://?layers=concurrent_limit")
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        assert_eq!(err.message(), "permits is required");
+
+        for option in [
+            "permits",
+            "read_permits",
+            "write_permits",
+            "list_permits",
+            "http_permits",
+        ] {
+            for value in ["", "0", "-1", "invalid-config-marker"] {
+                let err = registry
+                    .load((
+                        "memory://?layers=concurrent_limit&layer.concurrent_limit.permits=1",
+                        [(format!("layer.concurrent_limit.{option}"), value)],
+                    ))
+                    .unwrap_err();
+                assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+                assert!(err.to_string().contains(&format!("option: {option}")));
+                assert!(!err.to_string().contains("invalid-config-marker"));
+                assert!(!format!("{err:?}").contains("invalid-config-marker"));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn registered_concurrent_limit_keeps_independent_list_permits() -> Result<()> {
+        let registry = OperatorRegistry::get();
+        register_concurrent_limit_layer(registry);
+        let uri = concat!(
+            "memory://?layers=concurrent_limit&layer.concurrent_limit.permits=2",
+            "&layer.concurrent_limit.list_permits=1&layer.concurrent_limit.future_option=",
+            "&layer.concurrent_limit.read_permits=2&layer.concurrent_limit.write_permits=3",
+            "&layer.concurrent_limit.http_permits=4",
+        );
+        let first = registry.load(uri)?;
+        let second = registry.load(uri)?;
+        first.write("object", "a").await?;
+        second.write("object", "b").await?;
+
+        let mut lister = first.lister("/").await?;
+        assert_eq!(lister.next().await.unwrap()?.path(), "object");
+        assert!(first.list("/").now_or_never().is_none());
+        assert!(first.stat("object").now_or_never().unwrap().is_ok());
+        assert_eq!(
+            second.list("/").now_or_never().unwrap()?[0].path(),
+            "object"
+        );
+
+        drop(lister);
+        assert_eq!(first.list("/").now_or_never().unwrap()?[0].path(), "object");
+        Ok(())
+    }
 
     #[tokio::test]
     async fn dedicated_operation_limits_are_independent() {

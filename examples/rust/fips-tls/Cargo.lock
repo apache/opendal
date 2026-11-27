@@ -836,6 +836,7 @@ dependencies = [
  "http",
  "opendal-core",
  "reqwest",
+ "serde",
 ]
 
 [[package]]

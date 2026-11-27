@@ -109,7 +109,6 @@ pub(crate) struct CacheDeleter {
     state: Arc<State>,
     source: ServiceInfo,
     subjects: HashSet<Subject>,
-    recursive: bool,
 }
 
 impl CacheDeleter {
@@ -119,41 +118,29 @@ impl CacheDeleter {
             state,
             source,
             subjects: HashSet::new(),
-            recursive: false,
         }
     }
 }
 
 impl Delete for CacheDeleter {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        if args.recursive() {
+            return self.inner.delete(path, args).await;
+        }
         let mut subjects = vec![subject(&self.source, path, None)];
         if let Some(version) = args.version() {
             subjects.push(subject(&self.source, path, Some(version)));
         }
-        let recursive = args.recursive();
+        // Track before calling `inner.delete` so buffered deleters that retain
+        // a path on flush error are still invalidated on a subsequent `close`.
+        self.subjects.extend(subjects.iter().copied());
         self.state.begin_mutation(&subjects);
         let result = self.inner.delete(path, args).await;
         if result.is_ok() {
-            self.subjects.extend(subjects.iter().copied());
-            self.recursive |= recursive;
-            // Invalidate immediately for deleters that commit during `delete`,
-            // while keeping the targets tracked so `close` invalidates again
-            // for buffered deleters that flush on `close`.
-            if recursive {
-                self.state.bump_generation().await;
-            } else {
-                self.state.invalidate(&subjects).await;
-            }
-        } else if self.recursive || recursive {
-            self.state.bump_generation().await;
+            self.state.invalidate(&subjects).await;
         } else {
-            let mut to_invalidate: Vec<_> = self.subjects.iter().copied().collect();
-            for subject in subjects {
-                if !self.subjects.contains(&subject) {
-                    to_invalidate.push(subject);
-                }
-            }
-            self.state.invalidate(&to_invalidate).await;
+            let all: Vec<_> = self.subjects.iter().copied().collect();
+            self.state.invalidate(&all).await;
         }
         result
     }
@@ -162,14 +149,9 @@ impl Delete for CacheDeleter {
         let subjects: Vec<_> = self.subjects.iter().copied().collect();
         self.state.begin_mutation(&subjects);
         let result = self.inner.close().await;
-        if self.recursive {
-            self.state.bump_generation().await;
-        } else {
-            self.state.invalidate(&subjects).await;
-        }
+        self.state.invalidate(&subjects).await;
         if result.is_ok() {
             self.subjects.clear();
-            self.recursive = false;
         }
         result
     }

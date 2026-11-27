@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -171,6 +172,31 @@ impl B2Core {
         ctx.http_transport().fetch(req).await
     }
 
+    pub(super) async fn download_file_by_id(
+        &self,
+        ctx: &OperationContext,
+        file_id: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
+        let auth_info = self.get_auth_info(ctx).await?;
+        let url = format!(
+            "{}/b2api/v4/b2_download_file_by_id?fileId={}",
+            auth_info.download_url,
+            percent_encode_path(file_id)
+        );
+        let mut request = Request::get(url)
+            .header(header::AUTHORIZATION, auth_info.authorization_token)
+            .extension(Operation::Read)
+            .extension(ServiceOperation("DownloadFileById"));
+        if !range.is_full() {
+            request = request.header(header::RANGE, range.to_header());
+        }
+        let request = request
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        ctx.http_transport().fetch(request).await
+    }
+
     pub(super) async fn get_upload_url(
         &self,
         ctx: &OperationContext,
@@ -209,62 +235,87 @@ impl B2Core {
         }
     }
 
-    pub async fn get_download_authorization(
+    pub(super) async fn presign_download(
         &self,
         ctx: &OperationContext,
         path: &str,
         expire: Duration,
-    ) -> Result<GetDownloadAuthorizationResponse> {
+        range: BytesRange,
+        overrides: DownloadResponseOverrides<'_>,
+    ) -> Result<RpPresign> {
         let path = build_absolute_path(&self.root, path);
-
         let auth_info = self.get_auth_info(ctx).await?;
 
-        // Construct headers to add to the request
-        let url = format!(
+        // B2 requires the same override values when issuing and using the download token.
+        let response_overrides: BTreeMap<_, _> = [
+            ("b2ContentType", overrides.content_type),
+            ("b2ContentDisposition", overrides.content_disposition),
+            ("b2CacheControl", overrides.cache_control),
+        ]
+        .into_iter()
+        .filter_map(|(name, value)| value.map(|value| (name, value)))
+        .collect();
+        let authorization = GetDownloadAuthorizationRequest {
+            bucket_id: &self.bucket_id,
+            file_name_prefix: &path,
+            valid_duration_in_seconds: expire.as_secs(),
+            response_overrides: &response_overrides,
+        };
+        let body = serde_json::to_vec(&authorization).map_err(new_json_serialize_error)?;
+        let request = Request::post(format!(
             "{}/b2api/v2/b2_get_download_authorization",
             auth_info.api_url
-        );
-        let mut req = Request::post(&url);
-
-        req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
-
-        let body = GetDownloadAuthorizationRequest {
-            bucket_id: self.bucket_id.clone(),
-            file_name_prefix: path,
-            valid_duration_in_seconds: expire.as_secs(),
-        };
-        let body = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
-        let body = bytes::Bytes::from(body);
-
-        let req = req
-            .body(Buffer::from(body))
-            .map_err(new_request_build_error)?;
-
-        let resp = self.send(ctx, req).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK => {
-                let resp_body = resp.into_body();
-                let resp = serde_json::from_reader(resp_body.reader())
-                    .map_err(new_json_deserialize_error)?;
-                Ok(resp)
-            }
-            _ => Err(parse_error(
+        ))
+        .header(header::AUTHORIZATION, auth_info.authorization_token)
+        .body(Buffer::from(body))
+        .map_err(new_request_build_error)?;
+        let response = self.send(ctx, request).await?;
+        if response.status() != StatusCode::OK {
+            return Err(parse_error(
                 ErrorContext::new(ServiceOperation("GetDownloadAuthorization")),
-                resp,
-            )),
+                response,
+            ));
         }
+        let authorization: GetDownloadAuthorizationResponse =
+            serde_json::from_reader(response.into_body().reader())
+                .map_err(new_json_deserialize_error)?;
+
+        let mut url = format!(
+            "{}/file/{}/{}?Authorization={}",
+            auth_info.download_url,
+            self.bucket,
+            percent_encode_path(&path),
+            authorization.authorization_token
+        );
+        for (name, value) in response_overrides {
+            url.push('&');
+            url.push_str(name);
+            url.push('=');
+            url.push_str(&percent_encode_path(value));
+        }
+
+        let mut request = Request::get(url);
+        if !range.is_full() {
+            request = request.header(header::RANGE, range.to_header());
+        }
+        let request = request.body(()).map_err(new_request_build_error)?;
+        let (parts, _) = request.into_parts();
+        Ok(RpPresign::new(PresignedRequest::new(
+            parts.method,
+            parts.uri,
+            parts.headers,
+        )))
     }
 
     pub async fn upload_file(
         &self,
         ctx: &OperationContext,
         path: &str,
-        size: Option<u64>,
+        size: u64,
         args: &OpWrite,
+        checksum: Option<&str>,
         body: Buffer,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let resp = self.get_upload_url(ctx).await?;
 
         let p = build_absolute_path(&self.root, path);
@@ -275,11 +326,8 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, resp.authorization_token);
 
-        req = req.header(X_BZ_CONTENT_SHA1, "do_not_verify");
-
-        if let Some(size) = size {
-            req = req.header(header::CONTENT_LENGTH, size.to_string())
-        }
+        req = req.header(X_BZ_CONTENT_SHA1, checksum.unwrap_or("do_not_verify"));
+        req = req.header(header::CONTENT_LENGTH, size.to_string());
 
         if let Some(mime) = args.content_type() {
             req = req.header(header::CONTENT_TYPE, mime)
@@ -309,7 +357,7 @@ impl B2Core {
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub async fn start_large_file(
@@ -410,6 +458,7 @@ impl B2Core {
         file_id: &str,
         part_number: usize,
         size: u64,
+        checksum: Option<&str>,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
         let resp = self.get_upload_part_url(ctx, file_id).await?;
@@ -422,7 +471,7 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, resp.authorization_token);
 
-        req = req.header(X_BZ_CONTENT_SHA1, "do_not_verify");
+        req = req.header(X_BZ_CONTENT_SHA1, checksum.unwrap_or("do_not_verify"));
 
         let req = req
             .extension(Operation::Write)
@@ -595,40 +644,133 @@ impl B2Core {
         self.send(ctx, req).await
     }
 
-    pub async fn copy_file(
+    pub async fn list_file_versions(
         &self,
         ctx: &OperationContext,
-        source_file_id: String,
-        to: &str,
-    ) -> Result<Response<Buffer>> {
-        let to = build_absolute_path(&self.root, to);
-
+        key: &str,
+        start_file_id: Option<&str>,
+    ) -> Result<ListFileVersionsResponse> {
         let auth_info = self.get_auth_info(ctx).await?;
+        let body = ListFileVersionsRequest {
+            bucket_id: &self.bucket_id,
+            prefix: key,
+            max_file_count: 2,
+            start_file_name: start_file_id.map(|_| key),
+            start_file_id,
+        };
+        let body = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
+        let req = Request::post(format!(
+            "{}/b2api/v2/b2_list_file_versions",
+            auth_info.api_url
+        ))
+        .header(header::AUTHORIZATION, auth_info.authorization_token)
+        .header(header::CONTENT_TYPE, "application/json")
+        .extension(Operation::Restore)
+        .extension(ServiceOperation("ListFileVersions"))
+        .body(Buffer::from(body))
+        .map_err(new_request_build_error)?;
+        let resp = self.send(ctx, req).await?;
+        match resp.status() {
+            StatusCode::OK => serde_json::from_reader(resp.into_body().reader())
+                .map_err(new_json_deserialize_error)
+                .map_err(Error::set_temporary),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListFileVersions")),
+                resp,
+            )),
+        }
+    }
 
-        let url = format!("{}/b2api/v2/b2_copy_file", auth_info.api_url);
+    pub async fn get_data_version(
+        &self,
+        ctx: &OperationContext,
+        key: &str,
+        file_id: &str,
+        operation: Operation,
+    ) -> Result<Buffer> {
+        let auth_info = self.get_auth_info(ctx).await?;
+        let body = serde_json::json!({ "fileId": file_id });
+        let body = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
+        let req = Request::post(format!("{}/b2api/v2/b2_get_file_info", auth_info.api_url))
+            .header(header::AUTHORIZATION, auth_info.authorization_token)
+            .header(header::CONTENT_TYPE, "application/json")
+            .extension(operation)
+            .extension(ServiceOperation("GetFileInfo"))
+            .body(Buffer::from(body))
+            .map_err(new_request_build_error)?;
+        let resp = self.send(ctx, req).await?;
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetFileInfo")),
+                resp,
+            ));
+        }
 
-        let mut req = Request::post(url);
+        let body = resp.into_body();
+        let version: FileVersion =
+            serde_json::from_reader(body.clone().reader()).map_err(new_json_deserialize_error)?;
+        if version.bucket_id != self.bucket_id
+            || version.file_name != key
+            || !matches!(
+                version.action,
+                FileVersionAction::Upload | FileVersionAction::Copy
+            )
+        {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "no such data version for this path",
+            ));
+        }
+        if version.file_id != file_id {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "B2 returned a different file ID",
+            ));
+        }
+        Ok(body)
+    }
 
-        req = req.header(header::AUTHORIZATION, auth_info.authorization_token);
+    pub async fn delete_file_version_request(
+        &self,
+        ctx: &OperationContext,
+        key: &str,
+        file_id: &str,
+    ) -> Result<Request<Buffer>> {
+        let auth_info = self.get_auth_info(ctx).await?;
+        let body = serde_json::json!({ "fileName": key, "fileId": file_id });
+        let body = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
+        Request::post(format!(
+            "{}/b2api/v2/b2_delete_file_version",
+            auth_info.api_url
+        ))
+        .header(header::AUTHORIZATION, auth_info.authorization_token)
+        .header(header::CONTENT_TYPE, "application/json")
+        .extension(Operation::Restore)
+        .extension(ServiceOperation("DeleteFileVersion"))
+        .body(Buffer::from(body))
+        .map_err(new_request_build_error)
+    }
 
-        let req = req
-            .extension(Operation::Copy)
-            .extension(ServiceOperation("CopyFile"));
-
+    pub async fn copy_file_request(
+        &self,
+        ctx: &OperationContext,
+        source_file_id: &str,
+        to: &str,
+        operation: Operation,
+    ) -> Result<Request<Buffer>> {
+        let to = build_absolute_path(&self.root, to);
+        let auth_info = self.get_auth_info(ctx).await?;
         let body = CopyFileRequest {
             source_file_id,
             file_name: to,
         };
-
         let body = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
-        let body = bytes::Bytes::from(body);
-
-        // Set body
-        let req = req
+        Request::post(format!("{}/b2api/v2/b2_copy_file", auth_info.api_url))
+            .header(header::AUTHORIZATION, auth_info.authorization_token)
+            .extension(operation)
+            .extension(ServiceOperation("CopyFile"))
             .body(Buffer::from(body))
-            .map_err(new_request_build_error)?;
-
-        self.send(ctx, req).await
+            .map_err(new_request_build_error)
     }
 
     pub async fn hide_file(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
@@ -800,11 +942,50 @@ pub struct ListFileNamesResponse {
     pub next_file_name: Option<String>,
 }
 
-/// Response of [b2-finish-large-file](https://www.backblaze.com/apidocs/b2-finish-large-file).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ListFileVersionsRequest<'a> {
+    bucket_id: &'a str,
+    prefix: &'a str,
+    max_file_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    start_file_name: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    start_file_id: Option<&'a str>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListFileVersionsResponse {
+    pub files: Vec<FileVersion>,
+    pub next_file_name: Option<String>,
+    pub next_file_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileVersion {
+    pub action: FileVersionAction,
+    pub bucket_id: String,
+    pub file_name: String,
+    pub file_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FileVersionAction {
+    Upload,
+    Copy,
+    Hide,
+    Start,
+}
+
+/// Response of `b2_upload_file` or `b2_finish_large_file`.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadResponse {
     pub content_length: u64,
+    pub content_sha1: Option<String>,
     pub content_md5: Option<String>,
     pub content_type: Option<String>,
 }
@@ -830,6 +1011,10 @@ pub(super) fn parse_file_info(file: &File) -> Metadata {
     }
 
     let mut metadata = MetadataBuilder::file(file.content_length);
+
+    if let Some(file_id) = &file.file_id {
+        metadata.version(file_id);
+    }
 
     if let Some(content_md5) = &file.content_md5 {
         metadata.content_md5(content_md5);
@@ -858,9 +1043,9 @@ pub(super) fn parse_file_info(file: &File) -> Metadata {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CopyFileRequest {
-    pub source_file_id: String,
-    pub file_name: String,
+struct CopyFileRequest<'a> {
+    source_file_id: &'a str,
+    file_name: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -870,18 +1055,26 @@ pub struct HideFileRequest {
     pub file_name: String,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GetDownloadAuthorizationRequest {
-    pub bucket_id: String,
-    pub file_name_prefix: String,
-    pub valid_duration_in_seconds: u64,
+pub(super) struct DownloadResponseOverrides<'a> {
+    pub content_type: Option<&'a str>,
+    pub content_disposition: Option<&'a str>,
+    pub cache_control: Option<&'a str>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetDownloadAuthorizationResponse {
-    pub authorization_token: String,
+struct GetDownloadAuthorizationRequest<'a> {
+    bucket_id: &'a str,
+    file_name_prefix: &'a str,
+    valid_duration_in_seconds: u64,
+    #[serde(flatten)]
+    response_overrides: &'a BTreeMap<&'static str, &'a str>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GetDownloadAuthorizationResponse {
+    authorization_token: String,
 }
 
 /// the error response of b2
@@ -897,11 +1090,20 @@ struct B2Error {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ErrorContext {
     service_operation: ServiceOperation,
+    verify_checksum: bool,
 }
 
 impl ErrorContext {
     pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
-        Self { service_operation }
+        Self {
+            service_operation,
+            verify_checksum: false,
+        }
+    }
+
+    pub(crate) const fn with_checksum(mut self, verify_checksum: bool) -> Self {
+        self.verify_checksum = verify_checksum;
+        self
     }
 }
 
@@ -927,7 +1129,9 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
     if let Some(b2_err) = b2_err {
-        (kind, retryable) = parse_b2_error_code(b2_err.code.as_str()).unwrap_or((kind, retryable));
+        (kind, retryable) = parse_b2_error_code(b2_err.code.as_str())
+            .or_else(|| parse_b2_checksum_error(ctx, parts.status, &b2_err))
+            .unwrap_or((kind, retryable));
     };
 
     let mut err = Error::new(kind, message);
@@ -946,9 +1150,52 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 pub(crate) fn parse_b2_error_code(code: &str) -> Option<(ErrorKind, bool)> {
     match code {
         "already_hidden" => Some((ErrorKind::AlreadyExists, false)),
-        "no_such_file" => Some((ErrorKind::NotFound, false)),
+        "no_such_file" | "file_not_present" => Some((ErrorKind::NotFound, false)),
         _ => None,
     }
+}
+
+fn parse_b2_checksum_error(
+    ctx: ErrorContext,
+    status: StatusCode,
+    error: &B2Error,
+) -> Option<(ErrorKind, bool)> {
+    if !ctx.verify_checksum || status != StatusCode::BAD_REQUEST || error.code != "bad_request" {
+        return None;
+    }
+    let retryable = match ctx.service_operation.0 {
+        // The upload was rejected and MultipartWriter retains its body.
+        "UploadFile" | "UploadPart"
+            if error
+                .message
+                .eq_ignore_ascii_case("Checksum did not match data received") =>
+        {
+            true
+        }
+        // Retrying completion would send the same rejected digest list.
+        "FinishLargeFile" if is_finish_sha1_mismatch(&error.message) => false,
+        _ => return None,
+    };
+    Some((ErrorKind::ChecksumMismatch, retryable))
+}
+
+fn is_finish_sha1_mismatch(message: &str) -> bool {
+    let message = message.to_ascii_lowercase();
+    let Some((number, digests)) = message
+        .strip_prefix("part ")
+        .and_then(|message| message.split_once(": expected sha1 "))
+    else {
+        return false;
+    };
+    number.parse::<usize>().is_ok()
+        && digests
+            .split_once(" but found ")
+            .is_some_and(|(expected, actual)| {
+                [expected, actual].into_iter().all(|digest| {
+                    digest.len() == 2 * ChecksumAlgo::Sha1.digest_len()
+                        && digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+                })
+            })
 }
 
 #[cfg(test)]
@@ -987,6 +1234,40 @@ pub(crate) mod tests {
 
         let code = "not_found";
         assert_eq!(parse_b2_error_code(code), None);
+    }
+
+    #[test]
+    fn unrelated_bad_requests_are_not_checksum_mismatches() {
+        let upload_message = "checksum did not match data received";
+        let finish_message = concat!(
+            "Part 1: expected sha1 61b8d6600ac94d912874f569a9341120f680c9f8 ",
+            "but found fbf5f2a2875b3bb65b8e3b23e6cc01d58ca30447",
+        );
+        for (operation, verify_checksum, code, message) in [
+            ("UploadFile", false, "bad_request", upload_message),
+            ("UploadFile", true, "bad_request", "invalid content length"),
+            ("UploadFile", true, "bad_request", finish_message),
+            ("UploadPart", true, "invalid_parameter", upload_message),
+            ("FinishLargeFile", true, "bad_request", upload_message),
+            ("StartLargeFile", true, "bad_request", upload_message),
+        ] {
+            let response = Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Buffer::from(
+                    serde_json::json!({"status": 400, "code": code, "message": message})
+                        .to_string(),
+                ))
+                .unwrap();
+            let context =
+                ErrorContext::new(ServiceOperation(operation)).with_checksum(verify_checksum);
+            let error = parse_error(context, response);
+            assert_eq!(
+                error.kind(),
+                ErrorKind::Unexpected,
+                "{operation}: {message}"
+            );
+            assert!(!error.is_temporary());
+        }
     }
 
     #[test]

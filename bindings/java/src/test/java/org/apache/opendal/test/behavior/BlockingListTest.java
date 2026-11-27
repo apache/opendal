@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.opendal.Capability;
+import org.apache.opendal.DeleteOptions;
 import org.apache.opendal.Entry;
 import org.apache.opendal.ListOptions;
 import org.apache.opendal.Metadata;
@@ -200,13 +201,32 @@ public class BlockingListTest extends BehaviorTestBase {
 
         op().createDir(dir);
         op().write(path, "data");
-        op().delete(path);
-
         ListOptions options = ListOptions.builder().deleted(true).build();
-        List<Entry> entries = op().list(dir, options);
+        assertThat(op().list(dir, options)).extracting(Entry::getPath).contains(path);
 
-        List<String> actual = entries.stream().map(Entry::getPath).sorted().collect(Collectors.toList());
-        assertThat(actual).contains(path);
+        boolean gcs = "gcs".equals(op().info.scheme);
+        String generation = gcs ? op().stat(path).getVersion() : null;
+        if (gcs) {
+            assertThat(generation).isNotEmpty();
+        }
+        op().delete(path);
+        if (gcs) {
+            ListOptions versions = ListOptions.builder().versions(true).build();
+            if (op().list(path, versions).stream()
+                    .anyMatch(entry -> entry.getPath().equals(path)
+                            && generation.equals(entry.getMetadata().getVersion()))) {
+                op().delete(path, DeleteOptions.builder().version(generation).build());
+            }
+        }
+
+        List<Entry> entries = op().list(dir, options);
+        assertThat(entries).extracting(Entry::getPath).contains(path);
+        if (gcs) {
+            assertThat(op().list(path)).isEmpty();
+            assertThat(entries)
+                    .anyMatch(entry -> entry.getPath().equals(path)
+                            && generation.equals(entry.getMetadata().getVersion()));
+        }
 
         op().removeAll(dir);
     }

@@ -566,6 +566,24 @@ fn logs_compose_init_failure_and_preserves_error() {
 }
 
 #[test]
+fn registered_logging_emits_operation_logs() -> Result<()> {
+    init_logger();
+    let registry = OperatorRegistry::get();
+    register_logging_layer(registry);
+    let op = registry.load("memory://?layers=logging&layer.logging.future_option=")?;
+
+    let _ = take_service_records();
+    block_on(op.write("object", "data"))?;
+    assert_eq!(block_on(op.stat("object"))?.content_length(), 4);
+    assert!(
+        take_service_records().iter().any(|(level, message)| {
+            *level == Level::Debug && message.ends_with(": stat started")
+        })
+    );
+    Ok(())
+}
+
+#[test]
 fn default_interceptor_logs_expected_error_once_at_debug_level() {
     init_logger();
     let operator = Operator::new(services::Memory::default())

@@ -17,7 +17,7 @@
 
 use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{Context, Result, ensure};
 use futures::TryStreamExt;
 use opendal::layers::CapabilityOverrideLayer;
 
@@ -44,6 +44,20 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ));
         if cap.delete_with_recursive {
             tests.extend(async_trials!(op, test_delete_with_recursive_basic));
+            if op.info().scheme() == "gcs"
+                && cap.list_with_recursive
+                && cap.list_with_versions
+                && cap.read_with_version
+                && cap.delete_with_version
+                && std::env::var("OPENDAL_TEST_GCS_VERSION_HISTORY").as_deref() == Ok("true")
+                && !std::env::vars_os()
+                    .any(|(key, _)| key.eq_ignore_ascii_case("OPENDAL_GCS_ENDPOINT"))
+            {
+                tests.extend(async_trials!(
+                    op,
+                    test_delete_with_recursive_preserves_versions
+                ));
+            }
         }
         if cap.list_with_recursive {
             tests.extend(async_trials!(op, test_remove_all_basic));
@@ -228,13 +242,10 @@ pub async fn test_remove_all_basic(op: Operator) -> Result<()> {
     // COS ListObjects is eventually consistent after deletes, so the removed
     // directory can stay visible to existence checks that list its prefix.
     // See apache/opendal#7502.
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    let deadline = Instant::now() + Duration::from_secs(5);
     while op.exists(&directory).await? {
-        assert!(
-            tokio::time::Instant::now() < deadline,
-            "{directory} should be removed"
-        );
-        tokio::time::sleep(Duration::from_millis(250)).await;
+        assert!(Instant::now() < deadline, "{directory} should be removed");
+        sleep(Duration::from_millis(250)).await;
     }
     for path in descendants {
         assert!(!op.exists(&path).await?, "{path} should be removed");
@@ -499,6 +510,101 @@ pub async fn test_delete_with_recursive_basic(op: Operator) -> Result<()> {
         assert!(!op.exists(path).await?, "{path} should be removed");
     }
 
+    Ok(())
+}
+
+pub async fn test_delete_with_recursive_preserves_versions(op: Operator) -> Result<()> {
+    let prefix = format!("delete_recursive_versions_{}/", uuid::Uuid::new_v4());
+    let path = format!("{prefix}nested/file.txt");
+    let older_bytes = "older version";
+    let live_bytes = "version live before recursive delete";
+    let checks = async {
+        let older_metadata = op.write(&path, older_bytes).await?;
+        let older = older_metadata
+            .version()
+            .context("the older upload must return its generation")?;
+        let live_metadata = op.write(&path, live_bytes).await?;
+        let live = live_metadata
+            .version()
+            .context("the live upload must return its generation")?;
+        ensure!(older != live, "uploads must have distinct generations");
+        ensure!(
+            op.stat(&path).await?.version() == Some(live),
+            "the second upload must be live before deletion"
+        );
+        let older_before = op
+            .read_with(&path)
+            .version(older)
+            .await
+            .context("the GCS fixture must retain older generations after overwrite")?;
+        ensure!(older_before.to_bytes() == older_bytes, "older bytes differ");
+
+        op.delete_with(&prefix).recursive(true).await?;
+        ensure!(
+            op.list_with(&prefix).recursive(true).await?.is_empty(),
+            "ordinary listing must be empty after recursive deletion"
+        );
+        ensure!(!op.exists(&path).await?, "the live path must be absent");
+        for (version, expected) in [(older, older_bytes), (live, live_bytes)] {
+            let body = op
+                .read_with(&path)
+                .version(version)
+                .await
+                .with_context(|| format!("generation {version} must remain readable"))?;
+            ensure!(
+                body.to_bytes() == expected,
+                "generation {version} changed bytes"
+            );
+        }
+        Ok(())
+    }
+    .await;
+
+    let cleanup = cleanup_recursive_delete_versions(&op, &prefix, &path).await;
+    match (checks, cleanup) {
+        (Err(check), Err(cleanup)) => {
+            anyhow::bail!(
+                "recursive delete check failed: {check:#}\nfixture cleanup failed: {cleanup:#}"
+            )
+        }
+        (checks, cleanup) => checks.and(cleanup),
+    }
+}
+
+async fn cleanup_recursive_delete_versions(op: &Operator, prefix: &str, path: &str) -> Result<()> {
+    // A failed write or a retried request can leave generations that the writer
+    // did not return. Validate the full owned inventory before deleting any.
+    let entries = op.list_with(prefix).recursive(true).versions(true).await?;
+    let mut versions = Vec::with_capacity(entries.len());
+    for entry in &entries {
+        ensure!(
+            entry.path() == path,
+            "unexpected path in fixture version inventory"
+        );
+        let version = entry
+            .metadata()
+            .version()
+            .context("fixture entry has no generation")?;
+        versions.push(version);
+    }
+
+    let mut failures = Vec::new();
+    for version in versions {
+        if let Err(err) = op.delete_with(path).version(version).await {
+            failures.push(format!("deleting generation {version}: {err:#}"));
+        }
+    }
+    match op.list_with(prefix).recursive(true).versions(true).await {
+        Ok(entries) if entries.is_empty() => {}
+        Ok(entries) => failures.push(format!(
+            "{} entries remain in the fixture version inventory",
+            entries.len()
+        )),
+        Err(err) => failures.push(format!(
+            "checking the final fixture version inventory: {err:#}"
+        )),
+    }
+    ensure!(failures.is_empty(), "{}", failures.join("\n"));
     Ok(())
 }
 

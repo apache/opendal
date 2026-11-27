@@ -58,6 +58,13 @@ pub struct CephRgwConfig {
     ///
     /// <!-- @group Credentials -->
     pub secret_access_key: Option<String>,
+    /// Disable loading credentials from AWS environment variables and shared profile files.
+    ///
+    /// Set both `access_key_id` and `secret_access_key` when enabled.
+    ///
+    /// <!-- @group Credentials -->
+    /// <!-- @default false -->
+    pub disable_config_load: bool,
 }
 
 impl CephRgwConfig {
@@ -87,5 +94,71 @@ preset::provider_preset! {
     }
     flags {
         enable_virtual_host_style: "Set whether to use virtual-hosted-style addressing.",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use opendal_core::{
+        Checksum, ChecksumAlgo, ErrorKind, Operator, Result, WriteChecksum, options,
+    };
+
+    use super::CephRgw;
+
+    #[tokio::test]
+    async fn checksum_intents_require_crc32c() -> Result<()> {
+        let op = Operator::new(
+            CephRgw::default()
+                .bucket("test")
+                .endpoint("http://127.0.0.1:8080")
+                .access_key_id("test-access-key")
+                .secret_access_key("test-secret-key")
+                .disable_config_load(),
+        )?;
+
+        let crc64nvme = Checksum::new(ChecksumAlgo::Crc64Nvme, [0; 8]);
+        for intent in [
+            WriteChecksum::Algo(ChecksumAlgo::Crc64Nvme),
+            WriteChecksum::Expected(crc64nvme.clone()),
+        ] {
+            let result = op.writer_with("test").checksum(intent).await;
+            assert!(matches!(result, Err(error) if error.kind() == ErrorKind::Unsupported));
+        }
+        let result = op
+            .presign_write_options(
+                "test",
+                Duration::from_secs(60),
+                options::WriteOptions {
+                    checksum: Some(crc64nvme.into()),
+                    ..Default::default()
+                },
+            )
+            .await;
+        assert!(matches!(result, Err(error) if error.kind() == ErrorKind::Unsupported));
+
+        let crc32c = Checksum::new(ChecksumAlgo::Crc32c, [0xe3, 0x06, 0x92, 0x83]);
+        let presigned = op
+            .presign_write_options(
+                "test",
+                Duration::from_secs(60),
+                options::WriteOptions {
+                    checksum: Some(crc32c.into()),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        assert_eq!(presigned.header()["x-amz-checksum-crc32c"], "4waSgw==");
+        assert_eq!(presigned.header()["x-amz-sdk-checksum-algorithm"], "CRC32C");
+        let uri = url::Url::parse(&presigned.uri().to_string()).unwrap();
+        let signed_headers = uri
+            .query_pairs()
+            .find_map(|(name, value)| (name == "X-Amz-SignedHeaders").then_some(value))
+            .expect("presigned URL contains its signed header names");
+        for header in ["x-amz-checksum-crc32c", "x-amz-sdk-checksum-algorithm"] {
+            assert!(signed_headers.split(';').any(|name| name == header));
+        }
+        Ok(())
     }
 }

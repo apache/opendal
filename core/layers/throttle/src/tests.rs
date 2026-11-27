@@ -61,6 +61,56 @@ impl oio::Read for CountingReader {
     }
 }
 
+#[test]
+fn registered_throttle_requires_positive_u32_limits() {
+    let registry = OperatorRegistry::get();
+    register_throttle_layer(registry);
+
+    for (option, other_option) in [("bandwidth", "burst"), ("burst", "bandwidth")] {
+        let uri = format!("memory://?layers=throttle&layer.throttle.{other_option}=1");
+        let err = registry.load(uri.as_str()).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        assert!(err.to_string().contains(&format!("option: {option}")));
+
+        for value in ["", "0", "-1", "4294967296", "invalid-limit-marker"] {
+            let err = registry
+                .load((uri.as_str(), [(format!("layer.throttle.{option}"), value)]))
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+            assert!(err.to_string().contains(&format!("option: {option}")));
+            assert!(!err.to_string().contains("invalid-limit-marker"));
+            assert!(!format!("{err:?}").contains("invalid-limit-marker"));
+        }
+    }
+}
+
+#[tokio::test]
+async fn registered_throttle_enforces_burst_with_independent_quotas() -> Result<()> {
+    let registry = OperatorRegistry::get();
+    register_throttle_layer(registry);
+    let uri = concat!(
+        "memory://?layers=throttle&layer.throttle.bandwidth=1",
+        "&layer.throttle.burst=4&layer.throttle.future_option=",
+    );
+    let first = registry.load(uri)?;
+    let second = registry.load(uri)?;
+
+    let err = first.write("oversized", "abcde").await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::RateLimited);
+    first.write("object", "abcd").await?;
+
+    let mut write = std::pin::pin!(second.write("object", "1234"));
+    poll_fn(|cx| {
+        let Poll::Ready(result) = write.as_mut().poll(cx) else {
+            panic!("a separately loaded operator should have its own full burst");
+        };
+        Poll::Ready(result)
+    })
+    .await?;
+    assert_eq!(second.stat("object").await?.content_length(), 4);
+    Ok(())
+}
+
 #[tokio::test]
 async fn bounded_reads_check_quota_before_inner_io() {
     let calls = Arc::new(AtomicUsize::new(0));

@@ -52,9 +52,9 @@ SUBMODULES = (
 IMPORTS = {
     "operator": (
         "import collections.abc\n"
-        "from .config import ServiceConfig\n"
+        "from .config import ContextConfig, LayerConfig, ServiceConfig\n"
         "from .file import AsyncFile\n"
-        "from .options import OpenKwargs\n"
+        "from .options import ChecksumAlgorithm, OpenKwargs\n"
         "from .services import Scheme\n"
         "from .types import Entry, PresignedRequest\n"
         "from typing_extensions import Unpack\n"
@@ -78,6 +78,7 @@ class ConditionNotMatch(Exception): ...
 class RateLimited(Exception): ...
 class RangeNotSatisfied(Exception): ...
 class Conflict(Exception): ...
+class ChecksumMismatch(Unexpected): ...
 """
 
 

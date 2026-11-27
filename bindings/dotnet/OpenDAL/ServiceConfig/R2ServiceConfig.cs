@@ -41,11 +41,15 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? Bucket { get; init; }
         /// <summary>
+        /// Disable loading credentials from AWS environment variables and shared profile files. Set both `access_key_id` and `secret_access_key` when enabled.
+        /// </summary>
+        public bool? DisableConfigLoad { get; init; }
+        /// <summary>
         /// Explicit R2-compatible endpoint. Use this field for a proxy, gateway, or test server. Set exactly one of `endpoint` and `account_id`.
         /// </summary>
         public string? Endpoint { get; init; }
         /// <summary>
-        /// R2 jurisdiction. Supported values are `eu` and `fedramp`. This field requires `account_id` and cannot be used with `endpoint`.
+        /// R2 jurisdiction. Supported values are `eu`, `fedramp`, and `us`. This field requires `account_id` and cannot be used with `endpoint`.
         /// </summary>
         public string? Jurisdiction { get; init; }
         /// <summary>
@@ -77,6 +81,10 @@ namespace OpenDAL.ServiceConfig
             if (Bucket is not null)
             {
                 map["bucket"] = Utilities.ToOptionString(Bucket);
+            }
+            if (DisableConfigLoad is not null)
+            {
+                map["disable_config_load"] = Utilities.ToOptionString(DisableConfigLoad);
             }
             if (Endpoint is not null)
             {

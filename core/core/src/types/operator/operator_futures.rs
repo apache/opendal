@@ -85,6 +85,14 @@ where
 pub type FutureStat<F> = OperatorFuture<options::StatOptions, Metadata, F>;
 
 impl<F: Future<Output = Result<Metadata>>> FutureStat<F> {
+    /// Set the hint to request full-file checksum metadata.
+    ///
+    /// See [`options::StatOptions::checksum`] for the hint semantics.
+    pub fn checksum(mut self, checksum: bool) -> Self {
+        self.args.checksum = checksum;
+        self
+    }
+
     /// Stat only when the file has this exact ETag.
     ///
     /// Refer to [`options::StatOptions::if_match`] for the full contract.
@@ -272,6 +280,14 @@ impl<F: Future<Output = Result<PresignedRequest>>> FuturePresignWrite<F> {
 pub type FutureRead<F> = OperatorFuture<options::ReadOptions, Buffer, F>;
 
 impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
+    /// Set the hint to request full-file checksum metadata.
+    ///
+    /// See [`options::ReadOptions::checksum`] for the hint semantics.
+    pub fn checksum(mut self, checksum: bool) -> Self {
+        self.args.checksum = checksum;
+        self
+    }
+
     /// Set `range` for this `read` request.
     ///
     /// If we have a file with size `n`.
@@ -472,6 +488,14 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
 pub type FutureReader<F> = OperatorFuture<options::ReaderOptions, Reader, F>;
 
 impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
+    /// Set the hint to request full-file checksum metadata.
+    ///
+    /// See [`options::ReaderOptions::checksum`] for the hint semantics.
+    pub fn checksum(mut self, checksum: bool) -> Self {
+        self.args.checksum = checksum;
+        self
+    }
+
     /// Read the given version of the file instead of the current one.
     ///
     /// Refer to [`options::ReaderOptions::version`] for the full contract.
@@ -970,6 +994,34 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
         self
     }
 
+    /// Request native checksum verification for this write.
+    ///
+    /// Pass a [`WriteChecksum`], a [`crate::ChecksumAlgo`] to compute, or a
+    /// caller-supplied [`crate::Checksum`] to verify. Refer to
+    /// [`options::WriteOptions::checksum`] for the full contract.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
+    /// use opendal_core::Checksum;
+    /// use opendal_core::ChecksumAlgo;
+    ///
+    /// # async fn test(op: Operator, crc32c: [u8; 4]) -> Result<()> {
+    /// let meta = op
+    ///     .write_with("path/to/file", vec![0; 4096])
+    ///     .checksum(Checksum::new(ChecksumAlgo::Crc32c, crc32c))
+    ///     .await?;
+    /// assert_eq!(meta.checksum().map(|c| c.algo), Some(ChecksumAlgo::Crc32c));
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn checksum(mut self, checksum: impl Into<WriteChecksum>) -> Self {
+        self.args.0.checksum = Some(checksum.into());
+        self
+    }
+
     /// Sets user metadata for this write request.
     ///
     /// Refer to [`options::WriteOptions::user_metadata`] for more details.
@@ -1341,6 +1393,16 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
         self
     }
 
+    /// Request native checksum verification for this writer.
+    ///
+    /// Pass a [`WriteChecksum`], a [`crate::ChecksumAlgo`] to compute, or a
+    /// caller-supplied [`crate::Checksum`] to verify. Refer to
+    /// [`options::WriteOptions::checksum`] for the full contract.
+    pub fn checksum(mut self, checksum: impl Into<WriteChecksum>) -> Self {
+        self.args.checksum = Some(checksum.into());
+        self
+    }
+
     /// Sets user metadata for this write request.
     ///
     /// Refer to [`options::WriteOptions::user_metadata`] for more details.
@@ -1447,10 +1509,18 @@ impl<F: Future<Output = Result<()>>> FutureDelete<F> {
     }
 }
 
-/// This future creates a [`Deleter`].
-///
-/// Use its methods to configure the operation before awaiting it.
-pub type FutureDeleter<F> = OperatorFuture<OpDeleter, (), F>;
+/// [`Operator::deleter_with`] returns this future.
+pub type FutureDeleter<F> = OperatorFuture<options::DeleterOptions, Deleter, F>;
+
+impl<F: Future<Output = Result<Deleter>>> FutureDeleter<F> {
+    /// Set the maximum number of in-flight backend tasks.
+    ///
+    /// Refer to [`options::DeleterOptions::concurrent`] for more details.
+    pub fn concurrent(mut self, concurrent: usize) -> Self {
+        self.args.concurrent = concurrent.max(1);
+        self
+    }
+}
 
 /// [`Operator::list_with`] and [`Operator::lister_with`] return this future.
 ///

@@ -40,38 +40,49 @@ pub use opendal_http_transport_cyper::CyperTransport;
 #[cfg(feature = "tests")]
 pub extern crate opendal_testkit as tests;
 
-/// Install the global defaults provided by the facade crate.
+/// Install the process-wide defaults provided by the facade crate.
 ///
-/// This function is safe to call multiple times. It registers enabled services
-/// and installs the default executor and HTTP transport when their features are
-/// enabled.
+/// The first call runs [`init_default_registry`], installs the Tokio executor
+/// if `executors-tokio` is enabled, then installs the reqwest transport and
+/// registers the `http` context factory if a `http-transport-reqwest*` feature
+/// is enabled. Later calls leave the installed defaults and factories in place.
 ///
-/// # Process-wide defaults
+/// The first installed executor and the first installed HTTP transport each
+/// stay in effect as process-wide defaults. Applications that supply their own
+/// can disable `auto-register-services` and install them first with
+/// [`Executor::install_default`] and [`HttpTransporter::install_default`].
+/// They can then call this function to install the remaining facade defaults,
+/// or call [`init_default_registry`] for services and layers alone.
+///
+/// Registration of the reqwest `http` context factory replaces an earlier
+/// factory of the same name, even if a custom process-wide transport is
+/// already installed. To keep a custom `http` context factory, use
+/// [`OperatorRegistry::register_context`] after the first call. To replace
+/// runtime resources on one operator, use [`Operator::with_context`].
 ///
 /// When `auto-register-services` is enabled, a process constructor calls this
-/// function before `main`. The first installed HTTP transport and executor
-/// remain the process-wide defaults.
-///
-/// Applications that need to install their own process-wide transport should
-/// disable `auto-register-services`, call [`init_default_registry`] explicitly
-/// when URI-based construction is needed, and install the transport themselves.
-/// If `auto-register-services` is disabled, call this function to install the
-/// facade defaults, or configure your own defaults with
-/// [`HttpTransporter::install_default`] and [`Executor::install_default`].
-/// Use [`OperationContext`] to configure runtime resources for one operator.
+/// function before `main`. If the constructor is disabled or unavailable,
+/// call it explicitly to make these defaults available before constructing
+/// operators with [`Operator::from_uri`] or [`Operator::via_iter`].
 pub fn install_default() {
-    init_default_registry();
+    static DEFAULTS_INIT: std::sync::Once = std::sync::Once::new();
+    DEFAULTS_INIT.call_once(|| {
+        init_default_registry();
 
-    #[cfg(feature = "executors-tokio")]
-    opendal_executor_tokio::install_default();
+        #[cfg(feature = "executors-tokio")]
+        opendal_executor_tokio::install_default();
 
-    #[cfg(any(
-        feature = "http-transport-reqwest",
-        feature = "http-transport-reqwest-native-tls",
-        feature = "http-transport-reqwest-rustls",
-        feature = "http-transport-reqwest-rustls-no-provider"
-    ))]
-    opendal_http_transport_reqwest::install_default();
+        #[cfg(any(
+            feature = "http-transport-reqwest",
+            feature = "http-transport-reqwest-native-tls",
+            feature = "http-transport-reqwest-rustls",
+            feature = "http-transport-reqwest-rustls-no-provider"
+        ))]
+        {
+            opendal_http_transport_reqwest::install_default();
+            opendal_http_transport_reqwest::register_http_context(OperatorRegistry::get());
+        }
+    });
 }
 
 #[cfg(all(
@@ -96,17 +107,25 @@ mod default_executor_tests {
     }
 }
 
-/// Initialize the global [`OperatorRegistry`] with enabled services.
+/// Register the facade's enabled services and configuration-driven layers in
+/// the global [`OperatorRegistry`].
 ///
-/// This function is safe to call multiple times and will only perform
-/// initialization once.
+/// This function registers `memory` and the services enabled by `services-*`
+/// features on the current target. The built-in configuration layer names are
+/// `chaos`, `concurrent_limit`, `logging`, `mime_guess`, `retry`, `throttle`,
+/// `timeout`, and `tracing`, each gated by its corresponding `layers-*`
+/// feature. Registration makes these layers available for selection in
+/// `layers` when loading an operator.
 ///
-/// # Notes
+/// The first call replaces earlier registrations for those service and layer
+/// names. Register your own replacements after initialization to keep them
+/// across subsequent calls.
 ///
-/// Some bindings link `opendal` as a `staticlib`, where `#[ctor::ctor]`
-/// initializers may not be executed due to linker behavior. Those bindings
-/// should call [`install_default`] explicitly before using `Operator::from_uri`
-/// or `Operator::via_iter`.
+/// Use [`install_default`] to also install the process-wide runtime defaults
+/// and the reqwest `http` context factory. The `auto-register-services`
+/// constructor normally calls it before `main`. Some linkers omit constructors
+/// from `staticlib` builds, so call it explicitly if you need those defaults
+/// in such a build.
 pub fn init_default_registry() {
     static DEFAULT_REGISTRY_INIT: std::sync::Once = std::sync::Once::new();
     DEFAULT_REGISTRY_INIT.call_once(|| init_default_registry_inner(OperatorRegistry::get()));
@@ -361,9 +380,6 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-sled")]
     opendal_service_sled::register_sled_service(registry);
 
-    #[cfg(feature = "services-smb")]
-    opendal_service_smb::register_smb_service(registry);
-
     #[cfg(feature = "services-sqlite")]
     opendal_service_sqlite::register_sqlite_service(registry);
 
@@ -408,6 +424,30 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
 
     #[cfg(any(feature = "services-redis", feature = "services-redis-native-tls"))]
     opendal_service_redis::register_redis_service(registry);
+
+    #[cfg(feature = "layers-chaos")]
+    opendal_layer_chaos::register_chaos_layer(registry);
+
+    #[cfg(feature = "layers-concurrent-limit")]
+    opendal_layer_concurrent_limit::register_concurrent_limit_layer(registry);
+
+    #[cfg(feature = "layers-logging")]
+    opendal_layer_logging::register_logging_layer(registry);
+
+    #[cfg(feature = "layers-mime-guess")]
+    opendal_layer_mime_guess::register_mime_guess_layer(registry);
+
+    #[cfg(feature = "layers-retry")]
+    opendal_layer_retry::register_retry_layer(registry);
+
+    #[cfg(feature = "layers-throttle")]
+    opendal_layer_throttle::register_throttle_layer(registry);
+
+    #[cfg(feature = "layers-timeout")]
+    opendal_layer_timeout::register_timeout_layer(registry);
+
+    #[cfg(feature = "layers-tracing")]
+    opendal_layer_tracing::register_tracing_layer(registry);
 }
 
 #[cfg(feature = "auto-register-services")]
@@ -621,8 +661,6 @@ pub mod services {
     pub use opendal_service_sftp::*;
     #[cfg(feature = "services-sled")]
     pub use opendal_service_sled::*;
-    #[cfg(feature = "services-smb")]
-    pub use opendal_service_smb::*;
     #[cfg(feature = "services-sqlite")]
     pub use opendal_service_sqlite::*;
     #[cfg(feature = "services-surrealdb")]
@@ -890,6 +928,8 @@ pub mod layers {
     pub use opendal_layer_capability_check::*;
     #[cfg(feature = "layers-chaos")]
     pub use opendal_layer_chaos::*;
+    #[cfg(feature = "layers-checksum")]
+    pub use opendal_layer_checksum::ChecksumLayer;
     #[cfg(feature = "layers-concurrent-limit")]
     pub use opendal_layer_concurrent_limit::*;
     #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]

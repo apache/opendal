@@ -23,9 +23,12 @@ use jni::objects::JByteArray;
 use jni::objects::JMap;
 use jni::objects::JObject;
 use jni::objects::JString;
+use jni::objects::JValue;
 use jni::strings::JNIString;
+use jni::sys::jint;
 use jni::sys::jlong;
-use opendal::{Error, ErrorKind};
+use opendal::raw::Timestamp;
+use opendal::{EntryMode, Error, ErrorKind};
 use std::collections::HashMap;
 use std::ops::Bound;
 
@@ -106,6 +109,35 @@ pub(crate) fn hashmap_to_jmap<'a, K: AsRef<str>, V: AsRef<str>>(
 
 pub(crate) fn string_to_jstring<'a>(env: &mut Env<'a>, s: Option<&str>) -> Result<JObject<'a>> {
     s.map_or_else(|| Ok(JObject::null()), |v| Ok(env.new_string(v)?.into()))
+}
+
+pub(crate) fn entry_mode_to_jint(mode: EntryMode) -> jint {
+    match mode {
+        EntryMode::FILE => 0,
+        EntryMode::DIR => 1,
+        EntryMode::Unknown => 2,
+    }
+}
+
+pub(crate) fn timestamp_to_jinstant<'a>(
+    env: &mut Env<'a>,
+    timestamp: Option<Timestamp>,
+) -> Result<JObject<'a>> {
+    let Some(timestamp) = timestamp else {
+        return Ok(JObject::null());
+    };
+    let timestamp = timestamp.into_inner();
+    Ok(env
+        .call_static_method(
+            jni_str!("java/time/Instant"),
+            jni_str!("ofEpochSecond"),
+            jni_sig!("(JJ)Ljava/time/Instant;"),
+            &[
+                JValue::Long(timestamp.as_second()),
+                JValue::Long(timestamp.subsec_nanosecond() as jlong),
+            ],
+        )?
+        .l()?)
 }
 
 pub(crate) fn read_bool_field(env: &mut Env<'_>, obj: &JObject, field: &str) -> Result<bool> {

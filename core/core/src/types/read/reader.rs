@@ -37,6 +37,10 @@ use crate::*;
 ///
 /// `Reader` implements `Clone` so you can clone it and store in place where ever you want.
 ///
+/// Chunked open-ended reads can plan from the metadata observed by an earlier
+/// read. A nonempty plan can extend when a completed chunk reports a longer
+/// object. A range starting at the planned end can return EOF without a request.
+///
 /// ## Direct
 ///
 /// [`Reader`] provides public API including [`Reader::read`]. You can use those APIs directly without extra copy.
@@ -861,6 +865,32 @@ mod tests {
         let buf = reader.read(BytesRange::suffix(4)).await?;
 
         assert_eq!(buf.to_bytes(), b"orld".as_slice());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reader_read_suffix_after_overwrite() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let path = "test_file";
+
+        for (original, replacement, expected_suffix) in
+            [("ab", "abcdef", "cdef"), ("abcdef", "ab", "ab")]
+        {
+            op.write(path, original).await?;
+            let reader = op.reader(path).await?;
+            assert_eq!(reader.read(..).await?.to_bytes(), original);
+            let first_metadata = reader
+                .metadata()
+                .expect("first read must observe metadata")
+                .clone();
+
+            op.write(path, replacement).await?;
+            let suffix = reader.read(BytesRange::suffix(4)).await?;
+
+            assert_eq!(suffix.to_bytes(), expected_suffix);
+            assert_eq!(reader.metadata(), Some(&first_metadata));
+        }
+
         Ok(())
     }
 

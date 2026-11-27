@@ -24,7 +24,9 @@ use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use std::time::Duration;
 
-use opendal_core::raw::{BoxedStaticFuture, Layer, Operation, Servicer};
+use http::StatusCode;
+use opendal_core::raw::parse_retry_after;
+use opendal_core::raw::{BoxedStaticFuture, Instant, Layer, Operation, Servicer, Timestamp};
 use opendal_core::{Buffer, HttpBody, HttpTransport, HttpTransporter, OperationContext, Result};
 
 mod bucket;
@@ -51,9 +53,8 @@ pub use config::AimdLayerBuilder;
 ///
 /// HTTP responses establish activity; service and I/O wrappers observe parsed
 /// errors. Feedback can therefore arrive after the corresponding HTTP response
-/// and only includes errors propagated to those wrappers. HTTP status codes and
-/// error messages are not interpreted by this layer. Other errors pass through
-/// unchanged and do not trigger a decrease.
+/// and only includes errors propagated to those wrappers. Other errors pass
+/// through unchanged and do not trigger a decrease.
 /// Feedback is attributed to the enclosing storage operation's budget. A
 /// composite operation can also send requests in other categories, such as
 /// stat requests during a copy; this layer does not correlate an error with
@@ -66,12 +67,19 @@ pub use config::AimdLayerBuilder;
 /// Add a layer that limits HTTP concurrency before AIMD so queued requests
 /// wait for admission before acquiring an HTTP concurrency permit.
 ///
-/// Clones share all four budgets, including across operators and context
-/// replacement. Separately constructed layers have independent budgets. Choose
-/// sharing boundaries that match the backend's quota scope; this layer does not
-/// discover quotas or coordinate across processes.
+/// A marked HTTP 429 or 503 response with a usable `Retry-After` pauses new
+/// admissions to all four budgets until the deadline. The response is returned
+/// immediately, and requests already admitted may finish. A later deadline
+/// extends the pause. Each budget resumes admission in FIFO order, and callers
+/// can cancel queued requests without spending a token.
 ///
-/// Waiting uses Tokio timers by default. Use [`AimdLayerBuilder::with_sleep`] to supply a timer.
+/// One layer represents one shared quota. Clones share the four budgets and
+/// the pause across operators and context replacement. Build separate layers
+/// for separate accounts, credentials, or operation-specific quotas, and
+/// install them in the HTTP transports used by the corresponding requests.
+///
+/// Admission waits use the context executor, or Tokio if it does not provide
+/// a timer. Use [`AimdLayerBuilder::with_sleep`] to override this choice.
 /// Pacing happens after the service builds and signs a request. Bound operation
 /// duration when queued requests could outlive a backend's signature validity period. This layer
 /// limits dispatches to the next transport, not redirects or retries hidden
@@ -80,10 +88,22 @@ pub use config::AimdLayerBuilder;
 #[derive(Clone)]
 pub struct AimdLayer {
     buckets: Arc<Buckets>,
-    sleep: SleepFn,
+    sleep: Option<SleepFn>,
 }
 
 type SleepFn = Arc<dyn Fn(Duration) -> BoxedStaticFuture<()> + Send + Sync>;
+
+fn monotonic_now() -> Instant {
+    // Let native tests drive both the clock and admission timers with Tokio.
+    #[cfg(all(test, not(target_family = "wasm")))]
+    {
+        tokio::time::Instant::now().into_std()
+    }
+    #[cfg(not(all(test, not(target_family = "wasm"))))]
+    {
+        Instant::now()
+    }
+}
 
 impl Debug for AimdLayer {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -117,9 +137,18 @@ impl Layer for AimdLayer {
     }
 
     fn apply_context(&self, _: Servicer, inner: OperationContext) -> OperationContext {
+        let sleep = self.sleep.clone().unwrap_or_else(|| {
+            let executor = inner.executor().clone();
+            Arc::new(move |duration| {
+                executor
+                    .inner()
+                    .sleep(duration)
+                    .unwrap_or_else(|| Box::pin(tokio::time::sleep(duration)))
+            })
+        });
         inner.with_http_transport(HttpTransporter::new(AimdTransport {
             inner: inner.http_transport().clone(),
-            sleep: self.sleep.clone(),
+            sleep,
             buckets: self.buckets.clone(),
         }))
     }
@@ -167,8 +196,14 @@ impl HttpTransport for AimdTransport {
         };
         bucket.acquire(&*self.sleep).await;
         let result = self.inner.fetch(req).await;
-        if result.is_ok() {
-            bucket.complete_http();
+        if let Ok(response) = &result {
+            let retry_after = match response.status() {
+                StatusCode::TOO_MANY_REQUESTS | StatusCode::SERVICE_UNAVAILABLE => {
+                    parse_retry_after(response.headers(), Timestamp::now())
+                }
+                _ => None,
+            };
+            bucket.complete_http(retry_after);
         }
         result
     }

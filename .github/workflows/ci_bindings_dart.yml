@@ -66,15 +66,13 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
 
-      - name: Check generated bridge code is sync
-        working-directory: bindings/dart
-        run: |
-          set -eux -o pipefail
-          git diff
-
       - name: Flutter pub get
         working-directory: bindings/dart
         run: flutter pub get
+
+      - name: Analyze Dart package
+        working-directory: bindings/dart
+        run: dart analyze
 
       # Useful for debugging
       - name: Print Clippy version

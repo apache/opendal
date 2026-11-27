@@ -18,6 +18,7 @@
 use std::fmt;
 use std::str;
 
+use crate::Checksum;
 use crate::EntryMode;
 use crate::raw::Timestamp;
 use crate::types::compact::CompactFieldWriter;
@@ -33,7 +34,7 @@ const IS_DELETED: u16 = 1 << 4;
 const HAS_LAST_MODIFIED: u16 = 1 << 5;
 
 const STRING_FIELD_COUNT: usize = 8;
-const VALUE_FIELD_COUNT: usize = 10;
+const VALUE_FIELD_COUNT: usize = 11;
 
 #[derive(Clone, Copy)]
 #[repr(usize)]
@@ -47,6 +48,7 @@ enum ValueField {
     Etag,
     Version,
     UserMetadata,
+    Checksum,
     Path,
 }
 
@@ -196,6 +198,9 @@ impl fmt::Debug for Metadata {
         if let Some(value) = self.user_metadata() {
             ds.field("user_metadata", &value);
         }
+        if let Some(value) = self.checksum() {
+            ds.field("checksum", &value);
+        }
 
         ds.finish()
     }
@@ -343,6 +348,26 @@ impl Metadata {
             .map(UserMetadata::new)
     }
 
+    /// Return this entry's full-file checksum, if available.
+    ///
+    /// Successful [`crate::WriteChecksum::Algo`] and
+    /// [`crate::WriteChecksum::Expected`] writes return a verified full-file
+    /// checksum. [`crate::WriteChecksum::Any`] and [`crate::WriteChecksum::Fast`]
+    /// also allow verification of each upload request independently. This
+    /// method returns `None` when those writes succeed without a verified
+    /// full-file digest.
+    ///
+    /// On stat and read, this is a checksum the service reports for the whole
+    /// object. Verifying bytes returned by a read is a separate step.
+    ///
+    /// See the [checksum specification][crate::docs::specs::checksum].
+    #[inline]
+    pub fn checksum(&self) -> Option<Checksum> {
+        self.values
+            .get(ValueField::Checksum as usize)
+            .map(Checksum::decode)
+    }
+
     #[inline]
     pub(crate) fn path(&self) -> Option<&str> {
         self.string(ValueField::Path)
@@ -360,6 +385,7 @@ pub struct MetadataBuilder {
     values: CompactValues,
     strings: [Option<String>; STRING_FIELD_COUNT],
     user_metadata: Option<Vec<(String, String)>>,
+    checksum: Option<Checksum>,
     path: Option<String>,
 }
 
@@ -390,6 +416,7 @@ impl MetadataBuilder {
             values: CompactValues::default(),
             strings: Default::default(),
             user_metadata: None,
+            checksum: None,
             path: None,
         }
     }
@@ -400,6 +427,7 @@ impl MetadataBuilder {
             values: metadata.values,
             strings: Default::default(),
             user_metadata: None,
+            checksum: None,
             path: None,
         }
     }
@@ -507,6 +535,12 @@ impl MetadataBuilder {
         self
     }
 
+    /// Set the full-file checksum.
+    pub fn checksum(&mut self, value: Checksum) -> &mut Self {
+        self.checksum = Some(value);
+        self
+    }
+
     /// Finish this builder as immutable metadata.
     ///
     /// # Panics
@@ -518,10 +552,13 @@ impl MetadataBuilder {
             values,
             strings,
             user_metadata,
+            checksum,
             path,
         } = self;
-        let has_value_edits =
-            strings.iter().any(Option::is_some) || user_metadata.is_some() || path.is_some();
+        let has_value_edits = strings.iter().any(Option::is_some)
+            || user_metadata.is_some()
+            || checksum.is_some()
+            || path.is_some();
         if !has_value_edits {
             return Metadata { header, values };
         }
@@ -532,6 +569,10 @@ impl MetadataBuilder {
             }
         }
         let user_metadata = user_metadata.as_deref();
+        let checksum = checksum.as_ref().map(Checksum::encode);
+        if let Some(checksum) = checksum.as_deref() {
+            fields[ValueField::Checksum as usize] = Some(checksum);
+        }
         if let Some(path) = path.as_deref() {
             fields[ValueField::Path as usize] = Some(path.as_bytes());
         }
@@ -759,6 +800,7 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
+    use crate::ChecksumAlgo;
 
     #[test]
     #[cfg(target_pointer_width = "64")]
@@ -786,6 +828,7 @@ mod tests {
             .is_deleted(true)
             .last_modified(timestamp)
             .version("v1")
+            .checksum(Checksum::new(ChecksumAlgo::Crc64Nvme, [7; 8]))
             .user_metadata([
                 ("owner".to_string(), "opendal".to_string()),
                 ("region".to_string(), "us-east-1".to_string()),
@@ -798,6 +841,10 @@ mod tests {
         assert_eq!(metadata.content_length(), 42);
         assert_eq!(metadata.last_modified(), Some(timestamp));
         assert_eq!(metadata.version(), Some("v1"));
+        assert_eq!(
+            metadata.checksum(),
+            Some(Checksum::new(ChecksumAlgo::Crc64Nvme, [7; 8]))
+        );
         assert_eq!(
             metadata.user_metadata().unwrap().get("owner"),
             Some("opendal")

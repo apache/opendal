@@ -58,6 +58,7 @@ public struct Capability
         ReadWithOverrideContentType = native.readWithOverrideContentType != 0;
         ReadWithVersion = native.readWithVersion != 0;
         ReadWithSuffix = native.readWithSuffix != 0;
+        ReadWithChecksum = native.readWithChecksum != 0;
         Write = native.write != 0;
         WriteCanMulti = native.writeCanMulti != 0;
         WriteCanEmpty = native.writeCanEmpty != 0;
@@ -75,6 +76,7 @@ public struct Capability
         WriteWithIfNotExists = native.writeWithIfNotExists != 0;
         WriteWithUserMetadata = native.writeWithUserMetadata != 0;
         WriteWithExpires = native.writeWithExpires != 0;
+        WriteWithChecksum = native.writeWithChecksum != 0;
         WriteMultiMaxSize = native.writeMultiMaxSize == nuint.MaxValue ? null : native.writeMultiMaxSize;
         WriteMultiMinSize = native.writeMultiMinSize == nuint.MaxValue ? null : native.writeMultiMinSize;
         WriteTotalMaxSize = native.writeTotalMaxSize == nuint.MaxValue ? null : native.writeTotalMaxSize;
@@ -249,6 +251,11 @@ public struct Capability
     public bool ReadWithSuffix { get; private set; }
 
     /// <summary>
+    /// Indicates if the operator supports requesting stored full-file checksum metadata. Stat and read responses may include that metadata when requested.
+    /// </summary>
+    public bool ReadWithChecksum { get; private set; }
+
+    /// <summary>
     /// Indicates if the operator supports write operations.
     /// </summary>
     public bool Write { get; private set; }
@@ -332,6 +339,11 @@ public struct Capability
     /// Indicates if writes can set a lifetime for the new file.
     /// </summary>
     public bool WriteWithExpires { get; private set; }
+
+    /// <summary>
+    /// Indicates if non-append writes support native checksum verification. A service with this capability supports at least [`crate::WriteChecksum::Any`] and validates each requested intent before performing I/O.
+    /// </summary>
+    public bool WriteWithChecksum { get; private set; }
 
     /// <summary>
     /// Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads.

@@ -17,23 +17,35 @@ version.
 
 ## Build
 
-The Swift binding wraps the C binding. Build the C library before using the package:
+Build and stage the C header and static library from the same checkout as the
+Swift package. Run these commands from the repository root.
 
 ```shell
-cd bindings/swift
-make build-c
+make -C bindings/swift build-c
 ```
 
-To verify everything works:
+The C library builds in debug mode by default. To build an optimized C library,
+set `OPENDAL_C_PROFILE=release`.
 
 ```shell
-make test
+make -C bindings/swift build-c OPENDAL_C_PROFILE=release
 ```
+
+You can combine this option with `OPENDAL_FEATURES` to enable additional
+services. SwiftPM's `-c release` selects the Swift build configuration
+separately. If you already built your app, run `swift package clean` in the app
+directory before rebuilding to link against the newly staged library.
+
+The `test` target stages the C library before running the Swift tests.
+Replace `build-c` with `test` in your build command and keep the same
+`OPENDAL_C_PROFILE` and `OPENDAL_FEATURES` options. If switching builds,
+first run `swift package clean` in `bindings/swift/OpenDAL`.
 
 ## Installation
 
-The package is not published to any registry. Reference it by local path in
-your project's `Package.swift`:
+The package is not published to any registry. In your project's `Package.swift`,
+use the local path to `bindings/swift/OpenDAL` in the checkout where you ran
+`make build-c`.
 
 ```swift
 // swift-tools-version:5.7
@@ -71,7 +83,14 @@ print(result)
 
 Both `blockingWrite` and `blockingRead` throw `OperatorError` on failure.
 
-For a real backend, pass the service scheme and options:
+The default build includes only the Memory service. To enable S3, run the
+following command from the repository root.
+
+```shell
+make -C bindings/swift build-c OPENDAL_FEATURES=opendal/services-s3
+```
+
+Then create an operator with the S3 scheme and options.
 
 ```swift
 let op = try Operator(
@@ -86,6 +105,23 @@ let op = try Operator(
 See the [user guide](https://opendal.apache.org/docs/bindings/swift) for more
 examples, and [Services](https://opendal.apache.org/services) for the full list
 of backends and their configuration keys.
+
+## List entries
+
+Use `blockingLister` to open a nonrecursive listing. Use a trailing slash
+for a named directory.
+
+```swift
+let lister = try op.blockingLister("logs/")
+while let entry = try lister.next() {
+    print(entry.path)
+}
+```
+
+Opening the cursor and reading its next entry can both throw `OperatorError`.
+After `next()` returns `nil` or throws, later calls return `nil`. You can break
+out of the loop early. Releasing the cursor closes the listing, and entries
+remain usable after releasing the cursor and operator.
 
 ## Contributing
 

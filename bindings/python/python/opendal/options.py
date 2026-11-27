@@ -43,7 +43,12 @@ method's keyword arguments.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TypedDict
+from typing import Literal, TypeAlias, TypedDict
+
+ChecksumAlgorithm: TypeAlias = Literal[
+    "crc32c", "crc64nvme", "crc64ecma", "md5", "sha1", "sha256"
+]
+"""Full-object checksum algorithms. Each service defines the algorithms it supports."""
 
 
 class ReadKwargs(TypedDict, total=False):
@@ -104,6 +109,10 @@ class WriteKwargs(TypedDict, total=False):
     """Whether to fail if the file already exists."""
     user_metadata: dict[str, str]
     """The user metadata to set on the file."""
+    checksum: ChecksumAlgorithm | None
+    """The algorithm the service uses to verify the full object before committing.
+    `None` preserves the service default.
+    """
 
 
 class ListKwargs(TypedDict, total=False):
@@ -185,6 +194,7 @@ class OpenKwargs(ReadKwargs, WriteKwargs, total=False):
 
 
 __all__ = [
+    "ChecksumAlgorithm",
     "ReadKwargs",
     "WriteKwargs",
     "ListKwargs",

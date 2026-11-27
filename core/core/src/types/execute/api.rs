@@ -43,6 +43,7 @@ pub trait Execute: Send + Sync + 'static {
     fn execute(&self, f: BoxedStaticFuture<()>);
 
     /// Submit an async task, returning an error if the executor rejects it.
+    /// An executor that returns an error must leave the task unpolled.
     ///
     /// The default implementation forwards to [`Self::execute`]. Executors
     /// with fallible submission should override this method.

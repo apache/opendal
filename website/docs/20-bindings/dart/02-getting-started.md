@@ -8,21 +8,26 @@ description: Build and run your first OpenDAL program in Dart — write a file a
 
 ## Prerequisites
 
-The Dart binding wraps the Rust core via `flutter_rust_bridge`. You need to
-build the native library before running Dart code.
+Install Git, Rust, and Dart (3.9.2 or later in the 3.x series). Clone OpenDAL
+and build the native library before running Dart code.
 
 ```shell
-# From the repository root
-cd bindings/dart/rust
+git clone https://github.com/apache/opendal.git
+cd opendal/bindings/dart/rust
 cargo build -r
 cd ..
 dart pub get
 ```
 
-The loader picks up the native library from `rust/target/release/` automatically
-for native (non-cross-compiled) builds.
-
 ## Your first program
+
+Run the checked-in example from `bindings/dart/`. For a default Cargo build,
+`Storage.init()` loads the native library from `rust/target/release/` relative
+to the working directory.
+
+```shell
+dart run examples/getting_started.dart
+```
 
 This program creates an in-memory storage, writes a file, reads it back, and
 checks metadata. It uses the `memory` service so there are no credentials or
@@ -69,16 +74,16 @@ print(data); // [1, 2, 3]
 
 ## Working with directories
 
-`storage.initDir()` returns a factory for `Directory` objects:
+Reuse the same `Storage` for files and directories that use the same service
+and configuration. `storage.initDir()` returns a factory for `Directory` objects.
 
 ```dart
-final storage = await Storage.init(schemeStr: "memory", map: {"root": "/"});
 final Directory = storage.initDir();
 
 final dir = Directory("my-dir/");
 await dir.create();
 print(await dir.exists()); // true
 
-final meta = await dir.stat();
-print("isDirectory: ${meta.isDirectory}"); // true
+final dirMeta = await dir.stat();
+print("isDirectory: ${dirMeta.isDirectory}"); // true
 ```

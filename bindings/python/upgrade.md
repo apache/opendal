@@ -1,5 +1,18 @@
 # Upgrade to v0.47
 
+## Checksum mismatch exception
+
+`Operator.write`, `AsyncOperator.write`, and file `close` raise
+`opendal.exceptions.ChecksumMismatch` when OpenDAL reports a checksum mismatch.
+`ChecksumMismatch` inherits from `Unexpected`, so existing `except Unexpected`
+handlers also catch it. If you compare exception types directly, use
+`isinstance(error, Unexpected)` to include the new subtype.
+
+`File.write`, `AsyncFile.write`, and `File.flush` raise an exception that
+inherits from both `ChecksumMismatch` and `OSError`. Existing `except OSError`
+handlers still catch these errors. Use `except ChecksumMismatch` to handle
+checksum mismatches across all these methods.
+
 ## Moka and MiniMoka configuration durations
 
 `MokaConfig` and `MiniMokaConfig` accept `datetime.timedelta` or a duration

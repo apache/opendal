@@ -634,10 +634,7 @@ mod tests {
     #[tokio::test]
     async fn glob_follows_leading_literal_symlink_consistently_with_start_after() {
         let root = tempfile::tempdir().unwrap();
-        let op = Operator::new_without_glob_simulation(
-            Fs::default().root(root.path().to_str().unwrap()),
-        )
-        .unwrap();
+        let op = Operator::new(Fs::default().root(root.path().to_str().unwrap())).unwrap();
         op.write("dir/photo.jpg", "data").await.unwrap();
         op.write("dir/sub/deep.jpg", "data").await.unwrap();
         std::os::unix::fs::symlink("dir", root.path().join("alias")).unwrap();
@@ -779,10 +776,7 @@ mod tests {
         let target = parent.join("open");
         fs::create_dir_all(&target).unwrap();
         fs::write(target.join("b.jpg"), b"data").unwrap();
-        let op = Operator::new_without_glob_simulation(
-            Fs::default().root(root.path().to_str().unwrap()),
-        )
-        .unwrap();
+        let op = Operator::new(Fs::default().root(root.path().to_str().unwrap())).unwrap();
 
         let permissions = fs::metadata(&parent).unwrap().permissions();
         // Searchable (x) without read (r): read_dir(data) fails, read_dir(data/open) succeeds.
@@ -830,10 +824,12 @@ mod glob_tests {
     use std::fs;
     use std::sync::Arc;
 
+    use opendal_core::layers::SimulateLayer;
     use opendal_core::options::ListOptions;
     use opendal_core::raw::{
-        GlobPattern, OpCompose, OpCopy, OpCreateDir, OpList, OpPresign, OpRead, OpRename, OpStat,
-        OpWrite, RpCreateDir, RpPresign, RpRename, RpStat, Service, ServiceInfo, Servicer, oio,
+        GlobPattern, Layer, OpCompose, OpCopy, OpCreateDir, OpList, OpPresign, OpRead, OpRename,
+        OpStat, OpWrite, RpCreateDir, RpPresign, RpRename, RpStat, Service, ServiceInfo, Servicer,
+        oio,
     };
     use opendal_core::{
         Builder, Capability, EntryMode, ErrorKind, OperationContext, Operator, Result,
@@ -850,7 +846,8 @@ mod glob_tests {
 
         fn build(self) -> Result<impl Service> {
             let inner = Arc::new(self.0.build()?) as Servicer;
-            Ok(StripGlobService { inner })
+            let stripped = Arc::new(StripGlobService { inner }) as Servicer;
+            Ok(SimulateLayer::default().apply_service(stripped))
         }
     }
 
@@ -948,10 +945,13 @@ mod glob_tests {
     #[tokio::test]
     async fn native_glob_works_without_glob_simulation() {
         let root = tempfile::tempdir().unwrap();
-        let op = Operator::new_without_glob_simulation(
-            Fs::default().root(root.path().to_str().unwrap()),
-        )
-        .unwrap();
+        let service = Arc::new(
+            Fs::default()
+                .root(root.path().to_str().unwrap())
+                .build()
+                .unwrap(),
+        ) as Servicer;
+        let op = Operator::from_parts(OperationContext::default(), service);
         assert!(op.info().capability().list_with_glob);
 
         op.write("a.jpg", "data").await.unwrap();
@@ -1093,8 +1093,7 @@ mod glob_tests {
         }
 
         let root_str = root.path().to_str().unwrap();
-        let native_op =
-            Operator::new_without_glob_simulation(Fs::default().root(root_str)).unwrap();
+        let native_op = Operator::new(Fs::default().root(root_str)).unwrap();
         let layer_op = Operator::new(StripGlobBuilder(Fs::default().root(root_str))).unwrap();
 
         let cases: &[(&str, &str, bool, Option<&str>)] = &[

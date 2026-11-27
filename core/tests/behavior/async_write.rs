@@ -16,6 +16,8 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use anyhow::Result;
@@ -26,6 +28,8 @@ use futures::StreamExt;
 use futures::io::BufReader;
 use futures::io::Cursor;
 use futures::stream;
+use http::{Request, Response, StatusCode};
+use opendal::raw::ServiceOperation;
 
 use crate::*;
 
@@ -86,6 +90,72 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_write_with_expires,
             test_write_with_zero_expires
         ));
+    }
+
+    let scheme = op.info().scheme();
+    let test_s3_checksums = matches!(scheme, "s3" | "seaweedfs");
+    if cap.write && cap.stat && (!cap.write_with_checksum || test_s3_checksums) {
+        tests.extend(async_trials!(op, test_write_with_unsupported_checksum));
+    }
+    if test_s3_checksums && cap.write && cap.write_with_checksum {
+        tests.extend(async_trials!(op, test_s3_writer_rejects_sha256_checksum));
+    }
+
+    let minio_without_crc64nvme = scheme == "minio"
+        && std::env::var("OPENDAL_TEST_MINIO_WITHOUT_CRC64NVME").as_deref() == Ok("true");
+    if minio_without_crc64nvme && cap.read && cap.write {
+        tests.extend(async_trials!(
+            op,
+            test_minio_write_without_crc64nvme_receipt
+        ));
+    }
+    if cap.read && cap.write && cap.write_with_checksum {
+        if !minio_without_crc64nvme {
+            tests.extend(async_trials!(op, test_write_with_any_checksum));
+        }
+        if test_s3_checksums && cap.stat {
+            tests.extend(async_trials!(
+                op,
+                test_write_with_checksum,
+                test_write_with_checksum_mismatch
+            ));
+            if cap.write_can_multi {
+                tests.extend(async_trials!(
+                    op,
+                    test_writer_with_checksum_multipart,
+                    test_writer_with_checksum_multipart_mismatch,
+                    test_writer_with_any_checksum_multipart
+                ));
+            }
+        }
+        if cap.read_with_version && aws_s3_checksum_fixture(op) {
+            for (name, policy, algo) in [
+                ("fast", WriteChecksumPolicy::Fast, ChecksumAlgo::Crc64Nvme),
+                (
+                    "crc32c",
+                    WriteChecksumPolicy::Algo(ChecksumAlgo::Crc32c),
+                    ChecksumAlgo::Crc32c,
+                ),
+                (
+                    "crc64nvme",
+                    WriteChecksumPolicy::Algo(ChecksumAlgo::Crc64Nvme),
+                    ChecksumAlgo::Crc64Nvme,
+                ),
+            ] {
+                tests.push(build_async_trial(
+                    &format!("test_s3_write_with_{name}_checksum"),
+                    op,
+                    move |op| test_s3_write_with_checksum_intent(op, name, policy, algo),
+                ));
+                if cap.write_can_multi {
+                    tests.push(build_async_trial(
+                        &format!("test_s3_writer_with_{name}_checksum_multipart"),
+                        op,
+                        move |op| test_s3_writer_with_checksum_intent(op, name, policy, algo),
+                    ));
+                }
+            }
+        }
     }
 
     if cap.read && cap.write && cap.write_can_append && cap.stat {
@@ -1326,5 +1396,345 @@ pub async fn test_writer_write_non_contiguous_data(op: Operator) -> Result<()> {
     assert_eq!(sha256_digest(&bs[..size]), digest_a, "read content a");
     assert_eq!(sha256_digest(&bs[size..]), digest_b, "read content b");
 
+    Ok(())
+}
+
+fn s3_crc_checksum(algo: ChecksumAlgo, content: &[u8]) -> Checksum {
+    match algo {
+        ChecksumAlgo::Crc32c => {
+            let crc = crc_fast::checksum(crc_fast::CrcAlgorithm::Crc32Iscsi, content) as u32;
+            Checksum::new(algo, crc.to_be_bytes())
+        }
+        ChecksumAlgo::Crc64Nvme => {
+            let crc = crc_fast::checksum(crc_fast::CrcAlgorithm::Crc64Nvme, content);
+            Checksum::new(algo, crc.to_be_bytes())
+        }
+        _ => unreachable!("S3 full-object write checksums use CRC32C or CRC64NVME"),
+    }
+}
+
+fn s3_crc_checksums(content: &[u8]) -> [Checksum; 2] {
+    [ChecksumAlgo::Crc32c, ChecksumAlgo::Crc64Nvme].map(|algo| s3_crc_checksum(algo, content))
+}
+
+/// Return a checksum of the same algorithm and length that does not match.
+fn corrupt_checksum(checksum: &Checksum) -> Checksum {
+    let mut value = checksum.value.clone();
+    value[0] ^= 0xff;
+    Checksum::new(checksum.algo, value)
+}
+
+/// An unsupported checksum intent fails before writing anything.
+pub async fn test_write_with_unsupported_checksum(op: Operator) -> Result<()> {
+    let intent = if op.info().capability().write_with_checksum {
+        WriteChecksum::Expected(Checksum::new(ChecksumAlgo::Md5, [0; 16]))
+    } else {
+        WriteChecksum::Any
+    };
+
+    let path = TEST_FIXTURE.new_file_path();
+    let err = op
+        .write_with(&path, "content")
+        .checksum(intent)
+        .await
+        .expect_err("write with an unsupported checksum must fail");
+    assert_eq!(err.kind(), ErrorKind::Unsupported);
+    assert_eq!(
+        op.stat(&path)
+            .await
+            .expect_err("file must not exist")
+            .kind(),
+        ErrorKind::NotFound
+    );
+    Ok(())
+}
+
+pub async fn test_s3_writer_rejects_sha256_checksum(op: Operator) -> Result<()> {
+    for intent in [
+        WriteChecksum::Algo(ChecksumAlgo::Sha256),
+        WriteChecksum::Expected(Checksum::new(ChecksumAlgo::Sha256, [0; 32])),
+    ] {
+        let err = op
+            .writer_with("sha256-checksum")
+            .checksum(intent.clone())
+            .await
+            .expect_err("S3 must reject SHA-256 before opening a writer");
+        assert_eq!(err.kind(), ErrorKind::Unsupported, "{intent:?}: {err}");
+    }
+    Ok(())
+}
+
+pub async fn test_write_with_any_checksum(op: Operator) -> Result<()> {
+    let (_, content, _) = TEST_FIXTURE.new_file(op.clone());
+    let path = TEST_FIXTURE.new_file_path();
+    op.write_with(&path, content.clone())
+        .checksum(WriteChecksum::Any)
+        .await?;
+    assert_eq!(op.read(&path).await?.to_bytes(), Bytes::from(content));
+    Ok(())
+}
+
+/// Write with a matching checksum should succeed and return the checksum.
+pub async fn test_write_with_checksum(op: Operator) -> Result<()> {
+    let (_, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    for checksum in s3_crc_checksums(&content) {
+        let path = TEST_FIXTURE.new_file_path();
+        let meta = op
+            .write_with(&path, content.clone())
+            .checksum(checksum.clone())
+            .await?;
+        assert_eq!(meta.checksum(), Some(checksum));
+        assert_eq!(
+            op.read(&path).await?.to_bytes(),
+            Bytes::from(content.clone())
+        );
+    }
+    Ok(())
+}
+
+struct S3ChecksumWriteAttempts {
+    inner: HttpTransporter,
+    operation: ServiceOperation,
+    completed: Arc<AtomicUsize>,
+}
+
+impl HttpTransport for S3ChecksumWriteAttempts {
+    async fn fetch(&self, request: Request<Buffer>) -> opendal::Result<Response<HttpBody>> {
+        let target = request.extensions().get::<ServiceOperation>() == Some(&self.operation);
+        let response = self.inner.fetch(request).await?;
+        let status = response.status();
+        if target
+            && !status.is_server_error()
+            && status != StatusCode::REQUEST_TIMEOUT
+            && status != StatusCode::TOO_MANY_REQUESTS
+        {
+            self.completed.fetch_add(1, Ordering::Relaxed);
+        }
+        Ok(response)
+    }
+}
+
+// RetryLayer makes exhausted errors persistent. Observe the completed requests
+// to distinguish a terminal checksum failure from retries of that failure.
+fn observe_s3_checksum_write(
+    op: &Operator,
+    operation: ServiceOperation,
+) -> (Operator, Arc<AtomicUsize>) {
+    let completed = Arc::new(AtomicUsize::new(0));
+    let context = op.context();
+    let transport = HttpTransporter::new(S3ChecksumWriteAttempts {
+        inner: context.http_transport().clone(),
+        operation,
+        completed: completed.clone(),
+    });
+    (
+        op.clone()
+            .with_context(context.with_http_transport(transport)),
+        completed,
+    )
+}
+
+/// The pinned MinIO fixture stores a PUT but omits the requested CRC-64/NVME receipt.
+async fn test_minio_write_without_crc64nvme_receipt(op: Operator) -> Result<()> {
+    let content = Bytes::from_static(b"123456789");
+    for intent in [
+        WriteChecksum::Any,
+        WriteChecksum::Expected(Checksum::new(ChecksumAlgo::Crc64Nvme, [0; 8])),
+    ] {
+        let (op, attempts) = observe_s3_checksum_write(&op, ServiceOperation("PutObject"));
+        let path = TEST_FIXTURE.new_file_path();
+        let err = op
+            .write_with(&path, content.clone())
+            .checksum(intent)
+            .await
+            .expect_err("a PUT without a checksum receipt must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected, "{err}");
+        assert!(!err.is_temporary(), "{err}");
+        assert_eq!(attempts.load(Ordering::Relaxed), 1);
+        assert_eq!(op.read(&path).await?.to_bytes(), content);
+    }
+    Ok(())
+}
+
+/// Write with a mismatching checksum should fail without creating the file.
+pub async fn test_write_with_checksum_mismatch(op: Operator) -> Result<()> {
+    let (_, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    for checksum in s3_crc_checksums(&content) {
+        let (op, attempts) = observe_s3_checksum_write(&op, ServiceOperation("PutObject"));
+        let path = TEST_FIXTURE.new_file_path();
+        let err = op
+            .write_with(&path, content.clone())
+            .checksum(corrupt_checksum(&checksum))
+            .await
+            .expect_err("write with a mismatching checksum must fail");
+        assert_eq!(err.kind(), ErrorKind::ChecksumMismatch, "{err}");
+        assert_eq!(
+            attempts.load(Ordering::Relaxed),
+            1,
+            "must not retry BadDigest"
+        );
+        assert_eq!(
+            op.stat(&path)
+                .await
+                .expect_err("file must not exist")
+                .kind(),
+            ErrorKind::NotFound
+        );
+    }
+    Ok(())
+}
+
+/// S3 returns the verified digest of the exact bytes written by PutObject.
+async fn test_s3_write_with_checksum_intent(
+    op: Operator,
+    name: &str,
+    policy: WriteChecksumPolicy,
+    algo: ChecksumAlgo,
+) -> Result<()> {
+    let path = format!("s3-checksum-{name}-single");
+    TEST_FIXTURE.add_path(path.clone());
+    let content = Bytes::from_static(b"123456789");
+    let meta = op
+        .write_with(&path, content.clone())
+        .checksum(policy)
+        .await?;
+    assert_eq!(meta.checksum(), Some(s3_crc_checksum(algo, &content)));
+    let version = meta
+        .version()
+        .filter(|version| !version.is_empty() && *version != "null")
+        .expect("AWS fixture must return a version");
+    assert_eq!(
+        op.read_with(&path).version(version).await?.to_bytes(),
+        content
+    );
+    Ok(())
+}
+
+fn multipart_checksum_content(op: &Operator) -> (usize, Vec<u8>) {
+    let chunk = op.info().capability().write_multi_min_size.unwrap_or(1024);
+    let mut content = Vec::with_capacity(chunk * 2 + 1);
+    content.extend(std::iter::repeat_n(1, chunk));
+    content.extend(std::iter::repeat_n(2, chunk));
+    content.push(3);
+    (chunk, content)
+}
+
+/// S3 returns the verified digest across concurrent parts and the short final part.
+async fn test_s3_writer_with_checksum_intent(
+    op: Operator,
+    name: &str,
+    policy: WriteChecksumPolicy,
+    algo: ChecksumAlgo,
+) -> Result<()> {
+    let path = format!("s3-checksum-{name}-multipart");
+    TEST_FIXTURE.add_path(path.clone());
+    let (chunk, content) = multipart_checksum_content(&op);
+    let content = Bytes::from(content);
+    let mut writer = op
+        .writer_with(&path)
+        .chunk(chunk)
+        .concurrent(3)
+        .checksum(policy)
+        .await?;
+    writer.write(content.clone()).await?;
+    let meta = writer.close().await?;
+    assert_eq!(meta.checksum(), Some(s3_crc_checksum(algo, &content)));
+    let version = meta
+        .version()
+        .filter(|version| !version.is_empty() && *version != "null")
+        .expect("AWS fixture must return a version");
+    let stored = op.read_with(&path).version(version).await?.to_bytes();
+    assert!(
+        stored == content,
+        "exact-version read differs from the uploaded data"
+    );
+    Ok(())
+}
+
+/// A checksum covers the whole file when a writer splits it into parts.
+pub async fn test_writer_with_checksum_multipart(op: Operator) -> Result<()> {
+    let (chunk, content) = multipart_checksum_content(&op);
+
+    for checksum in s3_crc_checksums(&content) {
+        let path = TEST_FIXTURE.new_file_path();
+        let mut writer = op
+            .writer_with(&path)
+            .chunk(chunk)
+            .concurrent(3)
+            .checksum(checksum.clone())
+            .await?;
+        for part in content.chunks(chunk) {
+            writer.write(part.to_vec()).await?;
+        }
+        let meta = writer.close().await?;
+        assert_eq!(meta.checksum(), Some(checksum));
+        assert_eq!(
+            op.read(&path).await?.to_bytes(),
+            Bytes::from(content.clone())
+        );
+    }
+    Ok(())
+}
+
+/// S3 verifies and returns the whole-object CRC for a concurrent checksum write.
+pub async fn test_writer_with_any_checksum_multipart(op: Operator) -> Result<()> {
+    let (chunk, content) = multipart_checksum_content(&op);
+    let path = TEST_FIXTURE.new_file_path();
+    let mut writer = op
+        .writer_with(&path)
+        .chunk(chunk)
+        .concurrent(3)
+        .checksum(WriteChecksum::Any)
+        .await?;
+    for part in content.chunks(chunk) {
+        writer.write(part.to_vec()).await?;
+    }
+    let meta = writer.close().await?;
+    assert_eq!(
+        meta.checksum(),
+        Some(s3_crc_checksum(ChecksumAlgo::Crc64Nvme, &content))
+    );
+    assert_eq!(op.read(&path).await?.to_bytes(), Bytes::from(content));
+    Ok(())
+}
+
+/// A mismatching full-file checksum fails a multipart write on close.
+pub async fn test_writer_with_checksum_multipart_mismatch(op: Operator) -> Result<()> {
+    let (chunk, content) = multipart_checksum_content(&op);
+
+    for checksum in s3_crc_checksums(&content) {
+        let (op, attempts) =
+            observe_s3_checksum_write(&op, ServiceOperation("CompleteMultipartUpload"));
+        let path = TEST_FIXTURE.new_file_path();
+        let mut writer = op
+            .writer_with(&path)
+            .chunk(chunk)
+            .concurrent(3)
+            .checksum(corrupt_checksum(&checksum))
+            .await?;
+        for part in content.chunks(chunk) {
+            writer.write(part.to_vec()).await?;
+        }
+        let err = writer
+            .close()
+            .await
+            .expect_err("close with a mismatching checksum must fail");
+        let _ = writer.abort().await;
+        assert_eq!(err.kind(), ErrorKind::ChecksumMismatch, "{err}");
+        assert_eq!(
+            attempts.load(Ordering::Relaxed),
+            1,
+            "must not retry BadDigest"
+        );
+        assert_eq!(
+            op.stat(&path)
+                .await
+                .expect_err("file must not exist")
+                .kind(),
+            ErrorKind::NotFound
+        );
+    }
     Ok(())
 }

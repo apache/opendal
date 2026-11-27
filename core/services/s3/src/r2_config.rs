@@ -55,7 +55,7 @@ pub struct R2Config {
     pub account_id: Option<String>,
     /// R2 jurisdiction.
     ///
-    /// Supported values are `eu` and `fedramp`. This field requires
+    /// Supported values are `eu`, `fedramp`, and `us`. This field requires
     /// `account_id` and cannot be used with `endpoint`.
     ///
     /// <!-- @group General -->
@@ -86,6 +86,13 @@ pub struct R2Config {
     ///
     /// <!-- @group Credentials -->
     pub session_token: Option<String>,
+    /// Disable loading credentials from AWS environment variables and shared profile files.
+    ///
+    /// Set both `access_key_id` and `secret_access_key` when enabled.
+    ///
+    /// <!-- @group Credentials -->
+    /// <!-- @default false -->
+    pub disable_config_load: bool,
 }
 
 impl Debug for R2Config {

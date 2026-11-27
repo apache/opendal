@@ -360,3 +360,11 @@ pub mod rfc_8145_conflict_error_kind {}
 /// Chunked Cache Layer
 #[doc = include_str!("8569_chunked_cache_layer.md")]
 pub mod rfc_8569_chunked_cache_layer {}
+
+/// Unified Operator Configuration
+#[doc = include_str!("9061_unified_operator_config.md")]
+pub mod rfc_9061_unified_operator_config {}
+
+/// Checksum Intent and Layer
+#[doc = include_str!("9166_checksum_intent_and_layer.md")]
+pub mod rfc_9166_checksum_intent_and_layer {}

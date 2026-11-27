@@ -111,15 +111,63 @@ pub struct FtpCore {
     info: ServiceInfo,
     capability: Capability,
     pool: Arc<bounded::Pool<Manager>>,
+    /// The directory every pooled connection changes into after login.
+    root: String,
 }
 
 impl FtpCore {
     pub fn new(info: ServiceInfo, capability: Capability, manager: Manager) -> Self {
+        let root = manager.root.clone();
         let pool = bounded::Pool::new(bounded::PoolConfig::new(64), manager);
         Self {
             info,
             capability,
             pool,
+            root,
+        }
+    }
+
+    /// Check whether `path` is a directory by changing into it.
+    ///
+    /// Pooled connections rely on staying in `root`, since every other path
+    /// is relative to it. After a successful `CWD` the connection changes
+    /// back to `root` before it returns to the pool. A `550` reply means the
+    /// directory does not exist and leaves the working directory unchanged.
+    /// Any other error is returned. If an error other than `550` occurs,
+    /// changing back fails, or the future is dropped in between, the
+    /// connection is detached and closed instead of being reused.
+    pub async fn ftp_dir_exists(&self, conn: bounded::Object<Manager>, path: &str) -> Result<bool> {
+        struct ReturnGuard {
+            conn: Option<bounded::Object<Manager>>,
+            in_root: bool,
+        }
+
+        impl Drop for ReturnGuard {
+            fn drop(&mut self) {
+                if !self.in_root
+                    && let Some(conn) = self.conn.take()
+                {
+                    drop(bounded::Object::detach(conn));
+                }
+            }
+        }
+
+        let mut guard = ReturnGuard {
+            conn: Some(conn),
+            in_root: false,
+        };
+        let conn = guard.conn.as_mut().expect("connection is set");
+        match conn.cwd(path).await {
+            Ok(()) => {
+                conn.cwd(&self.root).await.map_err(format_ftp_error)?;
+                guard.in_root = true;
+                Ok(true)
+            }
+            Err(FtpError::UnexpectedResponse(resp)) if resp.status == Status::FileUnavailable => {
+                guard.in_root = true;
+                Ok(false)
+            }
+            Err(err) => Err(format_ftp_error(err)),
         }
     }
 

@@ -152,6 +152,11 @@ public class Capability {
     public final boolean readWithSuffix;
 
     /**
+     * Indicates if the operator supports requesting stored full-file checksum metadata. Stat and read responses may include that metadata when requested.
+     */
+    public final boolean readWithChecksum;
+
+    /**
      * Indicates if the operator supports write operations.
      */
     public final boolean write;
@@ -235,6 +240,11 @@ public class Capability {
      * Indicates if writes can set a lifetime for the new file.
      */
     public final boolean writeWithExpires;
+
+    /**
+     * Indicates if non-append writes support native checksum verification. A service with this capability supports at least [`crate::WriteChecksum::Any`] and validates each requested intent before performing I/O.
+     */
+    public final boolean writeWithChecksum;
 
     /**
      * Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads.
@@ -701,6 +711,7 @@ public class Capability {
         this.readWithOverrideContentType = readWithOverrideContentType;
         this.readWithVersion = readWithVersion;
         this.readWithSuffix = false;
+        this.readWithChecksum = false;
         this.write = write;
         this.writeCanMulti = writeCanMulti;
         this.writeCanEmpty = false;
@@ -718,6 +729,7 @@ public class Capability {
         this.writeWithIfNotExists = writeWithIfNotExists;
         this.writeWithUserMetadata = writeWithUserMetadata;
         this.writeWithExpires = false;
+        this.writeWithChecksum = false;
         this.writeMultiMaxSize = writeMultiMaxSize;
         this.writeMultiMinSize = writeMultiMinSize;
         this.writeTotalMaxSize = -1L;

@@ -54,6 +54,8 @@ pub enum opendal_code {
     OPENDAL_CONFLICT,
     /// The operation was cancelled via an `opendal_cancel_token`.
     OPENDAL_CANCELLED,
+    /// A checksum did not match the expected value.
+    OPENDAL_CHECKSUM_MISMATCH,
 }
 
 impl From<core::ErrorKind> for opendal_code {
@@ -72,6 +74,7 @@ impl From<core::ErrorKind> for opendal_code {
             core::ErrorKind::ConditionNotMatch => opendal_code::OPENDAL_CONDITION_NOT_MATCH,
             core::ErrorKind::RangeNotSatisfied => opendal_code::OPENDAL_RANGE_NOT_SATISFIED,
             core::ErrorKind::Conflict => opendal_code::OPENDAL_CONFLICT,
+            core::ErrorKind::ChecksumMismatch => opendal_code::OPENDAL_CHECKSUM_MISMATCH,
             // if this is triggered, check the [`core`] crate and add a
             // new error code accordingly
             _ => unimplemented!(
@@ -150,5 +153,30 @@ impl opendal_error {
                 opendal_bytes::opendal_bytes_free(&mut err.message);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn checksum_mismatch_error_preserves_code_and_message() {
+        let error = core::Error::new(core::ErrorKind::ChecksumMismatch, "checksum mismatch");
+        let expected_message = error.to_string();
+        let raw_error = opendal_error::new(error);
+        assert!(!raw_error.is_null());
+
+        let (code, message) = unsafe {
+            let error = &*raw_error;
+            let code = error.code();
+            let message = error.message.to_buffer();
+            opendal_error::opendal_error_free(raw_error);
+            (code, message)
+        };
+
+        assert_eq!(code, opendal_code::OPENDAL_CHECKSUM_MISMATCH);
+        assert_eq!(code as i32, 14);
+        assert_eq!(message.unwrap().to_vec(), expected_message.as_bytes());
     }
 }

@@ -22,6 +22,9 @@ use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
 
+#[cfg(feature = "auto-simulate")]
+use crate::layers::SimulateLayer;
+use crate::layers::{CompleteLayer, ErrorContextLayer};
 use crate::operator_futures::*;
 use crate::raw::*;
 use crate::types::delete::Deleter;
@@ -250,6 +253,32 @@ impl Operator {
     /// and starts with an empty layer list.
     pub fn into_parts(self) -> (OperationContext, Servicer) {
         (self.ctx, self.srv)
+    }
+
+    pub(crate) fn assemble(
+        base_srv: Servicer,
+        base_ctx: OperationContext,
+        user_layers: Vec<Arc<dyn Layer>>,
+    ) -> Self {
+        let mut layers: Vec<Arc<dyn Layer>> = Vec::with_capacity(
+            2 + usize::from(cfg!(feature = "auto-simulate")) + user_layers.len(),
+        );
+        layers.push(Arc::new(ErrorContextLayer));
+        // Simulated directory traversal needs the service's raw entries before
+        // metadata completion resolves symlinks.
+        #[cfg(feature = "auto-simulate")]
+        layers.push(Arc::new(SimulateLayer::default()));
+        layers.push(Arc::new(CompleteLayer));
+        layers.extend(user_layers);
+
+        let (srv, ctx) = Self::apply_layers(&base_srv, &base_ctx, &layers);
+        Self {
+            base_srv,
+            base_ctx,
+            layers: Arc::new(layers),
+            srv,
+            ctx,
+        }
     }
 
     /// Replay layers over the base providers to compute composed dispatch state.
@@ -2042,7 +2071,68 @@ impl Operator {
     // Keep this async to preserve the public API.
     #[allow(clippy::unused_async)]
     pub async fn deleter(&self) -> Result<Deleter> {
-        Deleter::create(self.context().clone(), self.service().clone())
+        self.deleter_options(options::DeleterOptions::default())
+            .await
+    }
+
+    /// Create a [`Deleter`] with extra options.
+    ///
+    /// Refer to [`Self::deleter_with`] and [`options::DeleterOptions`] for
+    /// details on each option.
+    // Keep this async to match the other `*_options` methods.
+    #[allow(clippy::unused_async)]
+    pub async fn deleter_options(&self, opts: options::DeleterOptions) -> Result<Deleter> {
+        Self::deleter_inner(
+            self.context().clone(),
+            self.service().clone(),
+            String::new(),
+            opts,
+        )
+        .await
+    }
+
+    /// Create a [`Deleter`] with a configurable concurrency limit.
+    ///
+    /// The default limit of one preserves [`Self::deleter`] behavior. Higher
+    /// limits require an executor that can run background tasks on the active
+    /// runtime. Use the OpenDAL facade's default executor or supply one through
+    /// [`Self::with_context`]. Operations that dispatch work return an error if
+    /// the executor is missing or rejects a task.
+    ///
+    /// A one-shot service can process one entry per task. A batch service accumulates a full batch
+    /// before dispatching a task, and [`Deleter::close`] submits any remaining
+    /// entries. A recursive delete uses one task for the entire entry, including
+    /// any deletion work expanded by the service stack. Concurrent tasks may
+    /// complete in any order, including tasks that contain the same path.
+    ///
+    /// ```
+    /// # use opendal_core::{Operator, Result};
+    /// # async fn example(op: Operator) -> Result<()> {
+    /// let mut deleter = op.deleter_with().concurrent(4).await?;
+    /// deleter.delete_iter(["path/a", "path/b"]).await?;
+    /// deleter.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn deleter_with(&self) -> FutureDeleter<impl Future<Output = Result<Deleter>>> {
+        OperatorFuture::new(
+            self.context().clone(),
+            self.service().clone(),
+            String::new(),
+            options::DeleterOptions::default(),
+            Self::deleter_inner,
+        )
+    }
+
+    // Keep this async so it can be used as an `OperatorFuture` factory.
+    #[allow(clippy::unused_async)]
+    async fn deleter_inner(
+        ctx: OperationContext,
+        srv: Servicer,
+        _path: String,
+        opts: options::DeleterOptions,
+    ) -> Result<Deleter> {
+        Deleter::create_with(ctx, srv, opts.concurrent.max(1))
     }
 
     /// Recursively delete entries at the given path.

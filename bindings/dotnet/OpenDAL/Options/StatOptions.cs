@@ -86,6 +86,11 @@ public sealed class StatOptions : IOptions<OpenDALStatOptions>
     /// </summary>
     public string? OverrideContentDisposition { get; init; }
 
+    /// <summary>
+    /// Request full-file checksum metadata when the service can provide it.
+    /// </summary>
+    public bool Checksum { get; init; }
+
     OpenDALStatOptions IOptions<OpenDALStatOptions>.ToNative(ref NativeOptionsWriter writer)
     {
         var native = new OpenDALStatOptions();
@@ -107,6 +112,7 @@ public sealed class StatOptions : IOptions<OpenDALStatOptions>
         native.OverrideContentType = writer.String(OverrideContentType);
         native.OverrideCacheControl = writer.String(OverrideCacheControl);
         native.OverrideContentDisposition = writer.String(OverrideContentDisposition);
+        native.Checksum = Checksum ? (byte)1 : (byte)0;
         return native;
     }
 }
@@ -132,4 +138,5 @@ internal struct OpenDALStatOptions
     public IntPtr OverrideContentType;
     public IntPtr OverrideCacheControl;
     public IntPtr OverrideContentDisposition;
+    public byte Checksum;
 }

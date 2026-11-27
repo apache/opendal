@@ -267,6 +267,12 @@ impl File {
     /// -------
     /// int
     ///     The number of bytes written.
+    ///
+    /// Raises
+    /// ------
+    /// ChecksumMismatch
+    ///     If checksum verification fails during the write. This error also
+    ///     inherits from `OSError`.
     #[pyo3(signature = (bs: "bytes"))]
     pub fn write(&mut self, py: Python<'_>, bs: &Bound<PyBytes>) -> PyResult<usize> {
         let writer = match &mut self.0 {
@@ -425,6 +431,12 @@ impl File {
     /// Passes pending input to the core writer. Storage chunks can remain
     /// buffered until more data arrives or `close()` completes the write.
     /// Is a no-op if the file is not `writable`.
+    ///
+    /// Raises
+    /// ------
+    /// ChecksumMismatch
+    ///     If checksum verification fails while flushing. This error also
+    ///     inherits from `OSError`.
     pub fn flush(&mut self, py: Python<'_>) -> PyResult<()> {
         if matches!(self.0, FileState::Reader(_)) {
             Ok(())
@@ -768,6 +780,12 @@ impl AsyncFile {
     /// -------
     /// coroutine
     ///     An awaitable that returns the number of bytes written.
+    ///
+    /// Raises
+    /// ------
+    /// ChecksumMismatch
+    ///     If checksum verification fails during the write. This error also
+    ///     inherits from `OSError`.
     #[pyo3(signature = (bs: "bytes") -> "collections.abc.Awaitable[int]")]
     pub fn write<'p>(&'p self, py: Python<'p>, bs: &Bound<PyBytes>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();

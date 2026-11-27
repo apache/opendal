@@ -33,17 +33,36 @@ mod async_restore;
 mod async_stat;
 mod async_write;
 
-// External dependencies
+use std::future::Future;
+
 use libtest_mimic::Arguments;
+use libtest_mimic::Failed;
 use libtest_mimic::Trial;
 use logforth::append::Testing;
 use logforth::filter::rustlog::RustLogFilterBuilder;
 use logforth::layout::TextLayout;
+use opendal::raw::MaybeSend;
 use opendal::tests::TEST_RUNTIME;
 use opendal::tests::init_test_service;
 use opendal::*;
+use tokio::time::{Instant, sleep};
 
 pub static TEST_FIXTURE: Fixture = Fixture::new();
+
+fn build_async_trial<F, Fut>(name: &str, op: &Operator, f: F) -> Trial
+where
+    F: FnOnce(Operator) -> Fut + MaybeSend + 'static,
+    Fut: Future<Output = anyhow::Result<()>>,
+{
+    let handle = TEST_RUNTIME.handle().clone();
+    let op = op.clone();
+
+    Trial::test(format!("behavior::{name}"), move || {
+        handle
+            .block_on(f(op))
+            .map_err(|err| Failed::from(err.to_string()))
+    })
+}
 
 fn main() -> anyhow::Result<()> {
     let args = Arguments::from_args();

@@ -41,4 +41,4 @@ tokio = { workspace = true, features = ["time"] }
 
 [dev-dependencies]
 futures = { workspace = true, features = ["executor"] }
-tokio = { workspace = true, features = ["macros", "rt"] }
+tokio = { workspace = true, features = ["macros", "rt", "test-util"] }

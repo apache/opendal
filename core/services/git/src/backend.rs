@@ -534,4 +534,74 @@ mod tests {
             .unwrap();
         assert_eq!(stat_etag(&raw, "model.bin").await, Some(pointer_oid));
     }
+
+    #[tokio::test]
+    async fn file_path_as_directory_list_stat_and_exists() {
+        let (_temp, dir) = init_repo();
+        std::fs::create_dir(dir.join("sub")).unwrap();
+        std::fs::write(dir.join("plain.txt"), b"hello").unwrap();
+        std::fs::write(dir.join("sub/nested.txt"), b"world").unwrap();
+        commit_all(&dir, "initial");
+
+        let repository = file_url(&dir);
+        let op = Operator::new(
+            GitBuilder::default()
+                .repository(&repository)
+                .resolve_lfs(false),
+        )
+        .unwrap();
+
+        // Listing a file as a directory returns an empty list, matching fs/compfs/memory.
+        for path in ["plain.txt/", "plain.txt/child/"] {
+            let entries = op
+                .list(path)
+                .await
+                .unwrap_or_else(|err| panic!("list {path:?} failed: {err:?}"));
+            assert!(entries.is_empty(), "list {path:?} returned {entries:?}");
+
+            let entries = op
+                .list_with(path)
+                .recursive(true)
+                .await
+                .unwrap_or_else(|err| panic!("recursive list {path:?} failed: {err:?}"));
+            assert!(
+                entries.is_empty(),
+                "recursive list {path:?} returned {entries:?}"
+            );
+        }
+
+        // Statting and checking existence of a file with a trailing slash returns NotFound / false.
+        for path in ["plain.txt/", "plain.txt/child", "plain.txt/child/"] {
+            let err = op
+                .stat(path)
+                .await
+                .expect_err(&format!("stat {path:?} must fail"));
+            assert_eq!(err.kind(), ErrorKind::NotFound, "stat {path:?}: {err:?}");
+            assert!(
+                !op.exists(path)
+                    .await
+                    .unwrap_or_else(|err| panic!("exists {path:?} failed: {err:?}")),
+                "exists {path:?} must be false"
+            );
+        }
+
+        // Direct Service::stat (without SimulateLayer) must also reject a file addressed as a dir.
+        let service = GitBuilder::default()
+            .repository(&repository)
+            .resolve_lfs(false)
+            .build()
+            .unwrap();
+        let ctx = OperationContext::new();
+        let err = service
+            .stat(&ctx, "plain.txt/", OpStat::default())
+            .await
+            .expect_err("service stat plain.txt/ must fail");
+        assert_eq!(err.kind(), ErrorKind::NotFound, "{err:?}");
+
+        // Valid files and directories keep working as expected.
+        assert_eq!(op.stat("plain.txt").await.unwrap().mode(), EntryMode::FILE);
+        assert_eq!(op.stat("sub/").await.unwrap().mode(), EntryMode::DIR);
+        assert!(op.exists("plain.txt").await.unwrap());
+        assert!(op.exists("sub/").await.unwrap());
+    }
 }

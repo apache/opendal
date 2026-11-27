@@ -105,7 +105,7 @@ jobs:
             -e HOST_GID="$HOST_GID" \
             -v "$GITHUB_WORKSPACE":/work \
             -w /work/bindings/java \
-            rust:1.91-alpine3.20 \
+            rust:1.95-alpine3.22 \
             sh -lc '
               set -eu
               apk add --no-cache python3 build-base cmake pkgconfig git protobuf protobuf-dev sqlite-dev zlib-dev

@@ -69,6 +69,13 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         tests.extend(async_trials!(op, test_redis_list_literal_prefix));
     }
 
+    if op.info().scheme() == "etcd" {
+        tests.extend(async_trials!(
+            op,
+            test_etcd_recursive_list_without_simulation
+        ));
+    }
+
     if cap.read && !cap.write && cap.list {
         tests.extend(async_trials!(op, test_list_only))
     }
@@ -251,6 +258,28 @@ pub async fn test_redis_list_literal_prefix(op: Operator) -> Result<()> {
     assert_eq!(actual, ["a.jpg", "nested/猫.jpg"]);
 
     op.delete_with(&base).recursive(true).await?;
+    Ok(())
+}
+
+/// Native etcd listings include descendants and stored directory markers.
+pub async fn test_etcd_recursive_list_without_simulation(op: Operator) -> Result<()> {
+    let native = Operator::from_parts(op.base_context().clone(), op.base_service().clone());
+    let prefix = format!("{}/", uuid::Uuid::new_v4());
+    let empty_dir = format!("{prefix}empty/");
+    let nested_file = format!("{prefix}implicit/file.txt");
+    TEST_FIXTURE.add_path(empty_dir.clone());
+    TEST_FIXTURE.add_path(nested_file.clone());
+    op.create_dir(&empty_dir).await?;
+    op.write(&nested_file, "data").await?;
+
+    let mut entries = native.list_with(&prefix).recursive(true).await?;
+    entries.sort_unstable_by(|left, right| left.path().cmp(right.path()));
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        [empty_dir.as_str(), nested_file.as_str()]
+    );
+    assert_eq!(entries[0].metadata().mode(), EntryMode::DIR);
+    assert!(native.info().capability().list_with_recursive);
     Ok(())
 }
 
@@ -855,17 +884,47 @@ pub async fn test_list_files_with_deleted(op: Operator) -> Result<()> {
     );
 
     op.write(file_path.as_str(), "2").await?;
+    let gcs_generation = if op.info().scheme() == "gcs" {
+        let metadata = op.stat(&file_path).await?;
+        Some(metadata.version().expect("GCS generation").to_string())
+    } else {
+        None
+    };
     op.delete(file_path.as_str()).await?;
 
-    // This file has been deleted, list with deleted should contain its versions and delete marker.
+    let mut gcs_archives = Vec::new();
+    if let Some(generation) = &gcs_generation {
+        // A versioned GCS bucket archives a name-deleted generation. Delete
+        // it explicitly only when the ordinary version listing still finds it.
+        for entry in op.list_with(&file_path).versions(true).await? {
+            if entry.path() == file_path {
+                let version = entry.metadata().version().expect("GCS generation");
+                if version == generation {
+                    op.delete_with(&file_path).version(version).await?;
+                } else {
+                    gcs_archives.push(version.to_string());
+                }
+            }
+        }
+    }
+
     let mut ds = op.list_with(&file_path).deleted(true).await?;
-    ds.retain(|de| de.path() == file_path && de.metadata().is_deleted());
+    ds.retain(|de| {
+        de.path() == file_path
+            && de.metadata().is_deleted()
+            && gcs_generation
+                .as_deref()
+                .is_none_or(|generation| de.metadata().version() == Some(generation))
+    });
 
     assert_eq!(
         ds.len(),
         1,
         "deleted file should be found and only have one"
     );
+    for version in gcs_archives {
+        op.delete_with(&file_path).version(&version).await?;
+    }
 
     Ok(())
 }

@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.opendal.Capability;
+import org.apache.opendal.DeleteOptions;
 import org.apache.opendal.Entry;
 import org.apache.opendal.ListOptions;
 import org.apache.opendal.Metadata;
@@ -320,13 +321,38 @@ class AsyncListTest extends BehaviorTestBase {
         asyncOp().createDir(dir).join();
 
         asyncOp().write(path, "data").join();
-        asyncOp().delete(path).join();
-
         ListOptions options = ListOptions.builder().deleted(true).build();
-        List<Entry> entries = asyncOp().list(dir, options).join();
+        assertThat(asyncOp().list(dir, options).join())
+                .extracting(Entry::getPath)
+                .contains(path);
 
-        List<String> actual = entries.stream().map(Entry::getPath).sorted().collect(Collectors.toList());
-        assertThat(actual).contains(path);
+        boolean gcs = "gcs".equals(asyncOp().info.scheme);
+        String generation = gcs ? asyncOp().stat(path).join().getVersion() : null;
+        if (gcs) {
+            assertThat(generation).isNotEmpty();
+        }
+        asyncOp().delete(path).join();
+        if (gcs) {
+            ListOptions versions = ListOptions.builder().versions(true).build();
+            if (asyncOp().list(path, versions).join().stream()
+                    .anyMatch(entry -> entry.getPath().equals(path)
+                            && generation.equals(entry.getMetadata().getVersion()))) {
+                asyncOp()
+                        .delete(
+                                path,
+                                DeleteOptions.builder().version(generation).build())
+                        .join();
+            }
+        }
+
+        List<Entry> entries = asyncOp().list(dir, options).join();
+        assertThat(entries).extracting(Entry::getPath).contains(path);
+        if (gcs) {
+            assertThat(asyncOp().list(path).join()).isEmpty();
+            assertThat(entries)
+                    .anyMatch(entry -> entry.getPath().equals(path)
+                            && generation.equals(entry.getMetadata().getVersion()));
+        }
 
         asyncOp().removeAll(dir).join();
     }

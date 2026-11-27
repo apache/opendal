@@ -9,6 +9,7 @@ Depending on its configuration and the backing system, this service can expose:
 - [x] delete
 - [x] list
 - [x] copy
+- [x] restore
 - [ ] rename
 - [x] presign
 
@@ -20,6 +21,47 @@ Inspect the effective capability set with [`opendal_core::Operator::info`] and
 Use [`crate::GcsConfig`] for serializable configuration and this builder's
 methods for direct construction. The field and method documentation defines
 accepted values, defaults, and environment interaction.
+
+## CRC32C checksums
+
+The authenticated default JSON endpoint verifies CRC32C before committing writes.
+`WriteChecksum::Any` and `WriteChecksum::Fast` select CRC32C. `Algo` and `Expected`
+accept CRC32C. Successful checksum writes return the verified digest in their
+metadata. A mismatched expected digest returns `ChecksumMismatch`. Presigned
+writes reject checksum intents.
+
+Object stat metadata describes the stored bytes. Read metadata includes CRC32C
+when the response covers the entire stored representation.
+
+## Listing deleted objects
+
+`deleted(true)` includes retained soft-deleted generations alongside live
+objects. Add `versions(true)` to include readable noncurrent generations as
+well. In a versioned bucket, deleting by name can leave a readable noncurrent
+generation. It appears in version listings until it is soft-deleted or purged.
+
+The option uses the authenticated default Google Cloud Storage JSON endpoint
+and requires a bucket with a soft-delete policy. Without that policy, the list
+returns the GCS request error. Soft-deleted objects that require a hierarchical
+namespace restore token return `Unsupported`. Each listed soft-deleted object
+has its generation and `is_deleted` flag. Listing does not determine its
+`is_current` status.
+
+## Restore
+
+Restore uses the authenticated Google Cloud Storage JSON API. A path-only
+restore leaves a live object unchanged. If the path is absent, it selects the
+most recently deleted recoverable generation by comparing when generations
+became noncurrent or soft-deleted. A concurrent writer that recreates the live
+object wins the destination precondition.
+
+A version-selected restore takes a GCS generation ID and creates a new live
+object from that generation. `if_not_exists` applies a destination generation
+precondition to both rewrite and soft-delete restoration. Restoring a
+soft-deleted generation preserves the retained source. Recovery depends on
+Object Versioning or Soft Delete and on the caller's object permissions.
+Soft-deleted generations that require a hierarchical namespace restore token
+return `Unsupported`.
 
 ## Options to authenticate to GCS
 

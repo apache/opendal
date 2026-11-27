@@ -246,6 +246,9 @@ struct TailCutConfig {
 /// significantly slower than the historical baseline (for example, slower than
 /// P95).
 ///
+/// Active deadlines use the operation context's executor timer. The layer
+/// falls back to Tokio timers when [`Execute::sleep`] returns `None`.
+///
 /// Create this layer with [`TailCutLayer::builder()`]. Clone it to share
 /// statistics across multiple operators.
 ///
@@ -346,16 +349,22 @@ impl TailCutService {
         Some(deadline.clamp(self.config.min_deadline, self.config.max_deadline))
     }
 
-    async fn with_deadline<F, T>(&self, op: Operation, size: Option<u64>, fut: F) -> Result<T>
+    async fn with_deadline<F, T>(
+        &self,
+        ctx: &OperationContext,
+        op: Operation,
+        size: Option<u64>,
+        fut: F,
+    ) -> Result<T>
     where
         F: Future<Output = Result<T>>,
     {
         let start = Instant::now();
 
         let result = if let Some(deadline) = self.calculate_deadline(op, size) {
-            match tokio::time::timeout(deadline, fut).await {
-                Ok(res) => res,
-                Err(_) => Err(Error::new(ErrorKind::Unexpected, "cancelled by tail cut")
+            match run_with_deadline(ctx.executor().inner(), deadline, fut).await {
+                Some(res) => res,
+                None => Err(Error::new(ErrorKind::Unexpected, "cancelled by tail cut")
                     .with_operation(op)
                     .with_context("percentile", format!("P{}", self.config.percentile))
                     .with_context("deadline", format!("{:?}", deadline))
@@ -391,9 +400,14 @@ impl Service for TailCutService {
     }
 
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
-        self.inner
-            .compose(ctx, to, args)
-            .map(|c| TailCutWrapper::new(c, self.config.clone(), self.stats.clone()))
+        self.inner.compose(ctx, to, args).map(|c| {
+            TailCutWrapper::new(
+                c,
+                self.config.clone(),
+                self.stats.clone(),
+                ctx.executor().clone(),
+            )
+        })
     }
 
     async fn create_dir(
@@ -403,6 +417,7 @@ impl Service for TailCutService {
         args: OpCreateDir,
     ) -> Result<RpCreateDir> {
         self.with_deadline(
+            ctx,
             Operation::CreateDir,
             None,
             self.inner.create_dir(ctx, path, args),
@@ -411,15 +426,25 @@ impl Service for TailCutService {
     }
 
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
-        self.inner
-            .read(ctx, path, args)
-            .map(|r| TailCutWrapper::new(r, self.config.clone(), self.stats.clone()))
+        self.inner.read(ctx, path, args).map(|r| {
+            TailCutWrapper::new(
+                r,
+                self.config.clone(),
+                self.stats.clone(),
+                ctx.executor().clone(),
+            )
+        })
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        self.inner
-            .write(ctx, path, args)
-            .map(|w| TailCutWrapper::new(w, self.config.clone(), self.stats.clone()))
+        self.inner.write(ctx, path, args).map(|w| {
+            TailCutWrapper::new(
+                w,
+                self.config.clone(),
+                self.stats.clone(),
+                ctx.executor().clone(),
+            )
+        })
     }
 
     fn copy(
@@ -429,9 +454,14 @@ impl Service for TailCutService {
         to: &str,
         args: OpCopy,
     ) -> Result<Self::Copier> {
-        self.inner
-            .copy(ctx, from, to, args)
-            .map(|c| TailCutWrapper::new(c, self.config.clone(), self.stats.clone()))
+        self.inner.copy(ctx, from, to, args).map(|c| {
+            TailCutWrapper::new(
+                c,
+                self.config.clone(),
+                self.stats.clone(),
+                ctx.executor().clone(),
+            )
+        })
     }
 
     async fn rename(
@@ -442,6 +472,7 @@ impl Service for TailCutService {
         args: OpRename,
     ) -> Result<RpRename> {
         self.with_deadline(
+            ctx,
             Operation::Rename,
             None,
             self.inner.rename(ctx, from, to, args),
@@ -456,6 +487,7 @@ impl Service for TailCutService {
         args: OpRestore,
     ) -> Result<RpRestore> {
         self.with_deadline(
+            ctx,
             Operation::Restore,
             None,
             self.inner.restore(ctx, path, args),
@@ -464,20 +496,30 @@ impl Service for TailCutService {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
-        self.with_deadline(Operation::Stat, None, self.inner.stat(ctx, path, args))
+        self.with_deadline(ctx, Operation::Stat, None, self.inner.stat(ctx, path, args))
             .await
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
-        self.inner
-            .delete(ctx)
-            .map(|d| TailCutWrapper::new(d, self.config.clone(), self.stats.clone()))
+        self.inner.delete(ctx).map(|d| {
+            TailCutWrapper::new(
+                d,
+                self.config.clone(),
+                self.stats.clone(),
+                ctx.executor().clone(),
+            )
+        })
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        self.inner
-            .list(ctx, path, args)
-            .map(|l| TailCutWrapper::new(l, self.config.clone(), self.stats.clone()))
+        self.inner.list(ctx, path, args).map(|l| {
+            TailCutWrapper::new(
+                l,
+                self.config.clone(),
+                self.stats.clone(),
+                ctx.executor().clone(),
+            )
+        })
     }
 
     async fn presign(
@@ -487,6 +529,7 @@ impl Service for TailCutService {
         args: OpPresign,
     ) -> Result<RpPresign> {
         self.with_deadline(
+            ctx,
             Operation::Presign,
             None,
             self.inner.presign(ctx, path, args),
@@ -500,14 +543,21 @@ struct TailCutWrapper<R> {
     inner: R,
     config: Arc<TailCutConfig>,
     stats: Arc<TailCutStats>,
+    executor: Executor,
 }
 
 impl<R> TailCutWrapper<R> {
-    fn new(inner: R, config: Arc<TailCutConfig>, stats: Arc<TailCutStats>) -> Self {
+    fn new(
+        inner: R,
+        config: Arc<TailCutConfig>,
+        stats: Arc<TailCutStats>,
+        executor: Executor,
+    ) -> Self {
         Self {
             inner,
             config,
             stats,
+            executor,
         }
     }
 
@@ -535,6 +585,7 @@ impl<R> TailCutWrapper<R> {
 
     #[inline]
     async fn with_io_deadline<F, T>(
+        executor: &Executor,
         deadline: Option<Duration>,
         percentile: u8,
         stats: &Arc<TailCutStats>,
@@ -549,9 +600,9 @@ impl<R> TailCutWrapper<R> {
         let start = Instant::now();
 
         let result = if let Some(dl) = deadline {
-            match tokio::time::timeout(dl, fut).await {
-                Ok(res) => res,
-                Err(_) => Err(
+            match run_with_deadline(executor.inner(), dl, fut).await {
+                Some(res) => res,
+                None => Err(
                     Error::new(ErrorKind::Unexpected, "io cancelled by tail cut")
                         .with_operation(key.operation())
                         .with_context("percentile", format!("P{}", percentile))
@@ -585,6 +636,7 @@ impl<R> TailCutWrapper<R> {
     /// network reads, and intermediate requests) cannot hang.
     #[inline]
     async fn with_buffered_io_deadline<F, T>(
+        executor: &Executor,
         deadline: Option<Duration>,
         percentile: u8,
         stats: &Arc<TailCutStats>,
@@ -600,9 +652,9 @@ impl<R> TailCutWrapper<R> {
         let tracked = YieldTrackingFuture::new(fut);
 
         let (result, yielded) = if let Some(dl) = deadline {
-            match tokio::time::timeout(dl, tracked).await {
-                Ok((res, yielded)) => (res, yielded),
-                Err(_) => (
+            match run_with_deadline(executor.inner(), dl, tracked).await {
+                Some((res, yielded)) => (res, yielded),
+                None => (
                     Err(
                         Error::new(ErrorKind::Unexpected, "io cancelled by tail cut")
                             .with_operation(key.operation())
@@ -625,6 +677,23 @@ impl<R> TailCutWrapper<R> {
 
         result
     }
+}
+
+async fn run_with_deadline<F: Future>(
+    executor: &dyn Execute,
+    duration: Duration,
+    future: F,
+) -> Option<F::Output> {
+    let Some(mut timer) = executor.sleep(duration) else {
+        return tokio::time::timeout(duration, future).await.ok();
+    };
+
+    let mut future = std::pin::pin!(future);
+    std::future::poll_fn(|cx| match future.as_mut().poll(cx) {
+        Poll::Ready(output) => Poll::Ready(Some(output)),
+        Poll::Pending => timer.as_mut().poll(cx).map(|()| None),
+    })
+    .await
 }
 
 /// Future wrapper that reports whether the inner future ever returned
@@ -661,6 +730,7 @@ impl<R: oio::ReadStream> oio::ReadStream for TailCutWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let deadline = self.calculate_deadline(StatKey::ReadStream);
         Self::with_buffered_io_deadline(
+            &self.executor,
             deadline,
             self.config.percentile,
             &self.stats,
@@ -676,6 +746,7 @@ impl<R: oio::Read> oio::Read for TailCutWrapper<R> {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let deadline = self.calculate_deadline(StatKey::ReadOpen);
         let (rp, stream) = Self::with_io_deadline(
+            &self.executor,
             deadline,
             self.config.percentile,
             &self.stats,
@@ -691,6 +762,7 @@ impl<R: oio::Read> oio::Read for TailCutWrapper<R> {
                 stream,
                 self.config.clone(),
                 self.stats.clone(),
+                self.executor.clone(),
             )) as Box<dyn oio::ReadStreamDyn>,
         ))
     }
@@ -699,6 +771,7 @@ impl<R: oio::Read> oio::Read for TailCutWrapper<R> {
         let size = range.size();
         let deadline = self.calculate_deadline_for(Operation::Read, size);
         Self::with_io_deadline(
+            &self.executor,
             deadline,
             self.config.percentile,
             &self.stats,
@@ -715,6 +788,7 @@ impl<R: oio::Write> oio::Write for TailCutWrapper<R> {
         let size = Some(bs.len() as u64);
         let deadline = self.calculate_deadline_for(Operation::Write, size);
         Self::with_buffered_io_deadline(
+            &self.executor,
             deadline,
             self.config.percentile,
             &self.stats,
@@ -729,6 +803,7 @@ impl<R: oio::Write> oio::Write for TailCutWrapper<R> {
         let size = range.size();
         let deadline = self.calculate_deadline_for(Operation::Write, size);
         Self::with_io_deadline(
+            &self.executor,
             deadline,
             self.config.percentile,
             &self.stats,
@@ -742,6 +817,7 @@ impl<R: oio::Write> oio::Write for TailCutWrapper<R> {
     async fn close(&mut self) -> Result<Metadata> {
         let deadline = self.calculate_deadline(Operation::Write);
         Self::with_io_deadline(
+            &self.executor,
             deadline,
             self.config.percentile,
             &self.stats,
@@ -755,6 +831,7 @@ impl<R: oio::Write> oio::Write for TailCutWrapper<R> {
     async fn abort(&mut self) -> Result<()> {
         let deadline = self.calculate_deadline(Operation::Write);
         Self::with_io_deadline(
+            &self.executor,
             deadline,
             self.config.percentile,
             &self.stats,
@@ -770,6 +847,7 @@ impl<R: oio::List> oio::List for TailCutWrapper<R> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         let deadline = self.calculate_deadline(Operation::List);
         Self::with_buffered_io_deadline(
+            &self.executor,
             deadline,
             self.config.percentile,
             &self.stats,
@@ -785,6 +863,7 @@ impl<R: oio::Delete> oio::Delete for TailCutWrapper<R> {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         let deadline = self.calculate_deadline(Operation::Delete);
         Self::with_buffered_io_deadline(
+            &self.executor,
             deadline,
             self.config.percentile,
             &self.stats,
@@ -798,6 +877,7 @@ impl<R: oio::Delete> oio::Delete for TailCutWrapper<R> {
     async fn close(&mut self) -> Result<()> {
         let deadline = self.calculate_deadline(Operation::Delete);
         Self::with_buffered_io_deadline(
+            &self.executor,
             deadline,
             self.config.percentile,
             &self.stats,
@@ -813,6 +893,7 @@ impl<C: oio::Copy> oio::Copy for TailCutWrapper<C> {
     async fn next(&mut self) -> Result<Option<usize>> {
         let deadline = self.calculate_deadline(Operation::Copy);
         Self::with_io_deadline(
+            &self.executor,
             deadline,
             self.config.percentile,
             &self.stats,
@@ -826,6 +907,7 @@ impl<C: oio::Copy> oio::Copy for TailCutWrapper<C> {
     async fn close(&mut self) -> Result<Metadata> {
         let deadline = self.calculate_deadline(Operation::Copy);
         Self::with_io_deadline(
+            &self.executor,
             deadline,
             self.config.percentile,
             &self.stats,
@@ -839,6 +921,7 @@ impl<C: oio::Copy> oio::Copy for TailCutWrapper<C> {
     async fn abort(&mut self) -> Result<()> {
         let deadline = self.calculate_deadline(Operation::Copy);
         Self::with_io_deadline(
+            &self.executor,
             deadline,
             self.config.percentile,
             &self.stats,
@@ -854,6 +937,7 @@ impl<C: oio::Compose> oio::Compose for TailCutWrapper<C> {
     async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
         let deadline = self.calculate_deadline(Operation::Compose);
         Self::with_buffered_io_deadline(
+            &self.executor,
             deadline,
             self.config.percentile,
             &self.stats,
@@ -867,6 +951,7 @@ impl<C: oio::Compose> oio::Compose for TailCutWrapper<C> {
     async fn close(&mut self) -> Result<Metadata> {
         let deadline = self.calculate_deadline(Operation::Compose);
         Self::with_buffered_io_deadline(
+            &self.executor,
             deadline,
             self.config.percentile,
             &self.stats,
@@ -1186,6 +1271,9 @@ impl TimeSlice {
         }
     }
 }
+
+#[cfg(test)]
+mod executor_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1639,6 +1727,7 @@ mod tests {
             Box::new(inner) as oio::Deleter,
             layer.config.clone(),
             layer.stats.clone(),
+            Executor::with(()),
         )
     }
 
@@ -1730,6 +1819,7 @@ mod tests {
             Box::new(BufferedComposer { buffered: 0 }) as oio::Composer,
             layer.config.clone(),
             layer.stats.clone(),
+            Executor::with(()),
         );
 
         for i in 0..32 {
@@ -1944,6 +2034,7 @@ mod tests {
             Box::new(lister) as oio::Lister,
             layer.config.clone(),
             layer.stats.clone(),
+            Executor::with(()),
         );
 
         let mut entries = 0;
@@ -1993,6 +2084,7 @@ mod tests {
             Box::new(writer) as oio::Writer,
             layer.config.clone(),
             layer.stats.clone(),
+            Executor::with(()),
         );
 
         oio::Write::write(&mut writer, Buffer::from("hello"))
@@ -2047,6 +2139,7 @@ mod tests {
             },
             layer.config.clone(),
             layer.stats.clone(),
+            Executor::with(()),
         );
 
         for _ in 0..2 {
@@ -2132,6 +2225,7 @@ mod tests {
                 },
                 layer.config.clone(),
                 layer.stats.clone(),
+                Executor::with(()),
             );
 
             let (_, mut stream) = oio::Read::open(&fast_open_reader, range).await.unwrap();
@@ -2185,6 +2279,7 @@ mod tests {
                 },
                 layer.config.clone(),
                 layer.stats.clone(),
+                Executor::with(()),
             );
             oio::Read::open(&slow_open_reader, range)
                 .await
@@ -2222,6 +2317,7 @@ mod tests {
                 },
                 layer.config.clone(),
                 layer.stats.clone(),
+                Executor::with(()),
             );
 
             let (_, mut fast_stream) = oio::Read::open(&fast_reader, range).await.unwrap();
@@ -2237,6 +2333,7 @@ mod tests {
                 },
                 layer.config.clone(),
                 layer.stats.clone(),
+                Executor::with(()),
             );
             let open_err = match oio::Read::open(&slow_open_reader, range).await {
                 Ok(_) => panic!("slow Read::open must be cancelled by tail cut"),
@@ -2256,6 +2353,7 @@ mod tests {
                 },
                 layer.config.clone(),
                 layer.stats.clone(),
+                Executor::with(()),
             );
             let (_, mut slow_stream) = oio::Read::open(&slow_stream_reader, range).await.unwrap();
             let stream_err = slow_stream
@@ -2324,6 +2422,7 @@ mod tests {
                 },
                 layer.config.clone(),
                 layer.stats.clone(),
+                Executor::with(()),
             );
 
             let small_size = 1024u64;

@@ -23,10 +23,10 @@ from typing import Any, SupportsIndex, final
 from typing_extensions import Unpack
 
 from .capability import Capability
-from .config import ServiceConfig
+from .config import ContextConfig, LayerConfig, ServiceConfig
 from .file import AsyncFile, File
 from .layers import Layer
-from .options import OpenKwargs
+from .options import ChecksumAlgorithm, OpenKwargs
 from .services import Scheme
 from .types import Entry, Metadata, PresignedRequest
 
@@ -207,23 +207,35 @@ class AsyncOperator:
             An awaitable that returns True if the path exists, False otherwise.
         """
     @classmethod
-    def from_config(cls, /, config: ServiceConfig) -> AsyncOperator:
+    def from_config(
+        cls,
+        /,
+        config: ServiceConfig,
+        *,
+        context: ContextConfig | None = None,
+        layers: collections.abc.Sequence[LayerConfig] | None = None,
+    ) -> AsyncOperator:
         """
-        Create a new `AsyncOperator` from a typed service config.
+        Create a new `AsyncOperator` from typed configuration.
 
-        The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
-        ``scheme`` key selects the service, so a static type checker rejects a
-        wrong scheme, a missing required key, an unknown key, and a wrong value
-        type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
-        ``os.PathLike[str]``, and flat ``list`` or ``tuple`` of those) are
-        converted to the string form core consumes. ``bytes``-like objects,
-        non-dict ``Mapping``s, nested sequences, and other iterables raise
-        ``Unsupported``.
+        A static type checker validates the service scheme and the options for
+        the service, context, and layers. The binding converts non-string values
+        such as booleans, integers, finite floats, durations, paths, and flat
+        lists or tuples to the strings the registry consumes.
+        Service config values such as bytes, mappings, and nested sequences
+        raise ``Unsupported``.
+
+        Construction options are stored when pickling the operator and may
+        include credentials. Reapply layers added via ``.layer()`` after unpickling.
 
         Parameters
         ----------
         config : ServiceConfig
             A service configuration such as ``opendal.config.S3Config``.
+        context : ContextConfig | None
+            Optional per-operator runtime settings, such as an HTTP proxy.
+        layers : Sequence[LayerConfig] | None
+            Optional declarative layers, applied in sequence order.
 
         Returns
         -------
@@ -232,14 +244,14 @@ class AsyncOperator:
 
         Examples
         --------
-        ```python
-        import opendal
-        from opendal.config import S3Config
+        .. code-block:: python
 
-        op = opendal.AsyncOperator.from_config(
-            S3Config(scheme="s3", bucket="my-bucket")
-        )
-        ```
+            import opendal
+            from opendal.config import S3Config
+
+            op = opendal.AsyncOperator.from_config(
+                S3Config(scheme="s3", bucket="my-bucket")
+            )
         """
     @classmethod
     def from_uri(cls, /, uri: str, **kwargs: str) -> AsyncOperator:
@@ -266,16 +278,16 @@ class AsyncOperator:
 
         Examples
         --------
-        ```python
-        from urllib.parse import urlencode
-        import opendal
+        .. code-block:: python
 
-        op = opendal.AsyncOperator.from_uri("memory://")
-        query = urlencode({"region": "us-east-1"})
-        op = opendal.AsyncOperator.from_uri(
-            f"s3://bucket/path?{query}"
-        )
-        ```
+            from urllib.parse import urlencode
+            import opendal
+
+            op = opendal.AsyncOperator.from_uri("memory://")
+            query = urlencode({"region": "us-east-1"})
+            op = opendal.AsyncOperator.from_uri(
+                f"s3://bucket/path?{query}"
+            )
         """
     def layer(self, /, layer: Layer) -> AsyncOperator:
         """
@@ -345,7 +357,10 @@ class AsyncOperator:
             `"rt"` raise `ValueError`. `AsyncFile` writes bytes, so encode text
             with `str.encode()` and decode reads with `bytes.decode()`.
         **kwargs : dict
-            Additional options for the underlying reader or writer.
+            Additional options for the underlying reader or writer. In write and
+            create modes, `checksum` selects the `ChecksumAlgorithm` the service
+            uses to verify the full object before committing. Omit `checksum` or
+            pass `None` to use the service default.
 
         Raises
         ------
@@ -356,12 +371,16 @@ class AsyncOperator:
         ValueError
             If the mode is invalid or unsupported, including text (`"t"`) and
             update (`"+"`) modes, or if the mode conflicts with `append` or
-            `if_not_exists` in `**kwargs`.
+            `if_not_exists` in `**kwargs`, or if the checksum name is unrecognized.
         ConditionNotMatch
             If create mode (`"x"`) targets an existing file. The failure can
             surface from `write()` or `close()`.
         Unsupported
-            If the service does not support append or `if_not_exists` writes.
+            If the service does not support the requested write options, including
+            the selected checksum algorithm. Append writes cannot request a checksum.
+        ChecksumMismatch
+            If the checksum fails verification. The failure can surface from
+            `write()` or `close()`.
 
         Returns
         -------
@@ -652,9 +671,9 @@ class AsyncOperator:
         """
         Recursively list entries in the given directory.
 
-        Deprecated
-        ----------
-            Use `list()` with `recursive=True` instead.
+        Notes
+        -----
+        This method is deprecated. Use `list()` with `recursive=True` instead.
 
         Parameters
         ----------
@@ -743,6 +762,7 @@ class AsyncOperator:
         if_none_match: str | None = None,
         if_not_exists: bool | None = None,
         user_metadata: dict[str, str] | None = None,
+        checksum: ChecksumAlgorithm | None = None,
     ) -> collections.abc.Awaitable[None]:
         """
         Write bytes to a file at the given path.
@@ -778,6 +798,19 @@ class AsyncOperator:
             Whether to fail if the file already exists.
         user_metadata : dict, optional
             The user metadata to set on the file.
+        checksum : ChecksumAlgorithm | None, optional
+            The algorithm the service uses to verify the full object before
+            committing. Omit it or pass `None` to use the service default.
+
+        Raises
+        ------
+        ValueError
+            If the checksum name is unrecognized.
+        Unsupported
+            If the service cannot verify the write with the selected algorithm,
+            including when appending.
+        ChecksumMismatch
+            If the checksum fails verification.
 
         Returns
         -------
@@ -933,23 +966,35 @@ class Operator:
             True if the path exists, False otherwise.
         """
     @classmethod
-    def from_config(cls, /, config: ServiceConfig) -> Operator:
+    def from_config(
+        cls,
+        /,
+        config: ServiceConfig,
+        *,
+        context: ContextConfig | None = None,
+        layers: collections.abc.Sequence[LayerConfig] | None = None,
+    ) -> Operator:
         """
-        Create a new blocking `Operator` from a typed service config.
+        Create a new blocking `Operator` from typed configuration.
 
-        The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
-        ``scheme`` key selects the service, so a static type checker rejects a
-        wrong scheme, a missing required key, an unknown key, and a wrong value
-        type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
-        ``os.PathLike[str]``, and flat ``list`` or ``tuple`` of those) are
-        converted to the string form core consumes. ``bytes``-like objects,
-        non-dict ``Mapping``s, nested sequences, and other iterables raise
-        ``Unsupported``.
+        A static type checker validates the service scheme and the options for
+        the service, context, and layers. The binding converts non-string values
+        such as booleans, integers, finite floats, durations, paths, and flat
+        lists or tuples to the strings the registry consumes.
+        Service config values such as bytes, mappings, and nested sequences
+        raise ``Unsupported``.
+
+        Construction options are stored when pickling the operator and may
+        include credentials. Reapply layers added via ``.layer()`` after unpickling.
 
         Parameters
         ----------
         config : ServiceConfig
             A service configuration such as ``opendal.config.S3Config``.
+        context : ContextConfig | None
+            Optional per-operator runtime settings, such as an HTTP proxy.
+        layers : Sequence[LayerConfig] | None
+            Optional declarative layers, applied in sequence order.
 
         Returns
         -------
@@ -958,14 +1003,14 @@ class Operator:
 
         Examples
         --------
-        ```python
-        import opendal
-        from opendal.config import S3Config
+        .. code-block:: python
 
-        op = opendal.Operator.from_config(
-            S3Config(scheme="s3", bucket="my-bucket")
-        )
-        ```
+            import opendal
+            from opendal.config import S3Config
+
+            op = opendal.Operator.from_config(
+                S3Config(scheme="s3", bucket="my-bucket")
+            )
         """
     @classmethod
     def from_uri(cls, /, uri: str, **kwargs: str) -> Operator:
@@ -992,14 +1037,14 @@ class Operator:
 
         Examples
         --------
-        ```python
-        from urllib.parse import urlencode
-        import opendal
+        .. code-block:: python
 
-        op = opendal.Operator.from_uri("memory://")
-        query = urlencode({"region": "us-east-1"})
-        op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
-        ```
+            from urllib.parse import urlencode
+            import opendal
+
+            op = opendal.Operator.from_uri("memory://")
+            query = urlencode({"region": "us-east-1"})
+            op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
         """
     def layer(self, /, layer: Layer) -> Operator:
         """
@@ -1069,7 +1114,10 @@ class Operator:
             `"rt"` raise `ValueError`. Wrap the returned file with
             `io.TextIOWrapper` to read or write text.
         **kwargs
-            Additional options for the underlying reader or writer.
+            Additional options for the underlying reader or writer. In write and
+            create modes, `checksum` selects the `ChecksumAlgorithm` the service
+            uses to verify the full object before committing. Omit `checksum` or
+            pass `None` to use the service default.
 
         Raises
         ------
@@ -1080,12 +1128,16 @@ class Operator:
         ValueError
             If the mode is invalid or unsupported, including text (`"t"`) and
             update (`"+"`) modes, or if the mode conflicts with `append` or
-            `if_not_exists` in `**kwargs`.
+            `if_not_exists` in `**kwargs`, or if the checksum name is unrecognized.
         ConditionNotMatch
             If create mode (`"x"`) targets an existing file. The failure can
             surface from `write()`, `flush()`, or `close()`.
         Unsupported
-            If the service does not support append or `if_not_exists` writes.
+            If the service does not support the requested write options, including
+            the selected checksum algorithm. Append writes cannot request a checksum.
+        ChecksumMismatch
+            If the checksum fails verification. The failure can surface from
+            `write()`, `flush()`, or `close()`.
 
         Returns
         -------
@@ -1201,9 +1253,9 @@ class Operator:
         """
         Recursively list entries in the given directory.
 
-        Deprecated
-        ----------
-            Use `list()` with `recursive=True` instead.
+        Notes
+        -----
+        This method is deprecated. Use `list()` with `recursive=True` instead.
 
         Parameters
         ----------
@@ -1292,6 +1344,7 @@ class Operator:
         if_none_match: str | None = None,
         if_not_exists: bool | None = None,
         user_metadata: dict[str, str] | None = None,
+        checksum: ChecksumAlgorithm | None = None,
     ) -> None:
         """
         Write bytes to a file at the given path.
@@ -1327,4 +1380,17 @@ class Operator:
             Whether to fail if the file already exists.
         user_metadata : dict, optional
             The user metadata to set on the file.
+        checksum : ChecksumAlgorithm | None, optional
+            The algorithm the service uses to verify the full object before
+            committing. Omit it or pass `None` to use the service default.
+
+        Raises
+        ------
+        ValueError
+            If the checksum name is unrecognized.
+        Unsupported
+            If the service cannot verify the write with the selected algorithm,
+            including when appending.
+        ChecksumMismatch
+            If the checksum fails verification.
         """

@@ -49,6 +49,7 @@ internal struct OpenDALCapability
     [MarshalAs(UnmanagedType.U1)] internal byte readWithOverrideContentType;
     [MarshalAs(UnmanagedType.U1)] internal byte readWithVersion;
     [MarshalAs(UnmanagedType.U1)] internal byte readWithSuffix;
+    [MarshalAs(UnmanagedType.U1)] internal byte readWithChecksum;
     [MarshalAs(UnmanagedType.U1)] internal byte write;
     [MarshalAs(UnmanagedType.U1)] internal byte writeCanMulti;
     [MarshalAs(UnmanagedType.U1)] internal byte writeCanEmpty;
@@ -66,6 +67,7 @@ internal struct OpenDALCapability
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithIfNotExists;
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithUserMetadata;
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithExpires;
+    [MarshalAs(UnmanagedType.U1)] internal byte writeWithChecksum;
     internal nuint writeMultiMaxSize;
     internal nuint writeMultiMinSize;
     internal nuint writeTotalMaxSize;

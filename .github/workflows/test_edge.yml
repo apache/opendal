@@ -30,12 +30,14 @@ on:
       - "core/testkit/**"
       - "!core/core/src/docs/**"
       - "core/edge/file_write_on_full_disk/**"
+      - "core/edge/memory_behavior_on_wasm/**"
       - "core/edge/opfs_wasm32/**"
       - "core/edge/s3_read_on_wasm/**"
       - "core/services/fs/**"
       - "core/services/opfs/**"
       - "core/services/s3/**"
       - "core/src/**"
+      - "core/tests/behavior/**"
       - "rust-toolchain.toml"
       - ".github/actions/setup/**"
       - ".github/workflows/test_edge.yml"
@@ -103,6 +105,32 @@ jobs:
 
       - name: Test in a dedicated worker
         run: wasm-pack test --headless --chrome --chromedriver "$CHROMEWEBDRIVER/chromedriver" -- --locked --features worker
+
+  test_memory_behavior_on_wasm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: core/edge/memory_behavior_on_wasm
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+
+      - name: Install WASM target and wasm-pack
+        shell: bash
+        run: |
+          rustup target add wasm32-unknown-unknown
+          wasm_pack_version=v0.15.1
+          archive="wasm-pack-${wasm_pack_version}-x86_64-unknown-linux-musl.tar.gz"
+          curl -fsSL --retry 3 "https://github.com/wasm-bindgen/wasm-pack/releases/download/${wasm_pack_version}/${archive}" \
+            | tar -xz -C "$RUNNER_TEMP" --strip-components=1 --wildcards '*/wasm-pack'
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Test Memory behavior in headless Chrome
+        run: wasm-pack test --headless --chrome --chromedriver "$CHROMEWEBDRIVER/chromedriver" -- --locked --test browser
 
   test_s3_read_on_wasm:
     runs-on: ubuntu-latest

@@ -192,6 +192,12 @@ class AsyncFile:
         -------
         coroutine
             An awaitable that returns the number of bytes written.
+
+        Raises
+        ------
+        ChecksumMismatch
+            If checksum verification fails during the write. This error also
+            inherits from `OSError`.
         """
 
 @final
@@ -242,6 +248,12 @@ class File:
         Passes pending input to the core writer. Storage chunks can remain
         buffered until more data arrives or `close()` completes the write.
         Is a no-op if the file is not `writable`.
+
+        Raises
+        ------
+        ChecksumMismatch
+            If checksum verification fails while flushing. This error also
+            inherits from `OSError`.
         """
     def read(self, /, size: SupportsIndex | None = None) -> bytes:
         """
@@ -384,4 +396,10 @@ class File:
         -------
         int
             The number of bytes written.
+
+        Raises
+        ------
+        ChecksumMismatch
+            If checksum verification fails during the write. This error also
+            inherits from `OSError`.
         """

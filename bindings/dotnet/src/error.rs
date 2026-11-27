@@ -75,6 +75,7 @@ pub enum ErrorCode {
     ConditionNotMatch = 10,
     RangeNotSatisfied = 11,
     Conflict = 12,
+    ChecksumMismatch = 13,
 }
 
 impl ErrorCode {
@@ -94,7 +95,25 @@ impl ErrorCode {
             ErrorKind::ConditionNotMatch => ErrorCode::ConditionNotMatch,
             ErrorKind::RangeNotSatisfied => ErrorCode::RangeNotSatisfied,
             ErrorKind::Conflict => ErrorCode::Conflict,
+            ErrorKind::ChecksumMismatch => ErrorCode::ChecksumMismatch,
             _ => ErrorCode::Unexpected,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::release_c_string;
+
+    #[test]
+    fn checksum_mismatch_has_a_distinct_ffi_error_code() {
+        let error = opendal::Error::new(ErrorKind::ChecksumMismatch, "checksum mismatch");
+        let mut payload = OpenDALError::from_opendal_error(error);
+        // SAFETY: The payload owns the string allocated by from_opendal_error.
+        unsafe { release_c_string(&mut payload.message) };
+
+        assert_eq!(payload.has_error, 1);
+        assert_eq!(payload.code, 13);
     }
 }

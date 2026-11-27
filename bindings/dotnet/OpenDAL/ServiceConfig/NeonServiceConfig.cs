@@ -37,6 +37,10 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? Bucket { get; init; }
         /// <summary>
+        /// Disable loading credentials from AWS environment variables and shared profile files. Set both `access_key_id` and `secret_access_key` when enabled.
+        /// </summary>
+        public bool? DisableConfigLoad { get; init; }
+        /// <summary>
         /// HTTPS S3 endpoint of the Neon branch, or an HTTP(S) custom endpoint.
         /// </summary>
         public string? Endpoint { get; init; }
@@ -65,6 +69,10 @@ namespace OpenDAL.ServiceConfig
             if (Bucket is not null)
             {
                 map["bucket"] = Utilities.ToOptionString(Bucket);
+            }
+            if (DisableConfigLoad is not null)
+            {
+                map["disable_config_load"] = Utilities.ToOptionString(DisableConfigLoad);
             }
             if (Endpoint is not null)
             {

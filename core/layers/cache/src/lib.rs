@@ -24,7 +24,7 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use opendal_core::raw::{Layer, OpRead, Servicer};
+use opendal_core::raw::{Layer, Servicer};
 use opendal_core::{Error, ErrorKind, Operator, Result};
 
 mod flight;
@@ -38,22 +38,17 @@ mod state;
 use service::CacheService;
 use state::State;
 
-/// The source path and options supplied when opening a reader.
+/// The source path supplied to the read cache policy.
 #[non_exhaustive]
+#[derive(Debug, Clone, Copy)]
 pub struct CacheReadRequest<'a> {
     path: &'a str,
-    args: &'a OpRead,
 }
 
 impl<'a> CacheReadRequest<'a> {
     /// Return the normalized source path.
     pub fn path(&self) -> &'a str {
         self.path
-    }
-
-    /// Return the source read options.
-    pub fn args(&self) -> &'a OpRead {
-        self.args
     }
 }
 
@@ -70,7 +65,7 @@ pub enum CacheDecision {
     CacheFor(Duration),
 }
 
-/// Decide whether to cache reads and how long their metadata remains fresh.
+/// Decide by source path whether to cache reads and how long their metadata remains fresh.
 pub trait CachePolicy: Send + Sync + 'static {
     /// Decide once for the reader, before any I/O.
     fn on_read(&self, req: &CacheReadRequest<'_>) -> CacheDecision;
@@ -85,9 +80,12 @@ where
     }
 }
 
+const DEFAULT_CHUNK_SIZE: usize = 1024 * 1024;
+
 /// Cache aligned source read chunks in another OpenDAL operator.
 ///
-/// The default chunk size is 1 MiB and the default metadata TTL is 60 seconds.
+/// The default chunk size is 1 MiB, capped by the cache operator's advertised
+/// maximum total write size. The default metadata TTL is 60 seconds.
 /// Use a cache backend with capacity eviction to reclaim chunks from old object
 /// identities. Use separate cache roots or instances for different tenants,
 /// endpoints, or credentials because fresh cache hits skip source I/O.
@@ -96,19 +94,31 @@ where
 /// requests. If a cached stream detects that the source changed after yielding
 /// bytes, restart the whole read and discard the partial result.
 ///
-/// Cross-instance invalidation is bounded by `min(ttl, 1s)`: each `CacheLayer`
-/// instance caches the shared recursive-delete generation key for up to
-/// `min(ttl, 1s)`, and a reused `Reader` caches its resolved metadata pointer
-/// locally for up to `min(ttl, 1s)` across range reads. Another instance
-/// sharing the same cache backend can therefore observe a recursive delete—or,
-/// on an already-reused `Reader`, a non-recursive mutation—up to `min(ttl, 1s)`
-/// later unless `ttl` is [`Duration::ZERO`]. A newly opened `Reader` checks
-/// shared cached metadata immediately for non-recursive mutations.
+/// Sources must expose a verifiable identity (an immutable `version` other than
+/// `"null"`, a strong `etag`, or `last_modified` + `content_length`) to be
+/// cached; reads without one pass through to the source. When a source exposes
+/// only `last_modified` and `content_length`, equal-length overwrites within
+/// the backend's timestamp resolution (such as 1-second mtime granularity) can
+/// keep the same identity and serve cached chunks across `ttl` boundaries.
+///
+/// Single-path mutations invalidate cached metadata for affected paths on
+/// completion. Reads explicitly selecting a non-immutable placeholder version
+/// such as `"null"` bypass the cache so local and external overwrites remain
+/// visible. For unversioned reads, external writes, recursive deletes,
+/// cancelled mutations, and cross-instance read/write races are bounded by
+/// `ttl` (subject to weak `last_modified` granularity above). Reads selecting
+/// an explicit immutable `version` skip `ttl` revalidation once cached until
+/// invalidated or evicted, even if the version is deleted externally. A reused `Reader` caches its
+/// resolved metadata pointer locally for up to `min(ttl, 1s)` across range
+/// reads, so completed cross-instance invalidations become visible to an
+/// already-reused `Reader` within `min(ttl, 1s)` and immediately to a newly
+/// opened `Reader` (or immediately when `ttl` is [`Duration::ZERO`]).
 #[derive(Clone)]
 pub struct CacheLayer {
     state: Arc<State>,
     policy: Arc<dyn CachePolicy>,
     chunk_size: usize,
+    max_chunk_size: usize,
     ttl: Duration,
 }
 
@@ -124,8 +134,9 @@ impl fmt::Debug for CacheLayer {
 impl CacheLayer {
     /// Create a layer backed by `cache`.
     ///
-    /// Returns [`ErrorKind::ConfigInvalid`] if the cache operator does not
-    /// advertise read, write, and delete in its full capabilities.
+    /// Returns [`ErrorKind::ConfigInvalid`] if the cache operator's full
+    /// capabilities do not include read, write, and delete, or if its
+    /// advertised maximum total write size is zero.
     pub fn new(cache: Operator) -> Result<Self> {
         let capability = cache.info().capability();
         if !(capability.read && capability.write && capability.delete) {
@@ -134,22 +145,30 @@ impl CacheLayer {
                 "cache must support read, write, and delete",
             ));
         }
+        let max_chunk_size = capability.write_total_max_size.unwrap_or(usize::MAX);
+        if max_chunk_size == 0 {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "cache maximum total write size must be positive",
+            ));
+        }
         Ok(Self {
             state: Arc::new(State::new(cache)),
             policy: Arc::new(|_: &CacheReadRequest<'_>| CacheDecision::Cache),
-            chunk_size: 1024 * 1024,
+            chunk_size: DEFAULT_CHUNK_SIZE.min(max_chunk_size),
+            max_chunk_size,
             ttl: Duration::from_secs(60),
-        }
-        .with_chunk_size(1024 * 1024))
+        })
     }
 
     /// Set the aligned chunk size in bytes.
     ///
-    /// Zero is clamped to one byte. The cache's advertised maximum total write
-    /// size caps the effective chunk size.
+    /// Zero restores the default of 1 MiB. Positive sizes are used without
+    /// rounding. The cache operator's advertised maximum total write size
+    /// caps both the default and explicit sizes.
     pub fn with_chunk_size(mut self, size: usize) -> Self {
-        let limit = self.state.cache.info().capability().write_total_max_size;
-        self.chunk_size = size.max(1).min(limit.unwrap_or(usize::MAX).max(1));
+        let size = if size == 0 { DEFAULT_CHUNK_SIZE } else { size };
+        self.chunk_size = size.min(self.max_chunk_size);
         self
     }
 

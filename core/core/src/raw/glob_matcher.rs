@@ -20,7 +20,7 @@ use crate::{Error, ErrorKind, Result};
 /// Compiled Unix shell style glob pattern for path-component matching.
 ///
 /// Services implementing native [`crate::Capability::list_with_glob`] and
-/// [`crate::layers::GlobLayer`] share this matcher to evaluate
+/// [`crate::layers::SimulateLayer`] share this matcher to evaluate
 /// [`crate::options::ListOptions::glob`] consistently and prune directories
 /// during traversal.
 #[derive(Debug)]

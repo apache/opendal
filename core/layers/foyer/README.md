@@ -1,5 +1,9 @@
 # Apache OpenDAL™ Foyer Cache Layer
 
+> **Deprecated:** `opendal-layer-foyer` (`layers-foyer`) is deprecated in favor
+> of `opendal-layer-cache` (`layers-cache`) backed by `opendal-service-foyer`
+> (`services-foyer`).
+
 `opendal-layer-foyer` caches OpenDAL reads and writes in a Foyer hybrid cache.
 
 ## Use through `opendal`

@@ -22,11 +22,7 @@ use jni::jni_sig;
 use jni::jni_str;
 use jni::objects::JObject;
 use jni::objects::JValue;
-use jni::sys::jint;
-use jni::sys::jlong;
 use opendal::Entry;
-use opendal::EntryMode;
-use opendal::Metadata;
 use opendal::MetadataBuilder;
 use opendal::OperatorInfo;
 use opendal::raw::PresignedRequest;
@@ -38,6 +34,7 @@ mod convert;
 mod error;
 mod executor;
 mod layer;
+mod metadata;
 mod operator;
 mod operator_input_stream;
 mod operator_output_stream;
@@ -45,6 +42,8 @@ mod operator_reader;
 #[cfg(feature = "test-native-panics")]
 mod panic_test;
 mod utility;
+
+pub(crate) use metadata::make_metadata;
 
 pub(crate) type Result<T> = std::result::Result<T, error::Error>;
 
@@ -93,69 +92,6 @@ fn make_operator_info<'a>(env: &mut Env<'a>, info: OperatorInfo) -> Result<JObje
             JValue::Object(&capability_obj),
         ],
     )?;
-    Ok(result)
-}
-
-fn make_metadata<'a>(env: &mut Env<'a>, metadata: Metadata) -> Result<JObject<'a>> {
-    let mode = match metadata.mode() {
-        EntryMode::FILE => 0,
-        EntryMode::DIR => 1,
-        EntryMode::Unknown => 2,
-    };
-
-    let last_modified = metadata.last_modified().map_or_else(
-        || Ok::<JObject<'_>, error::Error>(JObject::null()),
-        |v| {
-            Ok(env
-                .call_static_method(
-                    jni_str!("java/time/Instant"),
-                    jni_str!("ofEpochSecond"),
-                    jni_sig!("(JJ)Ljava/time/Instant;"),
-                    &[
-                        JValue::Long(v.into_inner().as_second()),
-                        JValue::Long(v.into_inner().subsec_nanosecond() as jlong),
-                    ],
-                )?
-                .l()?)
-        },
-    )?;
-
-    let cache_control = convert::string_to_jstring(env, metadata.cache_control())?;
-
-    let content_disposition = convert::string_to_jstring(env, metadata.content_disposition())?;
-
-    let content_md5 = convert::string_to_jstring(env, metadata.content_md5())?;
-
-    let content_type = convert::string_to_jstring(env, metadata.content_type())?;
-
-    let etag = convert::string_to_jstring(env, metadata.etag())?;
-
-    let version = convert::string_to_jstring(env, metadata.version())?;
-
-    let content_length = metadata.content_length() as jlong;
-
-    let user_metadata =
-        convert::hashmap_to_jmap(env, metadata.user_metadata().into_iter().flatten())?;
-
-    let result = env
-        .new_object(
-            jni_str!("org/apache/opendal/Metadata"),
-            jni_sig!(
-                "(IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Ljava/lang/String;Ljava/util/Map;)V"
-            ),
-            &[
-                JValue::Int(mode as jint),
-                JValue::Long(content_length),
-                JValue::Object(&content_disposition),
-                JValue::Object(&content_md5),
-                JValue::Object(&content_type),
-                JValue::Object(&cache_control),
-                JValue::Object(&etag),
-                JValue::Object(&last_modified),
-                JValue::Object(&version),
-                JValue::Object(&user_metadata),
-            ],
-        )?;
     Ok(result)
 }
 
@@ -274,6 +210,7 @@ fn make_stat_options(env: &mut Env, options: &JObject) -> Result<opendal::option
             options,
             "overrideContentDisposition",
         )?,
+        ..Default::default()
     })
 }
 
@@ -355,6 +292,7 @@ fn make_read_options<'a>(
             options,
             "overrideContentDisposition",
         )?,
+        ..Default::default()
     })
 }
 

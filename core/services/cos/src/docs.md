@@ -16,6 +16,34 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+## Checksum format
+
+Tencent Cloud COS reports an unsigned decimal checksum named CRC64-ECMA in
+`x-cos-hash-crc64ecma`. Alibaba Cloud OSS uses the same checksum in
+`x-oss-hash-crc64ecma`. OpenDAL represents it as `ChecksumAlgo::Crc64Ecma`.
+
+CRC-64/XZ uses the canonical polynomial `0x42F0E1EBA9EA3693`, with
+`refin = true`, `refout = true`, and `init` and `xorout` both set to
+`0xFFFFFFFFFFFFFFFF`. The check value for the ASCII bytes `123456789` is
+`0x995DC9BBDF1939FA`. CRC-64/ECMA-182 (for example, `crc::CRC_64_ECMA_182`)
+yields `0x6C40DF5F0B497347` for the same input and is incompatible with
+these service digests.
+
+## Write checksums
+
+`WriteChecksum::Any` and `WriteChecksum::Fast` verify the CRC64-ECMA receipt
+for a non-append write. For multipart uploads, OpenDAL verifies each part
+before accepting it and combines the verified CRCs in part order to check the
+completion receipt. A successful write returns the full-object checksum in
+[`opendal_core::Metadata::checksum`].
+
+For the final PUT or multipart completion, COS returns the receipt after
+publishing the object. A missing, invalid, or mismatched receipt returns a
+permanent `Unexpected` error. The new object may already be visible, and
+calling `close` again on the same writer cannot replay the final request.
+`WriteChecksum::Algo`, `WriteChecksum::Expected`, and explicitly requesting
+a checksum on append or presigned writes return `Unsupported` before I/O.
+
 ## Configuration
 
 Use [`crate::CosConfig`] for serializable configuration and this builder's

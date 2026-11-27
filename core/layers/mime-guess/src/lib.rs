@@ -24,6 +24,13 @@ use std::sync::Arc;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+/// Register the `mime_guess` layer with an operator registry.
+///
+/// The layer uses [`MimeGuessLayer::new`] and ignores all scoped options.
+pub fn register_mime_guess_layer(registry: &OperatorRegistry) {
+    registry.register_layer("mime_guess", |_| Ok(MimeGuessLayer::new()));
+}
+
 /// `MimeGuessLayer` sets `Content-Type` from a path's file extension.
 ///
 /// # MimeGuess
@@ -396,8 +403,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_async() -> Result<()> {
-        let op = Operator::new(services::Memory::default())?.layer(MimeGuessLayer::new());
+    async fn registered_mime_guess_applies_to_memory() -> Result<()> {
+        let registry = OperatorRegistry::get();
+        register_mime_guess_layer(registry);
+        let op = registry.load("memory://?layers=mime_guess&layer.mime_guess.future_option=")?;
 
         op.write("test0.html", DATA).await?;
         assert_eq!(op.stat("test0.html").await?.content_type(), Some(HTML));

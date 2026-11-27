@@ -16,7 +16,7 @@
 // under the License.
 
 use std::future::Future;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use crate::{AimdLayer, Bucket, Buckets, SleepFn};
@@ -25,21 +25,11 @@ use opendal_core::{Error, ErrorKind, Result};
 
 /// Configures the four independent request budgets of an [`AimdLayer`].
 /// Each budget receives the same settings and tracks its own rate.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct AimdLayerBuilder {
     config: AimdConfig,
     initial_rate: Option<f64>,
-    sleep: SleepFn,
-}
-
-impl Default for AimdLayerBuilder {
-    fn default() -> Self {
-        Self {
-            config: AimdConfig::default(),
-            initial_rate: None,
-            sleep: Arc::new(|duration| Box::pin(tokio::time::sleep(duration))),
-        }
-    }
+    sleep: Option<SleepFn>,
 }
 
 impl AimdLayerBuilder {
@@ -86,7 +76,7 @@ impl AimdLayerBuilder {
         self
     }
 
-    /// Replace the function that creates timers for admission waits.
+    /// Supply a timer function that takes precedence over the context executor.
     ///
     /// The function must return a nonblocking future that completes after the
     /// supplied duration. Waiting may be cancelled when feedback changes or a
@@ -106,7 +96,7 @@ impl AimdLayerBuilder {
         F: Fn(Duration) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + MaybeSend + 'static,
     {
-        self.sleep = Arc::new(move |duration| Box::pin(sleep(duration)));
+        self.sleep = Some(Arc::new(move |duration| Box::pin(sleep(duration))));
         self
     }
 
@@ -122,13 +112,26 @@ impl AimdLayerBuilder {
             .initial_rate
             .unwrap_or_else(|| 2000.0_f64.max(config.min_rate).min(config.max_rate));
         config.validate(initial_rate)?;
+        let cooldown_until = Arc::new(RwLock::new(None));
         Ok(AimdLayer {
             sleep: self.sleep,
             buckets: Arc::new(Buckets {
-                read: Arc::new(Bucket::new(config.clone(), initial_rate)),
-                write: Arc::new(Bucket::new(config.clone(), initial_rate)),
-                delete: Arc::new(Bucket::new(config.clone(), initial_rate)),
-                list: Arc::new(Bucket::new(config, initial_rate)),
+                read: Arc::new(Bucket::new(
+                    config.clone(),
+                    initial_rate,
+                    cooldown_until.clone(),
+                )),
+                write: Arc::new(Bucket::new(
+                    config.clone(),
+                    initial_rate,
+                    cooldown_until.clone(),
+                )),
+                delete: Arc::new(Bucket::new(
+                    config.clone(),
+                    initial_rate,
+                    cooldown_until.clone(),
+                )),
+                list: Arc::new(Bucket::new(config, initial_rate, cooldown_until)),
             }),
         })
     }

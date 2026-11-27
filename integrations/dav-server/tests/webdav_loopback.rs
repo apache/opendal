@@ -554,3 +554,31 @@ async fn sabredav_patch_append_and_unsupported_ranges() -> Result<()> {
     assert_eq!(response.body().as_ref(), b"cde");
     Ok(())
 }
+
+#[tokio::test]
+async fn fs_responses_omit_etag_when_only_last_modified_is_available() -> Result<()> {
+    let dav = WebDav::new().await?;
+    let put = dav
+        .send(
+            dav.request("PUT", "/file.txt"),
+            b"hello",
+            StatusCode::CREATED,
+        )
+        .await?;
+    assert!(
+        !put.headers().contains_key(header::ETAG),
+        "PUT emitted a synthetic ETag"
+    );
+
+    for method in ["HEAD", "GET"] {
+        let response = dav
+            .send(dav.request(method, "/file.txt"), b"", StatusCode::OK)
+            .await?;
+        assert!(response.headers().contains_key(header::LAST_MODIFIED));
+        assert!(
+            !response.headers().contains_key(header::ETAG),
+            "{method} emitted a synthetic ETag"
+        );
+    }
+    Ok(())
+}

@@ -35,7 +35,8 @@ use opendal_core::*;
 /// one additional attempt per request. Use [`Self::with_max_hedges`] to change
 /// the limit or set it to zero to disable hedging and its timers. Use
 /// [`Self::without_stat_hedge`] or [`Self::without_read_hedge`] to disable hedging
-/// for a single operation. Enabled operations use the Tokio time driver.
+/// for a single operation. Enabled operations use the context executor for
+/// timers and fall back to Tokio if the executor does not provide one.
 ///
 /// A success or an error for which [`Error::is_temporary`] is false ends the
 /// race immediately. A temporary error stops new attempts and lets any attempts
@@ -183,7 +184,7 @@ impl Service for HedgeService {
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         match self.stat_delay {
             Some(delay) => {
-                hedge(delay, self.max_hedges, || {
+                hedge(ctx.executor().inner(), delay, self.max_hedges, || {
                     self.inner.stat(ctx, path, args.clone())
                 })
                 .await
@@ -195,6 +196,7 @@ impl Service for HedgeService {
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         Ok(HedgeReader {
             inner: self.inner.read(ctx, path, args)?,
+            executor: ctx.executor().clone(),
             delay: self.read_delay,
             max_hedges: self.max_hedges,
         })
@@ -266,6 +268,7 @@ impl Service for HedgeService {
 
 struct HedgeReader {
     inner: oio::Reader,
+    executor: Executor,
     delay: Option<Duration>,
     max_hedges: usize,
 }
@@ -273,20 +276,31 @@ struct HedgeReader {
 impl oio::Read for HedgeReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         match self.delay {
-            Some(delay) => hedge(delay, self.max_hedges, || self.inner.open(range)).await,
+            Some(delay) => {
+                hedge(self.executor.inner(), delay, self.max_hedges, || {
+                    self.inner.open(range)
+                })
+                .await
+            }
             None => self.inner.open(range).await,
         }
     }
 
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
         match self.delay {
-            Some(delay) => hedge(delay, self.max_hedges, || self.inner.read(range)).await,
+            Some(delay) => {
+                hedge(self.executor.inner(), delay, self.max_hedges, || {
+                    self.inner.read(range)
+                })
+                .await
+            }
             None => self.inner.read(range).await,
         }
     }
 }
 
 async fn hedge<T, F: Future<Output = Result<T>>>(
+    executor: &dyn Execute,
     delay: Duration,
     mut remaining_hedges: usize,
     attempt: impl Fn() -> F,
@@ -300,7 +314,12 @@ async fn hedge<T, F: Future<Output = Result<T>>>(
         } else {
             // Poll attempts before creating or polling the timer so that a
             // ready response takes precedence. Each launch gets a fresh delay.
-            let timer = pin!(async { tokio::time::sleep(delay).await });
+            let timer = pin!(async {
+                executor
+                    .sleep(delay)
+                    .unwrap_or_else(|| Box::pin(tokio::time::sleep(delay)))
+                    .await
+            });
             match select(attempts.next(), timer).await {
                 Either::Left((result, _)) => result,
                 Either::Right(_) => {

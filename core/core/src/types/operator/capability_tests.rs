@@ -17,8 +17,8 @@
 
 use crate::raw::*;
 use crate::*;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use crate::Capability;
 
@@ -30,6 +30,7 @@ use crate::raw::oio;
 struct MockService {
     capability: Capability,
     calls: Arc<AtomicUsize>,
+    checksum_hints: Arc<Mutex<Vec<(Operation, bool)>>>,
 }
 
 impl Builder for MockService {
@@ -68,13 +69,21 @@ impl Service for MockService {
         ))
     }
 
-    async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, _: &OperationContext, _: &str, args: OpStat) -> Result<RpStat> {
         self.calls.fetch_add(1, Ordering::Relaxed);
+        self.checksum_hints
+            .lock()
+            .unwrap()
+            .push((Operation::Stat, args.checksum()));
         Ok(RpStat::new(MetadataBuilder::file(0).build()))
     }
 
-    fn read(&self, _ctx: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+    fn read(&self, _ctx: &OperationContext, _: &str, args: OpRead) -> Result<Self::Reader> {
         self.calls.fetch_add(1, Ordering::Relaxed);
+        self.checksum_hints
+            .lock()
+            .unwrap()
+            .push((Operation::Read, args.checksum()));
         Ok(MockReader)
     }
 
@@ -222,7 +231,7 @@ impl oio::Compose for MockComposer {
 fn new_test_operator(capability: Capability) -> Operator {
     let srv = MockService {
         capability,
-        calls: Arc::default(),
+        ..Default::default()
     };
 
     Operator::from_parts(OperationContext::default(), Arc::new(srv))
@@ -237,6 +246,7 @@ async fn assert_override_rejects(
     let op = Operator::new(MockService {
         capability,
         calls: calls.clone(),
+        ..Default::default()
     })?;
     let overridden = op
         .clone()
@@ -301,6 +311,47 @@ async fn test_read_and_reader_honor_capability_override() -> Result<()> {
         op.reader_with("path").version("version").await.map(drop)
     })
     .await
+}
+
+#[tokio::test]
+async fn test_checksum_metadata_hint_reaches_read_and_stat_services() -> Result<()> {
+    let hints = Arc::new(Mutex::new(Vec::new()));
+    let op = Operator::new(MockService {
+        capability: Capability {
+            stat: true,
+            read: true,
+            ..Default::default()
+        },
+        checksum_hints: hints.clone(),
+        ..Default::default()
+    })?;
+
+    let meta = op.stat_with("path").checksum(true).await?;
+    assert_eq!(meta.checksum(), None);
+    op.stat("path").await?;
+    op.read_with("path").checksum(true).await?;
+    op.read("path").await?;
+    let reader = op.reader_with("path").checksum(true).await?;
+    reader.read(..).await?;
+    op.reader("path").await?;
+    op.reader_with("path")
+        .checksum(true)
+        .checksum(false)
+        .await?;
+
+    assert_eq!(
+        *hints.lock().unwrap(),
+        [
+            (Operation::Stat, true),
+            (Operation::Stat, false),
+            (Operation::Read, true),
+            (Operation::Read, false),
+            (Operation::Read, true),
+            (Operation::Read, false),
+            (Operation::Read, false),
+        ]
+    );
+    Ok(())
 }
 
 #[tokio::test]
@@ -407,6 +458,7 @@ async fn test_compose_source_honors_capability_override() -> Result<()> {
             ..Default::default()
         },
         calls: calls.clone(),
+        ..Default::default()
     })?;
     let overridden = op
         .clone()
@@ -562,16 +614,16 @@ async fn test_list() {
         list: true,
         ..Default::default()
     });
-    for recursive in [false, true] {
-        let err = op
-            .list_with("path/")
-            .recursive(recursive)
-            .start_after("path/key")
-            .await
-            .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
-        assert!(err.message().contains("start_after"));
-    }
+    let err = op.list_with("path/").recursive(true).await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Unsupported);
+    assert!(err.message().contains("recursive"));
+    let err = op
+        .list_with("path/")
+        .start_after("path/key")
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Unsupported);
+    assert!(err.message().contains("start_after"));
     let err = op.list_with("path/").versions(true).await.unwrap_err();
     assert_eq!(err.kind(), ErrorKind::Unsupported);
     assert!(err.message().contains("versions"));
@@ -583,6 +635,7 @@ async fn test_list() {
     assert!(err.message().contains("glob"));
     assert!(
         op.list_with("path/")
+            .recursive(false)
             .versions(false)
             .deleted(false)
             .await
@@ -591,26 +644,40 @@ async fn test_list() {
 
     let op = new_test_operator(Capability {
         list: true,
+        list_with_recursive: true,
+        ..Default::default()
+    });
+    let err = op
+        .list_with("path/")
+        .recursive(true)
+        .start_after("path/key")
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Unsupported);
+    assert!(err.message().contains("start_after"));
+
+    let op = new_test_operator(Capability {
+        list: true,
+        list_with_recursive: true,
         list_with_start_after: true,
         list_with_versions: true,
         list_with_deleted: true,
         ..Default::default()
     });
+    assert!(op.list_with("path/").recursive(true).await.is_ok());
     assert!(op.list_with("path/").start_after("path/key").await.is_ok());
     assert!(op.list_with("path/").versions(true).await.is_ok());
     assert!(op.list_with("path/").deleted(true).await.is_ok());
 }
 
-/// `limit` is a backend hint and `recursive` is simulated by `SimulateLayer`,
-/// so neither is gated on a capability.
+/// `limit` is a backend hint, so it is not gated on a capability.
 #[tokio::test]
-async fn test_list_limit_and_recursive_need_no_capability() {
+async fn test_list_limit_needs_no_capability() {
     let op = new_test_operator(Capability {
         list: true,
         ..Default::default()
     });
     assert!(op.list_with("path/").limit(1).await.is_ok());
-    assert!(op.list_with("path/").recursive(true).await.is_ok());
 }
 
 #[tokio::test]

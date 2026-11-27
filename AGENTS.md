@@ -147,6 +147,11 @@ OpenDAL splits documentation by audience. The website carries only content
 that holds for OpenDAL across languages; Rust-specific documentation lives in
 rustdoc.
 
+- `DESIGN.md` defines OpenDAL's living architectural model, ownership
+  boundaries, public API invariants, and design principles across core,
+  services, layers, and bindings. Consult it before introducing public APIs,
+  new layers, fallbacks, or cross-boundary changes, and update it when
+  architectural invariants change.
 - `core/core/src/docs/specs/` contains the living portable contracts, the one
   set of documents published to both destinations. Rustdoc publishes them
   under `opendal::docs::specs`; the website reads the same Markdown at
@@ -279,6 +284,14 @@ When adding or changing a service:
 6. Obtain runtime resources from the operation's `OperationContext` rather than caching them in the service constructed by the builder.
 7. Run focused clippy/tests first, then broaden validation based on the blast radius.
 
+### Capabilities and Upstream Bug Workarounds
+
+- Expose standard capabilities a service declares directly through `capability()` without gating them behind `enable_*` configuration switches. Letting an individual server reject an unsupported request is valid.
+- Withhold a capability only when exposing it risks incorrectness—such as wrong results, silent omissions, or skipped verification—and document why in the service or preset docs.
+- A service-level opt-in can be appropriate for a non-standard protocol extension that most servers lack. Callers can still request a standard capability for an individual operation. For example, `WriteChecksum` requests verification for one write.
+- Verify capability decisions and upstream quirks against a current release rather than an outdated pinned fixture; document version-specific caveats instead of withholding a capability or adding a workaround for already-fixed server behavior.
+- Before working around an upstream service bug, weigh how many users it affects. Report the bug upstream and track it in an OpenDAL issue first; add a client-side workaround only when a mainstream service blocks a broad user base, and keep it small and easy to remove once upstream fixes it.
+
 ## Layer Implementation Pattern
 
 Reusable layers live under `core/layers/<layer>/` as `opendal-layer-*` crates. Core layers that are required by `opendal-core` itself live under `core/core/src/layers/`.
@@ -309,9 +322,15 @@ Operation wrappers implement `raw::Service`, store the inner `Servicer`, forward
 - Do not add AI-tool marketing banners or AI co-author trailers to commits or PR descriptions; record AI usage in the AI Usage Statement section.
 - If public APIs or user-facing behavior change, update docs and call out the user-facing impact in the PR template.
 
+## Discussions and Mailing Lists
+
+- GitHub Discussions sync to `dev@opendal.apache.org` (configured in `.asf.yaml` under `notifications.discussions`).
+- Start or continue public development discussions—such as design proposals, RFC feedback requests, and general community threads—in GitHub Discussions rather than sending a separate email to `dev@opendal.apache.org`.
+- GitHub commits, issues, and pull requests mirror to `commits@opendal.apache.org`, not `dev@opendal.apache.org`.
+
 ## Important Notes
 
-- Minimum Rust version is 1.91, configured in `core/Cargo.toml` and checked by CI.
+- Minimum Rust version is 1.95, configured in `core/Cargo.toml` and checked by CI.
 - Use `opendal_core::raw::{Service, ServiceInfo, ServiceDyn, Servicer, Layer}` for internal service and layer boundaries, and `opendal_core::OperationContext` for runtime resources.
 - Use `opendal_core::raw::oio::{Read, Write, List, Delete, Copy, Compose}` for service operation bodies. `Read` opens range streams that implement `ReadStream`; type-erased handles use the corresponding `*Dyn` adapters.
 - Use `Operator` and `blocking::Operator` as the public API entry points.

@@ -18,11 +18,6 @@
 use std::mem;
 use std::sync::Mutex;
 
-use futures::Future;
-use libtest_mimic::Failed;
-use libtest_mimic::Trial;
-use opendal::raw::*;
-use opendal::tests::TEST_RUNTIME;
 use opendal::*;
 use rand::distr::uniform::SampleRange;
 use rand::prelude::*;
@@ -31,6 +26,11 @@ use sha2::Digest;
 use sha2::Sha256;
 
 const DEFAULT_CONTENT_MAX_SIZE: usize = 4 * 1024 * 1024;
+
+pub fn aws_s3_checksum_fixture(op: &Operator) -> bool {
+    op.info().scheme() == "s3"
+        && std::env::var("OPENDAL_TEST_AWS_S3_CHECKSUMS").as_deref() == Ok("true")
+}
 
 pub fn sha256_digest(data: impl AsRef<[u8]>) -> String {
     use std::fmt::Write;
@@ -64,36 +64,23 @@ pub fn gen_fixed_bytes(size: usize) -> Vec<u8> {
 }
 
 pub fn gen_offset_length(size: usize) -> (u64, u64) {
-    let mut rng = rng();
+    // A one-byte file has no non-empty partial range.
+    if size == 1 {
+        return (0, 1);
+    }
 
-    // Make sure at least one byte is read.
+    let mut rng = rng();
     let offset = rng.random_range(0..size - 1);
     let length = rng.random_range(1..(size - offset));
 
     (offset as u64, length as u64)
 }
 
-/// Build a new async trail as a test case.
-pub fn build_async_trial<F, Fut>(name: &str, op: &Operator, f: F) -> Trial
-where
-    F: FnOnce(Operator) -> Fut + MaybeSend + 'static,
-    Fut: Future<Output = anyhow::Result<()>>,
-{
-    let handle = TEST_RUNTIME.handle().clone();
-    let op = op.clone();
-
-    Trial::test(format!("behavior::{name}"), move || {
-        handle
-            .block_on(f(op))
-            .map_err(|err| Failed::from(err.to_string()))
-    })
-}
-
 #[macro_export]
 macro_rules! async_trials {
     ($op:ident, $($test:ident),*) => {
         vec![$(
-            build_async_trial(stringify!($test), $op, $test),
+            $crate::build_async_trial(stringify!($test), $op, $test),
         )*]
     };
 }
@@ -124,7 +111,7 @@ impl Fixture {
     /// Create a new dir path
     pub fn new_dir_path(&self) -> String {
         let path = format!("{}/", uuid::Uuid::new_v4());
-        self.paths.lock().unwrap().push(path.clone());
+        self.add_path(path.clone());
 
         path
     }
@@ -132,7 +119,7 @@ impl Fixture {
     /// Create a new file path
     pub fn new_file_path(&self) -> String {
         let path = format!("{}", uuid::Uuid::new_v4());
-        self.paths.lock().unwrap().push(path.clone());
+        self.add_path(path.clone());
 
         path
     }
@@ -161,7 +148,7 @@ impl Fixture {
         range: impl SampleRange<usize>,
     ) -> (String, Vec<u8>, usize) {
         let path = path.into();
-        self.paths.lock().unwrap().push(path.clone());
+        self.add_path(path.clone());
 
         let mut rng = rng();
 

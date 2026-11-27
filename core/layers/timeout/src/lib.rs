@@ -31,6 +31,33 @@ use futures::future::select;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+/// Register the `timeout` layer with an operator registry.
+///
+/// Supports `timeout` and `io_timeout` as positive durations such as `500ms`
+/// or `PT1S`. Omitted options keep the defaults from [`TimeoutLayer::new`].
+pub fn register_timeout_layer(registry: &OperatorRegistry) {
+    registry.register_layer("timeout", |options| {
+        let mut layer = TimeoutLayer::new();
+        if let Some(value) = options.get("timeout") {
+            layer = layer.with_timeout(parse_timeout("timeout", value)?);
+        }
+        if let Some(value) = options.get("io_timeout") {
+            layer = layer.with_io_timeout(parse_timeout("io_timeout", value)?);
+        }
+        Ok(layer)
+    });
+}
+
+fn parse_timeout(option: &'static str, value: &str) -> Result<Duration> {
+    match signed_to_duration(value) {
+        Ok(duration) if !duration.is_zero() => Ok(duration),
+        _ => Err(
+            Error::new(ErrorKind::ConfigInvalid, "expected a positive duration")
+                .with_context("option", option),
+        ),
+    }
+}
+
 /// `TimeoutLayer` adds deadlines to operations so slow or stalled work cannot
 /// hang indefinitely.
 ///
@@ -869,6 +896,61 @@ mod tests {
         async fn abort(&mut self) -> Result<()> {
             pending().await
         }
+    }
+
+    #[test]
+    fn registered_timeout_rejects_invalid_durations() {
+        let registry = OperatorRegistry::get();
+        register_timeout_layer(registry);
+        assert!(registry.load("memory://?layers=timeout").is_ok());
+
+        for option in ["timeout", "io_timeout"] {
+            for value in ["", "0s", "-1ns", "invalid-config-marker"] {
+                let uri = format!("memory://?layers=timeout&layer.timeout.{option}={value}");
+                let err = registry.load(uri).unwrap_err();
+                assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+                assert!(err.to_string().contains(&format!("option: {option}")));
+                assert!(!err.to_string().contains("invalid-config-marker"));
+                assert!(!format!("{err:?}").contains("invalid-config-marker"));
+            }
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn registered_timeout_applies_control_and_io_deadlines() -> Result<()> {
+        #[derive(Debug)]
+        struct StalledServiceLayer;
+
+        impl Layer for StalledServiceLayer {
+            fn apply_service(&self, _: Servicer) -> Servicer {
+                Arc::new(MockService {
+                    stat_delay: Duration::from_secs(3),
+                    ..Default::default()
+                })
+            }
+        }
+
+        let registry = OperatorRegistry::get();
+        registry.register_layer("timeout_test_service", |_| Ok(StalledServiceLayer));
+        register_timeout_layer(registry);
+        let op = registry.load(concat!(
+            "memory://?layers=timeout_test_service,timeout&layer.timeout.timeout=500ms",
+            "&layer.timeout.io_timeout=PT2S&layer.timeout.future_option=",
+        ))?;
+
+        let start = Instant::now();
+        let err = op.stat("object").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(err.message(), "operation timeout reached");
+        assert_eq!(start.elapsed(), Duration::from_millis(500));
+
+        let mut lister = op.lister("/").await?;
+        let start = Instant::now();
+        let err = lister.next().await.unwrap().unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(err.message(), "io operation timeout reached");
+        assert_eq!(start.elapsed(), Duration::from_secs(2));
+        Ok(())
     }
 
     #[tokio::test(start_paused = true)]

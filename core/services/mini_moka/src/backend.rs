@@ -392,6 +392,7 @@ impl MiniMokaBackend {
             write_can_empty: true,
             delete: true,
             list: true,
+            list_with_recursive: true,
 
             ..Default::default()
         };

@@ -22,9 +22,8 @@ for production use**. Contributions welcome.
 
 ## Status
 
-**Experimental — unreleased.** Only blocking read and write are implemented.
-The binding depends on the C binding and must be built from source; it is not
-published to any package registry.
+**Experimental — unreleased.** The binding depends on the C binding and must
+be built from source. It is not published to any package registry.
 
 ## Capabilities
 
@@ -32,10 +31,14 @@ published to any package registry.
 |---|---|
 | Blocking read | Supported |
 | Blocking write | Supported |
+| Blocking existence check (`blockingExists`) | Supported |
+| Blocking delete (`blockingDelete`) | Supported |
+| Blocking directory creation (`blockingCreateDirectory`) | Supported on services with directory creation |
+| Blocking object copy (`blockingCopy`) | Supported on services with copy |
+| Blocking object rename (`blockingRename`) | Supported on services with rename |
+| Blocking stat (`blockingStat`) | Entry type, content length, and modification date when available |
+| Blocking list (`blockingLister`) | Nonrecursive cursor on services with listing |
 | Async read/write | Not yet |
-| Stat / metadata | Not yet |
-| List | Not yet |
-| Delete | Not yet |
 | Presigned URLs | Not yet |
 
 The `Operator` class is the single entry point. It accepts a service scheme
@@ -50,14 +53,30 @@ dependency and reference the package by local path.
 
 ### 1. Build the C dependency
 
+Run the following command from the repository root to build and stage the C
+header and static library for the Swift package.
+
 ```shell
-cd bindings/swift
-make build-c
+make -C bindings/swift build-c
 ```
+
+The C library builds in debug mode by default. To build an optimized C library,
+set `OPENDAL_C_PROFILE=release`.
+
+```shell
+make -C bindings/swift build-c OPENDAL_C_PROFILE=release
+```
+
+You can combine this option with `OPENDAL_FEATURES` to [enable additional
+services](./02-getting-started.md#pointing-at-a-real-backend). SwiftPM's
+`-c release` selects the Swift build configuration separately. If you already
+built your app, run `swift package clean` in the app directory before rebuilding
+to link against the newly staged library.
 
 ### 2. Add a local path dependency
 
-In your project's `Package.swift`:
+In your project's `Package.swift`, use the local path to `bindings/swift/OpenDAL`
+in the checkout where you ran `make build-c`.
 
 ```swift
 // swift-tools-version:5.7

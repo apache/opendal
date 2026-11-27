@@ -23,6 +23,8 @@ use base64::prelude::BASE64_STANDARD;
 use bytes::Buf;
 use bytes::Bytes;
 use constants::X_MS_META_PREFIX;
+use crc_fast::CrcAlgorithm;
+use crc_fast::Digest as CrcDigest;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
@@ -63,6 +65,7 @@ pub mod constants {
     pub const X_MS_BLOB_CONTENT_TYPE: &str = "x-ms-blob-content-type";
     pub const X_MS_BLOB_CONDITION_APPENDPOS: &str = "x-ms-blob-condition-appendpos";
     pub const X_MS_META_PREFIX: &str = "x-ms-meta-";
+    pub(crate) const X_MS_CONTENT_CRC64: &str = "x-ms-content-crc64";
 
     // indicates the version of the blob, and it can be used in subsequent requests to access the blob.
     pub const X_MS_VERSION_ID: &str = "x-ms-version-id";
@@ -71,6 +74,14 @@ pub mod constants {
     pub const X_MS_ENCRYPTION_KEY: &str = "x-ms-encryption-key";
     pub const X_MS_ENCRYPTION_KEY_SHA256: &str = "x-ms-encryption-key-sha256";
     pub const X_MS_ENCRYPTION_ALGORITHM: &str = "x-ms-encryption-algorithm";
+}
+
+fn format_crc64(body: &Buffer) -> String {
+    let mut digest = CrcDigest::new(CrcAlgorithm::Crc64Nvme);
+    body.clone().for_each(|part| digest.update(&part));
+
+    // Azure Blob encodes the CRC64 as eight little-endian bytes.
+    BASE64_STANDARD.encode(digest.finalize().to_le_bytes())
 }
 
 pub struct AzblobCore {
@@ -341,6 +352,10 @@ impl AzblobCore {
             }
         }
 
+        if args.checksum().is_some() {
+            req = req.header(constants::X_MS_CONTENT_CRC64, format_crc64(&body));
+        }
+
         let req = req
             .extension(Operation::Write)
             .extension(ServiceOperation("PutBlob"))
@@ -477,6 +492,10 @@ impl AzblobCore {
             }
         }
 
+        if args.checksum().is_some() {
+            req = req.header(constants::X_MS_CONTENT_CRC64, format_crc64(&body));
+        }
+
         let req = req
             .extension(Operation::Write)
             .extension(ServiceOperation("AppendBlock"))
@@ -534,6 +553,10 @@ impl AzblobCore {
 
         if let Some(ty) = args.content_type() {
             req = req.header(CONTENT_TYPE, ty)
+        }
+
+        if args.checksum().is_some() {
+            req = req.header(constants::X_MS_CONTENT_CRC64, format_crc64(&body));
         }
 
         let req = req
@@ -1560,6 +1583,7 @@ pub struct ErrorContext {
     caller_condition: bool,
     if_not_exists: bool,
     is_append_blob_initialization: bool,
+    request_crc64: bool,
 }
 
 impl ErrorContext {
@@ -1569,7 +1593,13 @@ impl ErrorContext {
             caller_condition: false,
             if_not_exists: false,
             is_append_blob_initialization: false,
+            request_crc64: false,
         }
+    }
+
+    pub(crate) const fn with_request_crc64(mut self, request_crc64: bool) -> Self {
+        self.request_crc64 = request_crc64;
+        self
     }
 
     pub const fn with_caller_condition(mut self, caller_condition: bool) -> Self {
@@ -1690,6 +1720,10 @@ fn parse_azblob_error_code(
     status: StatusCode,
 ) -> Option<(ErrorKind, bool)> {
     match code {
+        "Crc64Mismatch" if status == StatusCode::BAD_REQUEST && ctx.request_crc64 => {
+            // Azure rejected the data before accepting the block or committing the write.
+            Some((ErrorKind::ChecksumMismatch, true))
+        }
         "ConditionNotMet" | "SourceConditionNotMet" | "TargetConditionNotMet"
             if ctx.caller_condition
                 && matches!(

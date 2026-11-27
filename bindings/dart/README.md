@@ -18,10 +18,8 @@ version.
 
 ## Installation
 
-This binding is not yet published to pub.dev. To use it, clone the repository
-and add it as a path dependency, or work directly from `bindings/dart/`.
-
-You must compile the Rust native library first:
+This binding is not yet published to pub.dev. Clone the OpenDAL repository
+and open `bindings/dart/`. Build the native library before running Dart code.
 
 ```shell
 cd rust
@@ -30,12 +28,36 @@ cd ..
 dart pub get
 ```
 
-The loader first looks for the library in the platform-specific target-triple
-directory (e.g. `rust/target/aarch64-apple-darwin/release/`), then falls back
-to `rust/target/release/`. For cross-compiled targets, build with
+The loader resolves library paths from the working directory. It first checks
+the platform-specific target directory (for example,
+`rust/target/aarch64-apple-darwin/release/`), then falls back to
+`rust/target/release/`. For cross-compiled targets, build with
 `--target <triple>` so the library is placed in the matching target directory.
 
+To use the binding from another Dart project, add the checkout to that app's
+`pubspec.yaml`. Adjust the path to match your checkout.
+
+```yaml
+dependencies:
+  opendal:
+    path: ../opendal/bindings/dart
+```
+
+Run `dart pub get` in the app. Copy the native library from the checkout into
+the same relative path under the app's working directory. For a default build,
+use `rust/target/release/` relative to `bindings/dart/` and the app respectively.
+For a build with `--target <triple>`, use `rust/target/<triple>/release/`
+for a target triple recognized by the loader.
+
 ## Quickstart
+
+Run the checked-in example from `bindings/dart/`.
+
+```shell
+dart run examples/getting_started.dart
+```
+
+`Storage.init()` loads the native library and creates a storage handle.
 
 ```dart
 import 'dart:typed_data';
@@ -60,8 +82,8 @@ factory functions that behave like `dart:io`'s `File` and `Directory`.
 
 Every method has a blocking `*Sync` variant alongside the async `Future<T>` form.
 
-See the [user guide](https://opendal.apache.org/docs/bindings/dart) for more
-examples and a full operations reference.
+See the [user guide](https://opendal.apache.org/docs/bindings/dart/getting-started/)
+for more file and directory examples.
 
 ## Contributing
 

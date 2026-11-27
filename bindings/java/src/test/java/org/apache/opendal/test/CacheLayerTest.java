@@ -22,6 +22,7 @@ package org.apache.opendal.test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Duration;
 import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.ListOptions;
@@ -32,6 +33,7 @@ import org.apache.opendal.ServiceConfig;
 import org.apache.opendal.layer.CacheLayer;
 import org.apache.opendal.test.condition.OpenDALExceptionCondition;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -40,9 +42,13 @@ class CacheLayerTest {
             ServiceConfig.Memory.builder().build();
     private static final String PATH = "object";
 
+    private static ServiceConfig.Fs fs(Path dir) {
+        return ServiceConfig.Fs.builder().root(dir.toString()).build();
+    }
+
     @Test
-    void readsPopulateTheCacheAndReuseChunksForRanges() {
-        try (AsyncOperator source = AsyncOperator.of(MEMORY);
+    void readsPopulateTheCacheAndReuseChunksForRanges(@TempDir Path tempDir) {
+        try (AsyncOperator source = AsyncOperator.of(fs(tempDir));
                 AsyncOperator cache = AsyncOperator.of(MEMORY);
                 CacheLayer layer = CacheLayer.builder(cache)
                         .chunkSize(4)
@@ -68,8 +74,8 @@ class CacheLayerTest {
     }
 
     @Test
-    void writesAndDeletesInvalidateCachedReads() {
-        try (AsyncOperator source = AsyncOperator.of(MEMORY);
+    void writesAndDeletesInvalidateCachedReads(@TempDir Path tempDir) {
+        try (AsyncOperator source = AsyncOperator.of(fs(tempDir));
                 AsyncOperator cache = AsyncOperator.of(MEMORY);
                 CacheLayer layer = CacheLayer.builder(cache).build();
                 AsyncOperator cached = source.layer(layer)) {
@@ -96,8 +102,8 @@ class CacheLayerTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void retainsTheCacheAfterClosingItsHandleAndTheLayer(boolean blocking) {
-        try (AsyncOperator source = AsyncOperator.of(MEMORY)) {
+    void retainsTheCacheAfterClosingItsHandleAndTheLayer(boolean blocking, @TempDir Path tempDir) {
+        try (AsyncOperator source = AsyncOperator.of(fs(tempDir))) {
             final AsyncOperator layered;
             try (NativeObject cache = blocking ? Operator.of(MEMORY) : AsyncOperator.of(MEMORY);
                     CacheLayer layer = (blocking
@@ -121,8 +127,8 @@ class CacheLayerTest {
     }
 
     @Test
-    void zeroTtlRevalidatesBeforeServingCachedReads() {
-        try (AsyncOperator source = AsyncOperator.of(MEMORY);
+    void zeroTtlRevalidatesBeforeServingCachedReads(@TempDir Path tempDir) {
+        try (AsyncOperator source = AsyncOperator.of(fs(tempDir));
                 AsyncOperator cache = AsyncOperator.of(MEMORY);
                 CacheLayer layer = CacheLayer.builder(cache).ttl(Duration.ZERO).build();
                 AsyncOperator cached = source.layer(layer)) {
@@ -131,16 +137,42 @@ class CacheLayerTest {
                     .asString(StandardCharsets.UTF_8)
                     .isEqualTo("original");
 
-            source.write(PATH, "modified").join();
+            source.write(PATH, "modified-v2").join();
             assertThat(cached.read(PATH).join())
                     .asString(StandardCharsets.UTF_8)
-                    .isEqualTo("modified");
+                    .isEqualTo("modified-v2");
         }
     }
 
     @ParameterizedTest
-    @ValueSource(longs = {0, -1, Long.MIN_VALUE})
-    void rejectsNonPositiveChunkSizes(long chunkSize) {
+    @ValueSource(booleans = {false, true})
+    void zeroChunkSizeUsesTheDefault(boolean reset, @TempDir Path tempDir) {
+        try (AsyncOperator source = AsyncOperator.of(fs(tempDir));
+                AsyncOperator cache = AsyncOperator.of(MEMORY)) {
+            CacheLayer.CacheLayerBuilder builder = CacheLayer.builder(cache);
+            if (reset) {
+                builder.chunkSize(4);
+            }
+            try (CacheLayer layer = builder.chunkSize(0).build();
+                    AsyncOperator cached = source.layer(layer)) {
+                source.write(PATH, "abcdefghij").join();
+                assertThat(cached.read(PATH).join())
+                        .asString(StandardCharsets.UTF_8)
+                        .isEqualTo("abcdefghij");
+                assertThat(cache.list(
+                                        "v1/data/",
+                                        ListOptions.builder().recursive(true).build())
+                                .join())
+                        .filteredOn(entry -> entry.metadata.isFile())
+                        .extracting(entry -> entry.metadata.contentLength)
+                        .containsExactly(10L);
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1, Long.MIN_VALUE})
+    void rejectsNegativeChunkSizes(long chunkSize) {
         try (AsyncOperator cache = AsyncOperator.of(MEMORY)) {
             assertThatThrownBy(() -> CacheLayer.builder(cache).chunkSize(chunkSize))
                     .isInstanceOf(IllegalArgumentException.class)

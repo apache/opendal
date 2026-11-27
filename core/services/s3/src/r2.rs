@@ -71,7 +71,9 @@ impl R2Builder {
         self
     }
 
-    /// Set the R2 jurisdiction to `eu` or `fedramp`.
+    /// Set the R2 jurisdiction to `eu`, `fedramp`, or `us`.
+    ///
+    /// Use with [`Self::account_id`] to derive the endpoint.
     pub fn jurisdiction(mut self, jurisdiction: &str) -> Self {
         self.config.jurisdiction = Some(jurisdiction.to_string());
         self
@@ -101,6 +103,14 @@ impl R2Builder {
         self
     }
 
+    /// Disable loading credentials from AWS environment variables and shared profile files.
+    ///
+    /// Set both [`Self::access_key_id`] and [`Self::secret_access_key`] to sign requests.
+    pub fn disable_config_load(mut self) -> Self {
+        self.config.disable_config_load = true;
+        self
+    }
+
     fn into_s3_config(self) -> Result<(S3Config, ProvideCredentialChain<Credential>)> {
         let R2Config {
             root,
@@ -111,6 +121,7 @@ impl R2Builder {
             access_key_id,
             secret_access_key,
             session_token,
+            disable_config_load,
         } = self.config;
 
         preset::validate_required(&bucket, R2_SCHEME, "bucket must not be empty")?;
@@ -129,23 +140,30 @@ impl R2Builder {
             R2_SCHEME,
             "endpoint must not be empty when set",
         )?;
-        preset::validate_credentials(
-            access_key_id.as_deref(),
-            secret_access_key.as_deref(),
-            session_token.as_deref(),
-            R2_SCHEME,
-        )?;
+
+        let mut config = S3Config {
+            root,
+            bucket,
+            region: Some("auto".to_string()),
+            access_key_id,
+            secret_access_key,
+            session_token,
+            disable_config_load,
+            disable_ec2_metadata: true,
+            ..Default::default()
+        };
+        let credential_providers = preset::credential_chain(&config, R2_SCHEME)?;
 
         let endpoint = match (account_id.as_deref(), endpoint.as_deref()) {
             (Some(account_id), None) => match jurisdiction.as_deref() {
                 None => format!("https://{account_id}.r2.cloudflarestorage.com"),
-                Some(jurisdiction @ ("eu" | "fedramp")) => {
+                Some(jurisdiction @ ("eu" | "fedramp" | "us")) => {
                     format!("https://{account_id}.{jurisdiction}.r2.cloudflarestorage.com")
                 }
                 Some(_) => {
                     return Err(preset::config_error(
                         R2_SCHEME,
-                        "jurisdiction must be either eu or fedramp",
+                        "jurisdiction must be one of eu, fedramp, or us",
                     ));
                 }
             },
@@ -170,23 +188,7 @@ impl R2Builder {
             }
         };
 
-        let credential_providers = preset::credential_chain(
-            access_key_id.as_deref(),
-            secret_access_key.as_deref(),
-            session_token.as_deref(),
-        );
-
-        let config = S3Config {
-            root,
-            bucket,
-            endpoint: Some(endpoint),
-            region: Some("auto".to_string()),
-            access_key_id,
-            secret_access_key,
-            session_token,
-            disable_ec2_metadata: true,
-            ..Default::default()
-        };
+        config.endpoint = Some(endpoint);
 
         Ok((config, credential_providers))
     }
@@ -203,6 +205,8 @@ impl Builder for R2Builder {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use opendal_core::ErrorKind;
     use opendal_core::Operator;
 
@@ -222,17 +226,29 @@ mod tests {
         assert_eq!(config.region.as_deref(), Some("auto"));
     }
 
-    #[test]
-    fn derives_jurisdiction_endpoints() {
-        for jurisdiction in ["eu", "fedramp"] {
-            let config = build_config(
+    #[tokio::test]
+    async fn derives_jurisdiction_endpoints() {
+        for (jurisdiction, expected_host) in [
+            ("eu", "account.eu.r2.cloudflarestorage.com"),
+            ("fedramp", "account.fedramp.r2.cloudflarestorage.com"),
+            ("us", "account.us.r2.cloudflarestorage.com"),
+        ] {
+            let operator = Operator::new(
                 R2Builder::default()
                     .bucket("bucket")
                     .account_id("account")
-                    .jurisdiction(jurisdiction),
-            );
-            let expected = format!("https://account.{jurisdiction}.r2.cloudflarestorage.com");
-            assert_eq!(config.endpoint.as_deref(), Some(expected.as_str()));
+                    .jurisdiction(jurisdiction)
+                    .access_key_id("test-access")
+                    .secret_access_key("test-secret")
+                    .disable_config_load(),
+            )
+            .unwrap_or_else(|error| panic!("jurisdiction {jurisdiction}: {error}"));
+            let request = operator
+                .presign_read("file", Duration::from_secs(60))
+                .await
+                .unwrap();
+            assert_eq!(request.uri().scheme_str(), Some("https"), "{jurisdiction}");
+            assert_eq!(request.uri().host(), Some(expected_host), "{jurisdiction}");
         }
     }
 

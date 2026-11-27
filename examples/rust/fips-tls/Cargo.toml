@@ -21,7 +21,7 @@
 edition = "2024"
 name = "opendal-examples-fips-tls"
 publish = false
-rust-version = "1.91"
+rust-version = "1.95"
 version = "0.1.0"
 
 [dependencies]

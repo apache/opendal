@@ -25,11 +25,14 @@ use pyo3::exceptions::PyValueError;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDelta;
 use pyo3::types::PyDict;
+use pyo3::types::PyFloat;
 use pyo3::types::PyList;
+use pyo3::types::PySequence;
 use pyo3::types::PyString;
 use pyo3::types::PyTuple;
 use pyo3::types::PyType;
 
+use crate::options::parse_checksum_algorithm;
 use crate::runtime::{check_runtime_process, future_into_py, get_runtime};
 use crate::*;
 
@@ -155,6 +158,12 @@ fn config_scalar_to_string(value: &Bound<PyAny>) -> PyResult<String> {
         Ok(if b { "true" } else { "false" }.to_string())
     } else if let Ok(i) = value.extract::<i128>() {
         Ok(i.to_string())
+    } else if let Ok(float) = value.cast::<PyFloat>() {
+        let float = float.value();
+        if !float.is_finite() {
+            return Err(ConfigInvalid::new_err("config floats must be finite"));
+        }
+        Ok(float.to_string())
     } else if let Ok(delta) = value.cast::<PyDelta>() {
         // Use the base descriptors so the stable ABI reads the stored components
         // even if a timedelta subclass overrides the attributes.
@@ -182,12 +191,12 @@ fn config_scalar_to_string(value: &Bound<PyAny>) -> PyResult<String> {
             Ok(path)
         } else {
             Err(Unsupported::new_err(
-                "unsupported config value type; pass a str, bool, int, datetime.timedelta, os.PathLike, or list of those",
+                "unsupported config value type; pass a str, bool, int, finite float, datetime.timedelta, os.PathLike, or list of those",
             ))
         }
     } else {
         Err(Unsupported::new_err(
-            "unsupported config value type; pass a str, bool, int, datetime.timedelta, os.PathLike, or list of those",
+            "unsupported config value type; pass a str, bool, int, finite float, datetime.timedelta, os.PathLike, or list of those",
         ))
     }
 }
@@ -196,8 +205,8 @@ fn config_scalar_to_string(value: &Bound<PyAny>) -> PyResult<String> {
 /// consumes.
 ///
 /// Accepts the native types the `opendal.config` TypedDicts declare: `str`,
-/// `bool`, `int`, `datetime.timedelta`, `os.PathLike[str]`, and flat
-/// `list`/`tuple` of those (`,`-joined, as core parses `Vec`). Nested
+/// `bool`, `int`, finite `float`, `datetime.timedelta`, `os.PathLike[str]`,
+/// and flat `list`/`tuple` of those (`,`-joined, as core parses `Vec`). Nested
 /// collections and mappings have no flat-map form and are rejected.
 fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
     if let Ok(list) = value.cast::<PyList>() {
@@ -217,12 +226,13 @@ fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
     config_scalar_to_string(value)
 }
 
-/// Extract `(scheme, config_map)` from a typed service config dict.
-///
-/// A config is a plain `dict` (an `opendal.config.ServiceConfig`, e.g.
-/// `S3Config`) whose `scheme` key selects the service; every other pair becomes
-/// a config option, converted via [`config_value_to_string`].
-fn extract_typed_config(config: &Bound<PyAny>) -> PyResult<(String, HashMap<String, String>)> {
+/// Lower the service dict, context providers, and ordered layer configs to the
+/// same flat map used for registry loading and pickle reconstruction.
+fn extract_typed_config(
+    config: &Bound<PyAny>,
+    context: Option<&Bound<PyDict>>,
+    layers: Option<&Bound<PySequence>>,
+) -> PyResult<(String, HashMap<String, String>)> {
     let dict = config.cast::<PyDict>().map_err(|_| {
         Unsupported::new_err(
             "from_config expects an opendal.config.ServiceConfig \
@@ -242,6 +252,51 @@ fn extract_typed_config(config: &Bound<PyAny>) -> PyResult<(String, HashMap<Stri
             let value = config_value_to_string(&v)?;
             map.insert(key, value);
         }
+    }
+
+    if let Some(context) = context {
+        for (name, options) in context.iter() {
+            let name = name.extract::<String>()?;
+            for (key, value) in options.cast::<PyDict>()?.iter() {
+                let key = key.extract::<String>()?;
+                map.insert(
+                    format!("context.{name}.{key}"),
+                    config_value_to_string(&value)?,
+                );
+            }
+        }
+    }
+
+    if let Some(layers) = layers {
+        if layers.is_instance_of::<PyString>() || layers.is_instance_of::<PyBytes>() {
+            return Err(PyTypeError::new_err(
+                "layers must be a sequence of config dicts",
+            ));
+        }
+        let mut names = Vec::new();
+        for layer in layers.try_iter()? {
+            let layer = layer?;
+            let options = layer.cast::<PyDict>()?;
+            let name = options
+                .get_item("name")?
+                .ok_or_else(|| ConfigInvalid::new_err("layer config requires a 'name' key"))?
+                .extract::<String>()?;
+            let name = name.trim_ascii();
+            if name.is_empty() || name.contains(',') {
+                return Err(ConfigInvalid::new_err("expected one name per layer config"));
+            }
+            for (key, value) in options.iter() {
+                let key = key.extract::<String>()?;
+                if key != "name" {
+                    map.insert(
+                        format!("layer.{name}.{key}"),
+                        config_value_to_string(&value)?,
+                    );
+                }
+            }
+            names.push(name.to_owned());
+        }
+        map.insert("layers".to_string(), names.join(","));
     }
 
     Ok((scheme, map))
@@ -365,14 +420,14 @@ impl Operator {
     ///
     /// Examples
     /// --------
-    /// ```python
-    /// from urllib.parse import urlencode
-    /// import opendal
+    /// .. code-block:: python
     ///
-    /// op = opendal.Operator.from_uri("memory://")
-    /// query = urlencode({"region": "us-east-1"})
-    /// op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
-    /// ```
+    ///     from urllib.parse import urlencode
+    ///     import opendal
+    ///
+    ///     op = opendal.Operator.from_uri("memory://")
+    ///     query = urlencode({"region": "us-east-1"})
+    ///     op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
     #[classmethod]
     #[pyo3(signature = (uri, **kwargs: "str"))]
     pub fn from_uri(
@@ -389,21 +444,26 @@ impl Operator {
         })
     }
 
-    /// Create a new blocking `Operator` from a typed service config.
+    /// Create a new blocking `Operator` from typed configuration.
     ///
-    /// The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
-    /// ``scheme`` key selects the service, so a static type checker rejects a
-    /// wrong scheme, a missing required key, an unknown key, and a wrong value
-    /// type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
-    /// ``os.PathLike[str]``, and flat ``list`` or ``tuple`` of those) are
-    /// converted to the string form core consumes. ``bytes``-like objects,
-    /// non-dict ``Mapping``s, nested sequences, and other iterables raise
-    /// ``Unsupported``.
+    /// A static type checker validates the service scheme and the options for
+    /// the service, context, and layers. The binding converts non-string values
+    /// such as booleans, integers, finite floats, durations, paths, and flat
+    /// lists or tuples to the strings the registry consumes.
+    /// Service config values such as bytes, mappings, and nested sequences
+    /// raise ``Unsupported``.
+    ///
+    /// Construction options are stored when pickling the operator and may
+    /// include credentials. Reapply layers added via ``.layer()`` after unpickling.
     ///
     /// Parameters
     /// ----------
     /// config : ServiceConfig
     ///     A service configuration such as ``opendal.config.S3Config``.
+    /// context : ContextConfig | None
+    ///     Optional per-operator runtime settings, such as an HTTP proxy.
+    /// layers : Sequence[LayerConfig] | None
+    ///     Optional declarative layers, applied in sequence order.
     ///
     /// Returns
     /// -------
@@ -412,16 +472,23 @@ impl Operator {
     ///
     /// Examples
     /// --------
-    /// ```python
-    /// import opendal
-    /// from opendal.config import S3Config
+    /// .. code-block:: python
     ///
-    /// op = opendal.Operator.from_config(S3Config(scheme="s3", bucket="my-bucket"))
-    /// ```
+    ///     import opendal
+    ///     from opendal.config import S3Config
+    ///
+    ///     op = opendal.Operator.from_config(
+    ///         S3Config(scheme="s3", bucket="my-bucket")
+    ///     )
     #[classmethod]
-    #[pyo3(signature = (config: "ServiceConfig"))]
-    pub fn from_config(_cls: &Bound<PyType>, config: &Bound<PyAny>) -> PyResult<Self> {
-        let (scheme, map) = extract_typed_config(config)?;
+    #[pyo3(signature = (config: "ServiceConfig", *, context: "ContextConfig | None" = None, layers: "collections.abc.Sequence[LayerConfig] | None" = None))]
+    pub fn from_config(
+        _cls: &Bound<PyType>,
+        config: &Bound<PyAny>,
+        context: Option<&Bound<PyDict>>,
+        layers: Option<&Bound<PySequence>>,
+    ) -> PyResult<Self> {
+        let (scheme, map) = extract_typed_config(config, context, layers)?;
         let scheme = normalize_scheme(&scheme);
 
         Ok(Operator {
@@ -471,7 +538,10 @@ impl Operator {
     ///     `"rt"` raise `ValueError`. Wrap the returned file with
     ///     `io.TextIOWrapper` to read or write text.
     /// **kwargs
-    ///     Additional options for the underlying reader or writer.
+    ///     Additional options for the underlying reader or writer. In write and
+    ///     create modes, `checksum` selects the `ChecksumAlgorithm` the service
+    ///     uses to verify the full object before committing. Omit `checksum` or
+    ///     pass `None` to use the service default.
     ///
     /// Raises
     /// ------
@@ -482,12 +552,16 @@ impl Operator {
     /// ValueError
     ///     If the mode is invalid or unsupported, including text (`"t"`) and
     ///     update (`"+"`) modes, or if the mode conflicts with `append` or
-    ///     `if_not_exists` in `**kwargs`.
+    ///     `if_not_exists` in `**kwargs`, or if the checksum name is unrecognized.
     /// ConditionNotMatch
     ///     If create mode (`"x"`) targets an existing file. The failure can
     ///     surface from `write()`, `flush()`, or `close()`.
     /// Unsupported
-    ///     If the service does not support append or `if_not_exists` writes.
+    ///     If the service does not support the requested write options, including
+    ///     the selected checksum algorithm. Append writes cannot request a checksum.
+    /// ChecksumMismatch
+    ///     If the checksum fails verification. The failure can surface from
+    ///     `write()`, `flush()`, or `close()`.
     ///
     /// Returns
     /// -------
@@ -689,6 +763,19 @@ impl Operator {
     ///     Whether to fail if the file already exists.
     /// user_metadata : dict, optional
     ///     The user metadata to set on the file.
+    /// checksum : ChecksumAlgorithm | None, optional
+    ///     The algorithm the service uses to verify the full object before
+    ///     committing. Omit it or pass `None` to use the service default.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the checksum name is unrecognized.
+    /// Unsupported
+    ///     If the service cannot verify the write with the selected algorithm,
+    ///     including when appending.
+    /// ChecksumMismatch
+    ///     If the checksum fails verification.
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (path, bs: "bytes", *,
         append= None,
@@ -701,7 +788,8 @@ impl Operator {
         if_match = None,
         if_none_match = None,
         if_not_exists = None,
-        user_metadata = None))]
+        user_metadata = None,
+        checksum: "ChecksumAlgorithm | None" = None))]
     pub fn write(
         &self,
         py: Python<'_>,
@@ -718,6 +806,7 @@ impl Operator {
         if_none_match: Option<String>,
         if_not_exists: Option<bool>,
         user_metadata: Option<HashMap<String, String>>,
+        checksum: Option<&str>,
     ) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
         let bs = py_bytes_like_into_buffer(bs)?;
@@ -733,6 +822,7 @@ impl Operator {
             if_none_match,
             if_not_exists,
             user_metadata,
+            checksum: checksum.map(parse_checksum_algorithm).transpose()?,
         };
 
         check_runtime_process()?;
@@ -1058,9 +1148,9 @@ impl Operator {
 
     /// Recursively list entries in the given directory.
     ///
-    /// Deprecated
-    /// ----------
-    ///     Use `list()` with `recursive=True` instead.
+    /// Notes
+    /// -----
+    /// This method is deprecated. Use `list()` with `recursive=True` instead.
     ///
     /// Parameters
     /// ----------
@@ -1244,14 +1334,14 @@ impl AsyncOperator {
     ///
     /// Examples
     /// --------
-    /// ```python
-    /// from urllib.parse import urlencode
-    /// import opendal
+    /// .. code-block:: python
     ///
-    /// op = opendal.AsyncOperator.from_uri("memory://")
-    /// query = urlencode({"region": "us-east-1"})
-    /// op = opendal.AsyncOperator.from_uri(f"s3://bucket/path?{query}")
-    /// ```
+    ///     from urllib.parse import urlencode
+    ///     import opendal
+    ///
+    ///     op = opendal.AsyncOperator.from_uri("memory://")
+    ///     query = urlencode({"region": "us-east-1"})
+    ///     op = opendal.AsyncOperator.from_uri(f"s3://bucket/path?{query}")
     #[classmethod]
     #[pyo3(signature = (uri, **kwargs: "str"))]
     pub fn from_uri(
@@ -1268,21 +1358,26 @@ impl AsyncOperator {
         })
     }
 
-    /// Create a new `AsyncOperator` from a typed service config.
+    /// Create a new `AsyncOperator` from typed configuration.
     ///
-    /// The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
-    /// ``scheme`` key selects the service, so a static type checker rejects a
-    /// wrong scheme, a missing required key, an unknown key, and a wrong value
-    /// type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
-    /// ``os.PathLike[str]``, and flat ``list`` or ``tuple`` of those) are
-    /// converted to the string form core consumes. ``bytes``-like objects,
-    /// non-dict ``Mapping``s, nested sequences, and other iterables raise
-    /// ``Unsupported``.
+    /// A static type checker validates the service scheme and the options for
+    /// the service, context, and layers. The binding converts non-string values
+    /// such as booleans, integers, finite floats, durations, paths, and flat
+    /// lists or tuples to the strings the registry consumes.
+    /// Service config values such as bytes, mappings, and nested sequences
+    /// raise ``Unsupported``.
+    ///
+    /// Construction options are stored when pickling the operator and may
+    /// include credentials. Reapply layers added via ``.layer()`` after unpickling.
     ///
     /// Parameters
     /// ----------
     /// config : ServiceConfig
     ///     A service configuration such as ``opendal.config.S3Config``.
+    /// context : ContextConfig | None
+    ///     Optional per-operator runtime settings, such as an HTTP proxy.
+    /// layers : Sequence[LayerConfig] | None
+    ///     Optional declarative layers, applied in sequence order.
     ///
     /// Returns
     /// -------
@@ -1291,16 +1386,23 @@ impl AsyncOperator {
     ///
     /// Examples
     /// --------
-    /// ```python
-    /// import opendal
-    /// from opendal.config import S3Config
+    /// .. code-block:: python
     ///
-    /// op = opendal.AsyncOperator.from_config(S3Config(scheme="s3", bucket="my-bucket"))
-    /// ```
+    ///     import opendal
+    ///     from opendal.config import S3Config
+    ///
+    ///     op = opendal.AsyncOperator.from_config(
+    ///         S3Config(scheme="s3", bucket="my-bucket")
+    ///     )
     #[classmethod]
-    #[pyo3(signature = (config: "ServiceConfig"))]
-    pub fn from_config(_cls: &Bound<PyType>, config: &Bound<PyAny>) -> PyResult<Self> {
-        let (scheme, map) = extract_typed_config(config)?;
+    #[pyo3(signature = (config: "ServiceConfig", *, context: "ContextConfig | None" = None, layers: "collections.abc.Sequence[LayerConfig] | None" = None))]
+    pub fn from_config(
+        _cls: &Bound<PyType>,
+        config: &Bound<PyAny>,
+        context: Option<&Bound<PyDict>>,
+        layers: Option<&Bound<PySequence>>,
+    ) -> PyResult<Self> {
+        let (scheme, map) = extract_typed_config(config, context, layers)?;
         let scheme = normalize_scheme(&scheme);
 
         Ok(AsyncOperator {
@@ -1346,7 +1448,10 @@ impl AsyncOperator {
     ///     `"rt"` raise `ValueError`. `AsyncFile` writes bytes, so encode text
     ///     with `str.encode()` and decode reads with `bytes.decode()`.
     /// **kwargs : dict
-    ///     Additional options for the underlying reader or writer.
+    ///     Additional options for the underlying reader or writer. In write and
+    ///     create modes, `checksum` selects the `ChecksumAlgorithm` the service
+    ///     uses to verify the full object before committing. Omit `checksum` or
+    ///     pass `None` to use the service default.
     ///
     /// Raises
     /// ------
@@ -1357,12 +1462,16 @@ impl AsyncOperator {
     /// ValueError
     ///     If the mode is invalid or unsupported, including text (`"t"`) and
     ///     update (`"+"`) modes, or if the mode conflicts with `append` or
-    ///     `if_not_exists` in `**kwargs`.
+    ///     `if_not_exists` in `**kwargs`, or if the checksum name is unrecognized.
     /// ConditionNotMatch
     ///     If create mode (`"x"`) targets an existing file. The failure can
     ///     surface from `write()` or `close()`.
     /// Unsupported
-    ///     If the service does not support append or `if_not_exists` writes.
+    ///     If the service does not support the requested write options, including
+    ///     the selected checksum algorithm. Append writes cannot request a checksum.
+    /// ChecksumMismatch
+    ///     If the checksum fails verification. The failure can surface from
+    ///     `write()` or `close()`.
     ///
     /// Returns
     /// -------
@@ -1567,6 +1676,19 @@ impl AsyncOperator {
     ///     Whether to fail if the file already exists.
     /// user_metadata : dict, optional
     ///     The user metadata to set on the file.
+    /// checksum : ChecksumAlgorithm | None, optional
+    ///     The algorithm the service uses to verify the full object before
+    ///     committing. Omit it or pass `None` to use the service default.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the checksum name is unrecognized.
+    /// Unsupported
+    ///     If the service cannot verify the write with the selected algorithm,
+    ///     including when appending.
+    /// ChecksumMismatch
+    ///     If the checksum fails verification.
     ///
     /// Returns
     /// -------
@@ -1584,7 +1706,8 @@ impl AsyncOperator {
         if_match = None,
         if_none_match = None,
         if_not_exists = None,
-        user_metadata = None) -> "collections.abc.Awaitable[None]")]
+        user_metadata = None,
+        checksum: "ChecksumAlgorithm | None" = None) -> "collections.abc.Awaitable[None]")]
     pub fn write<'p>(
         &'p self,
         py: Python<'p>,
@@ -1601,6 +1724,7 @@ impl AsyncOperator {
         if_none_match: Option<String>,
         if_not_exists: Option<bool>,
         user_metadata: Option<HashMap<String, String>>,
+        checksum: Option<&str>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let opts = WriteOptions {
             append,
@@ -1614,6 +1738,7 @@ impl AsyncOperator {
             if_none_match,
             if_not_exists,
             user_metadata,
+            checksum: checksum.map(parse_checksum_algorithm).transpose()?,
         };
         let this = self.core.clone();
         let bs = py_bytes_like_into_buffer(bs)?;
@@ -2005,9 +2130,9 @@ impl AsyncOperator {
 
     /// Recursively list entries in the given directory.
     ///
-    /// Deprecated
-    /// ----------
-    ///     Use `list()` with `recursive=True` instead.
+    /// Notes
+    /// -----
+    /// This method is deprecated. Use `list()` with `recursive=True` instead.
     ///
     /// Parameters
     /// ----------

@@ -100,6 +100,9 @@ pub fn parse(path: &Path) -> Result<Vec<OptionsStruct>> {
     Ok(structs)
 }
 
+/// Option fields whose types bindings do not mirror yet, as `(struct, field)`.
+const NOT_MIRRORED: &[(&str, &str)] = &[("WriteOptions", "checksum")];
+
 fn parse_struct(struct_: &ItemStruct) -> Result<OptionsStruct> {
     let name = struct_.ident.to_string();
     let syn::Fields::Named(named) = &struct_.fields else {
@@ -113,6 +116,9 @@ fn parse_struct(struct_: &ItemStruct) -> Result<OptionsStruct> {
             .as_ref()
             .expect("named field always has an ident")
             .to_string();
+        if NOT_MIRRORED.contains(&(name.as_str(), field_name.as_str())) {
+            continue;
+        }
         let Some(kind) = classify(&field.ty) else {
             bail!(
                 "option field `{name}::{field_name}` has an unsupported type; \

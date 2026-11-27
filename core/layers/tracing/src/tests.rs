@@ -252,6 +252,21 @@ impl oio::Compose for MockComposer {
 }
 
 #[tokio::test]
+async fn registered_tracing_emits_stat_span() -> Result<()> {
+    let registry = OperatorRegistry::get();
+    register_tracing_layer(registry);
+    let op = registry.load("memory://?layers=tracing&layer.tracing.future_option=")?;
+    op.write("object", "data").await?;
+
+    let recorder = SpanRecorder::default();
+    let subscriber = tracing_subscriber::registry().with(recorder.clone());
+    let _guard = tracing::subscriber::set_default(subscriber);
+    assert_eq!(op.stat("object").await?.content_length(), 4);
+    assert_eq!(recorder.closed.lock().unwrap().as_slice(), ["stat"]);
+    Ok(())
+}
+
+#[tokio::test]
 async fn copy_span_stays_active_across_copier_operations() {
     let recorder = SpanRecorder::default();
     let subscriber = tracing_subscriber::registry().with(recorder.clone());

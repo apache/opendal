@@ -20,12 +20,15 @@ use std::fmt::Debug;
 use std::fmt::Write;
 use std::sync::Arc;
 
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use bytes::Buf;
 use bytes::Bytes;
 use constants::*;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header::ACCEPT_ENCODING;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
@@ -49,6 +52,7 @@ use opendal_core::*;
 
 pub mod constants {
     pub const X_GOOG_GENERATION: &str = "x-goog-generation";
+    pub const X_GOOG_HASH: &str = "x-goog-hash";
     pub const GCS_REWRITE_MIN_CHUNK_SIZE: usize = 1024 * 1024;
     #[cfg(target_pointer_width = "64")]
     pub const GCS_REWRITE_MAX_CHUNK_SIZE: usize =
@@ -204,7 +208,8 @@ impl GcsCore {
         }
         let url = url.finish();
 
-        let mut req = Request::get(&url);
+        // Request the stored gzip bytes so GCS honors Range and agrees with stat.
+        let mut req = Request::get(&url).header(ACCEPT_ENCODING, "gzip");
 
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
@@ -317,10 +322,12 @@ impl GcsCore {
         op: &OpWrite,
         body: Buffer,
         idempotency_token: Option<&str>,
+        crc32c: Option<[u8; 4]>,
     ) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path);
 
         let request_metadata = InsertRequestMetadata {
+            crc32c: crc32c.map(|value| BASE64_STANDARD.encode(value)),
             storage_class: self.default_storage_class.as_deref(),
             cache_control: op.cache_control(),
             content_type: op.content_type(),
@@ -435,6 +442,7 @@ impl GcsCore {
         }
 
         let metadata = InsertRequestMetadata {
+            crc32c: None,
             storage_class: self.default_storage_class.as_deref(),
             cache_control: op.cache_control(),
             content_type: op.content_type(),
@@ -476,6 +484,7 @@ impl GcsCore {
         offset: u64,
         body: Buffer,
         total: Option<u64>,
+        crc32c: Option<[u8; 4]>,
     ) -> Result<Response<Buffer>> {
         let end = offset + body.len() as u64;
         let mut content_range = BytesContentRange::default();
@@ -485,9 +494,16 @@ impl GcsCore {
         if let Some(total) = total {
             content_range = content_range.with_size(total);
         }
-        let req = Request::put(session_uri)
+        let mut req = Request::put(session_uri)
             .header(CONTENT_LENGTH, body.len())
-            .header(CONTENT_RANGE, content_range.to_header())
+            .header(CONTENT_RANGE, content_range.to_header());
+        if let Some(crc32c) = crc32c {
+            req = req.header(
+                X_GOOG_HASH,
+                format!("crc32c={}", BASE64_STANDARD.encode(crc32c)),
+            );
+        }
+        let req = req
             .extension(Operation::Write)
             .extension(ServiceOperation("UploadResumableChunk"))
             .body(body)
@@ -551,6 +567,10 @@ impl GcsCore {
 
         if let Some(content_encoding) = args.content_encoding() {
             req = req.header(CONTENT_ENCODING, content_encoding);
+        }
+
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(CACHE_CONTROL, cache_control);
         }
 
         if let Some(acl) = &self.predefined_acl {
@@ -896,37 +916,20 @@ impl GcsCore {
             .map_err(new_request_build_error)
     }
 
-    pub async fn gcs_rewrite_object(
-        &self,
-        ctx: &OperationContext,
-        from: &str,
-        to: &str,
-        args: &OpCopy,
-        max_bytes_rewritten_per_call: Option<usize>,
-        rewrite_token: Option<&str>,
-    ) -> Result<Response<Buffer>> {
-        let req = self.gcs_rewrite_object_request(
-            from,
-            to,
-            args,
-            max_bytes_rewritten_per_call,
-            rewrite_token,
-        )?;
-        let req = self.sign(ctx, req).await?;
-        self.send(ctx, req).await
-    }
-
     fn gcs_build_list_objects_request(
         &self,
         path: &str,
         page_token: &str,
         args: &OpList,
+        soft_deleted: bool,
     ) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path);
         let url = format!("{}/storage/v1/b/{}/o", self.endpoint, self.bucket);
         let mut url = QueryPairsWriter::new(&url);
         url = url.push("prefix", &gcs_percent_encode_path(&p));
-        if args.versions() {
+        if soft_deleted {
+            url = url.push("softDeleted", "true");
+        } else if args.versions() {
             url = url.push("versions", "true");
         }
         if !args.recursive() {
@@ -957,8 +960,9 @@ impl GcsCore {
         path: &str,
         page_token: &str,
         args: &OpList,
+        soft_deleted: bool,
     ) -> Result<Response<Buffer>> {
-        let req = self.gcs_build_list_objects_request(path, page_token, args)?;
+        let req = self.gcs_build_list_objects_request(path, page_token, args, soft_deleted)?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
@@ -1126,6 +1130,12 @@ impl GcsCore {
     }
 }
 
+pub(super) fn parse_crc32c(encoded: &str) -> Option<Checksum> {
+    let value = BASE64_STANDARD.decode(encoded).ok()?;
+    (value.len() == ChecksumAlgo::Crc32c.digest_len())
+        .then(|| Checksum::new(ChecksumAlgo::Crc32c, value))
+}
+
 impl GetObjectJsonResponse {
     fn into_metadata(self, path: &str) -> Result<Metadata> {
         let size = self
@@ -1140,6 +1150,9 @@ impl GetObjectJsonResponse {
 
         m.etag(&self.etag);
         m.content_md5(&self.md5_hash);
+        if let Some(checksum) = self.crc32c.as_deref().and_then(parse_crc32c) {
+            m.checksum(checksum);
+        }
         if !self.content_type.is_empty() {
             m.content_type(&self.content_type);
         }
@@ -1189,6 +1202,8 @@ fn predefined_acl_to_xml_header(predefined_acl: &str) -> Option<&'static str> {
 #[serde(default, rename_all = "camelCase")]
 pub struct InsertRequestMetadata<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
+    crc32c: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     content_type: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     content_encoding: Option<&'a str>,
@@ -1206,9 +1221,8 @@ impl InsertRequestMetadata<'_> {
             && self.content_encoding.is_none()
             && self.storage_class.is_none()
             && self.cache_control.is_none()
-            // We could also put content-encoding in the url parameters
-            && self.content_encoding.is_none()
             && self.metadata.is_none()
+            && self.crc32c.is_none()
     }
 }
 
@@ -1287,6 +1301,9 @@ pub struct ListResponseItem {
     pub md5_hash: String,
     pub updated: String,
     pub content_type: String,
+    pub time_deleted: Option<String>,
+    pub soft_delete_time: Option<String>,
+    pub restore_token: Option<String>,
 }
 
 /// Result of CreateMultipartUpload
@@ -1350,6 +1367,7 @@ struct GetObjectJsonResponse {
     ///
     /// For example: `"md5Hash": "fHcEH1vPwA6eTPqxuasXcg=="`
     md5_hash: String,
+    crc32c: Option<String>,
     /// Content type of this object.
     ///
     /// For example: `"contentType": "image/png",`
@@ -1448,7 +1466,7 @@ mod tests {
     fn test_list_request_defaults() {
         let core = test_core();
         let request = core
-            .gcs_build_list_objects_request("dir/", "", &OpList::default())
+            .gcs_build_list_objects_request("dir/", "", &OpList::default(), false)
             .unwrap();
         let query = request.uri().query().unwrap();
         assert!(query.contains(&format!("prefix={}", gcs_percent_encode_path("dir/"))));
@@ -1470,7 +1488,7 @@ mod tests {
             ..Default::default()
         });
         let first = core
-            .gcs_build_list_objects_request("dir/", "", &args)
+            .gcs_build_list_objects_request("dir/", "", &args, false)
             .unwrap();
         let query = first.uri().query().unwrap();
         assert!(query.contains("versions=true"));
@@ -1483,7 +1501,7 @@ mod tests {
         assert!(!query.contains("pageToken="));
 
         let next = core
-            .gcs_build_list_objects_request("dir/", "page+/=", &args)
+            .gcs_build_list_objects_request("dir/", "page+/=", &args, false)
             .unwrap();
         let query = next.uri().query().unwrap();
         assert!(query.contains(&format!("prefix={}", gcs_percent_encode_path("dir/"))));
@@ -1503,6 +1521,7 @@ mod tests {
                 Some(0),
                 &OpWrite::default(),
                 Buffer::new(),
+                None,
                 None,
             )
             .expect("request must build");
@@ -1533,6 +1552,7 @@ mod tests {
                 &OpWrite::default(),
                 Buffer::new(),
                 Some("token-1"),
+                None,
             )
             .expect("media request must build");
         assert_eq!(media.headers()[X_GOOG_GCS_IDEMPOTENCY_TOKEN], "token-1");
@@ -1547,6 +1567,7 @@ mod tests {
                 }),
                 Buffer::new(),
                 Some("token-2"),
+                None,
             )
             .expect("multipart request must build");
         assert!(
@@ -1559,7 +1580,14 @@ mod tests {
         assert_eq!(multipart.headers()[X_GOOG_GCS_IDEMPOTENCY_TOKEN], "token-2");
 
         let untokened = core
-            .gcs_insert_object_request("object", Some(0), &OpWrite::default(), Buffer::new(), None)
+            .gcs_insert_object_request(
+                "object",
+                Some(0),
+                &OpWrite::default(),
+                Buffer::new(),
+                None,
+                None,
+            )
             .expect("media request must build");
         assert!(
             !untokened
@@ -1585,6 +1613,7 @@ mod tests {
                     ..Default::default()
                 }),
                 Buffer::new(),
+                None,
                 None,
             )
             .unwrap_err();
@@ -1658,6 +1687,7 @@ mod tests {
                     ..Default::default()
                 }),
                 Buffer::new(),
+                None,
                 None,
             )
             .expect("write request must build");
@@ -1771,6 +1801,19 @@ mod tests {
             stat.uri().to_string(),
             "https://storage.googleapis.com/test-bucket/object?generation=123"
         );
+    }
+
+    #[test]
+    fn test_media_get_accepts_stored_gzip() {
+        let core = test_core();
+        let args = read_args(options::ReadOptions::default());
+
+        for range in [BytesRange::default(), BytesRange::new(5, Some(8))] {
+            let request = core
+                .gcs_get_object_request("object", range, &args)
+                .expect("media request must build");
+            assert_eq!(request.headers()[ACCEPT_ENCODING], "gzip");
+        }
     }
 
     #[test]
@@ -2031,6 +2074,22 @@ mod tests {
             )
             .expect("create request must build");
         assert_eq!(create.headers()["x-goog-if-generation-match"], "0");
+    }
+
+    #[test]
+    fn test_gcs_insert_object_xml_request_with_cache_control() {
+        let request = test_core()
+            .gcs_insert_object_xml_request(
+                "object",
+                &write_args(options::WriteOptions {
+                    cache_control: Some("private, max-age=137".to_owned()),
+                    ..Default::default()
+                }),
+                Buffer::new(),
+            )
+            .expect("request must build");
+
+        assert_eq!(request.headers()[CACHE_CONTROL], "private, max-age=137");
     }
 
     #[test]
@@ -2347,8 +2406,17 @@ impl ErrorContext {
 
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
-struct GcsErrorResponse {
+pub(super) struct GcsErrorResponse {
     error: GcsError,
+}
+
+impl GcsErrorResponse {
+    pub(super) fn has_reason(&self, reason: &str) -> bool {
+        self.error
+            .errors
+            .iter()
+            .any(|detail| detail.reason == reason)
+    }
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -2377,6 +2445,18 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let gcs_error = de::from_slice::<GcsErrorResponse>(&bs).ok();
 
     let (mut kind, mut retryable) = match parts.status {
+        StatusCode::BAD_REQUEST
+            if gcs_error.as_ref().is_some_and(|error| {
+                error.has_reason("invalid")
+                    && error.error.message.starts_with("Provided CRC32C ")
+                    && error
+                        .error
+                        .message
+                        .contains("doesn't match calculated CRC32C ")
+            }) =>
+        {
+            (ErrorKind::ChecksumMismatch, false)
+        }
         StatusCode::NOT_FOUND if ctx.delete_match_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
@@ -2463,6 +2543,22 @@ mod error_tests {
         let err = parse_error(ErrorContext::new(ServiceOperation("GetObject")), resp);
         assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
         assert!(!err.is_temporary());
+    }
+
+    #[test]
+    fn test_parse_crc32c_rejection() {
+        let response = Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .body(Buffer::from(
+                r#"{"error":{"code":400,"message":"Provided CRC32C 'AAAAAA==' doesn't match calculated CRC32C 'z8aakA=='.","errors":[{"reason":"invalid"}]}}"#,
+            ))
+            .unwrap();
+        let error = parse_error(
+            ErrorContext::new(ServiceOperation("UploadResumableChunk")),
+            response,
+        );
+        assert_eq!(error.kind(), ErrorKind::ChecksumMismatch);
+        assert!(!error.is_temporary());
     }
 
     fn condition_not_met(ctx: ErrorContext) -> Error {

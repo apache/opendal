@@ -1,5 +1,20 @@
 # Unreleased
 
+## Deprecation of `FoyerLayer`
+
+`FoyerLayer` (`layers-foyer`) is deprecated in favor of `CacheLayer` (`layers-cache`) backed by `services::Foyer` (`services-foyer`):
+
+```rust,ignore
+use opendal::{layers::CacheLayer, services, Operator, Result};
+
+let cache = Operator::new(services::Foyer::new().cache(hybrid_cache))?;
+let op = source.layer(CacheLayer::new(cache)?);
+```
+
+## Minimum supported Rust version
+
+OpenDAL now requires Rust 1.95 or later (up from 1.91).
+
 ## Path normalization
 
 Operation paths preserve leading and trailing whitespace, including paths made
@@ -9,6 +24,20 @@ trim user input, call `trim()` before passing the input to OpenDAL.
 Operation paths and service roots remove components equal to `.`. For example,
 `./data/./file` addresses `data/file`. Operation paths still use a trailing `/`
 to mark directories.
+
+## Write checksum intents
+
+Check `Capability::write_with_checksum` to discover native write checksum
+support. It replaces the four unreleased per-algorithm checksum flags. A service
+with this capability accepts `WriteChecksum::Any` on non-append writes and
+checks support for a requested algorithm before starting I/O.
+
+Existing `.write_with(...).checksum(checksum)` and
+`.writer_with(...).checksum(checksum)` calls continue to accept a `Checksum`.
+Convert a checksum with `.into()` when assigning it directly to
+`WriteOptions::checksum`, and match `WriteChecksum::Expected` when reading a
+caller-supplied digest from `OpWrite::checksum()`. `Metadata::checksum()` still
+returns a verified full-file `Checksum` when available.
 
 ## Per-write expiration
 
@@ -24,13 +53,26 @@ Use `..Default::default()` in `ReadOptions` struct literals, or set
 Set `limit: Some(n)` to read up to the first `n` bytes of the selected range
 and accept EOF after a valid starting byte.
 
+## Read and stat checksum hints
+
+`ReadOptions`, `ReaderOptions`, and `StatOptions` now have a `checksum` field
+that defaults to `false`. In exhaustive struct literals, set `checksum: false`
+or use `..Default::default()` to preserve the previous behavior. In exhaustive
+patterns, include `checksum` or ignore the new field with `..`.
+
 ## Automatic capability simulation
 
-The `auto-simulate` feature in `opendal` and `opendal-core` now controls
-whether `Operator::new` installs `SimulateLayer` automatically. The feature
-is enabled by default. If you previously disabled default features and rely
-on automatic simulation, add `auto-simulate` to your dependency features.
-To apply simulation to individual operators, see the runnable
+The `auto-simulate` feature in `opendal` and `opendal-core` controls whether
+`Operator::new` installs `SimulateLayer` automatically. Both crates currently
+enable the feature by default. A future release will remove `auto-simulate`
+from the default feature set.
+
+If you rely on automatic simulation, add `"auto-simulate"` to your dependency's
+`features` list now, even if you use default features.
+
+To opt out of automatic simulation today, set `default-features = false` and
+ensure that no dependency enables `auto-simulate`. To apply simulation to
+individual operators, see the runnable
 [`SimulateLayer` example][crate::layers::SimulateLayer#examples].
 
 ## WebDAV recursive listing
@@ -40,16 +82,22 @@ reported nginx and ownCloud configurations reject that depth with HTTP 403
 and 412, respectively. Jianguoyun has been reported to return only one level.
 
 Set `disable_depth_infinity = true` in the affected endpoint's WebDAV
-configuration. With the default `auto-simulate` feature, OpenDAL walks the
-directory tree using `Depth: 1` requests for recursive listing and deletion.
-If `auto-simulate` is disabled, add `SimulateLayer::default()` to the Rust
-operator to enable the walk.
+configuration. The default `auto-simulate` feature installs `SimulateLayer`,
+which walks the directory tree with `Depth: 1` `PROPFIND` requests for
+recursive listing. If `auto-simulate` is disabled, add
+`SimulateLayer::default()` to the Rust operator to enable the walk. Collection
+deletion still uses one native `DELETE` request.
 
 ## Glob listing
 
 `ListOptions` and `Capability` now have `glob` and `list_with_glob` fields,
 respectively. For exhaustive struct literals, add `glob: None` or
 `list_with_glob: false`, or use `..Default::default()`.
+
+For services without native `list_with_glob`, client-side glob simulation is
+provided by [`SimulateLayer`][crate::layers::SimulateLayer] (controlled by
+`SimulateLayer::with_list_glob` and installed automatically when the default
+`auto-simulate` feature is enabled).
 
 ## Shared semaphores for `ConcurrentLimitLayer`
 
@@ -128,6 +176,19 @@ available bytes. Keep using `oio::Read::read` for an exact bounded range.
 ### `raw::oio::FlatLister` removed
 
 `raw::oio::FlatLister` has been removed. Recursive listing simulation for services without native recursive listing is provided by [`SimulateLayer`][crate::layers::SimulateLayer] (enabled automatically with the default `auto-simulate` feature). Use `SimulateLayer` instead of constructing `oio::FlatLister` directly.
+
+### `raw::OpDeleter` removed
+
+Remove imports and construction of `raw::OpDeleter` when the value is unused.
+If you used the type as a marker, define your own type, such as
+`struct DeleteMarker;`. If the marker was part of your crate's public API,
+make your type public and update your signatures or re-exports to use it.
+
+To set deleter options, pass
+[`options::DeleterOptions`][crate::options::DeleterOptions]
+to [`Operator::deleter_options`][crate::Operator::deleter_options] or use
+[`Operator::deleter_with`][crate::Operator::deleter_with], for example
+`op.deleter_with().concurrent(4).await?`.
 
 ### Explicit executor and capability in `oio::MultipartCopier::new`
 

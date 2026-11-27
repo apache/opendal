@@ -101,6 +101,10 @@ typedef enum opendal_code {
    * The operation was cancelled via an `opendal_cancel_token`.
    */
   OPENDAL_CANCELLED,
+  /**
+   * A checksum did not match the expected value.
+   */
+  OPENDAL_CHECKSUM_MISMATCH,
 } opendal_code;
 
 typedef struct opendal_presigned_request_inner opendal_presigned_request_inner;
@@ -1163,9 +1167,10 @@ void opendal_lister_free(struct opendal_lister *ptr);
 /**
  * \brief Installs one process-global native callback for the library's Rust log facade.
  *
- * The default C operator constructor emits operation events through this
- * callback. The explicit `opendal_operator_new_with_layers` constructor applies
- * only its supplied layers. The callback can also receive records from other
+ * The default C operator constructor adds a logging layer that emits
+ * operation events through this callback. With
+ * `opendal_operator_new_with_layers`, set `layers=logging` in the options to
+ * enable operation logging. The callback can also receive records from other
  * Rust components using the same log facade.
  *
  * Returns NULL on success. A null callback or an already installed logger
@@ -1353,10 +1358,16 @@ void opendal_operator_free(const struct opendal_operator *ptr);
 /**
  * \brief Construct an operator based on `scheme` and `options`
  *
- * Uses an array of key-value pairs to initialize the operator based on provided `scheme`
- * and `options`. For each scheme, i.e. Backend, different options could be set, you may
- * reference the [documentation](https://opendal.apache.org/docs/category/services/) for
- * each service, especially for the **Configuration Part**.
+ * Pass service configuration and any `context.<name>.*`, `layers`, and
+ * `layer.<name>.*` options as key-value pairs from trusted sources. The linked
+ * library must include the selected service and configured providers.
+ *
+ * The `layers` option lists layer names from inner to outer, separated by
+ * commas. This constructor appends the C binding's default retry and logging
+ * layers after the configured layers. In particular, `layers=retry` adds an
+ * inner retry layer beneath the default retry layer. Use
+ * opendal_operator_new_with_layers() with `layers` set to NULL to use only
+ * the configured layers in addition to OpenDAL's core layers.
  *
  * @param scheme the service scheme you want to specify, e.g. "fs", "s3"
  * @param options the pointer to the options for this operator, it could be NULL, which means no
@@ -1396,8 +1407,18 @@ struct opendal_error *opendal_operator_new(const char *scheme,
 /**
  * \brief Construct an operator based on scheme, options, and explicit layers.
  *
- * Unlike opendal_operator_new, this function will not add any default layer.
- * Layers will be applied exactly as they were added to opendal_operator_layers.
+ * This constructor uses the same configuration options as
+ * opendal_operator_new(). It appends the layers in the C handle in insertion
+ * order, after any layers configured in `options`. Pass NULL for the C handle
+ * to keep only the configured layers and OpenDAL's core layers.
+ *
+ * This constructor omits the C binding's default retry and logging layers.
+ *
+ * @param scheme The service scheme.
+ * @param options The configuration options, or NULL to use defaults.
+ * @param layers The C layer handle, or NULL to append no explicit layers.
+ * @param op Output pointer receiving the newly allocated `opendal_operator *` on success, or NULL on failure.
+ * @return NULL if construction succeeds, or an `opendal_error *` on failure.
  *
  * # Safety
  *

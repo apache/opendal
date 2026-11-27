@@ -76,6 +76,8 @@ pub struct Capability {
     pub read_with_version: bool,
     /// Indicates if suffix read operations are supported.
     pub read_with_suffix: bool,
+    /// Indicates if the operator supports requesting stored full-file checksum metadata. Stat and read responses may include that metadata when requested.
+    pub read_with_checksum: bool,
     /// Indicates if the operator supports write operations.
     pub write: bool,
     /// Indicates if multiple write operations can be performed on the same object.
@@ -110,6 +112,8 @@ pub struct Capability {
     pub write_with_user_metadata: bool,
     /// Indicates if writes can set a lifetime for the new file.
     pub write_with_expires: bool,
+    /// Indicates if non-append writes support native checksum verification. A service with this capability supports at least [`crate::WriteChecksum::Any`] and validates each requested intent before performing I/O.
+    pub write_with_checksum: bool,
     /// Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads.
     pub write_multi_max_size: usize,
     /// Minimum size required for multipart uploads (except for the last part). For example, AWS S3 requires at least 5MiB per part.
@@ -251,6 +255,7 @@ impl Capability {
             read_with_override_content_type: cap.read_with_override_content_type,
             read_with_version: cap.read_with_version,
             read_with_suffix: cap.read_with_suffix,
+            read_with_checksum: cap.read_with_checksum,
             write: cap.write,
             write_can_multi: cap.write_can_multi,
             write_can_empty: cap.write_can_empty,
@@ -268,6 +273,7 @@ impl Capability {
             write_with_if_not_exists: cap.write_with_if_not_exists,
             write_with_user_metadata: cap.write_with_user_metadata,
             write_with_expires: cap.write_with_expires,
+            write_with_checksum: cap.write_with_checksum,
             write_multi_max_size: cap.write_multi_max_size.unwrap_or(usize::MAX),
             write_multi_min_size: cap.write_multi_min_size.unwrap_or(usize::MAX),
             write_total_max_size: cap.write_total_max_size.unwrap_or(usize::MAX),

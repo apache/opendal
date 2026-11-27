@@ -171,8 +171,8 @@ impl Service for ImmutableIndexService {
         // deleted entries.
         capability.list_with_versions = false;
         capability.list_with_deleted = false;
-        // `GlobLayer` sits below this layer and advertises `list_with_glob` on
-        // its wrapped stack, but this layer answers list calls directly. The
+        // `SimulateLayer` may sit below this layer and advertise `list_with_glob`
+        // on its wrapped stack, but this layer answers list calls directly. The
         // index cannot honor glob patterns.
         capability.list_with_glob = false;
 
@@ -232,9 +232,7 @@ impl Service for ImmutableIndexService {
         idx.sort_unstable();
         idx.dedup();
 
-        if let Some(start_after) = args.start_after()
-            && start_after != "/"
-        {
+        if let Some(start_after) = args.start_after() {
             idx.retain(|v| v.as_str() > start_after);
         }
 
@@ -919,6 +917,93 @@ mod tests {
             .try_collect()
             .await?;
         assert_eq!(sub_recursive, ["dir/", "dir/a", "dir/b"]);
+
+        Ok(())
+    }
+
+    /// `start_after("/")` must filter lexicographically like every other
+    /// cursor value, excluding `"/"` and keys sorting before `'/'` (ASCII 47),
+    /// matching `services::Memory`'s contract.
+    #[tokio::test]
+    async fn test_list_start_after_root_and_pre_slash_keys() -> Result<()> {
+        let keys = [
+            "-dir/x",
+            "-dir/y",
+            "-first.txt",
+            ".env",
+            "/",
+            "0.txt",
+            "a.txt",
+            "a/1",
+        ];
+
+        let mut iil = ImmutableIndexLayer::default();
+        for key in keys {
+            iil.insert(key.to_string());
+        }
+
+        let op = Operator::from_iter::<services::Memory>(HashMap::<_, _>::default())?.layer(iil);
+
+        // (name, recursive, start_after, expected)
+        let cases: &[(&str, bool, &str, &[&str])] = &[
+            (
+                "empty start_after non-recursive",
+                false,
+                "",
+                &["-dir/", "-first.txt", ".env", "/", "0.txt", "a.txt", "a/"],
+            ),
+            (
+                "empty start_after recursive",
+                true,
+                "",
+                &[
+                    "-dir/x",
+                    "-dir/y",
+                    "-first.txt",
+                    ".env",
+                    "/",
+                    "0.txt",
+                    "a.txt",
+                    "a/1",
+                ],
+            ),
+            (
+                "slash start_after non-recursive excludes pre-slash keys and root",
+                false,
+                "/",
+                &["0.txt", "a.txt", "a/"],
+            ),
+            (
+                "slash start_after recursive excludes pre-slash keys and root",
+                true,
+                "/",
+                &["0.txt", "a.txt", "a/1"],
+            ),
+            (
+                "pre-slash start_after non-recursive",
+                false,
+                "-dir/",
+                &["-first.txt", ".env", "/", "0.txt", "a.txt", "a/"],
+            ),
+            (
+                "pre-slash start_after recursive",
+                true,
+                "-dir/x",
+                &["-dir/y", "-first.txt", ".env", "/", "0.txt", "a.txt", "a/1"],
+            ),
+        ];
+
+        for &(name, recursive, start_after, expected) in cases {
+            let actual: Vec<String> = op
+                .lister_with("/")
+                .recursive(recursive)
+                .start_after(start_after)
+                .await?
+                .map_ok(|entry| entry.path().to_string())
+                .try_collect()
+                .await?;
+            assert_eq!(actual, expected, "{name}");
+        }
 
         Ok(())
     }

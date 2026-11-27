@@ -288,6 +288,7 @@ pub const Code = enum(c.opendal_code) {
     RANGE_NOT_SATISFIED = c.OPENDAL_RANGE_NOT_SATISFIED,
     CONFLICT = c.OPENDAL_CONFLICT,
     CANCELLED = c.OPENDAL_CANCELLED,
+    CHECKSUM_MISMATCH = c.OPENDAL_CHECKSUM_MISMATCH,
 };
 
 pub const OpendalError = error{
@@ -305,6 +306,7 @@ pub const OpendalError = error{
     RangeNotSatisfied,
     Conflict,
     Cancelled,
+    ChecksumMismatch,
 };
 
 /// Converts a C error code to a Zig error. Unrecognized codes return `error.Unexpected`.
@@ -328,6 +330,7 @@ fn errorFromCode(code: c.opendal_code) OpendalError {
         c.OPENDAL_RANGE_NOT_SATISFIED => error.RangeNotSatisfied,
         c.OPENDAL_CONFLICT => error.Conflict,
         c.OPENDAL_CANCELLED => error.Cancelled,
+        c.OPENDAL_CHECKSUM_MISMATCH => error.ChecksumMismatch,
         else => error.Unexpected,
     };
 }
@@ -348,6 +351,7 @@ pub fn errorToCode(err: OpendalError) c_int {
         error.RangeNotSatisfied => c.OPENDAL_RANGE_NOT_SATISFIED,
         error.Conflict => c.OPENDAL_CONFLICT,
         error.Cancelled => c.OPENDAL_CANCELLED,
+        error.ChecksumMismatch => c.OPENDAL_CHECKSUM_MISMATCH,
     };
 }
 
@@ -369,6 +373,7 @@ test "Error Tests" {
     try testing.expectError(error.RangeNotSatisfied, codeToError(c.OPENDAL_RANGE_NOT_SATISFIED));
     try testing.expectError(error.Conflict, codeToError(c.OPENDAL_CONFLICT));
     try testing.expectError(error.Cancelled, codeToError(c.OPENDAL_CANCELLED));
+    try testing.expectError(error.ChecksumMismatch, codeToError(@intFromEnum(Code.CHECKSUM_MISMATCH)));
     try testing.expectError(error.Unexpected, codeToError(999));
 
     // Zig error to C code
@@ -386,6 +391,7 @@ test "Error Tests" {
     try testing.expectEqual(c.OPENDAL_RANGE_NOT_SATISFIED, errorToCode(error.RangeNotSatisfied));
     try testing.expectEqual(c.OPENDAL_CONFLICT, errorToCode(error.Conflict));
     try testing.expectEqual(c.OPENDAL_CANCELLED, errorToCode(error.Cancelled));
+    try testing.expectEqual(c.OPENDAL_CHECKSUM_MISMATCH, errorToCode(error.ChecksumMismatch));
 }
 
 test "Semantic Analyzer" {

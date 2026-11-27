@@ -41,6 +41,10 @@ use opendal_core::Result;
 use opendal_core::raw::parse_content_encoding;
 use opendal_core::raw::parse_content_length;
 
+mod config;
+
+pub use config::register_http_context;
+
 static DEFAULT_REQWEST_TRANSPORT: LazyLock<ReqwestTransport> =
     LazyLock::new(|| ReqwestTransport::new(reqwest::Client::new()));
 

@@ -55,6 +55,7 @@ opendal-core = { path = "../../core", version = "0.59.5", default-features = fal
 reqwest = { version = "0.13.4", features = [
   "stream",
 ], default-features = false }
+serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 bytes = { workspace = true }

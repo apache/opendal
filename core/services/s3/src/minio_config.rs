@@ -81,6 +81,13 @@ pub struct MinioConfig {
     ///
     /// <!-- @group Credentials -->
     pub session_token: Option<String>,
+    /// Disable loading credentials from AWS environment variables and shared profile files.
+    ///
+    /// When enabled, signing requires both `access_key_id` and `secret_access_key`.
+    ///
+    /// <!-- @group Credentials -->
+    /// <!-- @default false -->
+    pub disable_config_load: bool,
     /// Send requests without signing them.
     ///
     /// This option cannot be combined with direct credentials.

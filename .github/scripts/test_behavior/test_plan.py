@@ -87,20 +87,6 @@ class BehaviorTestPlan(unittest.TestCase):
         self.assertFalse(result["components"]["core"])
         self.assertTrue(any("github" in note for note in result["notes"]))
 
-    def test_smb_fixture_is_core_only(self):
-        result = plan([
-            ".github/services/smb/samba/action.yml",
-            "core/services/fs/src/lib.rs",
-        ])
-        core = {
-            case["service"]
-            for target in result["core"]
-            for case in target["cases"]
-        }
-        self.assertEqual(core, {"smb", "fs"})
-        for language in LANGUAGE_BINDING:
-            self.assertFalse(result["components"][f"binding_{language}"], language)
-
     def test_core_services_hdfs_native_mapping(self):
         result = plan(["core/services/hdfs-native/src/lib.rs"])
         self.assertTrue(result["components"]["core"])
@@ -322,6 +308,25 @@ class BehaviorTestPlan(unittest.TestCase):
 
         go_oses = {target["os"] for target in result["binding_go"]}
         self.assertEqual(go_oses, {"ubuntu-latest", "windows-latest", "macos-latest"})
+
+    def test_nightly_local_keeps_ftp_for_core_and_respects_native_binding_support(self):
+        result = plan([], mode="nightly-local")
+        core_setups = {
+            (case["service"], setup)
+            for target in result["core"]
+            for case in target["cases"]
+            for setup in case["setups"]
+        }
+        self.assertIn(("ftp", "vsftpd"), core_setups)
+
+        for language in ("java", "dotnet"):
+            with self.subTest(language=language):
+                binding_services = {
+                    case["service"]
+                    for target in result[f"binding_{language}"]
+                    for case in target["cases"]
+                }
+                self.assertNotIn("ftp", binding_services)
 
     def test_nightly_live_ignores_empty_diff_and_excludes_local_setups(self):
         result = plan([], mode="nightly-live")

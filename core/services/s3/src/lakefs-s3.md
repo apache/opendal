@@ -27,6 +27,15 @@ See [S3 object and prefix examples](https://docs.lakefs.io/reference/python/boto
 [temporary credentials](https://docs.lakefs.io/security/s3-temporary-credentials/),
 and [supported operations](https://docs.lakefs.io/reference/s3/).
 
+## Write checksums
+
+The preset returns `ErrorKind::Unsupported` before sending a write with a
+checksum intent. In tests with lakeFS 1.88.0 and local storage, the gateway
+accepted incorrect CRC-32C and CRC-64/NVME values on `PutObject`, `UploadPart`,
+and full-object multipart completion. Signed GETs confirmed that uploads
+with incorrect checksums created and replaced objects. The gateway returned
+no checksum confirmation for valid digests either.
+
 ## Source ETag conditions
 
 The preset reports the capabilities of the shared S3 implementation. With

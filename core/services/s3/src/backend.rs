@@ -44,6 +44,7 @@ use reqsign_core::ProvideCredentialDyn;
 use reqsign_file_read_tokio::TokioFileRead;
 use url::Url;
 
+use crate::GARAGE_SCHEME;
 use crate::S3_SCHEME;
 use crate::config::S3Config;
 use crate::copier::S3Copiers;
@@ -1243,10 +1244,12 @@ impl S3Builder {
         // only single-shot PutObject supports Content-MD5.
         let s3_write_can_multi = !matches!(checksum_algorithm, Some(ChecksumAlgorithm::Md5));
         // General-purpose S3 verifies full-object CRCs on PutObject and multipart uploads.
-        // Presets require an explicit opt-in because checksum support depends on the gateway.
         //
         // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity-upload.html>
-        let s3_can_checksum = !is_s3_express && (scheme == S3_SCHEME || preset_write_checksum);
+        let s3_can_checksum = !is_s3_express
+            && (scheme == S3_SCHEME
+                || (scheme == GARAGE_SCHEME && !config.skip_signature)
+                || preset_write_checksum);
 
         let mut capability = Capability {
             stat: true,

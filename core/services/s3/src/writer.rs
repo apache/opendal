@@ -765,8 +765,7 @@ mod tests {
                         .region("garage")
                         .access_key_id("test-access-key")
                         .secret_access_key("test-secret-key")
-                        .disable_config_load()
-                        .enable_write_checksum(true),
+                        .disable_config_load(),
                 )
             } else {
                 Operator::new(

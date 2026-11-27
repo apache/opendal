@@ -13,10 +13,9 @@ and [S3 client setup](https://garagehq.deuxfleurs.fr/documentation/connect/cli/)
 Pass the provider’s access key ID and secret access key together, or supply them
 through the AWS credential environment variables or shared credentials file.
 
-Set `enable_write_checksum` to true to opt in to full-object checksum
-verification for single PUT and multipart uploads. It defaults to false.
-OpenDAL verified signed path-style requests on Garage 2.1.0. The option
-applies to signed, non-append writes.
+Pass a checksum intent to verify the full object on signed single PUT and
+multipart uploads. OpenDAL verified signed path-style requests on Garage
+2.1.0. Ordinary writes omit the checksum header.
 
 `WriteChecksum::Any` and `WriteChecksum::Fast` use CRC-64/NVME. Explicit
 algorithm and expected checksum intents support CRC-32C and CRC-64/NVME.

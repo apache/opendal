@@ -351,6 +351,10 @@ fn parse_capability_literal(
                     "read_with_checksum" | "write_with_checksum"
                 )
             {
+                if name == "garage" && field_name == "write_with_checksum" {
+                    native.insert(field_name, NativeBoolDoc::Supported(true));
+                    continue;
+                }
                 let condition = match (name, field_name.as_str()) {
                     ("ceph-rgw", "write_with_checksum") => Some(
                         "Requires `enable_write_checksum=true` for non-append CRC32C writes. Verified with signed path-style requests to Ceph RGW 20.2.5 and 21.2.0.",
@@ -360,9 +364,6 @@ fn parse_capability_literal(
                     ),
                     ("seaweedfs", "write_with_checksum") => Some(
                         "Requires `enable_write_checksum=true` for non-append writes. Verified with signed path-style requests to SeaweedFS 4.52.",
-                    ),
-                    ("garage", "write_with_checksum") => Some(
-                        "Requires `enable_write_checksum=true` for signed, non-append writes. Verified with signed path-style requests to Garage 2.1.0.",
                     ),
                     _ => None,
                 };
@@ -1213,11 +1214,10 @@ mod tests {
         ));
         let garage = out.services.iter().find(|s| s.scheme == "garage").unwrap();
         assert!(!garage.native.contains_key("read_with_checksum"));
-        assert!(matches!(
+        assert_eq!(
             garage.native.get("write_with_checksum"),
-            Some(NativeBoolDoc::Conditional(condition))
-                if condition.contains("enable_write_checksum") && condition.contains("signed")
-        ));
+            Some(&NativeBoolDoc::Supported(true))
+        );
         assert!(!s3.native.contains_key("create_dir"));
         assert_eq!(
             s3.limits.get("write_multi_min_size"),

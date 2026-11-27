@@ -876,20 +876,12 @@ mod service_feature_tests {
         use crate::services::{GARAGE_SCHEME, Garage, GarageConfig};
 
         let options = [("endpoint", "http://127.0.0.1:3900"), ("region", "garage")];
-        let from_uri = Operator::from_uri((
-            "garage://example-bucket/root?enable_write_checksum=true",
-            options,
-        ))
-        .unwrap();
+        let from_uri = Operator::from_uri(("garage://example-bucket/root", options)).unwrap();
         let from_iter = Operator::via_iter(
             GARAGE_SCHEME,
             options
                 .into_iter()
-                .chain([
-                    ("bucket", "example-bucket"),
-                    ("root", "root"),
-                    ("enable_write_checksum", "false"),
-                ])
+                .chain([("bucket", "example-bucket"), ("root", "root")])
                 .map(|(key, value)| (key.to_owned(), value.to_owned())),
         )
         .unwrap();
@@ -904,22 +896,16 @@ mod service_feature_tests {
                 .bucket("example-bucket")
                 .root("root")
                 .endpoint("http://127.0.0.1:3900")
-                .region("garage")
-                .enable_write_checksum(true),
+                .region("garage"),
         )
         .unwrap();
 
-        for (op, write_checksum) in [
-            (from_uri, true),
-            (from_iter, false),
-            (from_config, false),
-            (from_builder, true),
-        ] {
+        for op in [from_uri, from_iter, from_config, from_builder] {
             assert_eq!(op.info().scheme(), GARAGE_SCHEME);
             assert_eq!(op.info().name(), "example-bucket");
             assert_eq!(op.info().root(), "/root/");
             let cap = op.info().capability();
-            assert_eq!(cap.write_with_checksum, write_checksum);
+            assert!(cap.write_with_checksum);
             assert!(!cap.read_with_checksum);
         }
     }

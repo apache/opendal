@@ -1581,11 +1581,6 @@ public interface ServiceConfig {
          */
         public final Boolean enableVirtualHostStyle;
         /**
-         * <p>Opt in to native checksum verification for signed, non-append writes. Defaults to false.
-         * Verified with signed path-style requests to Garage 2.1.0.</p>
-         */
-        public final Boolean enableWriteChecksum;
-        /**
          * <p>HTTP(S) base URL of the cluster’s S3 API.</p>
          */
         public final @NonNull String endpoint;
@@ -1619,9 +1614,6 @@ public interface ServiceConfig {
             }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
-            }
-            if (enableWriteChecksum != null) {
-                map.put("enable_write_checksum", String.valueOf(enableWriteChecksum));
             }
             map.put("endpoint", endpoint);
             map.put("region", region);

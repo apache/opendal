@@ -821,250 +821,416 @@ typedef struct opendal_operator_info {
 /**
  * \brief Capability is used to describe what operations are supported
  * by current Operator.
+ *
+ * Size limit fields are zero when the operator does not define a limit.
+ *
+ * These flags describe the underlying OpenDAL operator. A flag can be true even
+ * when the C binding does not expose the matching function (for example,
+ * `restore`).
  */
 typedef struct opendal_capability {
   /**
-   * If operator supports stat.
+   * Indicates if the operator supports metadata retrieval operations.
    */
   bool stat;
   /**
-   * If operator supports stat with if match.
+   * Indicates if conditional stat operations using If-Match are supported.
    */
   bool stat_with_if_match;
   /**
-   * If operator supports stat with if none match.
+   * Indicates if conditional stat operations using If-None-Match are supported.
    */
   bool stat_with_if_none_match;
   /**
-   * If operator supports stat with if modified since.
+   * Indicates if conditional stat operations using version match are supported.
+   */
+  bool stat_with_if_version_match;
+  /**
+   * Indicates if conditional stat operations using version non-match are supported.
+   */
+  bool stat_with_if_version_not_match;
+  /**
+   * Indicates if conditional stat operations using If-Modified-Since are supported.
    */
   bool stat_with_if_modified_since;
   /**
-   * If operator supports stat with if unmodified since.
+   * Indicates if conditional stat operations using If-Unmodified-Since are supported.
    */
   bool stat_with_if_unmodified_since;
   /**
-   * if operator supports stat with override cache control.
+   * Indicates if Cache-Control header override is supported during stat operations.
    */
   bool stat_with_override_cache_control;
   /**
-   * if operator supports stat with override content disposition.
+   * Indicates if Content-Disposition header override is supported during stat operations.
    */
   bool stat_with_override_content_disposition;
   /**
-   * if operator supports stat with override content type.
+   * Indicates if Content-Type header override is supported during stat operations.
    */
   bool stat_with_override_content_type;
   /**
-   * If operator supports stat with version.
+   * Indicates if versions stat operations are supported.
    */
   bool stat_with_version;
   /**
-   * If operator supports read.
+   * Indicates if the operator supports read operations.
    */
   bool read;
   /**
-   * If operator supports read with if match.
+   * Indicates if conditional read operations using If-Match are supported.
    */
   bool read_with_if_match;
   /**
-   * If operator supports read with if none match.
+   * Indicates if conditional read operations using If-None-Match are supported.
    */
   bool read_with_if_none_match;
   /**
-   * if operator supports read with override cache control.
+   * Indicates if conditional read operations using version match are supported.
    */
-  bool read_with_override_cache_control;
+  bool read_with_if_version_match;
   /**
-   * if operator supports read with override content disposition.
+   * Indicates if conditional read operations using version non-match are supported.
    */
-  bool read_with_override_content_disposition;
+  bool read_with_if_version_not_match;
   /**
-   * if operator supports read with override content type.
-   */
-  bool read_with_override_content_type;
-  /**
-   * If operator supports read with if modified since.
+   * Indicates if conditional read operations using If-Modified-Since are supported.
    */
   bool read_with_if_modified_since;
   /**
-   * If operator supports read with if unmodified since.
+   * Indicates if conditional read operations using If-Unmodified-Since are supported.
    */
   bool read_with_if_unmodified_since;
   /**
-   * If operator supports read with version.
+   * Indicates if Cache-Control header override is supported during read operations.
+   */
+  bool read_with_override_cache_control;
+  /**
+   * Indicates if Content-Disposition header override is supported during read operations.
+   */
+  bool read_with_override_content_disposition;
+  /**
+   * Indicates if Content-Type header override is supported during read operations.
+   */
+  bool read_with_override_content_type;
+  /**
+   * Indicates if versions read operations are supported.
    */
   bool read_with_version;
   /**
-   * If operator supports write.
+   * Indicates if suffix read operations are supported.
+   */
+  bool read_with_suffix;
+  /**
+   * Indicates if the operator supports requesting stored full-file checksum metadata. Stat and read responses may include that metadata when requested.
+   */
+  bool read_with_checksum;
+  /**
+   * Indicates if the operator supports write operations.
    */
   bool write;
   /**
-   * If operator supports write can be called in multi times.
+   * Indicates if multiple write operations can be performed on the same object.
    */
   bool write_can_multi;
   /**
-   * If operator supports write with empty content.
+   * Indicates if writing empty content is supported.
    */
   bool write_can_empty;
   /**
-   * If operator supports write by append.
+   * Indicates if append operations are supported.
    */
   bool write_can_append;
   /**
-   * If operator supports write with content type.
+   * Indicates if a non-append writer can natively copy source ranges into an in-progress write. `Writer::copy_from` remains available through streaming fallback when false or when appending.
+   */
+  bool write_can_copy_from;
+  /**
+   * Indicates if Content-Type can be specified during write operations.
    */
   bool write_with_content_type;
   /**
-   * If operator supports write with content disposition.
+   * Indicates if Content-Disposition can be specified during write operations.
    */
   bool write_with_content_disposition;
   /**
-   * If operator supports write with content encoding.
+   * Indicates if Content-Encoding can be specified during write operations.
    */
   bool write_with_content_encoding;
   /**
-   * If operator supports write with cache control.
+   * Indicates if a write can store Content-Language and a subsequent stat can retrieve it.
+   */
+  bool write_with_content_language;
+  /**
+   * Indicates if Cache-Control can be specified during write operations.
    */
   bool write_with_cache_control;
   /**
-   * If operator supports write with if match.
+   * Indicates if conditional write operations using If-Match are supported.
    */
   bool write_with_if_match;
   /**
-   * If operator supports write with if none match.
+   * Indicates if conditional write operations using If-None-Match are supported.
    */
   bool write_with_if_none_match;
   /**
-   * If operator supports write with if not exists.
+   * Indicates if conditional write operations using version match are supported.
+   */
+  bool write_with_if_version_match;
+  /**
+   * Indicates if conditional write operations using version non-match are supported.
+   */
+  bool write_with_if_version_not_match;
+  /**
+   * Indicates if write operations can be conditional on object non-existence.
    */
   bool write_with_if_not_exists;
   /**
-   * If operator supports write with user metadata.
+   * Indicates if custom user metadata can be attached during write operations.
    */
   bool write_with_user_metadata;
   /**
-   * write_multi_max_size is the max size that services support in write_multi.
+   * Indicates if writes can set a lifetime for the new file.
+   */
+  bool write_with_expires;
+  /**
+   * Indicates if non-append writes support native checksum verification. A service with this capability supports at least [`crate::WriteChecksum::Any`] and validates each requested intent before performing I/O.
+   */
+  bool write_with_checksum;
+  /**
+   * Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads.
    *
-   * For example, AWS S3 supports 5GiB as max in write_multi.
-   *
-   * If it is not set, this will be zero
+   * If it is not set, this will be zero.
    */
   uintptr_t write_multi_max_size;
   /**
-   * write_multi_min_size is the min size that services support in write_multi.
+   * Minimum size required for multipart uploads (except for the last part). For example, AWS S3 requires at least 5MiB per part.
    *
-   * For example, AWS S3 requires at least 5MiB in write_multi expect the last one.
-   *
-   * If it is not set, this will be zero
+   * If it is not set, this will be zero.
    */
   uintptr_t write_multi_min_size;
   /**
-   * write_total_max_size is the max size that services support in write_total.
+   * Maximum total size supported for write operations. For example, Cloudflare D1 has a 1MB total size limit.
    *
-   * For example, Cloudflare D1 supports 1MB as max in write_total.
-   *
-   * If it is not set, this will be zero
+   * If it is not set, this will be zero.
    */
   uintptr_t write_total_max_size;
   /**
-   * If operator supports create dir.
+   * Indicates if directory creation is supported.
    */
   bool create_dir;
   /**
-   * If operator supports delete.
+   * Indicates if delete operations are supported.
    */
   bool delete_;
   /**
-   * If operator supports delete with version.
+   * Indicates if versions delete operations are supported.
    */
   bool delete_with_version;
   /**
-   * If operator supports delete with recursive.
+   * Indicates if recursive delete operations are supported.
    */
   bool delete_with_recursive;
   /**
-   * If operator supports copy.
+   * Indicates if conditional delete operations using If-Match are supported.
+   */
+  bool delete_with_if_match;
+  /**
+   * Indicates if conditional delete operations using If-None-Match are supported.
+   */
+  bool delete_with_if_none_match;
+  /**
+   * Indicates if conditional delete operations using version match are supported.
+   */
+  bool delete_with_if_version_match;
+  /**
+   * Indicates if conditional delete operations using version non-match are supported.
+   */
+  bool delete_with_if_version_not_match;
+  /**
+   * Maximum size supported for single delete operations.
+   *
+   * If it is not set, this will be zero.
+   */
+  uintptr_t delete_max_size;
+  /**
+   * Indicates if copy operations are supported.
    */
   bool copy;
   /**
-   * If operator supports copy with if not exists.
+   * Indicates if conditional copy operations with if-not-exists are supported.
    */
   bool copy_with_if_not_exists;
   /**
-   * If operator supports copy with if match.
+   * Indicates if conditional copy operations with if-match are supported.
    */
   bool copy_with_if_match;
   /**
-   * If operator supports copy with source version.
+   * Indicates if conditional copy operations with if-none-match are supported.
+   */
+  bool copy_with_if_none_match;
+  /**
+   * Indicates if conditional copy operations using version match are supported.
+   */
+  bool copy_with_if_version_match;
+  /**
+   * Indicates if conditional copy operations using version non-match are supported.
+   */
+  bool copy_with_if_version_not_match;
+  /**
+   * Indicates if copy operations from a specific source version are supported.
    */
   bool copy_with_source_version;
   /**
-   * If operator supports copy can be split into multiple server-side tasks.
+   * Indicates if copy operations can replace the destination's user metadata.
+   */
+  bool copy_with_user_metadata;
+  /**
+   * Indicates if copy operations can replace the destination's Content-Type.
+   */
+  bool copy_with_content_type;
+  /**
+   * Indicates if copy operations can replace the destination's Content-Language.
+   */
+  bool copy_with_content_language;
+  /**
+   * Indicates if copy operations can be split into multiple server-side tasks.
    */
   bool copy_can_multi;
   /**
-   * copy_multi_max_size is the max size supported for segmented copy tasks.
+   * Maximum size supported for segmented copy tasks.
    *
-   * If it is not set, this will be zero
+   * If it is not set, this will be zero.
    */
   uintptr_t copy_multi_max_size;
   /**
-   * copy_multi_min_size is the min size required for segmented copy tasks.
+   * Minimum size required for segmented copy tasks.
    *
-   * If it is not set, this will be zero
+   * If it is not set, this will be zero.
    */
   uintptr_t copy_multi_min_size;
   /**
-   * If operator supports rename.
+   * Indicates if the operator supports composing complete source objects.
+   */
+  bool compose;
+  /**
+   * Indicates if Content-Type can be specified during composition.
+   */
+  bool compose_with_content_type;
+  /**
+   * Indicates if Content-Disposition can be specified during composition.
+   */
+  bool compose_with_content_disposition;
+  /**
+   * Indicates if Content-Encoding can be specified during composition.
+   */
+  bool compose_with_content_encoding;
+  /**
+   * Indicates if Cache-Control can be specified during composition.
+   */
+  bool compose_with_cache_control;
+  /**
+   * Indicates if custom user metadata can be attached during composition.
+   */
+  bool compose_with_user_metadata;
+  /**
+   * Indicates if composition supports a destination ETag match condition.
+   */
+  bool compose_with_if_match;
+  /**
+   * Indicates if composition supports a destination ETag non-match condition.
+   */
+  bool compose_with_if_none_match;
+  /**
+   * Indicates if composition supports a destination version match condition.
+   */
+  bool compose_with_if_version_match;
+  /**
+   * Indicates if composition supports a destination version non-match condition.
+   */
+  bool compose_with_if_version_not_match;
+  /**
+   * Indicates if composition can require a missing destination.
+   */
+  bool compose_with_if_not_exists;
+  /**
+   * Indicates if composition can select a specific source version.
+   */
+  bool compose_with_source_version;
+  /**
+   * Indicates if composition supports a source ETag match condition.
+   */
+  bool compose_with_source_if_match;
+  /**
+   * Indicates if restore operations are supported.
+   */
+  bool restore;
+  /**
+   * Indicates if restoring a specific version is supported.
+   */
+  bool restore_with_version;
+  /**
+   * Indicates if conditional restore operations using if-not-exists are supported.
+   */
+  bool restore_with_if_not_exists;
+  /**
+   * Indicates if rename operations are supported.
    */
   bool rename;
   /**
-   * If operator supports list.
+   * Indicates if conditional rename operations with if-not-exists are supported.
+   */
+  bool rename_with_if_not_exists;
+  /**
+   * Indicates if list operations are supported.
    */
   bool list;
   /**
-   * If backend supports list with limit.
+   * Indicates if list operations support result limiting.
    */
   bool list_with_limit;
   /**
-   * If backend supports list with start after.
+   * Indicates if list operations support continuation from a specific point.
    */
   bool list_with_start_after;
   /**
-   * If backend supports list without delimiter.
+   * Indicates if recursive listing is supported.
    */
   bool list_with_recursive;
   /**
-   * If backend supports list with versions.
+   * Indicates if listing with versions included is supported.
    */
   bool list_with_versions;
   /**
-   * If backend supports list with deleted.
+   * Indicates if listing with deleted files included is supported.
    */
   bool list_with_deleted;
   /**
-   * If operator supports presign.
+   * Indicates if listing with a glob pattern is supported by this service stack.
+   */
+  bool list_with_glob;
+  /**
+   * Indicates if presigned URL generation is supported.
    */
   bool presign;
   /**
-   * If operator supports presign read.
+   * Indicates if presigned URLs for read operations are supported.
    */
   bool presign_read;
   /**
-   * If operator supports presign stat.
+   * Indicates if presigned URLs for stat operations are supported.
    */
   bool presign_stat;
   /**
-   * If operator supports presign write.
+   * Indicates if presigned URLs for write operations are supported.
    */
   bool presign_write;
   /**
-   * If operator supports presign delete.
+   * Indicates if presigned URLs for delete operations are supported.
    */
   bool presign_delete;
   /**
-   * If operator supports shared.
+   * Indicate if the operator supports shared access.
    */
   bool shared;
 } opendal_capability;

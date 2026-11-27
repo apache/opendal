@@ -4,6 +4,20 @@
 
 ### Breaking Changes
 
+#### `opendal_capability` layout and `opendal-go-services` companions
+
+The Go binding mirrors the native `opendal_capability` struct, whose layout
+changed in this release. Existing `Capability` methods keep their names and
+signatures. See the [C upgrade guide](../c/upgrade.md#opendal_capability-abi-change)
+for the layout change.
+
+**Migration:**
+
+Upgrade the Go binding and every `opendal-go-services` companion module you use
+together. Each companion ships a `libopendal_c` that must match the ABI expected
+by the Go binding. If you build the library yourself, use the matching OpenDAL
+sources. Mixing old and new layouts is unsupported.
+
 #### `context.Context` parameter on I/O operations
 
 All `Operator` I/O methods and non-stdlib handle methods now accept `context.Context` as their first parameter to support cooperative cancellation and deadlines via `opendal_cancel_token`:

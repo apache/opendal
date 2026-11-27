@@ -1,3 +1,14 @@
+# Unreleased
+
+## `opendal_capability` ABI change
+
+`opendal_capability` now exposes every core capability. On Linux x86-64,
+the struct grew from 104 to 152 bytes and field offsets changed.
+
+Rebuild C and Zig consumers using `opendal.h` and `libopendal_c` from the
+same OpenDAL source version. Mixing binaries built against the old layout
+with the new library is unsupported.
+
 # Upgrade to v0.45
 
 Change to use `Cmake` to build the C binding.

@@ -104,6 +104,10 @@ public class ReadOptions {
 
     /**
      * Known content length of the object.
+     *
+     * <p>Supply the full object length in bytes, regardless of the requested range. The default of {@code -1L} means the length is unknown. Use {@code 0L} for an empty object. Values below {@code -1L} fail with {@link OpenDALException.Code#ConfigInvalid}.
+     *
+     * <p>OpenDAL can use this hint to avoid a metadata request when planning reads. An incorrect hint can truncate reads or cause errors.
      */
     @Builder.Default
     public final long contentLengthHint = -1L;

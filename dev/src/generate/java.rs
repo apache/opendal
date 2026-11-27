@@ -245,6 +245,7 @@ struct OptionProperty {
     java_type: &'static str,
     default_value: Option<&'static str>,
     summary: String,
+    details: Vec<String>,
     see_also: Vec<String>,
 }
 
@@ -529,6 +530,7 @@ fn options_class<'a>(
                         java_type: "long",
                         default_value: None,
                         summary: "The byte offset to start reading from. Defaults to zero.".to_owned(),
+                        details: Vec::new(),
                         see_also: Vec::new(),
                     },
                     OptionProperty {
@@ -536,6 +538,7 @@ fn options_class<'a>(
                         java_type: "long",
                         default_value: Some("-1L"),
                         summary: "The number of bytes to read from {@link #offset}. The default of {@code -1L} reads to the end.".to_owned(),
+                        details: Vec::new(),
                         see_also: Vec::new(),
                     },
                 ]);
@@ -543,11 +546,29 @@ fn options_class<'a>(
             }
             OptionKind::OptionDuration => bail!("unsupported Java option {}::{name}", options.name),
         };
+        let details = match (options.name.as_str(), name) {
+            ("ReadOptions" | "ReaderOptions", "content_length_hint") => vec![
+                concat!(
+                    "Supply the full object length in bytes, regardless of the requested range. ",
+                    "The default of {@code -1L} means the length is unknown. ",
+                    "Use {@code 0L} for an empty object. Values below {@code -1L} fail with ",
+                    "{@link OpenDALException.Code#ConfigInvalid}."
+                )
+                .to_owned(),
+                concat!(
+                    "OpenDAL can use this hint to avoid a metadata request when planning reads. ",
+                    "An incorrect hint can truncate reads or cause errors."
+                )
+                .to_owned(),
+            ],
+            _ => Vec::new(),
+        };
         properties.push(OptionProperty {
             camel: case_java_field_name(name),
             java_type,
             default_value,
             summary: option_javadoc(&field.doc, spec, Some(name)),
+            details,
             see_also: option_capability_refs(&field.doc),
         });
     }
@@ -926,6 +947,39 @@ mod tests {
                 assert!(rendered.contains(
                     "such as {@code \"a\"} can also match entries under {@code \"ab/\"}"
                 ));
+            }
+        }
+    }
+
+    #[test]
+    fn test_options_javadoc_notices() {
+        let structs = core_options_structs();
+        let env = Environment::new();
+        let template = env
+            .template_from_str(include_str!("java/options_java.j2"))
+            .unwrap();
+
+        for class in options_classes(&structs).unwrap() {
+            let (declaration, notices): (&str, &[&str]) = match class.name {
+                "ReadOptions" | "ReaderOptions" => (
+                    "public final long contentLengthHint",
+                    &[
+                        "full object length in bytes, regardless of the requested range",
+                        "{@code -1L} means the length is unknown",
+                        "An incorrect hint can truncate reads or cause errors.",
+                    ],
+                ),
+                _ => continue,
+            };
+            let rendered = template.render(context! { class => class }).unwrap();
+            let (preceding, _) = rendered.split_once(declaration).unwrap();
+            let (_, javadoc) = preceding.rsplit_once("/**").unwrap();
+            for notice in notices {
+                assert!(
+                    javadoc.contains(notice),
+                    "{} is missing {notice}",
+                    class.name
+                );
             }
         }
     }

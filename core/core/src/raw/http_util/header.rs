@@ -209,7 +209,36 @@ pub fn parse_content_disposition(headers: &HeaderMap) -> Result<Option<&str>> {
 
 /// Parse multipart boundary from header map.
 pub fn parse_multipart_boundary(headers: &HeaderMap) -> Result<Option<&str>> {
-    parse_header_to_str(headers, CONTENT_TYPE).map(|v| v.and_then(|v| v.split("boundary=").nth(1)))
+    parse_header_to_str(headers, CONTENT_TYPE).map(|v| v.and_then(extract_multipart_boundary))
+}
+
+fn extract_multipart_boundary(content_type: &str) -> Option<&str> {
+    let mut rest = content_type;
+    while let Some((_, after_semi)) = rest.split_once(';') {
+        let param = after_semi.trim_start();
+        let Some((name, raw_val)) = param.split_once('=') else {
+            rest = param;
+            continue;
+        };
+        let val = raw_val.trim_start();
+        let is_boundary = name.trim_end().eq_ignore_ascii_case("boundary");
+        if let Some(after_quote) = val.strip_prefix('"') {
+            let end = after_quote.find('"')?;
+            if is_boundary {
+                let boundary = &after_quote[..end];
+                return (!boundary.is_empty()).then_some(boundary);
+            }
+            rest = &after_quote[end + 1..];
+            continue;
+        }
+        let end = val.find(';').unwrap_or(val.len());
+        if is_boundary {
+            let boundary = val[..end].trim_end();
+            return (!boundary.is_empty()).then_some(boundary);
+        }
+        rest = &val[end..];
+    }
+    None
 }
 
 /// Parse header value to string according to name.
@@ -599,6 +628,25 @@ mod tests {
                 "multipart/mixed; boundary=gc0p4Jq0M2Yt08jU534c0p",
                 Some("gc0p4Jq0M2Yt08jU534c0p"),
             ),
+            (
+                "multipart/mixed; boundary=gc0p4Jq0M2Yt08jU534c0p; charset=utf-8",
+                Some("gc0p4Jq0M2Yt08jU534c0p"),
+            ),
+            (
+                "multipart/mixed; boundary=\"gc0p4Jq0M2Yt08jU534c0p\"",
+                Some("gc0p4Jq0M2Yt08jU534c0p"),
+            ),
+            (
+                "multipart/mixed; boundary=\"gc0p4Jq0M2Yt08jU534c0p\"; charset=utf-8",
+                Some("gc0p4Jq0M2Yt08jU534c0p"),
+            ),
+            (
+                "multipart/mixed; charset=utf-8; boundary=\"a;b\"",
+                Some("a;b"),
+            ),
+            ("multipart/mixed; x-boundary=ignored", None),
+            ("multipart/mixed; boundary=\"\"", None),
+            ("multipart/mixed; boundary=", None),
             ("multipart/mixed", None),
             // GCS returns unquoted boundaries that contain `=`.
             (

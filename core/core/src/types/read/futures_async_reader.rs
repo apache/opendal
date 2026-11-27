@@ -44,6 +44,10 @@ use crate::*;
 /// An unbounded read treats [`ErrorKind::RangeNotSatisfied`] as EOF. Bounded
 /// reads and other errors are propagated.
 ///
+/// A chunked open-ended read planned from earlier read metadata can extend its
+/// end after a completed chunk reports a longer object. End-relative seeks
+/// use the planned end until the read learns a longer length.
+///
 /// FuturesAsyncReader also implements [`Unpin`], [`Send`] and [`Sync`]
 pub struct FuturesAsyncReader {
     ctx: Arc<ReadContext>,
@@ -59,6 +63,7 @@ pub struct FuturesAsyncReader {
     start: u64,
     range_end: Option<u64>,
     content_length: Option<u64>,
+    observe_open_end: bool,
     end_fut: Option<BoxedFuture<'static, Result<u64>>>,
     stream_is_unbounded: bool,
     pos: u64,
@@ -101,7 +106,11 @@ impl FuturesAsyncReader {
             }
         };
 
-        let content_length = if range_end.is_none() && ctx.options().chunk().is_some() {
+        let chunked_open_end = range_end.is_none() && ctx.options().chunk().is_some();
+        let observe_open_end = chunked_open_end
+            && ctx.args().content_length_hint().is_none()
+            && ctx.metadata().is_some();
+        let content_length = if chunked_open_end {
             Some(ctx.content_length().await?)
         } else {
             None
@@ -112,7 +121,7 @@ impl FuturesAsyncReader {
         let stream_is_unbounded = size.is_none();
         let stream = match suffix_revalidation {
             Some(reval) => BufferStream::new_suffix(ctx.clone(), reval),
-            None => BufferStream::new(ctx.clone(), start, size),
+            None => BufferStream::new(ctx.clone(), start, size, observe_open_end),
         };
 
         Ok(FuturesAsyncReader {
@@ -123,6 +132,7 @@ impl FuturesAsyncReader {
             start,
             range_end,
             content_length,
+            observe_open_end,
             end_fut: None,
             stream_is_unbounded,
             pos: 0,
@@ -140,9 +150,14 @@ impl FuturesAsyncReader {
         }
 
         let next = ready!(self.stream.poll_next_unpin(cx));
-        if let Some(range) = self.stream.take_revalidated_suffix_range() {
-            self.start = range.start;
-            self.range_end = Some(range.end);
+        if let Some(range) = self.stream.take_revalidated_range() {
+            if self.range_end.is_some() {
+                self.start = range.start;
+                self.range_end = Some(range.end);
+            } else {
+                self.content_length = Some(range.end);
+                self.observe_open_end = false;
+            }
         }
 
         match next {
@@ -381,7 +396,8 @@ impl AsyncSeek for FuturesAsyncReader {
 
         self.buf = Buffer::new();
         self.stream_is_unbounded = size.is_none();
-        self.stream = BufferStream::new(self.ctx.clone(), absolute_pos, size);
+        self.stream =
+            BufferStream::new(self.ctx.clone(), absolute_pos, size, self.observe_open_end);
 
         self.pos = new_pos;
         self.eof = false;
@@ -1142,6 +1158,30 @@ mod tests {
         assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
         assert_eq!(counts.stats.load(Ordering::SeqCst), 0);
         assert!(opened_ranges(&counts).is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_warm_chunked_reader_extends_open_ended_read_and_seek() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("test", "12345").await?;
+        let reader = op.reader_with("test").chunk(2).await?;
+        assert_eq!(reader.read(0..1).await?.to_bytes(), "1");
+        op.write("test", "abcdefghi").await?;
+        assert_eq!(reader.read(2..).await?.to_bytes(), "cdefghi");
+
+        let mut adapter = reader.clone().into_futures_async_read(2..).await?;
+        assert_eq!(adapter.seek(SeekFrom::End(0)).await.unwrap(), 3);
+        assert!(adapter.read_to_end_buffer().await.unwrap().is_empty());
+        assert_eq!(adapter.seek(SeekFrom::Start(0)).await.unwrap(), 0);
+        assert_eq!(
+            adapter.read_to_end_buffer().await.unwrap().to_bytes(),
+            "cdefghi"
+        );
+        assert_eq!(adapter.seek(SeekFrom::End(-2)).await.unwrap(), 5);
+        assert_eq!(adapter.read_to_end_buffer().await.unwrap().to_bytes(), "hi");
+        assert_eq!(adapter.seek(SeekFrom::End(0)).await.unwrap(), 7);
+        assert_eq!(reader.metadata().unwrap().content_length(), 5);
         Ok(())
     }
 

@@ -37,6 +37,10 @@ use crate::*;
 ///
 /// `Reader` implements `Clone` so you can clone it and store in place where ever you want.
 ///
+/// Chunked open-ended reads can plan from the metadata observed by an earlier
+/// read. A nonempty plan can extend when a completed chunk reports a longer
+/// object. A range starting at the planned end can return EOF without a request.
+///
 /// ## Direct
 ///
 /// [`Reader`] provides public API including [`Reader::read`]. You can use those APIs directly without extra copy.

@@ -14,7 +14,7 @@ Before you begin, please ensure you have the following tools installed:
 - **uv**: To manage the python dependencies and environment. See Installation instructions [here](https://docs.astral.sh/uv/getting-started/installation/).
 - **cargo**: To manage the rust dependencies and environment. See Installation instructions [here](https://doc.rust-lang.org/cargo/getting-started/installation.html).
 - **taplo**: Simple checker and formatter for TOML files. See Installation instructions [here](https://taplo.tamasfe.dev/cli/installation/cargo.html).
-- **hawkeye**: Simple license header checker and formatter. See Installation instructions [here](https://github.com/fast/hawkeye#installation).
+- **hawkeye**: Simple license header checker and formatter. Requires Hawkeye v7; CI uses `7.2.0`. See Installation instructions [here](https://github.com/fast/hawkeye#installation).
 - **Just**: A command runner used to simplify our development workflow. See Installation instructions [here](https://just.systems/man/en/packages.html).
 
 ---

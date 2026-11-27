@@ -235,6 +235,7 @@ pub(crate) fn parse_checksum_algorithm(name: &str) -> PyResult<ocore::ChecksumAl
     match name {
         "crc32c" => Ok(ocore::ChecksumAlgo::Crc32c),
         "crc64nvme" => Ok(ocore::ChecksumAlgo::Crc64Nvme),
+        "crc64ecma" => Ok(ocore::ChecksumAlgo::Crc64Ecma),
         "md5" => Ok(ocore::ChecksumAlgo::Md5),
         "sha1" => Ok(ocore::ChecksumAlgo::Sha1),
         "sha256" => Ok(ocore::ChecksumAlgo::Sha256),

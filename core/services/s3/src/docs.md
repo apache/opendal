@@ -64,10 +64,9 @@ CRC-64/NVME checksum. Explicit algorithm and expected checksum requests
 support CRC-32C and CRC-64/NVME. The write returns the confirmed checksum in
 [`opendal_core::Metadata::checksum`] for both a single PUT and multipart upload.
 Append and S3 Express One Zone reject per-write checksum intents. The
-[`crate::Garage`] preset supports CRC-32C and CRC-64/NVME on signed writes. On
-compatible endpoints, the [`crate::Minio`] and [`crate::Seaweedfs`] presets
-offer opt-in verification for both algorithms. The [`crate::CephRgw`] preset
-offers opt-in verification for CRC-32C.
+Garage, MinIO, SeaweedFS, and Ceph RADOS Gateway presets also accept write
+checksum intents. See each preset's documentation for its supported algorithms
+and server behavior.
 
 A per-write intent takes precedence over [`crate::S3Config::checksum_algorithm`]
 for HTTP checksum headers. The configured algorithm still disables native writer

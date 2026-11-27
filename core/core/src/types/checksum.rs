@@ -32,13 +32,26 @@ pub enum ChecksumAlgo {
     Sha256,
     /// SHA-1, a 20-byte digest.
     Sha1,
+    /// CRC64-ECMA, the 8-byte digest used by Alibaba Cloud OSS and Tencent Cloud COS.
+    ///
+    /// OSS and COS report unsigned decimal digests in `x-oss-hash-crc64ecma`
+    /// and `x-cos-hash-crc64ecma`, respectively.
+    ///
+    /// CRC-64/XZ uses the canonical polynomial `0x42F0E1EBA9EA3693`, with
+    /// `refin = true`, `refout = true`, and `init` and `xorout` both set to
+    /// `0xFFFFFFFFFFFFFFFF`.
+    /// The check value for the ASCII bytes `123456789` is `0x995DC9BBDF1939FA`.
+    /// CRC-64/ECMA-182 (for example, `crc::CRC_64_ECMA_182`) yields
+    /// `0x6C40DF5F0B497347` for the same input and is incompatible with these
+    /// service digests.
+    Crc64Ecma,
 }
 
 impl ChecksumAlgo {
     /// Return the length in bytes of a digest produced by this algorithm.
     pub fn digest_len(self) -> usize {
         match self {
-            ChecksumAlgo::Crc64Nvme => 8,
+            ChecksumAlgo::Crc64Nvme | ChecksumAlgo::Crc64Ecma => 8,
             ChecksumAlgo::Crc32c => 4,
             ChecksumAlgo::Md5 => 16,
             ChecksumAlgo::Sha256 => 32,
@@ -53,6 +66,7 @@ impl ChecksumAlgo {
             ChecksumAlgo::Md5 => 2,
             ChecksumAlgo::Sha256 => 3,
             ChecksumAlgo::Sha1 => 4,
+            ChecksumAlgo::Crc64Ecma => 5,
         }
     }
 
@@ -63,6 +77,7 @@ impl ChecksumAlgo {
             2 => ChecksumAlgo::Md5,
             3 => ChecksumAlgo::Sha256,
             4 => ChecksumAlgo::Sha1,
+            5 => ChecksumAlgo::Crc64Ecma,
             _ => unreachable!("compact values only store tags written by to_tag"),
         }
     }
@@ -222,6 +237,7 @@ mod tests {
             (ChecksumAlgo::Md5, 2, 16),
             (ChecksumAlgo::Sha256, 3, 32),
             (ChecksumAlgo::Sha1, 4, 20),
+            (ChecksumAlgo::Crc64Ecma, 5, 8),
         ] {
             assert_eq!(algo.to_tag(), tag);
             assert_eq!(ChecksumAlgo::from_tag(tag), algo);

@@ -44,7 +44,6 @@ use reqsign_core::ProvideCredentialDyn;
 use reqsign_file_read_tokio::TokioFileRead;
 use url::Url;
 
-use crate::GARAGE_SCHEME;
 use crate::S3_SCHEME;
 use crate::config::S3Config;
 use crate::copier::S3Copiers;
@@ -986,32 +985,26 @@ impl S3Builder {
         }
     }
 
-    pub(crate) fn build_with_scheme(
-        self,
-        scheme: &'static str,
-        preset_write_checksum: bool,
-    ) -> Result<S3Backend> {
-        self.build_backend(scheme, None, preset_write_checksum)
+    pub(crate) fn build_with_scheme(self, scheme: &'static str) -> Result<S3Backend> {
+        self.build_inner(scheme)
     }
 
     pub(crate) fn build_with_resolved_endpoint(
         self,
         scheme: &'static str,
         endpoint: String,
-        preset_write_checksum: bool,
     ) -> Result<S3Backend> {
-        self.build_backend(scheme, Some(endpoint), preset_write_checksum)
+        self.build_backend(scheme, Some(endpoint))
     }
 
     fn build_inner(self, scheme: &'static str) -> Result<S3Backend> {
-        self.build_backend(scheme, None, false)
+        self.build_backend(scheme, None)
     }
 
     fn build_backend(
         self,
         scheme: &'static str,
         resolved_endpoint: Option<String>,
-        preset_write_checksum: bool,
     ) -> Result<S3Backend> {
         debug!("backend build started: {:?}", self);
 
@@ -1243,13 +1236,17 @@ impl S3Builder {
         // S3 CreateMultipartUpload does not support MD5 checksum_algorithm;
         // only single-shot PutObject supports Content-MD5.
         let s3_write_can_multi = !matches!(checksum_algorithm, Some(ChecksumAlgorithm::Md5));
-        // General-purpose S3 verifies full-object CRCs on PutObject and multipart uploads.
-        //
-        // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity-upload.html>
+        // Full-object CRCs require a confirmation from the endpoint on both PutObject
+        // and CompleteMultipartUpload.
         let s3_can_checksum = !is_s3_express
-            && (scheme == S3_SCHEME
-                || (scheme == GARAGE_SCHEME && !config.skip_signature)
-                || preset_write_checksum);
+            && matches!(
+                scheme,
+                S3_SCHEME
+                    | crate::CEPH_RGW_SCHEME
+                    | crate::GARAGE_SCHEME
+                    | crate::MINIO_SCHEME
+                    | crate::SEAWEEDFS_SCHEME
+            );
 
         let mut capability = Capability {
             stat: true,
@@ -4131,61 +4128,28 @@ mod tests {
     }
 
     #[test]
-    fn test_s3_checksum_capability_defaults() {
-        let builder = || {
-            S3Builder::default()
-                .bucket("test")
-                .region("us-east-1")
-                .endpoint("http://127.0.0.1:9000")
-        };
-
-        let cap = builder().build().unwrap().capability();
-        assert!(cap.write_with_checksum);
-
-        let cap = crate::Minio::default()
+    fn test_s3_write_checksum_capability_by_scheme() -> Result<()> {
+        let s3 = S3Builder::default()
             .bucket("test")
-            .endpoint("http://127.0.0.1:9000")
-            .build()
-            .unwrap()
-            .capability();
-        assert!(!cap.write_with_checksum);
+            .region("us-east-1")
+            .build()?;
+        assert!(s3.capability().write_with_checksum);
 
-        let seaweedfs = || {
-            crate::Seaweedfs::default()
-                .bucket("test")
-                .endpoint("http://127.0.0.1:8333")
-        };
-        let defaults = seaweedfs().build().unwrap().capability();
-        assert!(!defaults.write_with_checksum);
-        let cap = seaweedfs()
-            .enable_write_checksum(true)
-            .build()
-            .unwrap()
-            .capability();
-        assert!(cap.write_with_checksum);
-        assert!(!cap.read_with_checksum);
-
-        let ceph_rgw = || {
-            crate::CephRgw::default()
-                .bucket("test")
-                .endpoint("http://127.0.0.1:8080")
-        };
-        assert!(!ceph_rgw().build().unwrap().capability().write_with_checksum);
-        assert!(
-            !ceph_rgw()
-                .enable_write_checksum(false)
-                .build()
-                .unwrap()
-                .capability()
-                .write_with_checksum
-        );
-        let cap = ceph_rgw()
-            .enable_write_checksum(true)
-            .build()
-            .unwrap()
-            .capability();
-        assert!(cap.write_with_checksum);
-        assert!(!cap.read_with_checksum);
+        let endpoint = "http://127.0.0.1:9000";
+        for op in [
+            Operator::new(crate::Minio::default().bucket("test").endpoint(endpoint))?,
+            Operator::new(
+                crate::Seaweedfs::default()
+                    .bucket("test")
+                    .endpoint(endpoint),
+            )?,
+            Operator::new(crate::CephRgw::default().bucket("test").endpoint(endpoint))?,
+        ] {
+            let info = op.info();
+            assert!(info.capability().write_with_checksum, "{}", info.scheme());
+            assert!(!info.capability().read_with_checksum, "{}", info.scheme());
+        }
+        Ok(())
     }
 
     #[test]

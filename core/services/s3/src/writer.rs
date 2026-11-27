@@ -875,6 +875,7 @@ mod tests {
         for (echo, expected) in [
             (Some("AQIDBA=="), Ok(())),
             (None, Err(ErrorKind::Unexpected)),
+            (Some("invalid"), Err(ErrorKind::Unexpected)),
             (Some("BQYHCA=="), Err(ErrorKind::Unexpected)),
         ] {
             let op = Operator::new(
@@ -901,7 +902,11 @@ mod tests {
                     result.expect("echoed checksum must succeed").checksum(),
                     Some(checksum.clone())
                 ),
-                Err(kind) => assert_eq!(result.expect_err("echo={echo:?}").kind(), kind),
+                Err(kind) => {
+                    let err = result.expect_err("expected an unconfirmed write to fail");
+                    assert_eq!(err.kind(), kind, "echo={echo:?}");
+                    assert!(!err.is_temporary(), "echo={echo:?}");
+                }
             }
         }
     }

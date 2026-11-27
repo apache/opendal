@@ -351,27 +351,10 @@ fn parse_capability_literal(
                     "read_with_checksum" | "write_with_checksum"
                 )
             {
-                if name == "garage" && field_name == "write_with_checksum" {
+                if field_name == "write_with_checksum"
+                    && matches!(name, "ceph-rgw" | "garage" | "minio" | "seaweedfs")
+                {
                     native.insert(field_name, NativeBoolDoc::Supported(true));
-                    continue;
-                }
-                let condition = match (name, field_name.as_str()) {
-                    ("ceph-rgw", "write_with_checksum") => Some(
-                        "Requires `enable_write_checksum=true` for non-append CRC32C writes. Verified with signed path-style requests to Ceph RGW 20.2.5 and 21.2.0.",
-                    ),
-                    ("minio", "write_with_checksum") => Some(
-                        "Requires `enable_write_checksum=true` for signed, non-append writes. Verified with signed path-style requests to MinIO RELEASE.2025-01-20T14-49-07Z. Keep the option disabled on RELEASE.2024-09-22T00-33-43Z because it accepted an incorrect CRC.",
-                    ),
-                    ("seaweedfs", "write_with_checksum") => Some(
-                        "Requires `enable_write_checksum=true` for non-append writes. Verified with signed path-style requests to SeaweedFS 4.52.",
-                    ),
-                    _ => None,
-                };
-                if let Some(condition) = condition {
-                    native.insert(
-                        field_name,
-                        NativeBoolDoc::Conditional(condition.to_string()),
-                    );
                 }
                 continue;
             }
@@ -1184,40 +1167,18 @@ mod tests {
                 "Standard S3 buckets (not S3 Express One Zone)".to_string()
             ))
         );
-        let ceph_rgw = out
-            .services
-            .iter()
-            .find(|s| s.scheme == "ceph-rgw")
-            .unwrap();
-        assert!(!ceph_rgw.native.contains_key("read_with_checksum"));
-        assert!(matches!(
-            ceph_rgw.native.get("write_with_checksum"),
-            Some(NativeBoolDoc::Conditional(condition))
-                if condition.contains("enable_write_checksum") && condition.contains("CRC32C")
-        ));
-        let minio = out.services.iter().find(|s| s.scheme == "minio").unwrap();
-        assert!(!minio.native.contains_key("read_with_checksum"));
-        assert!(matches!(
-            minio.native.get("write_with_checksum"),
-            Some(NativeBoolDoc::Conditional(condition))
-                if condition.contains("enable_write_checksum") && condition.contains("signed")
-        ));
-        let seaweedfs = out
-            .services
-            .iter()
-            .find(|s| s.scheme == "seaweedfs")
-            .unwrap();
-        assert!(!seaweedfs.native.contains_key("read_with_checksum"));
-        assert!(matches!(
-            seaweedfs.native.get("write_with_checksum"),
-            Some(NativeBoolDoc::Conditional(condition)) if condition.contains("enable_write_checksum")
-        ));
-        let garage = out.services.iter().find(|s| s.scheme == "garage").unwrap();
-        assert!(!garage.native.contains_key("read_with_checksum"));
-        assert_eq!(
-            garage.native.get("write_with_checksum"),
-            Some(&NativeBoolDoc::Supported(true))
-        );
+        for scheme in ["ceph-rgw", "garage", "minio", "seaweedfs"] {
+            let preset = out.services.iter().find(|s| s.scheme == scheme).unwrap();
+            assert!(
+                !preset.native.contains_key("read_with_checksum"),
+                "{scheme}"
+            );
+            assert_eq!(
+                preset.native.get("write_with_checksum"),
+                Some(&NativeBoolDoc::Supported(true)),
+                "{scheme}"
+            );
+        }
         assert!(!s3.native.contains_key("create_dir"));
         assert_eq!(
             s3.limits.get("write_multi_min_size"),

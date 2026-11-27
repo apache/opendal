@@ -74,12 +74,15 @@ or `PT1S`. Empty, zero, negative, or otherwise invalid duration values fail with
 invalid values for other supported built-in options also fail with
 `ConfigInvalid`. Available transport options depend on the provider and runtime.
 
-An option that holds a map of strings takes a JSON object whose values are
-strings, such as `{"fs.defaultFS":"hdfs://ns"}`. OpenDAL keeps the case of the
-keys inside the object. A key that appears more than once fails with
-`ConfigInvalid`, even when every occurrence has the same value. Any other JSON
-value, including a number, `null`, an array, or a nested object, also fails
-with `ConfigInvalid`.
+An option that holds a map of strings takes a JSON object with unique keys and
+string values, such as `{"fs.defaultFS":"hdfs://ns"}`. OpenDAL keeps the case
+of the keys inside the object. An empty string leaves an optional map unset,
+and `{}` sets an explicit empty map. Any other value fails with
+`ConfigInvalid`, and the error names the option. This includes malformed JSON
+and JSON values other than an object. It also includes an object with a member
+value that is not a string, such as a number, `null`, an array, or a nested
+object, and an object that repeats a key, even when every occurrence has the
+same value.
 
 ## Trusted input
 

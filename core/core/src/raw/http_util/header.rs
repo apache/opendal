@@ -209,7 +209,23 @@ pub fn parse_content_disposition(headers: &HeaderMap) -> Result<Option<&str>> {
 
 /// Parse multipart boundary from header map.
 pub fn parse_multipart_boundary(headers: &HeaderMap) -> Result<Option<&str>> {
-    parse_header_to_str(headers, CONTENT_TYPE).map(|v| v.and_then(|v| v.split("boundary=").nth(1)))
+    parse_header_to_str(headers, CONTENT_TYPE).map(|v| v.and_then(boundary_parameter))
+}
+
+/// Take the `boundary` parameter and stop at the next parameter.
+///
+/// A quoted value may contain `=` or `;`. An unquoted value ends at `;`, so a
+/// GCS boundary that itself contains `=` is kept intact.
+fn boundary_parameter(content_type: &str) -> Option<&str> {
+    let rest = content_type.split("boundary=").nth(1)?.trim_start();
+    if let Some(quoted) = rest.strip_prefix('"') {
+        let end = quoted.find('"')?;
+        let token = &quoted[..end];
+        (!token.is_empty()).then_some(token)
+    } else {
+        let token = rest.split(';').next()?.trim();
+        (!token.is_empty()).then_some(token)
+    }
 }
 
 /// Parse header value to string according to name.

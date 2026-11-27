@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
-
 use bytes::Buf;
 use futures::TryStreamExt;
 
@@ -110,6 +108,18 @@ impl WriteContext {
 
         (chunk_size, exact)
     }
+
+    fn reader(&self, path: &str, args: OpRead, options: OpReader) -> Result<Reader> {
+        let reader = self.service().read(self.context(), path, args.clone())?;
+        Ok(Reader::new(ReadContext::new(
+            self.context().clone(),
+            self.service().clone(),
+            path.to_string(),
+            args,
+            options,
+            reader,
+        )))
+    }
 }
 
 /// A source copy that has already appended part of its range.
@@ -148,8 +158,6 @@ impl PendingCopy {
 pub struct WriteState {
     w: oio::Writer,
 
-    ctx: Option<Arc<WriteContext>>,
-
     /// The size for buffer, we will flush the underlying storage at the size of this buffer.
     chunk_size: Option<usize>,
     /// If `exact` is true, the size of the data written to the underlying storage is
@@ -170,7 +178,7 @@ pub struct WriteState {
 
 impl WriteState {
     /// Create the write state for the given write context.
-    pub fn create(ctx: Arc<WriteContext>) -> Result<Self> {
+    pub fn create(ctx: &WriteContext) -> Result<Self> {
         let (chunk_size, exact) = ctx.calculate_chunk_size();
         // A native copy assembles the source range on the service without
         // passing it through the writer, so a full-file checksum write streams
@@ -182,7 +190,6 @@ impl WriteState {
 
         Ok(Self {
             w,
-            ctx: Some(ctx),
             chunk_size,
             exact,
             can_copy_from,
@@ -199,7 +206,6 @@ impl WriteState {
     pub(crate) fn new(w: oio::Writer, chunk_size: Option<usize>, exact: bool) -> Self {
         Self {
             w,
-            ctx: None,
             chunk_size,
             exact,
             can_copy_from: false,
@@ -322,31 +328,16 @@ impl WriteState {
         Ok(())
     }
 
-    fn reader(&self, path: &str, args: OpRead, options: OpReader) -> Result<Reader> {
-        let ctx = self
-            .ctx
-            .as_ref()
-            .expect("write context must exist outside tests");
-        let reader = ctx.service().read(ctx.context(), path, args.clone())?;
-        Ok(Reader::new(ReadContext::new(
-            ctx.context().clone(),
-            ctx.service().clone(),
-            path.to_string(),
-            args,
-            options,
-            reader,
-        )))
-    }
-
     async fn stream_range(
         &mut self,
+        ctx: &WriteContext,
         path: &str,
         args: OpRead,
         options: OpReader,
         range: BytesRange,
         limit: Option<u64>,
     ) -> Result<()> {
-        let reader = self
+        let reader = ctx
             .reader(path, args, options)
             .map_err(|err| self.copy_source_error(err))?;
         let mut stream = reader.into_stream_with_limit(range, limit).await?;
@@ -398,6 +389,7 @@ impl WriteState {
     /// Copy a source range into this writer, using native execution when possible.
     pub async fn copy_from(
         &mut self,
+        ctx: &WriteContext,
         path: &str,
         args: OpRead,
         options: OpReader,
@@ -421,7 +413,7 @@ impl WriteState {
                 .set_persistent());
             }
         } else {
-            let reader = self.reader(path, args.clone(), options.clone())?;
+            let reader = ctx.reader(path, args.clone(), options.clone())?;
             // A zero limit reads nothing. Opening the reader still validates
             // the read options and capabilities, matching `read_options`.
             if limit == Some(0) || range.size() == Some(0) {
@@ -517,10 +509,10 @@ impl WriteState {
             }));
         }
 
-        self.drive_copy().await
+        self.drive_copy(ctx).await
     }
 
-    async fn drive_copy(&mut self) -> Result<()> {
+    async fn drive_copy(&mut self, ctx: &WriteContext) -> Result<()> {
         let (path, args, options, range, end, mut offset, limit) = {
             let copy = self
                 .pending_copy
@@ -554,6 +546,7 @@ impl WriteState {
             && (limit.is_none() || (!bounded_forward && args.content_length_hint().is_none()));
         let Some(chunk_size) = self.chunk_size.filter(|_| can_copy_native) else {
             self.stream_range(
+                ctx,
                 &path,
                 args,
                 options,
@@ -573,6 +566,7 @@ impl WriteState {
             let boundary_size = (chunk_size as u64 - self.buffer.len() as u64).min(remaining);
             let expected_offset = offset + boundary_size;
             self.stream_range(
+                ctx,
                 &path,
                 args.clone(),
                 options.clone(),
@@ -613,6 +607,7 @@ impl WriteState {
 
         if remaining > 0 {
             self.stream_range(
+                ctx,
                 &path,
                 args,
                 options,
@@ -653,6 +648,7 @@ impl WriteState {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
     use std::sync::atomic::AtomicBool;
     use std::sync::atomic::Ordering;
 

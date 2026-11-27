@@ -19,13 +19,16 @@
 
 #include <chrono>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <type_traits>
 #include <unordered_map>
 
 #include "gtest/gtest.h"
+#include "lib.rs.h"
 #include "opendal.hpp"
+#include "utils/metadata_converter.hpp"
 
 class MetadataTest : public ::testing::Test {
  protected:
@@ -639,6 +642,22 @@ TEST_F(MetadataTest, WrittenFieldsRoundTrip) {
   EXPECT_EQ(metadata.ContentLanguage(), std::nullopt);
 }
 
+TEST_F(MetadataTest, ContentLanguageCrossesBridge) {
+  // C++ WriteOptions cannot set Content-Language, so a testing hook writes it
+  // from Rust. Operator::Stat converts its result with utils::parse_metadata.
+  const std::unique_ptr<opendal::ffi::Operator,
+                        decltype(&opendal::ffi::delete_operator)>
+      language_op(opendal::ffi::new_test_content_language_operator(
+                      "language.txt", "en-US"),
+                  &opendal::ffi::delete_operator);
+
+  const auto metadata =
+      opendal::utils::parse_metadata(language_op->stat("language.txt"));
+
+  EXPECT_EQ(metadata.ContentLanguage(), "en-US");
+  EXPECT_EQ(metadata.content_language, "en-US");
+}
+
 namespace {
 
 // The `opendal::Metadata` API as declared in `data_structure.hpp` before the
@@ -742,6 +761,36 @@ TEST(MetadataCompatibilityTest, PositionalInitializerKeepsFrozenOrder) {
       {"owner", "opendal"}};
   EXPECT_EQ(metadata.user_metadata, expected);
 }
+
+// The members appended since have default member initializers, so existing
+// initializers of `type` through `is_deleted` stay complete for callers that
+// build with `-Werror=missing-field-initializers`.
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic error "-Wmissing-field-initializers"
+#endif
+TEST(MetadataCompatibilityTest, HandWrittenPositionalInitializerIsComplete) {
+  const Metadata metadata{
+      EntryMode::FILE,
+      1,
+      "cache_control",
+      "content_disposition",
+      "content_md5",
+      "content_type",
+      "content_encoding",
+      "etag",
+      std::chrono::system_clock::time_point(std::chrono::seconds(1)),
+      "version",
+      true,
+      false,
+  };
+
+  EXPECT_EQ(metadata.content_language, std::nullopt);
+  EXPECT_EQ(metadata.user_metadata, std::nullopt);
+}
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 #endif
 
 }  // namespace

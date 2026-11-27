@@ -77,9 +77,9 @@ class Metadata {
   /// Return whether this metadata describes a deleted object or delete marker.
   bool is_deleted{false};
   /// Return this entry's Content-Language value, if available.
-  std::optional<std::string> content_language;
+  std::optional<std::string> content_language{};
   /// Return this entry's user metadata.
-  std::optional<std::unordered_map<std::string, std::string>> user_metadata;
+  std::optional<std::unordered_map<std::string, std::string>> user_metadata{};
 
   Metadata() = default;
 

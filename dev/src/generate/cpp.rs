@@ -186,30 +186,31 @@ pub fn generate(workspace_dir: &Path) -> Result<()> {
     generate_metadata(workspace_dir)
 }
 
-/// Order core fields for the public C++ class by `FROZEN_PUBLIC_ORDER`.
+/// Order core names for a public C++ class by its append-only `frozen` list,
+/// named `list` in errors.
 ///
-/// Fails if a core field is not listed, so a new field cannot take an
+/// Fails if a core name is not listed, so a new member cannot take an
 /// unreviewed position, and if a listed member no longer exists in core,
 /// because dropping it would silently break source compatibility.
-fn public_order<T>(fields: &[T], name_of: impl Fn(&T) -> &str) -> Result<Vec<usize>> {
-    if let Some(field) = fields
-        .iter()
-        .find(|f| !FROZEN_PUBLIC_ORDER.contains(&name_of(f)))
-    {
+fn public_order<T>(
+    frozen: &[&str],
+    list: &str,
+    fields: &[T],
+    name_of: impl Fn(&T) -> &str,
+) -> Result<Vec<usize>> {
+    if let Some(field) = fields.iter().find(|f| !frozen.contains(&name_of(f))) {
         bail!(
-            "new core capability `{}` must be appended to FROZEN_PUBLIC_ORDER in dev/src/generate/cpp.rs",
+            "new core member `{}` must be appended to {list} in dev/src/generate/cpp.rs",
             name_of(field)
         );
     }
-    FROZEN_PUBLIC_ORDER
+    frozen
         .iter()
-        .map(|frozen| {
+        .map(|member| {
             fields
                 .iter()
-                .position(|f| name_of(f) == *frozen)
-                .with_context(|| {
-                    format!("frozen C++ capability member `{frozen}` is missing from core")
-                })
+                .position(|f| name_of(f) == *member)
+                .with_context(|| format!("{list} member `{member}` is missing from core"))
         })
         .collect()
 }
@@ -236,7 +237,10 @@ fn render_capability(workspace_dir: &Path) -> Result<Vec<(&'static str, String)>
             doc: f.doc,
         })
         .collect();
-    let public_fields: Vec<&CapabilityField> = public_order(&fields, |f| f.name.as_str())?
+    let public_fields: Vec<&CapabilityField> =
+        public_order(FROZEN_PUBLIC_ORDER, "FROZEN_PUBLIC_ORDER", &fields, |f| {
+            f.name.as_str()
+        })?
         .into_iter()
         .map(|i| &fields[i])
         .collect();
@@ -298,6 +302,12 @@ const METADATA_FROZEN_PUBLIC_ORDER: &[&str] = &[
     "content_language",
     "user_metadata",
 ];
+
+/// Number of leading `METADATA_FROZEN_PUBLIC_ORDER` members that the
+/// hand-written class declared. Every later member gets a default member
+/// initializer, so a positional initializer of the hand-written members alone
+/// stays complete under `-Wmissing-field-initializers`.
+const METADATA_HAND_WRITTEN_MEMBERS: usize = 12;
 
 /// Render model handed to the C++ metadata templates. Every per-kind decision
 /// is made in `metadata_field`, so the templates stay structural.
@@ -385,6 +395,13 @@ fn metadata_field(f: metadata::MetadataField) -> MetadataField {
             )
         }
     };
+    let hand_written =
+        METADATA_FROZEN_PUBLIC_ORDER[..METADATA_HAND_WRITTEN_MEMBERS].contains(&name.as_str());
+    let cpp_init = if cpp_init.is_empty() && !hand_written {
+        "{}"
+    } else {
+        cpp_init
+    };
     let accessor_type = if by_ref {
         format!("const {cpp_type}&")
     } else {
@@ -443,35 +460,6 @@ fn to_pascal(snake: &str) -> String {
         .collect()
 }
 
-/// Order core accessors for the public C++ class by
-/// `METADATA_FROZEN_PUBLIC_ORDER`.
-///
-/// Fails if a core accessor is not listed, so a new accessor cannot take an
-/// unreviewed position, and if a listed member no longer exists in core,
-/// because dropping it would silently break source compatibility.
-fn metadata_public_order<T>(fields: &[T], name_of: impl Fn(&T) -> &str) -> Result<Vec<usize>> {
-    if let Some(field) = fields
-        .iter()
-        .find(|f| !METADATA_FROZEN_PUBLIC_ORDER.contains(&name_of(f)))
-    {
-        bail!(
-            "new core metadata accessor `{}` must be appended to METADATA_FROZEN_PUBLIC_ORDER in dev/src/generate/cpp.rs",
-            name_of(field)
-        );
-    }
-    METADATA_FROZEN_PUBLIC_ORDER
-        .iter()
-        .map(|frozen| {
-            fields
-                .iter()
-                .position(|f| name_of(f) == *frozen)
-                .with_context(|| {
-                    format!("frozen C++ metadata member `{frozen}` is missing from core")
-                })
-        })
-        .collect()
-}
-
 fn generate_metadata(workspace_dir: &Path) -> Result<()> {
     for (relative, rendered) in render_metadata(workspace_dir)? {
         fs::write(workspace_dir.join(relative), format!("{rendered}\n"))?;
@@ -488,10 +476,15 @@ fn render_metadata(workspace_dir: &Path) -> Result<Vec<(&'static str, String)>> 
         .into_iter()
         .map(metadata_field)
         .collect();
-    let public_fields: Vec<&MetadataField> = metadata_public_order(&fields, |f| f.name.as_str())?
-        .into_iter()
-        .map(|i| &fields[i])
-        .collect();
+    let public_fields: Vec<&MetadataField> = public_order(
+        METADATA_FROZEN_PUBLIC_ORDER,
+        "METADATA_FROZEN_PUBLIC_ORDER",
+        &fields,
+        |f| f.name.as_str(),
+    )?
+    .into_iter()
+    .map(|i| &fields[i])
+    .collect();
 
     let mut env = Environment::new();
     env.add_template("metadata_rs", include_str!("cpp/metadata_rs.j2"))?;
@@ -508,9 +501,9 @@ fn render_metadata(workspace_dir: &Path) -> Result<Vec<(&'static str, String)>> 
     ];
     let mut rendered = Vec::with_capacity(outputs.len());
     for (template, relative) in outputs {
-        let content = env
-            .get_template(template)?
-            .render(context! { fields => fields, public_fields => public_fields })?;
+        let content = env.get_template(template)?.render(
+            context! { fields => Serde(&fields), public_fields => Serde(&public_fields) },
+        )?;
         rendered.push((relative, content));
     }
     Ok(rendered)
@@ -579,14 +572,19 @@ mod tests {
     fn test_public_order_rejects_unlisted_core_field() {
         let mut fields = FROZEN_PUBLIC_ORDER.to_vec();
         fields.insert(fields.len() / 2, "new_mid");
-        let err = public_order(&fields, |f| f).unwrap_err().to_string();
+        let err = public_order(FROZEN_PUBLIC_ORDER, "FROZEN_PUBLIC_ORDER", &fields, |f| f)
+            .unwrap_err()
+            .to_string();
         assert!(err.contains("`new_mid` must be appended to FROZEN_PUBLIC_ORDER"));
     }
 
     #[test]
     fn test_public_order_covers_every_core_field_once() {
         let fields = core_fields();
-        let mut order = public_order(&fields, |f| f.name.as_str()).unwrap();
+        let mut order = public_order(FROZEN_PUBLIC_ORDER, "FROZEN_PUBLIC_ORDER", &fields, |f| {
+            f.name.as_str()
+        })
+        .unwrap();
         order.sort_unstable();
         assert_eq!(order, (0..fields.len()).collect::<Vec<_>>());
     }
@@ -594,7 +592,7 @@ mod tests {
     #[test]
     fn test_public_order_rejects_missing_frozen_member() {
         let fields = ["stat", "read"];
-        assert!(public_order(&fields, |f| f).is_err());
+        assert!(public_order(FROZEN_PUBLIC_ORDER, "FROZEN_PUBLIC_ORDER", &fields, |f| f).is_err());
     }
 
     #[test]
@@ -614,18 +612,28 @@ mod tests {
     fn test_metadata_public_order_rejects_unlisted_core_accessor() {
         let mut fields = METADATA_FROZEN_PUBLIC_ORDER.to_vec();
         fields.insert(fields.len() / 2, "new_mid");
-        let err = metadata_public_order(&fields, |f| f)
-            .unwrap_err()
-            .to_string();
+        let err = public_order(
+            METADATA_FROZEN_PUBLIC_ORDER,
+            "METADATA_FROZEN_PUBLIC_ORDER",
+            &fields,
+            |f| f,
+        )
+        .unwrap_err()
+        .to_string();
         assert!(err.contains("`new_mid` must be appended to METADATA_FROZEN_PUBLIC_ORDER"));
     }
 
     #[test]
     fn test_metadata_public_order_rejects_missing_frozen_member() {
         let fields = ["mode", "content_length"];
-        let err = metadata_public_order(&fields, |f| f)
-            .unwrap_err()
-            .to_string();
+        let err = public_order(
+            METADATA_FROZEN_PUBLIC_ORDER,
+            "METADATA_FROZEN_PUBLIC_ORDER",
+            &fields,
+            |f| f,
+        )
+        .unwrap_err()
+        .to_string();
         assert!(err.contains("`cache_control` is missing from core"));
     }
 

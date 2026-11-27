@@ -280,6 +280,11 @@ mod ffi {
         fn new_test_retryable_operator(layers: &LayerBuilder) -> Result<*mut Operator>;
         #[cfg(feature = "testing")]
         fn test_retryable_attempt_count() -> u64;
+        #[cfg(feature = "testing")]
+        fn new_test_content_language_operator(
+            path: &str,
+            content_language: &str,
+        ) -> Result<*mut Operator>;
     }
 }
 
@@ -330,6 +335,11 @@ fn new_test_retryable_operator(layers: &LayerBuilder) -> Result<*mut Operator> {
 #[cfg(feature = "testing")]
 fn test_retryable_attempt_count() -> u64 {
     test_support::retryable_attempt_count() as u64
+}
+
+#[cfg(feature = "testing")]
+fn new_test_content_language_operator(path: &str, content_language: &str) -> Result<*mut Operator> {
+    test_support::new_content_language_operator(path, content_language)
 }
 
 unsafe fn delete_operator(op: *mut Operator) {

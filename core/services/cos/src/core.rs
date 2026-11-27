@@ -252,6 +252,15 @@ impl CosCore {
     }
 
     pub fn cos_head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
+        // COS ignores If-Unmodified-Since when If-Match succeeds.
+        if args.if_match().is_some() && args.if_unmodified_since().is_some() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "COS does not support stat with both if_match and if_unmodified_since",
+            )
+            .with_operation(Operation::Stat));
+        }
+
         let p = build_absolute_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -276,6 +285,14 @@ impl CosCore {
 
         if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+
+        if let Some(if_modified_since) = args.if_modified_since() {
+            req = req.header(IF_MODIFIED_SINCE, if_modified_since.format_http_date());
+        }
+
+        if let Some(if_unmodified_since) = args.if_unmodified_since() {
+            req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
         }
 
         let req = req

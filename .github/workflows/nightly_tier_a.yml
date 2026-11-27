@@ -49,6 +49,10 @@ jobs:
     if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     uses: ./.github/workflows/ci_odev.yml
 
+  website:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_website.yml
+
   edge_local:
     if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     uses: ./.github/workflows/test_edge.yml
@@ -147,6 +151,7 @@ jobs:
       - check
       - core
       - odev
+      - website
       - edge_local
       - behavior_local
       - integration_dav_server

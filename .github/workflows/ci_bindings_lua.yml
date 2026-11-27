@@ -48,7 +48,7 @@ jobs:
       - name: Setup lua toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y lua-busted luarocks liblua5.2-dev
+          sudo apt-get install -y lua-busted luarocks liblua5.2-dev lua-ldoc
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -72,3 +72,7 @@ jobs:
         working-directory: "bindings/lua"
         run: |
           LUA_CPATH="$(luarocks path --lr-cpath)" lua5.2 example/getting-started.lua
+
+      - name: Build docs
+        working-directory: "bindings/lua"
+        run: ldoc ./src

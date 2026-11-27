@@ -1,0 +1,90 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Website CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "website/**"
+      - "core/core/src/docs/specs/**"
+      - "core/Cargo.toml"
+      - "core/examples/**"
+      - "examples/**"
+      - "bindings/*/examples/**"
+      - "bindings/lua/example/**"
+      - "bindings/java/src/test/java/org/apache/opendal/examples/**"
+      - "bindings/swift/OpenDAL/Sources/GettingStarted/**"
+      - "bindings/nodejs/package.json"
+      - "bindings/ruby/Cargo.toml"
+      - ".asf.yaml"
+      - ".github/workflows/ci_website.yml"
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-website-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: "website"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          # Follow website/package.json packageManager field
+          version: 11.8.0
+          run_install: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: "website/.node-version"
+          cache: pnpm
+          cache-dependency-path: "website/pnpm-lock.yaml"
+
+      - name: Corepack
+        run: npm install -g --force corepack && corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test website plugins
+        run: pnpm test
+
+      - name: Cache website build artifacts
+        uses: actions/cache@v6
+        with:
+          path: |
+            website/node_modules/.cache/
+          key: website-build-artifacts-${{ runner.os }}-${{ hashFiles('website/pnpm-lock.yaml') }}-v1
+
+      - name: Build website
+        run: pnpm build

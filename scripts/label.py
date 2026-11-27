@@ -93,6 +93,10 @@ def catalog():
         "description": "Live external cloud service CI failure.",
         "color": "fbca04",
     }
+    labels["ci/deploy-docs"] = {
+        "description": "Deploy documentation and website immediately when merged to main.",
+        "color": "0e8a16",
+    }
     return labels
 
 

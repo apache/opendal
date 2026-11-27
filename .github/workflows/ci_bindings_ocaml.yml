@@ -73,11 +73,12 @@ jobs:
       - name: Checks
         run: |
           # make sure tests pass
-          opam install -y dune ounit2 ocamlformat
+          opam install -y dune ounit2 ocamlformat odoc
           eval $(opam env)
           cd bindings/ocaml
           dune build @fmt
           dune runtest
+          dune build @doc
 
       - name: Run getting-started example
         run: |

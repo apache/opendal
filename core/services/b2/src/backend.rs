@@ -596,8 +596,6 @@ impl Service for B2Backend {
                     .await
             }
             PresignOperation::Write(write) => {
-                const CACHE_CONTROL_FILE_INFO_KEY: &str = "b2-cache-control";
-
                 if write.checksum().is_some() {
                     return Err(Error::new(
                         ErrorKind::Unsupported,
@@ -617,23 +615,38 @@ impl Service for B2Backend {
                 req = req.header(http::header::CONTENT_TYPE, content_type);
                 req = req.header(constants::X_BZ_CONTENT_SHA1, "do_not_verify");
 
-                let cache_control = write.cache_control();
-                if let Some(value) = cache_control {
-                    req = req.header(
-                        format!(
-                            "{}{CACHE_CONTROL_FILE_INFO_KEY}",
-                            constants::X_BZ_INFO_PREFIX
-                        ),
-                        percent_encode_path(value),
-                    );
+                let file_info_options = [
+                    (
+                        constants::CACHE_CONTROL_FILE_INFO_KEY,
+                        write.cache_control(),
+                    ),
+                    (
+                        constants::CONTENT_DISPOSITION_FILE_INFO_KEY,
+                        write.content_disposition(),
+                    ),
+                    (
+                        constants::CONTENT_ENCODING_FILE_INFO_KEY,
+                        write.content_encoding(),
+                    ),
+                    (
+                        constants::CONTENT_LANGUAGE_FILE_INFO_KEY,
+                        write.content_language(),
+                    ),
+                ];
+                for (key, value) in file_info_options {
+                    if let Some(value) = value {
+                        req = req.header(
+                            format!("{}{key}", constants::X_BZ_INFO_PREFIX),
+                            percent_encode_path(value),
+                        );
+                    }
                 }
 
                 if let Some(user_metadata) = write.user_metadata() {
                     for (key, value) in user_metadata {
-                        if cache_control.is_some()
-                            && (key.eq_ignore_ascii_case("cache-control")
-                                || key.eq_ignore_ascii_case(CACHE_CONTROL_FILE_INFO_KEY))
-                        {
+                        if file_info_options.iter().any(|(reserved_key, option)| {
+                            option.is_some() && key.eq_ignore_ascii_case(reserved_key)
+                        }) {
                             continue;
                         }
                         req = req.header(
@@ -755,7 +768,7 @@ mod tests {
                             r#"{"files":[{"fileName":"root/dir/","contentLength":0}]}"#
                         } else {
                             assert!(query.contains("prefix=root/file"));
-                            r#"{"files":[{"fileName":"root/file","fileId":"new","contentLength":13}]}"#
+                            r#"{"files":[{"fileName":"root/file","fileId":"new","contentLength":13,"fileInfo":{"content-disposition":"inline"}}]}"#
                         };
                         (StatusCode::OK, body)
                     }
@@ -792,7 +805,14 @@ mod tests {
     async fn test_version_stat_preserves_metadata_from_selected_file() -> Result<()> {
         let op = stat_operator(
             StatusCode::OK,
-            r#"{"bucketId":"bucket-id","fileName":"root/file","fileId":"old","action":"upload","contentLength":5,"contentType":"text/plain","contentMd5":"md5","fileInfo":{"Owner":"a%2Bb"}}"#,
+            r#"{
+                "bucketId":"bucket-id","fileName":"root/file","fileId":"old","action":"upload",
+                "contentLength":5,"contentType":"text/plain","contentMd5":"md5",
+                "fileInfo":{
+                    "Owner":"a%2Bb",
+                    "b2-content-disposition":"attachment; filename=\"OpenDAL %20 + probe.txt\""
+                }
+            }"#,
         )?;
         assert!(op.info().capability().stat_with_version);
         let old = op.stat_with("file").version("old").await?;
@@ -801,11 +821,25 @@ mod tests {
         assert_eq!(old.content_length(), 5);
         assert_eq!(old.content_type(), Some("text/plain"));
         assert_eq!(old.content_md5(), Some("md5"));
-        assert_eq!(old.user_metadata().unwrap().get("owner"), Some("a+b"));
+        assert_eq!(
+            old.content_disposition(),
+            Some("attachment; filename=\"OpenDAL %20 + probe.txt\"")
+        );
+        let user_metadata = old.user_metadata().unwrap();
+        assert_eq!(user_metadata.get("owner"), Some("a+b"));
+        assert_eq!(
+            user_metadata.get("b2-content-disposition"),
+            Some("attachment; filename=\"OpenDAL   + probe.txt\"")
+        );
 
         let current = op.stat("file").await?;
         assert_eq!(current.version(), Some("new"));
         assert_eq!(current.content_length(), 13);
+        assert_eq!(current.content_disposition(), None);
+        assert_eq!(
+            current.user_metadata().unwrap().get("content-disposition"),
+            Some("inline")
+        );
 
         let op = stat_operator(
             StatusCode::OK,

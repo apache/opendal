@@ -159,45 +159,7 @@ async fn test_presign_write_with_metadata(op: Operator) -> Result<()> {
 }
 
 async fn test_presign_write_b2_headers(op: Operator) -> Result<()> {
-    let reserved = "x-bz-info-b2-cache-control";
-    let metadata_cache_control = "x-bz-info-cache-control";
-    let unrelated = "x-bz-info-application-validation";
-    let unrelated_value = "b2%20trial%20%2B%20caf%C3%A9%20%25";
-    let path = uuid::Uuid::new_v4().to_string();
-    let expire = Duration::from_secs(60);
-    let default_request = op.presign_write(&path, expire).await?;
-    let headers = default_request.header();
-    assert_eq!(headers[header::CONTENT_TYPE], "b2/x-auto");
-    assert!(!headers.contains_key(reserved));
-    assert!(!headers.contains_key(metadata_cache_control));
-    assert!(!headers.contains_key(header::CACHE_CONTROL));
-
-    let mut options = options::WriteOptions {
-        content_type: Some("application/json".to_owned()),
-        user_metadata: Some(
-            [
-                ("application-validation", "b2 trial + café %"),
-                ("cache-control", "no-cache"),
-                ("Cache-Control", "no-store"),
-                ("b2-cache-control", "max-age=30"),
-                ("B2-Cache-Control", "max-age=60"),
-            ]
-            .map(|(key, value)| (key.to_owned(), value.to_owned()))
-            .into(),
-        ),
-        ..Default::default()
-    };
-    let metadata_only = op
-        .presign_write_options(&path, expire, options.clone())
-        .await?;
-    let headers = metadata_only.header();
-    assert_eq!(headers[header::CONTENT_TYPE], "application/json");
-    assert_eq!(headers[unrelated], unrelated_value);
-    assert!(!headers.contains_key(header::CACHE_CONTROL));
-    for (name, expected) in [
-        (reserved, ["max-age%3D30", "max-age%3D60"]),
-        (metadata_cache_control, ["no-cache", "no-store"]),
-    ] {
+    fn assert_header_values(headers: &http::HeaderMap, name: &str, expected: &[&str]) {
         let mut values: Vec<_> = headers
             .get_all(name)
             .iter()
@@ -207,14 +169,99 @@ async fn test_presign_write_b2_headers(op: Operator) -> Result<()> {
         assert_eq!(values, expected, "{name}");
     }
 
+    let path = uuid::Uuid::new_v4().to_string();
+    let expire = Duration::from_secs(60);
+    let default_request = op.presign_write(&path, expire).await?;
+    assert_header_values(default_request.header(), "content-type", &["b2/x-auto"]);
+    assert!(
+        !default_request
+            .header()
+            .contains_key("x-bz-info-cache-control")
+    );
+
+    let mut options = options::WriteOptions {
+        user_metadata: Some(
+            [
+                ("Application-Validation", "b2 trial + café %"),
+                ("cache-control", "no-cache"),
+                ("Cache-Control", "no-store"),
+                ("b2-cache-control", "max-age=30"),
+                ("B2-Cache-Control", "max-age=60"),
+                ("B2-Content-Disposition", "inline"),
+                ("Content-Disposition", "attachment"),
+                ("B2-Content-Encoding", "identity"),
+                ("Content-Encoding", "br"),
+                ("B2-Content-Language", "de"),
+                ("Content-Language", "es"),
+                ("CoNtEnT-TyPe", "text/plain"),
+            ]
+            .map(|(key, value)| (key.to_owned(), value.to_owned()))
+            .into(),
+        ),
+        ..Default::default()
+    };
+    let metadata_only = op
+        .presign_write_options(&path, expire, options.clone())
+        .await?;
+    options.content_type = Some("application/json".to_owned());
     options.cache_control = Some("private, max-age=137".to_owned());
+    options.content_disposition =
+        Some("attachment; filename=\"OpenDAL %20 + probe.txt\"".to_owned());
+    options.content_encoding = Some("gzip".to_owned());
+    options.content_language = Some("fr-CA, en".to_owned());
     let combined = op.presign_write_options(&path, expire, options).await?;
-    let headers = combined.header();
-    assert_eq!(headers.get_all(reserved).iter().count(), 1);
-    assert_eq!(headers[reserved], "private%2C%20max-age%3D137");
-    assert_eq!(headers[unrelated], unrelated_value);
-    assert!(!headers.contains_key(metadata_cache_control));
-    assert!(!headers.contains_key(header::CACHE_CONTROL));
+
+    assert_header_values(metadata_only.header(), "content-type", &["b2/x-auto"]);
+    assert_header_values(combined.header(), "content-type", &["application/json"]);
+    let reserved: [(&str, &[&str], &str); 4] = [
+        (
+            "x-bz-info-b2-cache-control",
+            &["max-age%3D30", "max-age%3D60"],
+            "private%2C%20max-age%3D137",
+        ),
+        (
+            "x-bz-info-b2-content-disposition",
+            &["inline"],
+            "attachment%3B%20filename%3D%22OpenDAL%20%2520%20%2B%20probe.txt%22",
+        ),
+        ("x-bz-info-b2-content-encoding", &["identity"], "gzip"),
+        ("x-bz-info-b2-content-language", &["de"], "fr-CA%2C%20en"),
+    ];
+    for (name, metadata_values, dedicated_value) in reserved {
+        assert_header_values(default_request.header(), name, &[]);
+        assert_header_values(metadata_only.header(), name, metadata_values);
+        assert_header_values(combined.header(), name, &[dedicated_value]);
+    }
+
+    for headers in [metadata_only.header(), combined.header()] {
+        for (name, values) in [
+            ("x-bz-info-cache-control", &["no-cache", "no-store"][..]),
+            ("x-bz-info-content-disposition", &["attachment"][..]),
+            ("x-bz-info-content-encoding", &["br"][..]),
+            ("x-bz-info-content-language", &["es"][..]),
+            ("x-bz-info-content-type", &["text/plain"][..]),
+            (
+                "x-bz-info-application-validation",
+                &["b2%20trial%20%2B%20caf%C3%A9%20%25"][..],
+            ),
+        ] {
+            assert_header_values(headers, name, values);
+        }
+    }
+    for headers in [
+        default_request.header(),
+        metadata_only.header(),
+        combined.header(),
+    ] {
+        for name in [
+            "cache-control",
+            "content-disposition",
+            "content-encoding",
+            "content-language",
+        ] {
+            assert_header_values(headers, name, &[]);
+        }
+    }
     Ok(())
 }
 

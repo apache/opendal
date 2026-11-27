@@ -86,6 +86,7 @@ jobs:
         run: |
           python3 -m unittest discover -s .github/scripts/test_behavior -p 'test_*.py'
           python3 -m unittest discover -s .github/scripts/nightly -p 'test_*.py'
+          python3 -m unittest discover -s .github/scripts -p 'test_check_docsrs.py'
 
   typos:
     runs-on: ubuntu-latest

@@ -84,6 +84,10 @@ unused_async = "warn"
 
 [package.metadata.docs.rs]
 all-features = true
+# Skip compiling RocksDB C++ from source on docs.rs: librocksdb-sys spawns
+# NUM_JOBS parallel c++ compilers and OOMs the 6.4 GB sandbox, while
+# `cargo rustdoc --lib` only runs bindgen and never links librocksdb.
+cargo-args = ["--config", 'env.ROCKSDB_LIB_DIR="/usr/lib"']
 
 [features]
 # Install facade defaults before `main`: register enabled services and, when

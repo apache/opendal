@@ -66,16 +66,19 @@ pub fn new_request_sign_error(err: anyhow::Error) -> Error {
 /// Return a [`ErrorKind::ConfigInvalid`] error when a reqsign failure is caused
 /// by a missing `CryptoProvider`.
 ///
-/// reqsign reports a missing provider as `ConfigInvalid`. This function returns
-/// `Some` only for such an error while no provider is reachable: the
-/// `reqsign-rustcrypto` feature is disabled and no process-wide provider is
-/// installed. The error message names both remedies. It returns `None` for
-/// every other error.
+/// This function returns `Some` only when the `reqsign-rustcrypto` feature is
+/// disabled, no process-wide provider is installed, and `err` is the error
+/// reqsign returns from `Context::crypto_provider` in that state. The error
+/// message names both remedies. Every other error, including other reqsign
+/// `ConfigInvalid` failures, returns `None`.
 #[cfg(feature = "reqsign")]
 pub fn new_crypto_provider_missing_error(err: &reqsign_core::Error) -> Option<Error> {
-    let provider_reachable =
-        cfg!(feature = "reqsign-rustcrypto") || reqsign_core::crypto::get_default().is_some();
-    if provider_reachable || err.kind() != reqsign_core::ErrorKind::ConfigInvalid {
+    if cfg!(feature = "reqsign-rustcrypto") || err.kind() != reqsign_core::ErrorKind::ConfigInvalid
+    {
+        return None;
+    }
+    let missing = reqsign_core::Context::new().crypto_provider().err()?;
+    if err.to_string() != missing.to_string() {
         return None;
     }
 

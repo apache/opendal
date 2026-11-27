@@ -45,3 +45,19 @@ fn other_sign_failures_stay_unexpected() {
 
     assert_eq!(err.kind(), ErrorKind::Unexpected);
 }
+
+#[test]
+fn other_config_invalid_sign_failures_keep_their_cause() {
+    let reqsign_err =
+        opendal_core::reqsign_core::Error::config_invalid("AWS STS signing region is invalid");
+
+    let err = new_request_sign_error(reqsign_err.into());
+
+    assert_eq!(err.kind(), ErrorKind::Unexpected);
+    assert!(!err.message().contains("CryptoProvider"), "{err}");
+    assert!(
+        err.to_string()
+            .contains("AWS STS signing region is invalid"),
+        "{err}"
+    );
+}

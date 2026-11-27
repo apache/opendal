@@ -170,6 +170,7 @@ impl ReadVerifier {
     fn new(expected: Checksum, remaining: Option<u64>) -> Option<Self> {
         let hasher = match expected.algo {
             ChecksumAlgo::Crc64Nvme => Hasher::Crc(CrcDigest::new(CrcAlgorithm::Crc64Nvme)),
+            ChecksumAlgo::Crc64Ecma => Hasher::Crc(CrcDigest::new(CrcAlgorithm::Crc64Xz)),
             ChecksumAlgo::Crc32c => Hasher::Crc(CrcDigest::new(CrcAlgorithm::Crc32Iscsi)),
             ChecksumAlgo::Md5 => Hasher::Md5(Md5::new()),
             ChecksumAlgo::Sha256 => Hasher::Sha256(Sha256::new()),

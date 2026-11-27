@@ -19,6 +19,19 @@ For signed full-object reads and stat requests, OSS can override the response
 `Cache-Control` and `Content-Disposition` headers. These options also apply to
 presigned requests and leave the stored object metadata unchanged.
 
+## Checksum format
+
+Alibaba Cloud OSS reports an unsigned decimal checksum named CRC64-ECMA in
+`x-oss-hash-crc64ecma`. Tencent Cloud COS uses the same checksum in
+`x-cos-hash-crc64ecma`. OpenDAL represents it as `ChecksumAlgo::Crc64Ecma`.
+
+CRC-64/XZ uses the canonical polynomial `0x42F0E1EBA9EA3693`, with
+`refin = true`, `refout = true`, and `init` and `xorout` both set to
+`0xFFFFFFFFFFFFFFFF`. The check value for the ASCII bytes `123456789` is
+`0x995DC9BBDF1939FA`. CRC-64/ECMA-182 (for example, `crc::CRC_64_ECMA_182`)
+yields `0x6C40DF5F0B497347` for the same input and is incompatible with
+these service digests.
+
 ## Configuration
 
 Use [`crate::OssConfig`] for serializable configuration and this builder's

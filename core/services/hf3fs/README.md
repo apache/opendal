@@ -27,7 +27,8 @@ Use the client library distributed with your 3FS deployment.
 
 The service supports stat, range reads, streaming writes, create directory,
 list, delete, recursive delete, and rename. Writes create parent directories
-and replace existing files; `if_not_exists` rejects an existing file.
+and replace existing files. Conditional writes with `if_not_exists` are
+unsupported.
 Closing a writer waits for writes and synchronizes the file. Writes are not
 atomic, and failed or aborted writes can leave partial files. Append, native
 copy, presign, and rollback on abort are unsupported. Operations require a

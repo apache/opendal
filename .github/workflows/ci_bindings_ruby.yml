@@ -29,6 +29,8 @@ on:
       - "core/layers/retry/**"
       - "core/layers/throttle/**"
       - "core/layers/timeout/**"
+      - "core/core/src/types/metadata.rs"
+      - "dev/src/generate/**"
       - "bindings/ruby/**"
       - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_ruby.yml"
@@ -68,6 +70,14 @@ jobs:
       - name: Clippy Check
         working-directory: "bindings/ruby"
         run: cargo clippy -- -D warnings
+
+      - name: Regenerate code from core
+        run: |
+          cargo run --manifest-path=dev/Cargo.toml -- generate -l ruby
+          cargo fmt --manifest-path bindings/ruby/Cargo.toml --all
+
+      - name: Check diff
+        run: git diff --exit-code
 
       - name: Run lint
         working-directory: bindings/ruby

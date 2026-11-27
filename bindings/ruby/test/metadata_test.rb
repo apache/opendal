@@ -77,6 +77,58 @@ class MetadataTest < ActiveSupport::TestCase
     assert_nil metadata.etag
   end
 
+  test "#cache_control works" do
+    metadata = @op.stat("file")
+    assert_nil metadata.cache_control
+  end
+
+  test "#content_encoding works" do
+    metadata = @op.stat("file")
+    assert_nil metadata.content_encoding
+  end
+
+  test "#content_language works" do
+    metadata = @op.stat("file")
+    assert_nil metadata.content_language
+  end
+
+  test "#version works" do
+    metadata = @op.stat("file")
+    assert_nil metadata.version
+  end
+
+  test "#current? returns nil when the service does not report it" do
+    metadata = @op.stat("file")
+    assert_nil metadata.current?
+  end
+
+  test "#deleted? works" do
+    metadata = @op.stat("file")
+    assert_equal false, metadata.deleted?
+  end
+
+  test "#user_metadata returns nil when the service does not provide it" do
+    metadata = @op.stat("file")
+    assert_nil metadata.user_metadata
+  end
+
+  test "#user_metadata returns a Hash of the stored pairs" do
+    Dir.mktmpdir do |root|
+      path = File.join(root, "file")
+      File.write(path, "OpenDAL Ruby is ready.")
+      # The fs service reads user metadata from xattrs in the "user." namespace.
+      written = if RUBY_PLATFORM.include?("darwin")
+        system("xattr", "-w", "user.owner", "opendal", path, out: File::NULL, err: File::NULL)
+      else
+        system("setfattr", "-n", "user.owner", "-v", "opendal", path, out: File::NULL, err: File::NULL)
+      end
+      skip "could not set a user xattr on #{root}" unless written
+
+      op = OpenDal::Operator.new("fs", {"root" => root})
+      assert_equal({"owner" => "opendal"}, op.stat("file").user_metadata)
+    end
+  end
+
   test "#last_modified returns nil when the service does not provide it" do
     metadata = @op.stat("file")
     assert_nil metadata.last_modified

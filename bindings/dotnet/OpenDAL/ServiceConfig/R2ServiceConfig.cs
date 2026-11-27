@@ -49,7 +49,7 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? Endpoint { get; init; }
         /// <summary>
-        /// R2 jurisdiction. Supported values are `eu` and `fedramp`. This field requires `account_id` and cannot be used with `endpoint`.
+        /// R2 jurisdiction. Supported values are `eu`, `fedramp`, and `us`. This field requires `account_id` and cannot be used with `endpoint`.
         /// </summary>
         public string? Jurisdiction { get; init; }
         /// <summary>

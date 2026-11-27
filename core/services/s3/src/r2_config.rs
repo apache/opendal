@@ -55,7 +55,7 @@ pub struct R2Config {
     pub account_id: Option<String>,
     /// R2 jurisdiction.
     ///
-    /// Supported values are `eu` and `fedramp`. This field requires
+    /// Supported values are `eu`, `fedramp`, and `us`. This field requires
     /// `account_id` and cannot be used with `endpoint`.
     ///
     /// <!-- @group General -->

@@ -4490,7 +4490,7 @@ public interface ServiceConfig {
         public final String endpoint;
         /**
          * <p>R2 jurisdiction.</p>
-         * <p>Supported values are <code>eu</code> and <code>fedramp</code>. This field requires
+         * <p>Supported values are <code>eu</code>, <code>fedramp</code>, and <code>us</code>. This field requires
          * <code>account_id</code> and cannot be used with <code>endpoint</code>.</p>
          */
         public final String jurisdiction;

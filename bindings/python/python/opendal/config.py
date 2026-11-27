@@ -1308,7 +1308,7 @@ class R2Config(TypedDict):
     endpoint: NotRequired[str]
     """Explicit R2-compatible endpoint.  Use this field for a proxy, gateway, or test server. Set exactly one of `endpoint` and `account_id`."""
     jurisdiction: NotRequired[str]
-    """R2 jurisdiction.  Supported values are `eu` and `fedramp`. This field requires `account_id` and cannot be used with `endpoint`."""
+    """R2 jurisdiction.  Supported values are `eu`, `fedramp`, and `us`. This field requires `account_id` and cannot be used with `endpoint`."""
     root: NotRequired[str | os.PathLike[str]]
     """Root within the bucket.  All operations happen under this root. The default is `/`."""
     secret_access_key: NotRequired[str]

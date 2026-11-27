@@ -19,12 +19,15 @@ use crate::generate::parser::{Config, ConfigType, Services, sorted_services};
 use anyhow::{Result, bail};
 use minijinja::value::ViaDeserialize;
 use minijinja::{Environment, context};
+use regex::{Captures, Regex};
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use super::capability;
+use super::core_options::{self, OptionField, OptionKind, OptionsStruct};
 use super::metadata::{self, MetadataKind};
 
 /// Fields present in the legacy 46-parameter public `Capability` constructor.
@@ -108,6 +111,8 @@ struct CapabilityField {
 
 #[derive(Debug, Serialize)]
 struct MetadataField {
+    #[serde(skip)]
+    rust_name: String,
     camel: String,
     doc: String,
     java_type: &'static str,
@@ -117,6 +122,135 @@ struct MetadataField {
     jni_type: &'static str,
     rust_binding: String,
     jni_argument: String,
+}
+
+struct OptionsSpec {
+    name: &'static str,
+    fields: &'static [(&'static str, OptionKind)],
+}
+
+/// Field order and kinds used by the existing Java constructors and builders.
+const EXISTING_OPTIONS_FIELDS: &[OptionsSpec] = {
+    use OptionKind::*;
+
+    &[
+        OptionsSpec {
+            name: "DeleteOptions",
+            fields: &[
+                ("version", OptionString),
+                ("recursive", Bool),
+                ("if_match", OptionString),
+                ("if_none_match", OptionString),
+                ("if_version_match", OptionString),
+                ("if_version_not_match", OptionString),
+                ("if_not_changed", OptionMetadata),
+            ],
+        },
+        OptionsSpec {
+            name: "ListOptions",
+            fields: &[
+                ("recursive", Bool),
+                ("limit", OptionUsize),
+                ("start_after", OptionString),
+                ("versions", Bool),
+                ("deleted", Bool),
+            ],
+        },
+        OptionsSpec {
+            name: "ReadOptions",
+            fields: &[
+                ("range", BytesRange),
+                ("version", OptionString),
+                ("if_match", OptionString),
+                ("if_none_match", OptionString),
+                ("if_version_match", OptionString),
+                ("if_version_not_match", OptionString),
+                ("if_modified_since", OptionTimestamp),
+                ("if_unmodified_since", OptionTimestamp),
+                ("concurrent", Usize),
+                ("chunk", OptionUsize),
+                ("content_length_hint", OptionU64),
+                ("override_content_type", OptionString),
+                ("override_cache_control", OptionString),
+                ("override_content_disposition", OptionString),
+            ],
+        },
+        OptionsSpec {
+            name: "ReaderOptions",
+            fields: &[
+                ("version", OptionString),
+                ("if_match", OptionString),
+                ("if_none_match", OptionString),
+                ("if_version_match", OptionString),
+                ("if_version_not_match", OptionString),
+                ("if_modified_since", OptionTimestamp),
+                ("if_unmodified_since", OptionTimestamp),
+                ("concurrent", Usize),
+                ("chunk", OptionUsize),
+                ("prefetch", Usize),
+                ("content_length_hint", OptionU64),
+            ],
+        },
+        OptionsSpec {
+            name: "StatOptions",
+            fields: &[
+                ("if_match", OptionString),
+                ("if_none_match", OptionString),
+                ("if_version_match", OptionString),
+                ("if_version_not_match", OptionString),
+                ("if_modified_since", OptionTimestamp),
+                ("if_unmodified_since", OptionTimestamp),
+                ("version", OptionString),
+                ("override_content_type", OptionString),
+                ("override_cache_control", OptionString),
+                ("override_content_disposition", OptionString),
+            ],
+        },
+        OptionsSpec {
+            name: "WriteOptions",
+            fields: &[
+                ("content_type", OptionString),
+                ("content_disposition", OptionString),
+                ("cache_control", OptionString),
+                ("content_encoding", OptionString),
+                ("if_match", OptionString),
+                ("if_none_match", OptionString),
+                ("user_metadata", OptionStringMap),
+                ("append", Bool),
+                ("if_not_exists", Bool),
+                ("concurrent", Usize),
+                ("chunk", OptionUsize),
+            ],
+        },
+    ]
+};
+
+#[derive(Serialize)]
+struct OptionsClass<'a> {
+    name: &'a str,
+    summary: String,
+    details: Vec<String>,
+    imports: BTreeSet<&'static str>,
+    properties: Vec<OptionProperty>,
+    rs_name: String,
+    rs_fields: Vec<OptionRsField<'a>>,
+    has_unmirrored_fields: bool,
+}
+
+#[derive(Serialize)]
+struct OptionRsField<'a> {
+    name: &'a str,
+    expr: String,
+}
+
+#[derive(Serialize)]
+struct OptionProperty {
+    camel: String,
+    java_type: &'static str,
+    default_value: Option<&'static str>,
+    summary: String,
+    details: Vec<String>,
+    see_also: Vec<String>,
 }
 
 fn enabled_service(srv: &str) -> bool {
@@ -130,7 +264,8 @@ fn enabled_service(srv: &str) -> bool {
 pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     generate_service_config(&workspace_dir, services)?;
     generate_capability(&workspace_dir)?;
-    generate_metadata(&workspace_dir)
+    let metadata_fields = generate_metadata(&workspace_dir)?;
+    generate_options(&workspace_dir, &metadata_fields)
 }
 
 fn generate_service_config(workspace_dir: &Path, services: Services) -> Result<()> {
@@ -294,6 +429,7 @@ fn build_metadata_fields(parsed: Vec<metadata::MetadataField>) -> Result<Vec<Met
             };
 
             MetadataField {
+                rust_name: field.name,
                 camel,
                 doc,
                 java_type,
@@ -308,7 +444,7 @@ fn build_metadata_fields(parsed: Vec<metadata::MetadataField>) -> Result<Vec<Met
         .collect())
 }
 
-fn generate_metadata(workspace_dir: &Path) -> Result<()> {
+fn generate_metadata(workspace_dir: &Path) -> Result<Vec<MetadataField>> {
     let source = workspace_dir.join("core/core/src/types/metadata.rs");
     let fields = build_metadata_fields(metadata::parse(&source)?)?;
 
@@ -329,7 +465,538 @@ fn generate_metadata(workspace_dir: &Path) -> Result<()> {
         fs::write(workspace_dir.join(relative), format!("{rendered}\n"))?;
     }
 
+    Ok(fields)
+}
+
+fn generate_options(workspace_dir: &Path, metadata_fields: &[MetadataField]) -> Result<()> {
+    let source = workspace_dir.join("core/core/src/types/options.rs");
+    let parsed = core_options::parse(&source)?;
+    let env = Environment::new();
+    let template = env.template_from_str(include_str!("java/options_java.j2"))?;
+    let java_dir = workspace_dir.join("bindings/java/src/main/java/org/apache/opendal");
+
+    let classes = options_classes(&parsed, metadata_fields)?;
+    for class in &classes {
+        let rendered = template.render(context! { class => class })?;
+        fs::write(
+            java_dir.join(format!("{}.java", class.name)),
+            format!("{rendered}\n"),
+        )?;
+    }
+
+    let rendered = env.render_str(
+        include_str!("java/options_rs.j2"),
+        context! { classes => classes },
+    )?;
+    fs::write(
+        workspace_dir.join("bindings/java/src/options.rs"),
+        format!("{rendered}\n"),
+    )?;
     Ok(())
+}
+
+fn options_classes<'a>(
+    parsed: &'a [OptionsStruct],
+    metadata_fields: &[MetadataField],
+) -> Result<Vec<OptionsClass<'a>>> {
+    let mut classes = Vec::new();
+    for spec in EXISTING_OPTIONS_FIELDS {
+        let Some(options) = parsed.iter().find(|options| options.name == spec.name) else {
+            bail!("core options are missing Java struct `{}`", spec.name);
+        };
+        let fields = select_options_fields(options, spec)?;
+        classes.push(options_class(options, spec, &fields, metadata_fields)?);
+    }
+    Ok(classes)
+}
+
+fn select_options_fields<'a>(
+    options: &'a OptionsStruct,
+    spec: &OptionsSpec,
+) -> Result<Vec<&'a OptionField>> {
+    let mut by_name = HashMap::new();
+    for field in &options.fields {
+        if by_name.insert(field.name.as_str(), field).is_some() {
+            bail!(
+                "core {} contains duplicate field `{}`",
+                options.name,
+                field.name
+            );
+        }
+    }
+
+    spec.fields
+        .iter()
+        .map(|&(name, expected)| {
+            let Some(&field) = by_name.get(name) else {
+                bail!("core {} is missing Java field `{name}`", options.name);
+            };
+            if field.kind != expected {
+                bail!(
+                    "core {} field `{name}` has kind {:?}; Java requires {expected:?}",
+                    options.name,
+                    field.kind
+                );
+            }
+            Ok(field)
+        })
+        .collect()
+}
+
+const INSTANT_RANGE_JAVADOC: &str = concat!(
+    "An {@link Instant} outside the Rust core timestamp range fails with ",
+    "{@link OpenDALException.Code#Unexpected}."
+);
+
+fn option_class_details(name: &str) -> Vec<String> {
+    let mut details = match name {
+        "DeleteOptions" => vec![concat!(
+            "All supplied conditions must hold for deletion to proceed. ",
+            "Unsupported options fail with {@link OpenDALException.Code#Unsupported}. ",
+            "Failed conditions fail with {@link OpenDALException.Code#ConditionNotMatch}."
+        )],
+        "ListOptions" => vec![concat!(
+            "Options that require an unsupported service capability fail with ",
+            "{@link OpenDALException.Code#Unsupported}. ",
+            "{@link #limit} is a pagination hint that services may ignore even when ",
+            "{@link Capability#listWithLimit} is supported."
+        )],
+        "ReadOptions" => vec![
+            "Version selection and conditions require service support and apply to every chunk.",
+            concat!(
+                "All supplied conditions must hold for data to be returned. ",
+                "When a direct read or {@link OperatorInputStream} issues a backend read, missing files fail with ",
+                "{@link OpenDALException.Code#NotFound} and failed conditions on an existing file fail with ",
+                "{@link OpenDALException.Code#ConditionNotMatch}. Unsupported version selection or conditions fail with ",
+                "{@link OpenDALException.Code#Unsupported}. ",
+                "Presigned read requests validate options and capabilities without executing against storage."
+            ),
+            concat!(
+                "Invalid execution values fail with {@link OpenDALException.Code#ConfigInvalid}. ",
+                "Invalid ranges fail with {@link OpenDALException.Code#RangeNotSatisfied}."
+            ),
+            INSTANT_RANGE_JAVADOC,
+        ],
+        "ReaderOptions" => vec![
+            concat!(
+                "All supplied conditions must hold for data to be returned. ",
+                "When OpenDAL issues a backend read, missing files fail with ",
+                "{@link OpenDALException.Code#NotFound} and failed conditions on an existing file fail with ",
+                "{@link OpenDALException.Code#ConditionNotMatch}. Unsupported version selection or conditions fail with ",
+                "{@link OpenDALException.Code#Unsupported}."
+            ),
+            concat!(
+                "Depending on the service, errors can surface when creating the reader or while reading. ",
+                "Conditions apply to every request, including streams."
+            ),
+            concat!(
+                "Execution options apply independently of each logical range. ",
+                "OpenDAL uses {@link #concurrent} and {@link #prefetch} only for chunked reads enabled by ",
+                "{@link #chunk}. Invalid execution values fail with ",
+                "{@link OpenDALException.Code#ConfigInvalid} when OpenDAL creates the reader."
+            ),
+            INSTANT_RANGE_JAVADOC,
+        ],
+        "StatOptions" => vec![
+            concat!(
+                "All supplied conditions must hold for metadata to be returned. ",
+                "For direct stat operations, missing files fail with ",
+                "{@link OpenDALException.Code#NotFound} and failed conditions on an existing file fail with ",
+                "{@link OpenDALException.Code#ConditionNotMatch}. Unsupported version selection or conditions fail with ",
+                "{@link OpenDALException.Code#Unsupported}. ",
+                "Presigned stat requests validate options and capabilities without executing against storage."
+            ),
+            INSTANT_RANGE_JAVADOC,
+        ],
+        "WriteOptions" => vec![concat!(
+            "All supplied conditions must hold for the write to commit. ",
+            "Unsupported conditions or {@link #append} fail with {@link OpenDALException.Code#Unsupported}. ",
+            "Unsupported metadata options may be ignored. ",
+            "Failed conditions fail with {@link OpenDALException.Code#ConditionNotMatch}. ",
+            "Presigned write requests validate options and capabilities without executing against storage."
+        )],
+        _ => Vec::new(),
+    };
+    details.push("Optional reference fields default to {@code null}.");
+    details.into_iter().map(str::to_owned).collect()
+}
+
+fn options_class<'a>(
+    options: &'a OptionsStruct,
+    spec: &OptionsSpec,
+    fields: &[&OptionField],
+    metadata_fields: &[MetadataField],
+) -> Result<OptionsClass<'a>> {
+    let mut imports = BTreeSet::new();
+    let mut properties = Vec::new();
+    for field in fields {
+        let name = field.name.as_str();
+        let (java_type, default_value) = match field.kind {
+            OptionKind::Bool => ("boolean", None),
+            OptionKind::Usize if name == "prefetch" => ("int", Some("0")),
+            OptionKind::Usize => ("int", Some("1")),
+            OptionKind::OptionUsize | OptionKind::OptionU64 => ("long", Some("-1L")),
+            OptionKind::OptionString => ("String", None),
+            OptionKind::OptionTimestamp => {
+                imports.insert("java.time.Instant");
+                ("Instant", None)
+            }
+            OptionKind::OptionStringMap => {
+                imports.insert("java.util.Map");
+                ("Map<String, String>", None)
+            }
+            OptionKind::OptionMetadata => ("Metadata", None),
+            OptionKind::BytesRange => {
+                properties.extend([
+                    OptionProperty {
+                        camel: "offset".to_owned(),
+                        java_type: "long",
+                        default_value: None,
+                        summary: "Byte offset to start reading from.".to_owned(),
+                        details: vec![concat!(
+                            "Defaults to {@code 0L}. Negative values fail with ",
+                            "{@link OpenDALException.Code#RangeNotSatisfied}."
+                        )
+                        .to_owned()],
+                        see_also: Vec::new(),
+                    },
+                    OptionProperty {
+                        camel: "length".to_owned(),
+                        java_type: "long",
+                        default_value: Some("-1L"),
+                        summary: "Number of bytes to read from {@link #offset}.".to_owned(),
+                        details: vec![
+                            concat!(
+                                "The default of {@code -1L} reads to the end, and {@code 0L} selects an empty range. ",
+                                "For direct reads and {@link OperatorInputStream} with {@code length == 0L}, ",
+                                "OpenDAL validates options and capabilities, then returns an empty result ",
+                                "without accessing storage or evaluating conditions against the file. ",
+                                "Presigning a read with this value still goes through request generation."
+                            )
+                            .to_owned(),
+                            concat!(
+                                "Values below {@code -1L} or an invalid {@code offset + length} range fail with ",
+                                "{@link OpenDALException.Code#RangeNotSatisfied}."
+                            )
+                            .to_owned(),
+                        ],
+                        see_also: Vec::new(),
+                    },
+                ]);
+                continue;
+            }
+            OptionKind::OptionDuration => bail!("unsupported Java option {}::{name}", options.name),
+        };
+        let (summary, details) = option_field_javadoc(spec, field, metadata_fields);
+        properties.push(OptionProperty {
+            camel: case_java_field_name(name),
+            java_type,
+            default_value,
+            summary,
+            details,
+            see_also: option_capability_refs(&field.doc),
+        });
+    }
+
+    Ok(OptionsClass {
+        name: &options.name,
+        summary: match spec.name {
+            "ReadOptions" => "Options for a single read or a compatibility {@link OperatorInputStream}.".to_owned(),
+            "ReaderOptions" => "Configures version selection, read conditions, and execution options for an {@link OperatorReader}.".to_owned(),
+            _ => option_javadoc(&options.doc, spec, None, metadata_fields),
+        },
+        details: option_class_details(spec.name),
+        imports,
+        properties,
+        rs_name: heck::AsSnakeCase(options.name.as_str()).to_string(),
+        rs_fields: options
+            .fields
+            .iter()
+            .map(|field| {
+                let expr = if fields.iter().any(|exposed| exposed.name == field.name) {
+                    option_rs_expr(&options.name, field)?
+                } else {
+                    match field.kind {
+                        OptionKind::Bool => "false",
+                        OptionKind::Usize => "0",
+                        OptionKind::BytesRange => "Default::default()",
+                        OptionKind::OptionUsize
+                        | OptionKind::OptionU64
+                        | OptionKind::OptionString
+                        | OptionKind::OptionTimestamp
+                        | OptionKind::OptionDuration
+                        | OptionKind::OptionStringMap
+                        | OptionKind::OptionMetadata => "None",
+                    }
+                    .to_owned()
+                };
+                Ok(OptionRsField {
+                    name: &field.name,
+                    expr,
+                })
+            })
+            .collect::<Result<_>>()?,
+        has_unmirrored_fields: options.has_unmirrored_fields,
+    })
+}
+
+fn option_field_javadoc(
+    spec: &OptionsSpec,
+    field: &OptionField,
+    metadata_fields: &[MetadataField],
+) -> (String, Vec<String>) {
+    let name = field.name.as_str();
+    let render = |lines: &[String]| option_javadoc(lines, spec, Some(name), metadata_fields);
+    let mut summary = render(&field.doc);
+    let mut details = Vec::new();
+    match (spec.name, name) {
+        ("DeleteOptions", "if_not_changed") => details.extend(field
+            .doc
+            .split(|line| line.is_empty())
+            .skip(1)
+            .filter(|paragraph| !paragraph.is_empty())
+            .map(render)),
+        ("DeleteOptions", "recursive")
+        | (_, "version" | "if_match" | "if_none_match" | "if_version_match" | "if_version_not_match"
+            | "if_modified_since" | "if_unmodified_since" | "if_not_exists"
+            | "override_content_type" | "override_cache_control" | "override_content_disposition") => {
+            if let Some(paragraph) = field.doc.split(|line| line.is_empty()).nth(1) {
+                details.push(render(paragraph));
+            }
+        }
+        ("ReadOptions" | "ReaderOptions", "chunk") => {
+            summary = "Target size of each internal range request in bytes.".to_owned();
+            details.push(concat!(
+                "The default of {@code -1L} keeps unchunked streaming. Positive values enable chunked reads ",
+                "and must fit the native platform's unsigned pointer-sized integer. ",
+                "{@code 0L}, other negative values, and values that do not fit fail with ",
+                "{@link OpenDALException.Code#ConfigInvalid}."
+            ).to_owned());
+        }
+        ("ReadOptions" | "ReaderOptions", "concurrent") => {
+            summary = "Maximum number of internal chunk requests executed concurrently.".to_owned();
+            details.push(concat!(
+                "Defaults to {@code 1}. Values less than or equal to {@code 0}, or too large for the ",
+                "native platform's unsigned pointer-sized integer, fail with ",
+                "{@link OpenDALException.Code#ConfigInvalid}."
+            ).to_owned());
+            details.push(concat!(
+                "This setting applies only to chunked reads enabled by {@link #chunk}. ",
+                "Application transfer and Java thread counts are independent of this setting."
+            ).to_owned());
+        }
+        ("ReaderOptions", "prefetch") => details.push(concat!(
+            "This option counts completed chunks buffered ahead of consumption, regardless of their size in bytes. ",
+            "The default of {@code 0} applies strict backpressure. Negative values fail with ",
+            "{@link OpenDALException.Code#ConfigInvalid}. This setting applies only to ",
+            "chunked reads enabled by {@link #chunk}."
+        ).to_owned()),
+        ("ReadOptions" | "ReaderOptions", "content_length_hint") => details.extend([
+            concat!(
+                "Supply the full object length in bytes, regardless of the requested range. ",
+                "The default of {@code -1L} means the length is unknown. ",
+                "Use {@code 0L} for an empty object. Values below {@code -1L} fail with ",
+                "{@link OpenDALException.Code#ConfigInvalid}."
+            )
+            .to_owned(),
+            concat!(
+                "OpenDAL uses this hint only to plan reads and can use it to avoid a metadata request. ",
+                "For chunked reads ({@link #chunk} set), a {@code contentLengthHint} no greater than the ",
+                "starting offset can result in no backend read requests. When the hint equals the starting offset, ",
+                "including {@code 0L} at the start of a file, OpenDAL may return empty data without checking file ",
+                "existence or evaluating conditions. ",
+                "An incorrect hint can truncate reads or cause errors."
+            )
+            .to_owned(),
+        ]),
+        ("ListOptions", "limit") => details.push(concat!(
+            "Services may ignore this pagination hint even when {@link Capability#listWithLimit} is supported. ",
+            "The default of {@code -1L} leaves the limit unset. Positive values must fit the ",
+            "native platform's unsigned pointer-sized integer. {@code 0L}, other negative values, ",
+            "and values that do not fit fail with {@link OpenDALException.Code#Unexpected}."
+        ).to_owned()),
+        ("WriteOptions", "concurrent") => details.push(concat!(
+            "Defaults to {@code 1}. Values less than or equal to {@code 0}, or too large for the ",
+            "native platform's unsigned pointer-sized integer, fail with ",
+            "{@link OpenDALException.Code#Unexpected}."
+        ).to_owned()),
+        ("WriteOptions", "chunk") => details.push(concat!(
+            "The default of {@code -1L} uses the service's default chunk size. ",
+            "Positive values set the chunk size in bytes and must fit the native platform's ",
+            "unsigned pointer-sized integer. {@code 0L}, other negative values, and values that ",
+            "do not fit fail with {@link OpenDALException.Code#Unexpected}."
+        ).to_owned()),
+        _ => {}
+    }
+    if field.kind == OptionKind::OptionTimestamp {
+        details.push(INSTANT_RANGE_JAVADOC.to_owned());
+    }
+    if name == "if_version_match"
+        && matches!(spec.name, "ReadOptions" | "ReaderOptions" | "StatOptions")
+    {
+        let version = if spec.name == "StatOptions" {
+            "{@code version}"
+        } else {
+            "{@link #version}"
+        };
+        details.push(format!(
+            "This condition checks the identity of the file selected by {version}."
+        ));
+    }
+    (summary, details)
+}
+
+fn option_rs_expr(options: &str, field: &OptionField) -> Result<String> {
+    let name = field.name.as_str();
+    let camel = case_java_field_name(name);
+    let (converter, suffix) = match field.kind {
+        OptionKind::Bool if options != "DeleteOptions" => {
+            ("read_bool_field", ".unwrap_or_default()")
+        }
+        OptionKind::Bool => ("read_bool_field", "?"),
+        OptionKind::OptionUsize if matches!(options, "ListOptions" | "WriteOptions") => {
+            ("read_jlong_field_to_usize", "?")
+        }
+        OptionKind::Usize
+        | OptionKind::OptionUsize
+        | OptionKind::OptionU64
+        | OptionKind::OptionMetadata => {
+            // These fields are read before building the struct to keep validation precedence.
+            return Ok(name.to_owned());
+        }
+        OptionKind::OptionString => ("read_string_field", "?"),
+        OptionKind::OptionTimestamp => ("read_instant_field_to_timestamp", "?"),
+        OptionKind::OptionStringMap => ("read_map_field", "?"),
+        OptionKind::BytesRange => return Ok("convert::read_range_fields(env, options)?".to_owned()),
+        OptionKind::OptionDuration => bail!("unsupported Java option {options}::{name}"),
+    };
+
+    let expr = format!("convert::{converter}(env, options, \"{camel}\"){suffix}");
+    if 8 + name.len() + 2 + expr.len() + 1 > 100 {
+        return Ok(format!(
+            "convert::{converter}(\n            env,\n            options,\n            \"{camel}\",\n        ){suffix}"
+        ));
+    }
+    Ok(expr)
+}
+
+/// Translate inline Rustdoc links and code spans in the first paragraph.
+fn option_javadoc(
+    lines: &[String],
+    spec: &OptionsSpec,
+    current: Option<&str>,
+    metadata_fields: &[MetadataField],
+) -> String {
+    static INLINE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"\[(?P<label>[^\]]+)\](?:\((?P<url>[^)]+)\)|\[(?P<reference>[^\]]+)\])|\[`(?P<path>[^`]+)`\]|`(?P<code>[^`]+)`")
+            .expect("valid inline Rustdoc regex")
+    });
+    let paragraph = lines
+        .iter()
+        .take_while(|line| !line.is_empty())
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut summary = String::new();
+    let mut end = 0;
+    for captures in INLINE.captures_iter(&paragraph) {
+        let token = captures.get(0).expect("matched inline token");
+        summary.push_str(&escape_javadoc(&paragraph[end..token.start()]));
+        summary.push_str(&option_javadoc_token(
+            &captures,
+            spec,
+            current,
+            metadata_fields,
+        ));
+        end = token.end();
+    }
+    summary.push_str(&escape_javadoc(&paragraph[end..]));
+    summary
+}
+
+fn option_javadoc_token(
+    captures: &Captures<'_>,
+    spec: &OptionsSpec,
+    current: Option<&str>,
+    metadata_fields: &[MetadataField],
+) -> String {
+    let group = |name| captures.name(name).map(|value| value.as_str());
+    if let Some(url) = group("url")
+        && (url.starts_with("https://") || url.starts_with("http://"))
+    {
+        return format!(
+            "<a href=\"{}\">{}</a>",
+            escape_javadoc(url).replace('"', "&quot;"),
+            escape_javadoc(group("label").expect("link has a label").trim_matches('`')),
+        );
+    }
+
+    let target = group("url")
+        .or_else(|| group("reference"))
+        .or_else(|| group("path"))
+        .or_else(|| group("code"))
+        .expect("inline token has a target");
+    let target = target.trim_matches('`');
+    let path = target.strip_prefix("crate::").unwrap_or(target);
+    let sibling = path.strip_prefix("Self::").unwrap_or(path);
+    if current != Some(sibling)
+        && spec
+            .fields
+            .iter()
+            .any(|&(name, kind)| name == sibling && kind != OptionKind::BytesRange)
+    {
+        return format!("{{@link #{}}}", case_java_field_name(sibling));
+    }
+
+    let (ty, member) = path.split_once("::").unwrap_or((path, ""));
+    match (ty, member) {
+        ("Capability" | "Metadata", "") => format!("{{@link {ty}}}"),
+        ("Capability", field) => format!("{{@link Capability#{}}}", case_java_field_name(field)),
+        ("Metadata", field) => metadata_fields
+            .iter()
+            .find(|metadata_field| metadata_field.rust_name == field)
+            .map_or_else(
+                || format!("{{@code {path}}}"),
+                |metadata_field| format!("{{@link Metadata#{}}}", metadata_field.camel),
+            ),
+        ("ErrorKind", "") => "{@link OpenDALException.Code}".to_owned(),
+        ("ErrorKind", variant) => format!("{{@link OpenDALException.Code#{variant}}}"),
+        (ty, "") if EXISTING_OPTIONS_FIELDS.iter().any(|spec| spec.name == ty) => {
+            format!("{{@link {ty}}}")
+        }
+        (ty, field)
+            if EXISTING_OPTIONS_FIELDS.iter().any(|spec| {
+                spec.name == ty
+                    && spec
+                        .fields
+                        .iter()
+                        .any(|&(name, kind)| name == field && kind != OptionKind::BytesRange)
+            }) =>
+        {
+            format!("{{@link {ty}#{}}}", case_java_field_name(field))
+        }
+        _ => format!("{{@code {path}}}"),
+    }
+}
+
+fn escape_javadoc(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+fn option_capability_refs(lines: &[String]) -> Vec<String> {
+    static CAPABILITY: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"\bCapability::([a-z][a-z0-9_]*)").expect("valid capability reference regex")
+    });
+    let mut refs = Vec::new();
+    for captures in lines.iter().flat_map(|line| CAPABILITY.captures_iter(line)) {
+        let cref = format!("Capability#{}", case_java_field_name(&captures[1]));
+        if !refs.contains(&cref) {
+            refs.push(cref);
+        }
+    }
+    refs
 }
 
 fn case_java_class_name(s: &str) -> String {
@@ -449,6 +1116,558 @@ mod tests {
                 fields.iter().any(|f| f.name == legacy),
                 "legacy capability field `{legacy}` is missing from core Capability"
             );
+        }
+    }
+
+    fn core_options_structs() -> Vec<OptionsStruct> {
+        let path = crate::workspace_dir().join("core/core/src/types/options.rs");
+        core_options::parse(&path).expect("core options must parse")
+    }
+
+    #[test]
+    fn test_options_fields_follow_existing_java_order() {
+        let expected = [
+            (
+                "DeleteOptions",
+                "version recursive ifMatch ifNoneMatch ifVersionMatch ifVersionNotMatch ifNotChanged",
+            ),
+            ("ListOptions", "recursive limit startAfter versions deleted"),
+            (
+                "ReadOptions",
+                "offset length version ifMatch ifNoneMatch ifVersionMatch ifVersionNotMatch ifModifiedSince ifUnmodifiedSince concurrent chunk contentLengthHint overrideContentType overrideCacheControl overrideContentDisposition",
+            ),
+            (
+                "ReaderOptions",
+                "version ifMatch ifNoneMatch ifVersionMatch ifVersionNotMatch ifModifiedSince ifUnmodifiedSince concurrent chunk prefetch contentLengthHint",
+            ),
+            (
+                "StatOptions",
+                "ifMatch ifNoneMatch ifVersionMatch ifVersionNotMatch ifModifiedSince ifUnmodifiedSince version overrideContentType overrideCacheControl overrideContentDisposition",
+            ),
+            (
+                "WriteOptions",
+                "contentType contentDisposition cacheControl contentEncoding ifMatch ifNoneMatch userMetadata append ifNotExists concurrent chunk",
+            ),
+        ];
+        let mut structs = core_options_structs();
+        let metadata_fields = build_metadata_fields(core_metadata_fields()).unwrap();
+        assert_eq!(EXISTING_OPTIONS_FIELDS.len(), expected.len());
+        let env = Environment::new();
+        let template = env
+            .template_from_str(include_str!("java/options_java.j2"))
+            .unwrap();
+
+        for (spec, (name, names)) in EXISTING_OPTIONS_FIELDS.iter().zip(expected) {
+            assert_eq!(spec.name, name);
+            let options = structs
+                .iter_mut()
+                .find(|options| options.name == name)
+                .unwrap();
+            options.fields.reverse();
+            let fields = select_options_fields(options, spec).unwrap();
+            let class = options_class(options, spec, &fields, &metadata_fields).unwrap();
+            let names: Vec<_> = names.split_whitespace().collect();
+            assert_eq!(
+                class
+                    .properties
+                    .iter()
+                    .map(|p| p.camel.as_str())
+                    .collect::<Vec<_>>(),
+                names,
+                "{name}"
+            );
+
+            let rendered = template.render(context! { class => class }).unwrap();
+            let (annotations, modifiers) = match name {
+                "StatOptions" => ("@Data\n@Builder\npublic class", "private"),
+                "ReaderOptions" => ("@Builder\npublic final class", "public final"),
+                _ => ("@Builder\npublic class", "public final"),
+            };
+            assert!(rendered.contains(&format!("{annotations} {name} {{")));
+            assert_eq!(rendered.contains("@Data"), name == "StatOptions");
+            assert!(!rendered.contains("toBuilder"));
+            assert_eq!(
+                rendered.matches(&format!("    {modifiers} ")).count(),
+                names.len()
+            );
+        }
+    }
+
+    #[test]
+    fn test_options_javadoc_contracts() {
+        let structs = core_options_structs();
+        let metadata_fields = build_metadata_fields(core_metadata_fields()).unwrap();
+        let env = Environment::new();
+        let template = env
+            .template_from_str(include_str!("java/options_java.j2"))
+            .unwrap();
+
+        for class in options_classes(&structs, &metadata_fields).unwrap() {
+            let rendered = template.render(context! { class => class }).unwrap();
+            let class_doc = rendered
+                .split_once("/**")
+                .unwrap()
+                .1
+                .split_once("*/")
+                .unwrap()
+                .0;
+            let assert_doc = |name: &str, javadoc: &str, notices: &[&str]| {
+                for notice in notices {
+                    assert!(
+                        javadoc.contains(notice),
+                        "{} {name} is missing {notice}",
+                        class.name
+                    );
+                }
+            };
+            let assert_field = |field: &str, notices: &[&str]| {
+                let declaration = rendered
+                    .lines()
+                    .find(|line| {
+                        let (declaration, _) = line.split_once(['=', ';']).unwrap_or((line, ""));
+                        !line.trim_start().starts_with('*')
+                            && declaration.split_whitespace().last() == Some(field)
+                    })
+                    .unwrap();
+                let (preceding, _) = rendered.split_once(declaration).unwrap();
+                let (_, javadoc) = preceding.rsplit_once("/**").unwrap();
+                assert_doc(field, javadoc, notices);
+            };
+
+            assert_doc(
+                "class",
+                class_doc,
+                &[
+                    "<p>Optional reference fields default to {@code null}.",
+                    "fail with {@link OpenDALException.Code#Unsupported}",
+                ],
+            );
+            if class.name != "ListOptions" {
+                assert_doc(
+                    "class",
+                    class_doc,
+                    &[
+                        "<p>All supplied conditions must hold",
+                        "fail with {@link OpenDALException.Code#ConditionNotMatch}",
+                    ],
+                );
+            }
+
+            match class.name {
+                "DeleteOptions" => {
+                    assert_doc("class", class_doc, &["for deletion to proceed"]);
+                    assert_field(
+                        "version",
+                        &["selects which stored version the delete removes"],
+                    );
+                    assert_field(
+                        "recursive",
+                        &[
+                            "The default, {@code false}, deletes a single object.",
+                            "a trailing slash (for example, {@code \"a/\"}) scopes deletion to a directory and its descendants",
+                            "{@code memory}, {@code \"a\"} also matches entries under {@code \"ab/\"}",
+                        ],
+                    );
+                    assert_field(
+                        "ifMatch",
+                        &[
+                            "or a missing file, fails the delete with {@link OpenDALException.Code#ConditionNotMatch}",
+                            "a wildcard such as {@code \"*\"} has no portable meaning",
+                        ],
+                    );
+                    assert_field(
+                        "ifNoneMatch",
+                        &[
+                            "deleting a missing file is then a successful no-op",
+                            "a wildcard such as {@code \"*\"} has no portable meaning",
+                            "fails the delete with {@link OpenDALException.Code#ConditionNotMatch}",
+                        ],
+                    );
+                    assert_field(
+                        "ifVersionMatch",
+                        &[
+                            "or a missing file, fails the delete with {@link OpenDALException.Code#ConditionNotMatch}",
+                        ],
+                    );
+                    assert_field(
+                        "ifVersionNotMatch",
+                        &[
+                            "fails the delete with {@link OpenDALException.Code#ConditionNotMatch}",
+                            "When no file exists at the delete path, no portable behavior is defined.",
+                        ],
+                    );
+                    assert_field(
+                        "ifNotChanged",
+                        &[
+                            "Pass metadata previously returned by OpenDAL for the same path.",
+                            "OpenDAL derives a version match when the service supports version conditions and the metadata contains a version. Otherwise it uses a non-weak ETag if present.",
+                            "A changed or missing file fails the delete with {@link OpenDALException.Code#ConditionNotMatch}, as does combining this option with a conflicting {@link #ifMatch} or {@link #ifVersionMatch} value.",
+                            "{@link OpenDALException.Code#Unsupported} when the service does not support the derived primitive condition",
+                            "{@link OpenDALException.Code#ConfigInvalid} when the metadata contains neither a version nor a non-weak ETag.",
+                        ],
+                    );
+                }
+                "ListOptions" => {
+                    assert_doc(
+                        "class",
+                        class_doc,
+                        &[
+                            "Options that require an unsupported service capability fail with {@link OpenDALException.Code#Unsupported}.",
+                            "{@link #limit} is a pagination hint that services may ignore even when {@link Capability#listWithLimit} is supported.",
+                        ],
+                    );
+                    assert_field(
+                        "limit",
+                        &[
+                            "Services may ignore this pagination hint even when {@link Capability#listWithLimit} is supported.",
+                            "{@code -1L} leaves the limit unset",
+                            "native platform's unsigned pointer-sized integer",
+                            "{@code 0L}, other negative values, and values that do not fit fail with {@link OpenDALException.Code#Unexpected}",
+                        ],
+                    );
+                }
+                "ReadOptions" | "ReaderOptions" => {
+                    assert_doc(
+                        "class",
+                        class_doc,
+                        &[
+                            "for data to be returned",
+                            "Invalid execution values fail with {@link OpenDALException.Code#ConfigInvalid}",
+                        ],
+                    );
+                    assert_field(
+                        "chunk",
+                        &[
+                            "Target size of each internal range request in bytes.",
+                            "{@code -1L} keeps unchunked streaming. Positive values enable chunked reads",
+                            "native platform's unsigned pointer-sized integer",
+                            "{@code 0L}, other negative values, and values that do not fit fail with {@link OpenDALException.Code#ConfigInvalid}",
+                        ],
+                    );
+                    assert_field(
+                        "concurrent",
+                        &[
+                            "Maximum number of internal chunk requests executed concurrently.",
+                            "Defaults to {@code 1}. Values less than or equal to {@code 0}",
+                            "native platform's unsigned pointer-sized integer, fail with {@link OpenDALException.Code#ConfigInvalid}",
+                            "only to chunked reads enabled by {@link #chunk}",
+                            "Application transfer and Java thread counts are independent",
+                        ],
+                    );
+                    assert_field(
+                        "contentLengthHint",
+                        &[
+                            "full object length in bytes, regardless of the requested range",
+                            "{@code -1L} means the length is unknown",
+                            "{@code 0L} for an empty object",
+                            "Values below {@code -1L} fail with {@link OpenDALException.Code#ConfigInvalid}",
+                            "OpenDAL uses this hint only to plan reads and can use it to avoid a metadata request.",
+                            "For chunked reads ({@link #chunk} set), a {@code contentLengthHint} no greater than the starting offset can result in no backend read requests.",
+                            "When the hint equals the starting offset, including {@code 0L} at the start of a file, OpenDAL may return empty data without checking file existence or evaluating conditions.",
+                            "An incorrect hint can truncate reads or cause errors.",
+                        ],
+                    );
+                    if class.name == "ReadOptions" {
+                        assert_doc(
+                            "class",
+                            class_doc,
+                            &[
+                                "a single read or a compatibility {@link OperatorInputStream}",
+                                "Version selection and conditions require service support and apply to every chunk.",
+                                "When a direct read or {@link OperatorInputStream} issues a backend read, missing files fail with {@link OpenDALException.Code#NotFound}",
+                                "Presigned read requests validate options and capabilities without executing against storage.",
+                                "Invalid ranges fail with {@link OpenDALException.Code#RangeNotSatisfied}",
+                            ],
+                        );
+                        assert_field(
+                            "offset",
+                            &[
+                                "Byte offset to start reading from.",
+                                "Defaults to {@code 0L}. Negative values fail with {@link OpenDALException.Code#RangeNotSatisfied}",
+                            ],
+                        );
+                        assert_field(
+                            "length",
+                            &[
+                                "Number of bytes to read from {@link #offset}",
+                                "{@code -1L} reads to the end",
+                                "{@code 0L} selects an empty range",
+                                "For direct reads and {@link OperatorInputStream} with {@code length == 0L}, OpenDAL validates options and capabilities",
+                                "returns an empty result without accessing storage or evaluating conditions against the file",
+                                "Presigning a read with this value still goes through request generation.",
+                                "Values below {@code -1L} or an invalid {@code offset + length} range fail with {@link OpenDALException.Code#RangeNotSatisfied}.",
+                            ],
+                        );
+                    } else {
+                        assert_doc(
+                            "class",
+                            class_doc,
+                            &[
+                                "execution options for an {@link OperatorReader}",
+                                "When OpenDAL issues a backend read, missing files fail with {@link OpenDALException.Code#NotFound}",
+                                "errors can surface when creating the reader or while reading",
+                                "Conditions apply to every request, including streams.",
+                                "Execution options apply independently of each logical range.",
+                                "{@link #concurrent} and {@link #prefetch} only for chunked reads enabled by {@link #chunk}",
+                                "{@link OpenDALException.Code#ConfigInvalid} when OpenDAL creates the reader",
+                            ],
+                        );
+                        assert_field(
+                            "prefetch",
+                            &[
+                                "counts completed chunks buffered ahead of consumption, regardless of their size in bytes",
+                                "{@code 0} applies strict backpressure",
+                                "Negative values fail with {@link OpenDALException.Code#ConfigInvalid}",
+                                "chunked reads enabled by {@link #chunk}",
+                            ],
+                        );
+                    }
+                }
+                "StatOptions" => assert_doc(
+                    "class",
+                    class_doc,
+                    &[
+                        "for metadata to be returned",
+                        "For direct stat operations, missing files fail with {@link OpenDALException.Code#NotFound}",
+                        "Presigned stat requests validate options and capabilities without executing against storage.",
+                    ],
+                ),
+                "WriteOptions" => {
+                    assert_doc(
+                        "class",
+                        class_doc,
+                        &[
+                            "for the write to commit",
+                            "Unsupported conditions or {@link #append} fail with {@link OpenDALException.Code#Unsupported}",
+                            "Unsupported metadata options may be ignored.",
+                            "Presigned write requests validate options and capabilities without executing against storage.",
+                        ],
+                    );
+                    assert_field(
+                        "ifNotExists",
+                        &[
+                            "An existing file fails the write with {@link OpenDALException.Code#ConditionNotMatch}",
+                        ],
+                    );
+                    assert_field(
+                        "concurrent",
+                        &[
+                            "Defaults to {@code 1}. Values less than or equal to {@code 0}",
+                            "native platform's unsigned pointer-sized integer, fail with {@link OpenDALException.Code#Unexpected}",
+                        ],
+                    );
+                    assert_field(
+                        "chunk",
+                        &[
+                            "{@code -1L} uses the service's default chunk size",
+                            "Positive values set the chunk size in bytes",
+                            "unsigned pointer-sized integer",
+                            "{@code 0L}, other negative values, and values that do not fit fail with {@link OpenDALException.Code#Unexpected}",
+                        ],
+                    );
+                }
+                name => panic!("missing Javadoc expectations for {name}"),
+            }
+
+            if matches!(class.name, "ReadOptions" | "ReaderOptions" | "StatOptions") {
+                let timestamp = "An {@link Instant} outside the Rust core timestamp range fails with {@link OpenDALException.Code#Unexpected}.";
+                assert_doc(
+                    "class",
+                    class_doc,
+                    &[
+                        "and failed conditions on an existing file fail with {@link OpenDALException.Code#ConditionNotMatch}",
+                        "Unsupported version selection or conditions fail with {@link OpenDALException.Code#Unsupported}",
+                        timestamp,
+                    ],
+                );
+                assert_field(
+                    "version",
+                    &[
+                        "selects which stored version",
+                        "A version that does not exist returns {@link OpenDALException.Code#NotFound}",
+                    ],
+                );
+                assert_field(
+                    "ifVersionMatch",
+                    &[if class.name == "StatOptions" {
+                        "checks the identity of the file selected by {@code version}"
+                    } else {
+                        "checks the identity of the file selected by {@link #version}"
+                    }],
+                );
+                for field in ["ifModifiedSince", "ifUnmodifiedSince"] {
+                    assert_field(
+                        field,
+                        &[
+                            "a missing file returns {@link OpenDALException.Code#NotFound}",
+                            timestamp,
+                        ],
+                    );
+                }
+            }
+            if matches!(class.name, "ReadOptions" | "StatOptions") {
+                for field in [
+                    "overrideContentType",
+                    "overrideCacheControl",
+                    "overrideContentDisposition",
+                ] {
+                    assert_field(
+                        field,
+                        &["<p>This option is only meaningful when used along with presign."],
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_options_fields_reject_missing_field() {
+        let mut options = core_options_structs()
+            .into_iter()
+            .find(|options| options.name == "ListOptions")
+            .unwrap();
+        let spec = EXISTING_OPTIONS_FIELDS
+            .iter()
+            .find(|spec| spec.name == options.name)
+            .unwrap();
+        options.fields.retain(|field| field.name != "limit");
+        let err = select_options_fields(&options, spec).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "core ListOptions is missing Java field `limit`"
+        );
+    }
+
+    #[test]
+    fn test_options_fields_reject_duplicate_unexposed_field() {
+        let mut options = core_options_structs()
+            .into_iter()
+            .find(|options| options.name == "ListOptions")
+            .unwrap();
+        let spec = EXISTING_OPTIONS_FIELDS
+            .iter()
+            .find(|spec| spec.name == options.name)
+            .unwrap();
+        options.fields.push(
+            options
+                .fields
+                .iter()
+                .find(|field| field.name == "glob")
+                .unwrap()
+                .clone(),
+        );
+        let err = select_options_fields(&options, spec).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "core ListOptions contains duplicate field `glob`"
+        );
+    }
+
+    #[test]
+    fn test_options_fields_reject_mismatched_kind() {
+        let mut options = core_options_structs()
+            .into_iter()
+            .find(|options| options.name == "ListOptions")
+            .unwrap();
+        let spec = EXISTING_OPTIONS_FIELDS
+            .iter()
+            .find(|spec| spec.name == options.name)
+            .unwrap();
+        options
+            .fields
+            .iter_mut()
+            .find(|field| field.name == "limit")
+            .unwrap()
+            .kind = OptionKind::OptionU64;
+        let err = select_options_fields(&options, spec).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "core ListOptions field `limit` has kind OptionU64; Java requires OptionUsize"
+        );
+    }
+
+    #[test]
+    fn test_option_javadoc_translates_inline_links() {
+        let metadata_fields = build_metadata_fields(core_metadata_fields()).unwrap();
+        let spec = EXISTING_OPTIONS_FIELDS
+            .iter()
+            .find(|spec| spec.name == "ListOptions")
+            .unwrap();
+        let lines = [
+            "Use [`Self::start_after`] & [`crate::Capability::list_with_limit`]",
+            "or [the guide](https://example.com/list?a=b&c=d).",
+            "See [`Self::glob`], [`ReadOptions::chunk`], [`ReadOptions::gap`],",
+            "[`CopyOptions`], [`crate::Reader::fetch`], and [`Metadata::checksum`].",
+            "",
+            "Check `Capability::list_with_limit` and `Capability::list_with_versions`.",
+        ]
+        .map(str::to_owned);
+        assert_eq!(
+            option_javadoc(&lines, spec, None, &metadata_fields),
+            concat!(
+                "Use {@link #startAfter} &amp; {@link Capability#listWithLimit} ",
+                "or <a href=\"https://example.com/list?a=b&amp;c=d\">the guide</a>. ",
+                "See {@code Self::glob}, {@link ReadOptions#chunk}, {@code ReadOptions::gap}, ",
+                "{@code CopyOptions}, {@code Reader::fetch}, and {@code Metadata::checksum}."
+            )
+        );
+        assert_eq!(
+            option_capability_refs(&lines),
+            ["Capability#listWithLimit", "Capability#listWithVersions"]
+        );
+        for field in &metadata_fields {
+            assert_eq!(
+                option_javadoc(
+                    &[format!("[`Metadata::{}`]", field.rust_name)],
+                    spec,
+                    None,
+                    &metadata_fields,
+                ),
+                format!("{{@link Metadata#{}}}", field.camel)
+            );
+        }
+    }
+
+    #[test]
+    fn test_options_jni_defaults_for_unexposed_fields() {
+        let parsed = core_options_structs();
+        let metadata_fields = build_metadata_fields(core_metadata_fields()).unwrap();
+        let classes = options_classes(&parsed, &metadata_fields).unwrap();
+        let rendered = Environment::new()
+            .render_str(
+                include_str!("java/options_rs.j2"),
+                context! { classes => classes },
+            )
+            .unwrap();
+
+        let expected: &[(&str, &[&str])] = &[
+            ("delete", &[]),
+            ("list", &["glob: None,"]),
+            ("read", &["limit: None,", "gap: None,", "checksum: false,"]),
+            ("reader", &["gap: None,", "checksum: false,"]),
+            ("stat", &["checksum: false,"]),
+            (
+                "write",
+                &[
+                    "content_language: None,",
+                    "expires: None,",
+                    "if_version_match: None,",
+                    "if_version_not_match: None,",
+                    "if_not_changed: None,",
+                ],
+            ),
+        ];
+        let converters: Vec<_> = rendered.split("pub(crate) fn make_").skip(1).collect();
+        assert_eq!(converters.len(), expected.len());
+        for (converter, &(name, defaults)) in converters.iter().zip(expected) {
+            assert!(converter.starts_with(&format!("{name}_options(")));
+            for default in defaults {
+                assert!(
+                    converter.lines().any(|line| line.trim() == *default),
+                    "{name} must initialize {default}"
+                );
+            }
+            assert_eq!(converter.contains("..Default::default()"), name == "write");
         }
     }
 

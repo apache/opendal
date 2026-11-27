@@ -39,7 +39,7 @@ import lombok.Data;
 {%- if class.name == "StatOptions" %}
 @Data
 {%- endif %}
-@Builder
+@Builder(toBuilder = true)
 public {{ "final " if class.name == "ReaderOptions" else "" }}class {{ class.name }} {
 {#- StatOptions has published setters. #}
 {%- set field_modifiers = "private" if class.name == "StatOptions" else "public final" %}

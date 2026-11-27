@@ -102,6 +102,18 @@ public class OperatorInputOutputStreamTest {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(longs = {0, 4})
+    void testCreateInputStreamRejectsReadLimit(long limit) {
+        try (Operator op = Operator.of(ServiceConfig.Memory.builder().build())) {
+            op.write("file", "content");
+            ReadOptions options = ReadOptions.builder().limit(limit).build();
+            assertThatThrownBy(() -> op.createInputStream("file", options))
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.ConfigInvalid))
+                    .hasMessage("limit is only supported by read operations");
+        }
+    }
+
     @Test
     void testChunkedInputStream() throws Exception {
         final byte[] content = new byte[4 * 1024 + 13];

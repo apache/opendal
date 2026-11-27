@@ -51,6 +51,10 @@ public class OperatorInputStream extends InputStream {
 
     public OperatorInputStream(Operator operator, String path, ReadOptions options) {
         Objects.requireNonNull(options, "options");
+        if (options.limit != -1L) {
+            throw new OpenDALException(
+                    OpenDALException.Code.ConfigInvalid, "limit is only supported by read operations");
+        }
         ReaderOptions readerOptions = ReaderOptions.builder()
                 .version(options.version)
                 .ifMatch(options.ifMatch)

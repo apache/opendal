@@ -129,8 +129,9 @@ struct OptionsSpec {
     fields: &'static [(&'static str, OptionKind)],
 }
 
-/// Field order and kinds used by the existing Java constructors and builders.
-const EXISTING_OPTIONS_FIELDS: &[OptionsSpec] = {
+/// Field order and kinds used by the Java constructors and builders.
+/// Gap requires multi-range reads, and checksum support requires Java checksum metadata.
+const JAVA_OPTIONS_FIELDS: &[OptionsSpec] = {
     use OptionKind::*;
 
     &[
@@ -154,6 +155,7 @@ const EXISTING_OPTIONS_FIELDS: &[OptionsSpec] = {
                 ("start_after", OptionString),
                 ("versions", Bool),
                 ("deleted", Bool),
+                ("glob", OptionString),
             ],
         },
         OptionsSpec {
@@ -173,6 +175,7 @@ const EXISTING_OPTIONS_FIELDS: &[OptionsSpec] = {
                 ("override_content_type", OptionString),
                 ("override_cache_control", OptionString),
                 ("override_content_disposition", OptionString),
+                ("limit", OptionU64),
             ],
         },
         OptionsSpec {
@@ -220,6 +223,11 @@ const EXISTING_OPTIONS_FIELDS: &[OptionsSpec] = {
                 ("if_not_exists", Bool),
                 ("concurrent", Usize),
                 ("chunk", OptionUsize),
+                ("content_language", OptionString),
+                ("expires", OptionDuration),
+                ("if_version_match", OptionString),
+                ("if_version_not_match", OptionString),
+                ("if_not_changed", OptionMetadata),
             ],
         },
     ]
@@ -500,12 +508,12 @@ fn options_classes<'a>(
     metadata_fields: &[MetadataField],
 ) -> Result<Vec<OptionsClass<'a>>> {
     let mut classes = Vec::new();
-    for spec in EXISTING_OPTIONS_FIELDS {
+    for spec in JAVA_OPTIONS_FIELDS {
         let Some(options) = parsed.iter().find(|options| options.name == spec.name) else {
             bail!("core options are missing Java struct `{}`", spec.name);
         };
         let fields = select_options_fields(options, spec)?;
-        classes.push(options_class(options, spec, &fields, metadata_fields)?);
+        classes.push(options_class(options, spec, &fields, metadata_fields));
     }
     Ok(classes)
 }
@@ -558,6 +566,8 @@ fn option_class_details(name: &str) -> Vec<String> {
         "ListOptions" => vec![concat!(
             "Options that require an unsupported service capability fail with ",
             "{@link OpenDALException.Code#Unsupported}. ",
+            "When globbing is supported, invalid {@link #glob} patterns fail with ",
+            "{@link OpenDALException.Code#ConfigInvalid}. ",
             "{@link #limit} is a pagination hint that services may ignore even when ",
             "{@link Capability#listWithLimit} is supported."
         )],
@@ -610,9 +620,11 @@ fn option_class_details(name: &str) -> Vec<String> {
         ],
         "WriteOptions" => vec![concat!(
             "All supplied conditions must hold for the write to commit. ",
-            "Unsupported conditions or {@link #append} fail with {@link OpenDALException.Code#Unsupported}. ",
+            "Unsupported conditions, {@link #append}, or {@link #expires} fail with {@link OpenDALException.Code#Unsupported}. ",
             "Unsupported metadata options may be ignored. ",
             "Failed conditions fail with {@link OpenDALException.Code#ConditionNotMatch}. ",
+            "Invalid {@link #expires} or {@link #ifNotChanged} values fail with ",
+            "{@link OpenDALException.Code#ConfigInvalid}. ",
             "Presigned write requests validate options and capabilities without executing against storage."
         )],
         _ => Vec::new(),
@@ -626,7 +638,7 @@ fn options_class<'a>(
     spec: &OptionsSpec,
     fields: &[&OptionField],
     metadata_fields: &[MetadataField],
-) -> Result<OptionsClass<'a>> {
+) -> OptionsClass<'a> {
     let mut imports = BTreeSet::new();
     let mut properties = Vec::new();
     for field in fields {
@@ -640,6 +652,10 @@ fn options_class<'a>(
             OptionKind::OptionTimestamp => {
                 imports.insert("java.time.Instant");
                 ("Instant", None)
+            }
+            OptionKind::OptionDuration => {
+                imports.insert("java.time.Duration");
+                ("Duration", None)
             }
             OptionKind::OptionStringMap => {
                 imports.insert("java.util.Map");
@@ -685,7 +701,6 @@ fn options_class<'a>(
                 ]);
                 continue;
             }
-            OptionKind::OptionDuration => bail!("unsupported Java option {}::{name}", options.name),
         };
         let (summary, details) = option_field_javadoc(spec, field, metadata_fields);
         properties.push(OptionProperty {
@@ -698,7 +713,7 @@ fn options_class<'a>(
         });
     }
 
-    Ok(OptionsClass {
+    OptionsClass {
         name: &options.name,
         summary: match spec.name {
             "ReadOptions" => "Options for a single read or a compatibility {@link OperatorInputStream}.".to_owned(),
@@ -714,7 +729,7 @@ fn options_class<'a>(
             .iter()
             .map(|field| {
                 let expr = if fields.iter().any(|exposed| exposed.name == field.name) {
-                    option_rs_expr(&options.name, field)?
+                    option_rs_expr(&options.name, field)
                 } else {
                     match field.kind {
                         OptionKind::Bool => "false",
@@ -730,14 +745,14 @@ fn options_class<'a>(
                     }
                     .to_owned()
                 };
-                Ok(OptionRsField {
+                OptionRsField {
                     name: &field.name,
                     expr,
-                })
+                }
             })
-            .collect::<Result<_>>()?,
+            .collect(),
         has_unmirrored_fields: options.has_unmirrored_fields,
-    })
+    }
 }
 
 fn option_field_javadoc(
@@ -747,22 +762,61 @@ fn option_field_javadoc(
 ) -> (String, Vec<String>) {
     let name = field.name.as_str();
     let render = |lines: &[String]| option_javadoc(lines, spec, Some(name), metadata_fields);
+    let paragraphs = || field.doc.split(|line| line.is_empty());
     let mut summary = render(&field.doc);
     let mut details = Vec::new();
     match (spec.name, name) {
-        ("DeleteOptions", "if_not_changed") => details.extend(field
-            .doc
-            .split(|line| line.is_empty())
+        ("DeleteOptions" | "WriteOptions", "if_not_changed") => details.extend(paragraphs()
             .skip(1)
             .filter(|paragraph| !paragraph.is_empty())
             .map(render)),
         ("DeleteOptions", "recursive")
+        | ("WriteOptions", "content_language")
         | (_, "version" | "if_match" | "if_none_match" | "if_version_match" | "if_version_not_match"
             | "if_modified_since" | "if_unmodified_since" | "if_not_exists"
             | "override_content_type" | "override_cache_control" | "override_content_disposition") => {
-            if let Some(paragraph) = field.doc.split(|line| line.is_empty()).nth(1) {
+            if let Some(paragraph) = paragraphs().nth(1) {
                 details.push(render(paragraph));
             }
+        }
+        ("ListOptions", "glob") => {
+            details.extend(paragraphs().nth(1).map(render));
+            details.push(concat!(
+                "Requires {@link Capability#listWithGlob}. OpenDAL simulates glob matching client-side ",
+                "when the service lacks native support. A simulated pattern spanning multiple directories ",
+                "also requires {@link Capability#listWithRecursive} when combined with ",
+                "{@link #startAfter}, {@link #versions}, or {@link #deleted}. ",
+                "Missing required capabilities fail with {@link OpenDALException.Code#Unsupported}. ",
+                "When globbing is supported, empty or malformed patterns fail with ",
+                "{@link OpenDALException.Code#ConfigInvalid}."
+            ).to_owned());
+        }
+        ("ReadOptions", "limit") => details.extend([
+            concat!(
+                "The default of {@code -1L} leaves the limit unset. Without a limit, bounded forward ",
+                "ranges require the full requested length. Values below {@code -1L} fail with ",
+                "{@link OpenDALException.Code#ConfigInvalid}."
+            ).to_owned(),
+            concat!(
+                "On direct whole-buffer reads, {@code 0L} validates options and capabilities, then ",
+                "returns an empty result without accessing storage or evaluating conditions against the file. ",
+                "With a positive limit, a nonempty forward selection starting at or beyond EOF fails with ",
+                "{@link OpenDALException.Code#RangeNotSatisfied}."
+            ).to_owned(),
+            concat!(
+                "Setting a limit ({@code limit != -1L}) with a positive {@link #chunk}, with ",
+                "{@link #concurrent} greater than {@code 1}, with {@link OperatorInputStream}, or with ",
+                "presigned read requests fails with {@link OpenDALException.Code#ConfigInvalid}."
+            ).to_owned(),
+        ]),
+        ("WriteOptions", "expires") => {
+            details.extend(paragraphs().nth(1).map(render));
+            details.push(concat!(
+                "Supply a positive {@link Duration}. Zero, negative, or unrepresentable durations fail ",
+                "with {@link OpenDALException.Code#ConfigInvalid}. The write fails with ",
+                "{@link OpenDALException.Code#Unsupported} when the service does not advertise ",
+                "{@link Capability#writeWithExpires}."
+            ).to_owned());
         }
         ("ReadOptions" | "ReaderOptions", "chunk") => {
             summary = "Target size of each internal range request in bytes.".to_owned();
@@ -846,7 +900,7 @@ fn option_field_javadoc(
     (summary, details)
 }
 
-fn option_rs_expr(options: &str, field: &OptionField) -> Result<String> {
+fn option_rs_expr(options: &str, field: &OptionField) -> String {
     let name = field.name.as_str();
     let camel = case_java_field_name(name);
     let (converter, suffix) = match field.kind {
@@ -855,29 +909,34 @@ fn option_rs_expr(options: &str, field: &OptionField) -> Result<String> {
         }
         OptionKind::Bool => ("read_bool_field", "?"),
         OptionKind::OptionUsize if matches!(options, "ListOptions" | "WriteOptions") => {
-            ("read_jlong_field_to_usize", "?")
+            return format!(
+                "convert::read_jlong_field_to_usize(env, options, \"{camel}\", ErrorKind::Unexpected)?"
+            );
+        }
+        OptionKind::OptionMetadata if options == "WriteOptions" => {
+            ("read_metadata_condition_field", "?")
         }
         OptionKind::Usize
         | OptionKind::OptionUsize
         | OptionKind::OptionU64
         | OptionKind::OptionMetadata => {
             // These fields are read before building the struct to keep validation precedence.
-            return Ok(name.to_owned());
+            return name.to_owned();
         }
         OptionKind::OptionString => ("read_string_field", "?"),
         OptionKind::OptionTimestamp => ("read_instant_field_to_timestamp", "?"),
+        OptionKind::OptionDuration => ("read_duration_field", "?"),
         OptionKind::OptionStringMap => ("read_map_field", "?"),
-        OptionKind::BytesRange => return Ok("convert::read_range_fields(env, options)?".to_owned()),
-        OptionKind::OptionDuration => bail!("unsupported Java option {options}::{name}"),
+        OptionKind::BytesRange => return "convert::read_range_fields(env, options)?".to_owned(),
     };
 
     let expr = format!("convert::{converter}(env, options, \"{camel}\"){suffix}");
     if 8 + name.len() + 2 + expr.len() + 1 > 100 {
-        return Ok(format!(
+        return format!(
             "convert::{converter}(\n            env,\n            options,\n            \"{camel}\",\n        ){suffix}"
-        ));
+        );
     }
-    Ok(expr)
+    expr
 }
 
 /// Translate inline Rustdoc links and code spans in the first paragraph.
@@ -961,11 +1020,11 @@ fn option_javadoc_token(
             ),
         ("ErrorKind", "") => "{@link OpenDALException.Code}".to_owned(),
         ("ErrorKind", variant) => format!("{{@link OpenDALException.Code#{variant}}}"),
-        (ty, "") if EXISTING_OPTIONS_FIELDS.iter().any(|spec| spec.name == ty) => {
+        (ty, "") if JAVA_OPTIONS_FIELDS.iter().any(|spec| spec.name == ty) => {
             format!("{{@link {ty}}}")
         }
         (ty, field)
-            if EXISTING_OPTIONS_FIELDS.iter().any(|spec| {
+            if JAVA_OPTIONS_FIELDS.iter().any(|spec| {
                 spec.name == ty
                     && spec
                         .fields
@@ -1125,16 +1184,19 @@ mod tests {
     }
 
     #[test]
-    fn test_options_fields_follow_existing_java_order() {
+    fn test_options_fields_follow_java_order() {
         let expected = [
             (
                 "DeleteOptions",
                 "version recursive ifMatch ifNoneMatch ifVersionMatch ifVersionNotMatch ifNotChanged",
             ),
-            ("ListOptions", "recursive limit startAfter versions deleted"),
+            (
+                "ListOptions",
+                "recursive limit startAfter versions deleted glob",
+            ),
             (
                 "ReadOptions",
-                "offset length version ifMatch ifNoneMatch ifVersionMatch ifVersionNotMatch ifModifiedSince ifUnmodifiedSince concurrent chunk contentLengthHint overrideContentType overrideCacheControl overrideContentDisposition",
+                "offset length version ifMatch ifNoneMatch ifVersionMatch ifVersionNotMatch ifModifiedSince ifUnmodifiedSince concurrent chunk contentLengthHint overrideContentType overrideCacheControl overrideContentDisposition limit",
             ),
             (
                 "ReaderOptions",
@@ -1146,18 +1208,18 @@ mod tests {
             ),
             (
                 "WriteOptions",
-                "contentType contentDisposition cacheControl contentEncoding ifMatch ifNoneMatch userMetadata append ifNotExists concurrent chunk",
+                "contentType contentDisposition cacheControl contentEncoding ifMatch ifNoneMatch userMetadata append ifNotExists concurrent chunk contentLanguage expires ifVersionMatch ifVersionNotMatch ifNotChanged",
             ),
         ];
         let mut structs = core_options_structs();
         let metadata_fields = build_metadata_fields(core_metadata_fields()).unwrap();
-        assert_eq!(EXISTING_OPTIONS_FIELDS.len(), expected.len());
+        assert_eq!(JAVA_OPTIONS_FIELDS.len(), expected.len());
         let env = Environment::new();
         let template = env
             .template_from_str(include_str!("java/options_java.j2"))
             .unwrap();
 
-        for (spec, (name, names)) in EXISTING_OPTIONS_FIELDS.iter().zip(expected) {
+        for (spec, (name, names)) in JAVA_OPTIONS_FIELDS.iter().zip(expected) {
             assert_eq!(spec.name, name);
             let options = structs
                 .iter_mut()
@@ -1165,7 +1227,7 @@ mod tests {
                 .unwrap();
             options.fields.reverse();
             let fields = select_options_fields(options, spec).unwrap();
-            let class = options_class(options, spec, &fields, &metadata_fields).unwrap();
+            let class = options_class(options, spec, &fields, &metadata_fields);
             let names: Vec<_> = names.split_whitespace().collect();
             assert_eq!(
                 class
@@ -1179,13 +1241,15 @@ mod tests {
 
             let rendered = template.render(context! { class => class }).unwrap();
             let (annotations, modifiers) = match name {
-                "StatOptions" => ("@Data\n@Builder\npublic class", "private"),
-                "ReaderOptions" => ("@Builder\npublic final class", "public final"),
-                _ => ("@Builder\npublic class", "public final"),
+                "StatOptions" => ("@Data\n@Builder(toBuilder = true)\npublic class", "private"),
+                "ReaderOptions" => (
+                    "@Builder(toBuilder = true)\npublic final class",
+                    "public final",
+                ),
+                _ => ("@Builder(toBuilder = true)\npublic class", "public final"),
             };
             assert!(rendered.contains(&format!("{annotations} {name} {{")));
             assert_eq!(rendered.contains("@Data"), name == "StatOptions");
-            assert!(!rendered.contains("toBuilder"));
             assert_eq!(
                 rendered.matches(&format!("    {modifiers} ")).count(),
                 names.len()
@@ -1312,7 +1376,10 @@ mod tests {
                         "class",
                         class_doc,
                         &[
-                            "Options that require an unsupported service capability fail with {@link OpenDALException.Code#Unsupported}.",
+                            concat!(
+                                "Options that require an unsupported service capability fail with {@link OpenDALException.Code#Unsupported}. ",
+                                "When globbing is supported, invalid {@link #glob} patterns fail with {@link OpenDALException.Code#ConfigInvalid}."
+                            ),
                             "{@link #limit} is a pagination hint that services may ignore even when {@link Capability#listWithLimit} is supported.",
                         ],
                     );
@@ -1323,6 +1390,23 @@ mod tests {
                             "{@code -1L} leaves the limit unset",
                             "native platform's unsigned pointer-sized integer",
                             "{@code 0L}, other negative values, and values that do not fit fail with {@link OpenDALException.Code#Unexpected}",
+                        ],
+                    );
+                    assert_field(
+                        "glob",
+                        &[
+                            "Filter entries with a case-sensitive Unix shell style glob pattern.",
+                            "relative to the listed directory, or to the parent directory when the list path is a prefix without a trailing slash",
+                            "Entries must also satisfy the list prefix.",
+                            "independently of {@link #recursive}",
+                            "Requires {@link Capability#listWithGlob}. OpenDAL simulates glob matching client-side when the service lacks native support.",
+                            "A simulated pattern spanning multiple directories also requires {@link Capability#listWithRecursive} when combined with {@link #startAfter}, {@link #versions}, or {@link #deleted}.",
+                            concat!(
+                                "Missing required capabilities fail with {@link OpenDALException.Code#Unsupported}. ",
+                                "When globbing is supported, empty or malformed patterns fail with {@link OpenDALException.Code#ConfigInvalid}."
+                            ),
+                            "@see Capability#listWithGlob",
+                            "@see Capability#listWithRecursive",
                         ],
                     );
                 }
@@ -1368,6 +1452,19 @@ mod tests {
                         ],
                     );
                     if class.name == "ReadOptions" {
+                        assert!(rendered.contains("public final long limit = -1L;"));
+                        assert_field(
+                            "limit",
+                            &[
+                                "Return at most this many bytes from the start of the selected range, accepting EOF after a valid starting byte.",
+                                "The default of {@code -1L} leaves the limit unset.",
+                                "Without a limit, bounded forward ranges require the full requested length.",
+                                "Values below {@code -1L} fail with {@link OpenDALException.Code#ConfigInvalid}.",
+                                "On direct whole-buffer reads, {@code 0L} validates options and capabilities, then returns an empty result without accessing storage or evaluating conditions against the file.",
+                                "With a positive limit, a nonempty forward selection starting at or beyond EOF fails with {@link OpenDALException.Code#RangeNotSatisfied}.",
+                                "Setting a limit ({@code limit != -1L}) with a positive {@link #chunk}, with {@link #concurrent} greater than {@code 1}, with {@link OperatorInputStream}, or with presigned read requests fails with {@link OpenDALException.Code#ConfigInvalid}.",
+                            ],
+                        );
                         assert_doc(
                             "class",
                             class_doc,
@@ -1438,9 +1535,13 @@ mod tests {
                         class_doc,
                         &[
                             "for the write to commit",
-                            "Unsupported conditions or {@link #append} fail with {@link OpenDALException.Code#Unsupported}",
+                            "Unsupported conditions, {@link #append}, or {@link #expires} fail with {@link OpenDALException.Code#Unsupported}.",
                             "Unsupported metadata options may be ignored.",
-                            "Presigned write requests validate options and capabilities without executing against storage.",
+                            concat!(
+                                "Failed conditions fail with {@link OpenDALException.Code#ConditionNotMatch}. ",
+                                "Invalid {@link #expires} or {@link #ifNotChanged} values fail with {@link OpenDALException.Code#ConfigInvalid}. ",
+                                "Presigned write requests validate options and capabilities without executing against storage."
+                            ),
                         ],
                     );
                     assert_field(
@@ -1463,6 +1564,55 @@ mod tests {
                             "Positive values set the chunk size in bytes",
                             "unsigned pointer-sized integer",
                             "{@code 0L}, other negative values, and values that do not fit fail with {@link OpenDALException.Code#Unexpected}",
+                        ],
+                    );
+                    assert_field(
+                        "contentLanguage",
+                        &[
+                            "Use a language tag or a comma-separated list of tags, such as {@code fr-CA, en}.",
+                            "A subsequent stat can retrieve the stored value with {@link Metadata#contentLanguage}.",
+                            "Services without support may ignore this option.",
+                            "@see Capability#writeWithContentLanguage",
+                        ],
+                    );
+                    assert!(rendered.contains("import java.time.Duration;"));
+                    assert!(rendered.contains("public final Duration expires;"));
+                    assert_field(
+                        "expires",
+                        &[
+                            "A supplied duration overrides the service's default TTL. When unset, the service uses its usual expiration policy.",
+                            "Services round positive durations up to their supported precision.",
+                            "Supply a positive {@link Duration}.",
+                            "Zero, negative, or unrepresentable durations fail with {@link OpenDALException.Code#ConfigInvalid}.",
+                            "The write fails with {@link OpenDALException.Code#Unsupported} when the service does not advertise {@link Capability#writeWithExpires}.",
+                            "@see Capability#writeWithExpires",
+                        ],
+                    );
+                    assert_field(
+                        "ifVersionMatch",
+                        &[
+                            "The condition succeeds when the file exists and its version equals this value.",
+                            "A file with a different version, or a missing file, fails the write with {@link OpenDALException.Code#ConditionNotMatch}.",
+                            "@see Capability#writeWithIfVersionMatch",
+                        ],
+                    );
+                    assert_field(
+                        "ifVersionNotMatch",
+                        &[
+                            "The condition succeeds when the file exists with a different version.",
+                            "A file whose version equals this value fails the write with {@link OpenDALException.Code#ConditionNotMatch}.",
+                            "When no file exists at the write path, no portable behavior is defined.",
+                            "@see Capability#writeWithIfVersionNotMatch",
+                        ],
+                    );
+                    assert_field(
+                        "ifNotChanged",
+                        &[
+                            "Pass metadata previously returned by OpenDAL for the same path.",
+                            "OpenDAL derives a version match when the service supports version conditions and the metadata contains a version. Otherwise it uses a non-weak ETag if present.",
+                            "A changed or missing file fails the write with {@link OpenDALException.Code#ConditionNotMatch}, as does combining this option with a conflicting {@link #ifMatch} or {@link #ifVersionMatch} value.",
+                            "{@link OpenDALException.Code#Unsupported} when the service does not support the derived primitive condition",
+                            "{@link OpenDALException.Code#ConfigInvalid} when the metadata contains neither a version nor a non-weak ETag.",
                         ],
                     );
                 }
@@ -1526,7 +1676,7 @@ mod tests {
             .into_iter()
             .find(|options| options.name == "ListOptions")
             .unwrap();
-        let spec = EXISTING_OPTIONS_FIELDS
+        let spec = JAVA_OPTIONS_FIELDS
             .iter()
             .find(|spec| spec.name == options.name)
             .unwrap();
@@ -1542,9 +1692,9 @@ mod tests {
     fn test_options_fields_reject_duplicate_unexposed_field() {
         let mut options = core_options_structs()
             .into_iter()
-            .find(|options| options.name == "ListOptions")
+            .find(|options| options.name == "ReadOptions")
             .unwrap();
-        let spec = EXISTING_OPTIONS_FIELDS
+        let spec = JAVA_OPTIONS_FIELDS
             .iter()
             .find(|spec| spec.name == options.name)
             .unwrap();
@@ -1552,14 +1702,14 @@ mod tests {
             options
                 .fields
                 .iter()
-                .find(|field| field.name == "glob")
+                .find(|field| field.name == "gap")
                 .unwrap()
                 .clone(),
         );
         let err = select_options_fields(&options, spec).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "core ListOptions contains duplicate field `glob`"
+            "core ReadOptions contains duplicate field `gap`"
         );
     }
 
@@ -1569,7 +1719,7 @@ mod tests {
             .into_iter()
             .find(|options| options.name == "ListOptions")
             .unwrap();
-        let spec = EXISTING_OPTIONS_FIELDS
+        let spec = JAVA_OPTIONS_FIELDS
             .iter()
             .find(|spec| spec.name == options.name)
             .unwrap();
@@ -1589,7 +1739,7 @@ mod tests {
     #[test]
     fn test_option_javadoc_translates_inline_links() {
         let metadata_fields = build_metadata_fields(core_metadata_fields()).unwrap();
-        let spec = EXISTING_OPTIONS_FIELDS
+        let spec = JAVA_OPTIONS_FIELDS
             .iter()
             .find(|spec| spec.name == "ListOptions")
             .unwrap();
@@ -1607,7 +1757,7 @@ mod tests {
             concat!(
                 "Use {@link #startAfter} &amp; {@link Capability#listWithLimit} ",
                 "or <a href=\"https://example.com/list?a=b&amp;c=d\">the guide</a>. ",
-                "See {@code Self::glob}, {@link ReadOptions#chunk}, {@code ReadOptions::gap}, ",
+                "See {@link #glob}, {@link ReadOptions#chunk}, {@code ReadOptions::gap}, ",
                 "{@code CopyOptions}, {@code Reader::fetch}, and {@code Metadata::checksum}."
             )
         );
@@ -1629,7 +1779,7 @@ mod tests {
     }
 
     #[test]
-    fn test_options_jni_defaults_for_unexposed_fields() {
+    fn test_options_jni_converter_contracts() {
         let parsed = core_options_structs();
         let metadata_fields = build_metadata_fields(core_metadata_fields()).unwrap();
         let classes = options_classes(&parsed, &metadata_fields).unwrap();
@@ -1642,24 +1792,16 @@ mod tests {
 
         let expected: &[(&str, &[&str])] = &[
             ("delete", &[]),
-            ("list", &["glob: None,"]),
-            ("read", &["limit: None,", "gap: None,", "checksum: false,"]),
+            ("list", &[]),
+            ("read", &["gap: None,", "checksum: false,"]),
             ("reader", &["gap: None,", "checksum: false,"]),
             ("stat", &["checksum: false,"]),
-            (
-                "write",
-                &[
-                    "content_language: None,",
-                    "expires: None,",
-                    "if_version_match: None,",
-                    "if_version_not_match: None,",
-                    "if_not_changed: None,",
-                ],
-            ),
+            ("write", &[]),
         ];
         let converters: Vec<_> = rendered.split("pub(crate) fn make_").skip(1).collect();
         assert_eq!(converters.len(), expected.len());
-        for (converter, &(name, defaults)) in converters.iter().zip(expected) {
+        for ((class, converter), &(name, defaults)) in classes.iter().zip(converters).zip(expected)
+        {
             assert!(converter.starts_with(&format!("{name}_options(")));
             for default in defaults {
                 assert!(
@@ -1667,7 +1809,22 @@ mod tests {
                     "{name} must initialize {default}"
                 );
             }
-            assert_eq!(converter.contains("..Default::default()"), name == "write");
+            assert_eq!(class.has_unmirrored_fields, name == "write");
+            assert_eq!(
+                converter.contains("..Default::default()"),
+                class.has_unmirrored_fields
+            );
+            if class.has_unmirrored_fields {
+                assert!(!converter.contains("checksum:"));
+            }
+            if name == "read" {
+                assert!(converter.contains(concat!(
+                    "let limit = convert::read_non_negative_jlong_to_u64(env, options, \"limit\")?;\n",
+                    "    Ok(opendal::options::ReadOptions {\n",
+                    "        range: convert::read_range_fields(env, options)?,\n",
+                    "        limit,\n"
+                )));
+            }
         }
     }
 

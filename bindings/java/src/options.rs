@@ -21,7 +21,7 @@ use crate::Result;
 use crate::convert;
 use jni::Env;
 use jni::objects::JObject;
-use opendal::{Error, ErrorKind};
+use opendal::ErrorKind;
 
 pub(crate) fn make_delete_options(
     env: &mut Env<'_>,
@@ -44,12 +44,12 @@ pub(crate) fn make_list_options(
     options: &JObject,
 ) -> Result<opendal::options::ListOptions> {
     Ok(opendal::options::ListOptions {
-        limit: convert::read_jlong_field_to_usize(env, options, "limit")?,
+        limit: convert::read_jlong_field_to_usize(env, options, "limit", ErrorKind::Unexpected)?,
         start_after: convert::read_string_field(env, options, "startAfter")?,
         recursive: convert::read_bool_field(env, options, "recursive").unwrap_or_default(),
         versions: convert::read_bool_field(env, options, "versions").unwrap_or_default(),
         deleted: convert::read_bool_field(env, options, "deleted").unwrap_or_default(),
-        glob: None,
+        glob: convert::read_string_field(env, options, "glob")?,
     })
 }
 
@@ -57,14 +57,16 @@ pub(crate) fn make_read_options(
     env: &mut Env<'_>,
     options: &JObject,
 ) -> Result<opendal::options::ReadOptions> {
-    let concurrent = convert::read_int_field(env, options, "concurrent")?;
-    let chunk = convert::read_int64_field(env, options, "chunk")?;
-    let content_length_hint = convert::read_int64_field(env, options, "contentLengthHint")?;
-    let (concurrent, chunk, content_length_hint) =
-        convert::validate_read_execution_options(concurrent, chunk, content_length_hint)?;
+    let concurrent =
+        convert::read_positive_jint_to_usize(env, options, "concurrent", ErrorKind::ConfigInvalid)?;
+    let chunk =
+        convert::read_jlong_field_to_usize(env, options, "chunk", ErrorKind::ConfigInvalid)?;
+    let content_length_hint =
+        convert::read_non_negative_jlong_to_u64(env, options, "contentLengthHint")?;
+    let limit = convert::read_non_negative_jlong_to_u64(env, options, "limit")?;
     Ok(opendal::options::ReadOptions {
         range: convert::read_range_fields(env, options)?,
-        limit: None,
+        limit,
         version: convert::read_string_field(env, options, "version")?,
         if_match: convert::read_string_field(env, options, "ifMatch")?,
         if_none_match: convert::read_string_field(env, options, "ifNoneMatch")?,
@@ -99,14 +101,13 @@ pub(crate) fn make_reader_options(
     env: &mut Env<'_>,
     options: &JObject,
 ) -> Result<opendal::options::ReaderOptions> {
-    let concurrent = convert::read_int_field(env, options, "concurrent")?;
-    let chunk = convert::read_int64_field(env, options, "chunk")?;
-    let prefetch = convert::read_int_field(env, options, "prefetch")?;
-    let content_length_hint = convert::read_int64_field(env, options, "contentLengthHint")?;
-    let (concurrent, chunk, content_length_hint) =
-        convert::validate_read_execution_options(concurrent, chunk, content_length_hint)?;
-    let prefetch = usize::try_from(prefetch)
-        .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "prefetch must be non-negative"))?;
+    let concurrent =
+        convert::read_positive_jint_to_usize(env, options, "concurrent", ErrorKind::ConfigInvalid)?;
+    let chunk =
+        convert::read_jlong_field_to_usize(env, options, "chunk", ErrorKind::ConfigInvalid)?;
+    let content_length_hint =
+        convert::read_non_negative_jlong_to_u64(env, options, "contentLengthHint")?;
+    let prefetch = convert::read_non_negative_jint_to_usize(env, options, "prefetch")?;
     Ok(opendal::options::ReaderOptions {
         version: convert::read_string_field(env, options, "version")?,
         if_match: convert::read_string_field(env, options, "ifMatch")?,
@@ -167,33 +168,25 @@ pub(crate) fn make_write_options(
     env: &mut Env<'_>,
     options: &JObject,
 ) -> Result<opendal::options::WriteOptions> {
-    let value = convert::read_int_field(env, options, "concurrent")?;
-    let concurrent = usize::try_from(value)
-        .ok()
-        .filter(|&value| value > 0)
-        .ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                format!("Concurrent must be positive, instead got: {value}"),
-            )
-        })?;
+    let concurrent =
+        convert::read_positive_jint_to_usize(env, options, "concurrent", ErrorKind::Unexpected)?;
     Ok(opendal::options::WriteOptions {
         append: convert::read_bool_field(env, options, "append").unwrap_or_default(),
         cache_control: convert::read_string_field(env, options, "cacheControl")?,
         content_type: convert::read_string_field(env, options, "contentType")?,
         content_disposition: convert::read_string_field(env, options, "contentDisposition")?,
         content_encoding: convert::read_string_field(env, options, "contentEncoding")?,
-        content_language: None,
+        content_language: convert::read_string_field(env, options, "contentLanguage")?,
         user_metadata: convert::read_map_field(env, options, "userMetadata")?,
-        expires: None,
+        expires: convert::read_duration_field(env, options, "expires")?,
         if_match: convert::read_string_field(env, options, "ifMatch")?,
         if_none_match: convert::read_string_field(env, options, "ifNoneMatch")?,
-        if_version_match: None,
-        if_version_not_match: None,
+        if_version_match: convert::read_string_field(env, options, "ifVersionMatch")?,
+        if_version_not_match: convert::read_string_field(env, options, "ifVersionNotMatch")?,
         if_not_exists: convert::read_bool_field(env, options, "ifNotExists").unwrap_or_default(),
-        if_not_changed: None,
+        if_not_changed: convert::read_metadata_condition_field(env, options, "ifNotChanged")?,
         concurrent,
-        chunk: convert::read_jlong_field_to_usize(env, options, "chunk")?,
+        chunk: convert::read_jlong_field_to_usize(env, options, "chunk", ErrorKind::Unexpected)?,
         ..Default::default()
     })
 }

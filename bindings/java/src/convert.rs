@@ -27,7 +27,7 @@ use jni::objects::JValue;
 use jni::strings::JNIString;
 use jni::sys::jint;
 use jni::sys::jlong;
-use opendal::raw::Timestamp;
+use opendal::raw::{Duration, Timestamp};
 use opendal::{BytesRange, EntryMode, Error, ErrorKind, Metadata, MetadataBuilder};
 use std::collections::HashMap;
 use std::ops::Bound;
@@ -206,60 +206,105 @@ pub(crate) fn read_map_field(
     }
 }
 
-pub(crate) fn read_jlong_field_to_usize(
-    env: &mut Env,
+pub(crate) fn read_positive_jint_to_usize(
+    env: &mut Env<'_>,
     options: &JObject,
-    field_name: &str,
+    field: &str,
+    invalid_kind: ErrorKind,
+) -> Result<usize> {
+    let value = read_int_field(env, options, field)?;
+    if value <= 0 {
+        return Err(Error::new(invalid_kind, format!("{field} must be positive")).into());
+    }
+    Ok(usize::try_from(value)
+        .map_err(|_| Error::new(invalid_kind, format!("{field} is too large")))?)
+}
+
+pub(crate) fn read_non_negative_jint_to_usize(
+    env: &mut Env<'_>,
+    options: &JObject,
+    field: &str,
+) -> Result<usize> {
+    let value = read_int_field(env, options, field)?;
+    Ok(usize::try_from(value).map_err(|_| {
+        Error::new(
+            ErrorKind::ConfigInvalid,
+            format!("{field} must be non-negative"),
+        )
+    })?)
+}
+
+pub(crate) fn read_jlong_field_to_usize(
+    env: &mut Env<'_>,
+    options: &JObject,
+    field: &str,
+    invalid_kind: ErrorKind,
 ) -> Result<Option<usize>> {
-    match read_int64_field(env, options, field_name)? {
+    match read_int64_field(env, options, field)? {
         -1 => Ok(None),
-        v if v > 0 => Ok(Some(usize::try_from(v).map_err(|_| {
-            Error::new(
-                ErrorKind::Unexpected,
-                format!("{field_name} is too large: {v}"),
-            )
+        value if value > 0 => Ok(Some(usize::try_from(value).map_err(|_| {
+            Error::new(invalid_kind, format!("{field} is too large: {value}"))
         })?)),
-        v => Err(Error::new(
-            ErrorKind::Unexpected,
-            format!("{field_name} must be positive, instead got: {v}"),
+        value => Err(Error::new(
+            invalid_kind,
+            format!("{field} must be -1 or positive, instead got: {value}"),
         )
         .into()),
     }
 }
 
-pub(crate) fn validate_read_execution_options(
-    concurrent: i32,
-    chunk: i64,
-    content_length_hint: i64,
-) -> Result<(usize, Option<usize>, Option<u64>)> {
-    if concurrent <= 0 {
-        return Err(Error::new(ErrorKind::ConfigInvalid, "concurrent must be positive").into());
-    }
-    let concurrent = usize::try_from(concurrent)
-        .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "concurrent is too large"))?;
-    let chunk = match chunk {
-        -1 => None,
-        value if value > 0 => Some(
-            usize::try_from(value)
-                .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "chunk is too large"))?,
-        ),
-        _ => {
-            return Err(
-                Error::new(ErrorKind::ConfigInvalid, "chunk must be -1 or positive").into(),
-            );
-        }
-    };
-    let content_length_hint = match content_length_hint {
-        -1 => None,
-        value => Some(u64::try_from(value).map_err(|_| {
+pub(crate) fn read_non_negative_jlong_to_u64(
+    env: &mut Env<'_>,
+    options: &JObject,
+    field: &str,
+) -> Result<Option<u64>> {
+    match read_int64_field(env, options, field)? {
+        -1 => Ok(None),
+        value => Ok(Some(u64::try_from(value).map_err(|_| {
             Error::new(
                 ErrorKind::ConfigInvalid,
-                "contentLengthHint must be -1 or non-negative",
+                format!("{field} must be -1 or non-negative"),
             )
-        })?),
-    };
+        })?)),
+    }
+}
 
-    Ok((concurrent, chunk, content_length_hint))
+pub(crate) fn read_duration_field(
+    env: &mut Env<'_>,
+    options: &JObject,
+    field: &str,
+) -> Result<Option<Duration>> {
+    let duration = env
+        .get_field(
+            options,
+            JNIString::new(field),
+            jni_sig!("Ljava/time/Duration;"),
+        )?
+        .l()?;
+    if duration.is_null() {
+        return Ok(None);
+    }
+
+    let seconds = env
+        .call_method(&duration, jni_str!("getSeconds"), jni_sig!("()J"), &[])?
+        .j()?;
+    let nanos = env
+        .call_method(&duration, jni_str!("getNano"), jni_sig!("()I"), &[])?
+        .i()?;
+    if seconds < 0 || (seconds == 0 && nanos <= 0) {
+        return Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            format!("{field} must be a positive duration"),
+        )
+        .into());
+    }
+    let secs = u64::try_from(seconds)
+        .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "invalid duration seconds"))?;
+    let subsec_nanos = u32::try_from(nanos)
+        .ok()
+        .filter(|&value| value < 1_000_000_000)
+        .ok_or_else(|| Error::new(ErrorKind::ConfigInvalid, "invalid duration nanoseconds"))?;
+    Ok(Some(Duration::new(secs, subsec_nanos)))
 }
 
 pub(crate) fn read_instant_field_to_timestamp(
@@ -307,7 +352,7 @@ pub(crate) fn read_metadata_condition_field(
         return Ok(None);
     }
 
-    // Delete conditions use only the version and ETag from the snapshot.
+    // Conditional operations use only the version and ETag from the snapshot.
     let mut builder = MetadataBuilder::unknown();
     if let Some(version) = read_string_field(env, &metadata, "version")? {
         builder.version(version);

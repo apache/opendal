@@ -26,11 +26,11 @@ import lombok.Builder;
 /**
  * Options for list operations.
  *
- * <p>Options that require an unsupported service capability fail with {@link OpenDALException.Code#Unsupported}. {@link #limit} is a pagination hint that services may ignore even when {@link Capability#listWithLimit} is supported.
+ * <p>Options that require an unsupported service capability fail with {@link OpenDALException.Code#Unsupported}. When globbing is supported, invalid {@link #glob} patterns fail with {@link OpenDALException.Code#ConfigInvalid}. {@link #limit} is a pagination hint that services may ignore even when {@link Capability#listWithLimit} is supported.
  *
  * <p>Optional reference fields default to {@code null}.
  */
-@Builder
+@Builder(toBuilder = true)
 public class ListOptions {
 
     /**
@@ -68,4 +68,16 @@ public class ListOptions {
      * @see Capability#listWithDeleted
      */
     public final boolean deleted;
+
+    /**
+     * Filter entries with a case-sensitive Unix shell style glob pattern.
+     *
+     * <p>The pattern is relative to the listed directory, or to the parent directory when the list path is a prefix without a trailing slash. Entries must also satisfy the list prefix. The pattern determines which depths can match, independently of {@link #recursive}.
+     *
+     * <p>Requires {@link Capability#listWithGlob}. OpenDAL simulates glob matching client-side when the service lacks native support. A simulated pattern spanning multiple directories also requires {@link Capability#listWithRecursive} when combined with {@link #startAfter}, {@link #versions}, or {@link #deleted}. Missing required capabilities fail with {@link OpenDALException.Code#Unsupported}. When globbing is supported, empty or malformed patterns fail with {@link OpenDALException.Code#ConfigInvalid}.
+     *
+     * @see Capability#listWithGlob
+     * @see Capability#listWithRecursive
+     */
+    public final String glob;
 }

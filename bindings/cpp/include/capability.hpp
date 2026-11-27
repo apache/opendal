@@ -38,7 +38,7 @@ namespace opendal {
  *
  * Members that existed before this class was generated come first, in their
  * original order, so positional brace-initialization keeps its meaning. Newer
- * members follow in core order.
+ * members are appended at the end in a fixed order.
  */
 class Capability {
  public:

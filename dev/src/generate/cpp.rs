@@ -22,7 +22,7 @@
 //! copy between them. All three are rendered from the same field list.
 
 use super::capability;
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use minijinja::{Environment, context};
 use serde::Serialize;
 use std::fs;
@@ -74,9 +74,8 @@ fn wrap_doc(text: &str, prefix: &str, limit: usize) -> Vec<String> {
 /// declaration order.
 ///
 /// The public class is an aggregate, so callers may brace-initialize it by
-/// position. This order is append-only: core fields missing from this list are
-/// appended after it in core order, so adding a core field never moves an
-/// existing member. Add released fields to the end of this list.
+/// position. This order is append-only: generation fails until every core
+/// field is listed, so append each new core field to the end of this list.
 const FROZEN_PUBLIC_ORDER: &[&str] = &[
     "stat",
     "stat_with_if_match",
@@ -182,28 +181,32 @@ pub fn generate(workspace_dir: &Path) -> Result<()> {
     generate_capability(workspace_dir)
 }
 
-/// Order core fields for the public C++ class: frozen members first, in their
-/// frozen order, then every other core field in core order.
+/// Order core fields for the public C++ class by `FROZEN_PUBLIC_ORDER`.
 ///
-/// Fails if a frozen member no longer exists in core, because dropping it
-/// would silently break source compatibility.
+/// Fails if a core field is not listed, so a new field cannot take an
+/// unreviewed position, and if a listed member no longer exists in core,
+/// because dropping it would silently break source compatibility.
 fn public_order<T>(fields: &[T], name_of: impl Fn(&T) -> &str) -> Result<Vec<usize>> {
-    let mut order = Vec::with_capacity(fields.len());
-    for frozen in FROZEN_PUBLIC_ORDER {
-        let index = fields
-            .iter()
-            .position(|f| name_of(f) == *frozen)
-            .with_context(|| {
-                format!("frozen C++ capability member `{frozen}` is missing from core")
-            })?;
-        order.push(index);
+    if let Some(field) = fields
+        .iter()
+        .find(|f| !FROZEN_PUBLIC_ORDER.contains(&name_of(f)))
+    {
+        bail!(
+            "new core capability `{}` must be appended to FROZEN_PUBLIC_ORDER in dev/src/generate/cpp.rs",
+            name_of(field)
+        );
     }
-    for (index, field) in fields.iter().enumerate() {
-        if !FROZEN_PUBLIC_ORDER.contains(&name_of(field)) {
-            order.push(index);
-        }
-    }
-    Ok(order)
+    FROZEN_PUBLIC_ORDER
+        .iter()
+        .map(|frozen| {
+            fields
+                .iter()
+                .position(|f| name_of(f) == *frozen)
+                .with_context(|| {
+                    format!("frozen C++ capability member `{frozen}` is missing from core")
+                })
+        })
+        .collect()
 }
 
 fn generate_capability(workspace_dir: &Path) -> Result<()> {
@@ -290,13 +293,11 @@ mod tests {
     }
 
     #[test]
-    fn test_rendered_header_declares_public_order() {
+    fn test_rendered_header_declares_frozen_order() {
         let header = rendered("bindings/cpp/include/capability.hpp");
-        let fields = core_fields();
-        let order = public_order(&fields, |f| f.name.as_str()).unwrap();
         let mut last = 0;
-        for &i in &order {
-            let decl = format!(" {}{{", cpp_name(&fields[i].name));
+        for name in FROZEN_PUBLIC_ORDER {
+            let decl = format!(" {}{{", cpp_name(name));
             let pos = header
                 .find(&decl)
                 .unwrap_or_else(|| panic!("header lacks `{decl}`"));
@@ -329,18 +330,11 @@ mod tests {
     }
 
     #[test]
-    fn test_public_order_appends_new_fields_after_frozen_order() {
+    fn test_public_order_rejects_unlisted_core_field() {
         let mut fields = FROZEN_PUBLIC_ORDER.to_vec();
         fields.insert(fields.len() / 2, "new_mid");
-        fields.insert(0, "new_first");
-        let order: Vec<&str> = public_order(&fields, |f| f)
-            .unwrap()
-            .into_iter()
-            .map(|i| fields[i])
-            .collect();
-        let (frozen, appended) = order.split_at(FROZEN_PUBLIC_ORDER.len());
-        assert_eq!(frozen, FROZEN_PUBLIC_ORDER);
-        assert_eq!(appended, ["new_first", "new_mid"]);
+        let err = public_order(&fields, |f| f).unwrap_err().to_string();
+        assert!(err.contains("`new_mid` must be appended to FROZEN_PUBLIC_ORDER"));
     }
 
     #[test]

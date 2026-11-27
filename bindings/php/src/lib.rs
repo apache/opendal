@@ -23,6 +23,7 @@ use ext_php_rs::binary::Binary;
 use ext_php_rs::builders::ClassBuilder;
 use ext_php_rs::class::RegisteredClass;
 use ext_php_rs::convert::FromZval;
+use ext_php_rs::describe::abi::Str;
 use ext_php_rs::exception::PhpException;
 use ext_php_rs::flags::DataType;
 use ext_php_rs::prelude::*;
@@ -171,7 +172,7 @@ impl Metadata {
 pub struct EntryMode(od::EntryMode);
 
 impl<'b> FromZval<'b> for EntryMode {
-    const TYPE: DataType = DataType::Object(Some("OpenDAL\\EntryMode"));
+    const TYPE: DataType = DataType::Object(Str::new("OpenDAL\\EntryMode"));
 
     fn from_zval(zval: &'b Zval) -> Option<Self> {
         zval.object().and_then(|obj| obj.get_property("mode").ok())
@@ -206,7 +207,11 @@ fn register_exception(_type: i32, _module_number: i32) -> i32 {
     // Use the native exception allocator so Zend captures the file, line, and stack trace.
     let result = ClassBuilder::new(Exception::CLASS_NAME)
         .extends((ce::exception, "\\Exception"))
-        .registration(|class| Exception::get_metadata().set_ce(class))
+        .registration(|class, arg_info| {
+            let metadata = Exception::get_metadata();
+            metadata.set_ce(class);
+            metadata.set_arg_info(arg_info);
+        })
         .register();
     i32::from(result.is_err())
 }

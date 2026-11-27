@@ -15,6 +15,11 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+For conditional reads, pass the blob SHA from `stat` or the quoted ETag from a
+raw download to `if_none_match`. OpenDAL reports `ErrorKind::ConditionNotMatch`
+when GitHub returns `304 Not Modified`. OpenDAL forwards weak ETags, wildcards,
+and lists as supplied. GitHub can ignore these forms on anonymous downloads.
+
 Conditional delete with `if_match` sends the blob SHA from
 `Metadata::etag` as the Contents API `sha`. A mismatched SHA returns
 `ErrorKind::ConditionNotMatch` and leaves the file in place. Unconditional

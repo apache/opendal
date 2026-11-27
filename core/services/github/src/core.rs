@@ -142,6 +142,7 @@ impl GithubCore {
         ctx: &OperationContext,
         path: &str,
         range: BytesRange,
+        args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let path = build_absolute_path(&self.root, path);
 
@@ -160,11 +161,20 @@ impl GithubCore {
 
         let req = self.sign(req)?;
 
-        let req = req
+        let mut req = req
             .header(header::ACCEPT, "application/vnd.github.raw+json")
-            .header(header::RANGE, range.to_header())
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
+            .header(header::RANGE, range.to_header());
+
+        if let Some(etag) = args.if_none_match() {
+            // Stat exposes the bare blob SHA, but the raw response uses a quoted ETag.
+            req = if etag.len() == 40 && etag.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                req.header(header::IF_NONE_MATCH, format!("\"{etag}\""))
+            } else {
+                req.header(header::IF_NONE_MATCH, etag)
+            };
+        }
+
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         ctx.http_transport().fetch(req).await
     }

@@ -1976,6 +1976,7 @@
         "list": true,
         "list_with_recursive": true,
         "read": true,
+        "read_with_if_none_match": true,
         "read_with_suffix": true,
         "shared": true,
         "stat": true,

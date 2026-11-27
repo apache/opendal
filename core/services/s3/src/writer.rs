@@ -30,6 +30,7 @@ use crc_fast::checksum_combine;
 use http::Response;
 use http::StatusCode;
 
+use crate::GARAGE_SCHEME;
 use crate::core::parse_error;
 use crate::core::*;
 use opendal_core::raw::*;
@@ -189,7 +190,17 @@ impl S3Writer {
     }
 
     fn error_context(&self, service_operation: ServiceOperation) -> ErrorContext {
-        ErrorContext::new(service_operation).with_caller_condition(self.op.is_conditional())
+        let caller_condition =
+            matches!(service_operation.0, "PutObject" | "CompleteMultipartUpload")
+                && self.op.is_conditional();
+        let context = ErrorContext::new(service_operation).with_caller_condition(caller_condition);
+        if self.core.info.scheme() == GARAGE_SCHEME
+            && !self.core.skip_signature
+            && let Some(checksum) = &self.full_object_checksum
+        {
+            return context.with_garage_checksum(checksum.algorithm);
+        }
+        context
     }
 
     /// A per-write checksum takes precedence over the configured checksum.
@@ -331,7 +342,7 @@ impl oio::MultipartWrite for S3Writer {
                 })
             }
             _ => {
-                let err = parse_error(ErrorContext::new(ServiceOperation("UploadPart")), resp);
+                let err = parse_error(self.error_context(ServiceOperation("UploadPart")), resp);
                 if err.kind() == ErrorKind::ChecksumMismatch && self.full_object_checksum.is_some()
                 {
                     // UploadPart always uses a checksum computed over its replayable buffer.
@@ -491,6 +502,10 @@ impl oio::MultipartWrite for S3Writer {
                 };
                 let mut returned = match checksum.algorithm {
                     ChecksumAlgorithm::Crc32c => ret.checksum_crc32c.as_deref(),
+                    ChecksumAlgorithm::Crc64Nvme if self.core.info.scheme() == GARAGE_SCHEME => ret
+                        .checksum_crc64nvme
+                        .as_deref()
+                        .or(ret.garage_checksum_crc64nvme.as_deref()),
                     ChecksumAlgorithm::Crc64Nvme => ret.checksum_crc64nvme.as_deref(),
                     ChecksumAlgorithm::Md5 => {
                         unreachable!("only CRC algorithms support full-object verification")
@@ -607,7 +622,7 @@ mod tests {
 
     #[derive(Clone)]
     struct MultipartCompleteTransport {
-        complete_body: &'static str,
+        complete_body: String,
     }
 
     impl HttpTransport for MultipartCompleteTransport {
@@ -633,7 +648,7 @@ mod tests {
                     .body(HttpBody::new(futures::stream::empty(), Some(0)))
                     .expect("mock response must build")),
                 (&Method::POST, q) if q.contains("uploadId=u1") => {
-                    let body = Buffer::from(Bytes::from_static(self.complete_body.as_bytes()));
+                    let body = Buffer::from(self.complete_body.clone());
                     let size = body.len() as u64;
                     Ok(Response::builder()
                         .status(StatusCode::OK)
@@ -687,7 +702,7 @@ mod tests {
             .with_context(
                 OperationContext::new().with_http_transport(HttpTransporter::new(
                     MultipartCompleteTransport {
-                        complete_body: body,
+                        complete_body: body.to_owned(),
                     },
                 )),
             );
@@ -704,6 +719,94 @@ mod tests {
                 .expect_err("complete_part must reject empty ETag / 200-OK XML error");
             assert_eq!(err.kind(), expected_kind, "body={body}");
             assert_eq!(err.is_temporary(), expected_temporary, "body={body}");
+        }
+    }
+
+    #[tokio::test]
+    async fn garage_multipart_crc64_receipt_accepts_the_legacy_spelling() {
+        const PART_SIZE: usize = 5 * 1024 * 1024;
+        // Garage 2.1.0 returns this receipt for the 5 MiB part and short tail below.
+        const LEGACY: &str = "<ChecksumCR64NVME>JpnU2dPiZnA=</ChecksumCR64NVME>";
+        const CHECKSUM: u64 = 0x2699_d4d9_d3e2_6670;
+        let first_part = Bytes::from((0..PART_SIZE).map(|index| index as u8).collect::<Vec<_>>());
+        let checksum = Checksum::new(ChecksumAlgo::Crc64Nvme, CHECKSUM.to_be_bytes());
+
+        for (garage, checksum_type, xml, accepted) in [
+            (true, "FULL_OBJECT", LEGACY, true),
+            (false, "FULL_OBJECT", LEGACY, false),
+            (
+                false,
+                "FULL_OBJECT",
+                "<ChecksumCRC64NVME>JpnU2dPiZnA=</ChecksumCRC64NVME>",
+                true,
+            ),
+            (true, "COMPOSITE", LEGACY, false),
+            (
+                true,
+                "FULL_OBJECT",
+                concat!(
+                    "<ChecksumCRC64NVME>AAAAAAAAAAA=</ChecksumCRC64NVME>",
+                    "<ChecksumCR64NVME>JpnU2dPiZnA=</ChecksumCR64NVME>",
+                ),
+                false,
+            ),
+            (
+                true,
+                "FULL_OBJECT",
+                "<ChecksumCR64NVME>AAAAAAAAAAA=</ChecksumCR64NVME>",
+                false,
+            ),
+        ] {
+            let op = if garage {
+                Operator::new(
+                    crate::Garage::default()
+                        .bucket("example")
+                        .endpoint("http://127.0.0.1:3900")
+                        .region("garage")
+                        .access_key_id("test-access-key")
+                        .secret_access_key("test-secret-key")
+                        .disable_config_load()
+                        .enable_write_checksum(true),
+                )
+            } else {
+                Operator::new(
+                    S3Builder::default()
+                        .bucket("example")
+                        .region("us-west-2")
+                        .skip_signature()
+                        .disable_config_load()
+                        .disable_ec2_metadata(),
+                )
+            }
+            .unwrap()
+            .with_context(
+                OperationContext::new().with_http_transport(HttpTransporter::new(
+                    MultipartCompleteTransport {
+                        complete_body: format!(
+                            "<CompleteMultipartUploadResult><ETag>done</ETag>\
+                         <ChecksumType>{checksum_type}</ChecksumType>{xml}\
+                         </CompleteMultipartUploadResult>"
+                        ),
+                    },
+                )),
+            );
+
+            let mut writer = op
+                .writer_with("object.bin")
+                .chunk(PART_SIZE)
+                .checksum(checksum.clone())
+                .await
+                .unwrap();
+            writer.write(first_part.clone()).await.unwrap();
+            writer.write("unequal last part").await.unwrap();
+            let result = writer.close().await;
+            if accepted {
+                assert_eq!(result.unwrap().checksum(), Some(checksum.clone()));
+            } else {
+                let error = result.unwrap_err();
+                assert_eq!(error.kind(), ErrorKind::Unexpected, "{error}");
+                assert!(!error.is_temporary(), "{error}");
+            }
         }
     }
 

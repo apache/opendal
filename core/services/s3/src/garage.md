@@ -13,6 +13,18 @@ and [S3 client setup](https://garagehq.deuxfleurs.fr/documentation/connect/cli/)
 Pass the provider’s access key ID and secret access key together, or supply them
 through the AWS credential environment variables or shared credentials file.
 
+Set `enable_write_checksum` to true to opt in to full-object checksum
+verification for single PUT and multipart uploads. It defaults to false.
+OpenDAL verified signed path-style requests on Garage 2.1.0. The option
+applies to signed, non-append writes.
+
+`WriteChecksum::Any` and `WriteChecksum::Fast` use CRC-64/NVME. Explicit
+algorithm and expected checksum intents support CRC-32C and CRC-64/NVME.
+Successful writes return the verified value in
+[`opendal_core::Metadata::checksum`]. A presigned PUT can include a precomputed
+`WriteChecksum::Expected` digest. Send the checksum header with the presigned
+request.
+
 Garage does not support object versioning or restore. See the
 [Garage S3 compatibility table](https://garagehq.deuxfleurs.fr/documentation/reference-manual/s3-compatibility/)
 for the available operations.

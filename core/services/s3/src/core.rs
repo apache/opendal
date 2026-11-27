@@ -1767,6 +1767,9 @@ pub struct CompleteMultipartUploadResult {
     pub checksum_crc32c: Option<String>,
     #[serde(rename = "ChecksumCRC64NVME")]
     pub checksum_crc64nvme: Option<String>,
+    // Garage 2.1.0 omits the second C in the CRC64NVME completion element.
+    #[serde(rename = "ChecksumCR64NVME")]
+    pub garage_checksum_crc64nvme: Option<String>,
     pub code: String,
     pub message: String,
     pub request_id: String,
@@ -2511,6 +2514,7 @@ pub struct ErrorContext {
     service_operation: ServiceOperation,
     caller_condition: bool,
     source_if_match: bool,
+    garage_checksum: Option<ChecksumAlgorithm>,
 }
 
 impl ErrorContext {
@@ -2519,6 +2523,7 @@ impl ErrorContext {
             service_operation,
             caller_condition: false,
             source_if_match: false,
+            garage_checksum: None,
         }
     }
 
@@ -2530,6 +2535,25 @@ impl ErrorContext {
     pub const fn with_source_if_match(mut self, source_if_match: bool) -> Self {
         self.source_if_match = source_if_match;
         self
+    }
+
+    pub(crate) const fn with_garage_checksum(mut self, checksum: ChecksumAlgorithm) -> Self {
+        self.garage_checksum = Some(checksum);
+        self
+    }
+
+    fn is_garage_checksum_mismatch(self, message: &str) -> bool {
+        match (self.service_operation.0, self.garage_checksum) {
+            ("PutObject" | "UploadPart", Some(ChecksumAlgorithm::Crc32c)) => message
+                .starts_with("Invalid digest: Failed to validate checksum for algorithm Crc32c: calculated "),
+            ("PutObject" | "UploadPart", Some(ChecksumAlgorithm::Crc64Nvme)) => message
+                .starts_with("Invalid digest: Failed to validate checksum for algorithm Crc64Nvme: calculated "),
+            ("CompleteMultipartUpload", Some(ChecksumAlgorithm::Crc32c | ChecksumAlgorithm::Crc64Nvme)) => {
+                message == "Invalid digest: Failed to validate x-amz-checksum-*"
+                    || message.starts_with("Invalid digest: Invalid checksum for part ")
+            }
+            _ => false,
+        }
     }
 }
 
@@ -2560,7 +2584,14 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     if let Some(s3_err) = s3_err
         && !s3_err.code.is_empty()
     {
-        if let Some(classification) = parse_s3_error_code(ctx, s3_err.code.as_str()) {
+        // Garage also uses InvalidDigest for malformed Content-MD5. Only a
+        // known CRC rejection of an explicitly checksummed Garage write is a mismatch.
+        if parts.status == StatusCode::BAD_REQUEST
+            && s3_err.code == "InvalidDigest"
+            && ctx.is_garage_checksum_mismatch(&s3_err.message)
+        {
+            (kind, retryable) = (ErrorKind::ChecksumMismatch, false);
+        } else if let Some(classification) = parse_s3_error_code(ctx, &s3_err.code) {
             (kind, retryable) = classification;
         } else if matches!(parts.status.as_u16(), 409 | 412) {
             (kind, retryable) = (ErrorKind::Unexpected, false);
@@ -2660,6 +2691,63 @@ mod error_tests {
                 parse_s3_error_code(ErrorContext::new(ServiceOperation("PutObject")), code),
                 Some((ErrorKind::ChecksumMismatch, false))
             );
+        }
+    }
+
+    #[test]
+    fn garage_invalid_digest_requires_a_known_crc_write_rejection() {
+        const CRC32C: &str = "Invalid digest: Failed to validate checksum for algorithm Crc32c: calculated Some(Crc32c([226, 131, 84, 140])), expected Crc32c([0, 0, 0, 0])";
+        const CRC64NVME: &str = "Invalid digest: Failed to validate checksum for algorithm Crc64Nvme: calculated Some(Crc64Nvme([191, 233, 88, 111, 7, 117, 147, 161])), expected Crc64Nvme([32, 81, 132, 175, 4, 140, 26, 146])";
+        const FULL_OBJECT: &str = "Invalid digest: Failed to validate x-amz-checksum-*";
+        const PART_MANIFEST: &str = "Invalid digest: Invalid checksum for part 1: in request = Some(Crc32c([185, 56, 218, 228])), uploaded part = Some(Crc32c([112, 254, 127, 94]))";
+        const MD5: &str = "Invalid digest: MD5 checksum verification failed (from content-md5)";
+
+        let put = ErrorContext::new(ServiceOperation("PutObject"));
+        let garage_put = put.with_garage_checksum(ChecksumAlgorithm::Crc32c);
+        let garage_part = ErrorContext::new(ServiceOperation("UploadPart"))
+            .with_garage_checksum(ChecksumAlgorithm::Crc64Nvme);
+        let garage_complete = ErrorContext::new(ServiceOperation("CompleteMultipartUpload"))
+            .with_garage_checksum(ChecksumAlgorithm::Crc32c);
+        let garage_read = ErrorContext::new(ServiceOperation("GetObject"))
+            .with_garage_checksum(ChecksumAlgorithm::Crc32c);
+
+        for (ctx, status, message, kind) in [
+            (garage_put, 400, CRC32C, ErrorKind::ChecksumMismatch),
+            (garage_part, 400, CRC64NVME, ErrorKind::ChecksumMismatch),
+            (
+                garage_complete,
+                400,
+                FULL_OBJECT,
+                ErrorKind::ChecksumMismatch,
+            ),
+            (
+                garage_complete,
+                400,
+                PART_MANIFEST,
+                ErrorKind::ChecksumMismatch,
+            ),
+            (put, 400, CRC32C, ErrorKind::Unexpected),
+            (garage_put, 400, MD5, ErrorKind::Unexpected),
+            (garage_put, 400, CRC64NVME, ErrorKind::Unexpected),
+            (garage_put, 400, FULL_OBJECT, ErrorKind::Unexpected),
+            (garage_read, 400, CRC32C, ErrorKind::Unexpected),
+            (garage_complete, 200, FULL_OBJECT, ErrorKind::Unexpected),
+        ] {
+            let response = Response::builder()
+                .status(status)
+                .body(Buffer::from(format!(
+                    "<Error><Code>InvalidDigest</Code><Message>{message}</Message>\
+                     <RequestId>garage-request</RequestId></Error>"
+                )))
+                .unwrap();
+            let error = parse_error(ctx, response);
+            assert_eq!(error.kind(), kind, "{error}");
+            assert!(!error.is_temporary(), "{error}");
+            let diagnostic = error.to_string();
+            assert!(diagnostic.contains("InvalidDigest"), "{error}");
+            assert!(diagnostic.contains(message), "{error}");
+            assert!(diagnostic.contains("garage-request"), "{error}");
+            assert!(diagnostic.contains(ctx.service_operation.0), "{error}");
         }
     }
 

@@ -361,6 +361,9 @@ fn parse_capability_literal(
                     ("seaweedfs", "write_with_checksum") => Some(
                         "Requires `enable_write_checksum=true` for non-append writes. Verified with signed path-style requests to SeaweedFS 4.52.",
                     ),
+                    ("garage", "write_with_checksum") => Some(
+                        "Requires `enable_write_checksum=true` for signed, non-append writes. Verified with signed path-style requests to Garage 2.1.0.",
+                    ),
                     _ => None,
                 };
                 if let Some(condition) = condition {
@@ -1207,6 +1210,13 @@ mod tests {
         assert!(matches!(
             seaweedfs.native.get("write_with_checksum"),
             Some(NativeBoolDoc::Conditional(condition)) if condition.contains("enable_write_checksum")
+        ));
+        let garage = out.services.iter().find(|s| s.scheme == "garage").unwrap();
+        assert!(!garage.native.contains_key("read_with_checksum"));
+        assert!(matches!(
+            garage.native.get("write_with_checksum"),
+            Some(NativeBoolDoc::Conditional(condition))
+                if condition.contains("enable_write_checksum") && condition.contains("signed")
         ));
         assert!(!s3.native.contains_key("create_dir"));
         assert_eq!(

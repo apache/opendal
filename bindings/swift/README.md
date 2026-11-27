@@ -36,7 +36,10 @@ services. SwiftPM's `-c release` selects the Swift build configuration
 separately. If you already built your app, run `swift package clean` in the app
 directory before rebuilding to link against the newly staged library.
 
-Run `make -C bindings/swift test` to check the build.
+The `test` target stages the C library before running the Swift tests.
+Replace `build-c` with `test` in your build command and keep the same
+`OPENDAL_C_PROFILE` and `OPENDAL_FEATURES` options. If switching builds,
+first run `swift package clean` in `bindings/swift/OpenDAL`.
 
 ## Installation
 

@@ -352,7 +352,7 @@ fn parse_capability_literal(
                 )
             {
                 if field_name == "write_with_checksum"
-                    && matches!(name, "ceph-rgw" | "minio" | "seaweedfs")
+                    && matches!(name, "ceph-rgw" | "garage" | "minio" | "seaweedfs")
                 {
                     native.insert(field_name, NativeBoolDoc::Supported(true));
                 }
@@ -1167,7 +1167,7 @@ mod tests {
                 "Standard S3 buckets (not S3 Express One Zone)".to_string()
             ))
         );
-        for scheme in ["ceph-rgw", "minio", "seaweedfs"] {
+        for scheme in ["ceph-rgw", "garage", "minio", "seaweedfs"] {
             let preset = out.services.iter().find(|s| s.scheme == scheme).unwrap();
             assert!(
                 !preset.native.contains_key("read_with_checksum"),

@@ -17,6 +17,12 @@ Garage does not support object versioning or restore. See the
 [Garage S3 compatibility table](https://garagehq.deuxfleurs.fr/documentation/reference-manual/s3-compatibility/)
 for the available operations.
 
+Use Garage 2.5.0 or later for verified CRC64/NVME multipart writes. Garage 2.6.0
+rejects CRC mismatches with `InvalidDigest`, which OpenDAL reports as
+`ErrorKind::Unexpected`. [Garage #1641](https://git.deuxfleurs.fr/Deuxfleurs/garage/issues/1641)
+tracks returning `BadDigest` for these mismatches. See
+[OpenDAL #9243](https://github.com/apache/opendal/issues/9243).
+
 ```rust
 use opendal_core::{Operator, Result};
 use opendal_service_s3::Garage;

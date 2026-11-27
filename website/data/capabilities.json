@@ -989,6 +989,7 @@
         "copy": true,
         "delete": true,
         "list": true,
+        "list_with_deleted": true,
         "list_with_limit": true,
         "list_with_recursive": true,
         "list_with_start_after": true,

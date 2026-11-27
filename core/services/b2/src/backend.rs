@@ -208,6 +208,7 @@ impl Builder for B2Builder {
                     list_with_start_after: true,
                     list_with_recursive: true,
                     list_with_versions: true,
+                    list_with_deleted: true,
 
                     presign: true,
                     presign_read: true,
@@ -351,7 +352,7 @@ impl Service for B2Backend {
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        if args.versions() {
+        if args.versions() || args.deleted() {
             Ok(TwoWays::Two(B2VersionLister::new(
                 self.core.clone(),
                 ctx.clone(),

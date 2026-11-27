@@ -43,13 +43,19 @@ returns `NotFound`. Ordinary `stat` and `list` expose current file IDs through
 
 ## File version listing
 
-`list_with(path).versions(true)` and `lister_with(path).versions(true)` return
-current and historical data versions with their B2 file IDs in
-`Metadata::version()`. The application key needs `listFiles` permission. A
-hidden file can have readable historical versions. `Metadata::is_current()`
-is `Some(false)` for those versions when a hide marker is current. The list
-omits hide markers and unfinished uploads. Non-recursive listings include
-virtual directories without version metadata.
+`list_with(path)` and `lister_with(path)` return current visible files by
+default. Set `versions(true)` to include historical data versions. Set
+`deleted(true)` to include current and historical hide markers. Use both
+options to include all data versions and hide markers. The application key
+needs `listFiles` permission.
+
+Data versions and hide markers expose their B2 file IDs in
+`Metadata::version()`. With either option enabled, `Metadata::is_current()`
+indicates whether a data version or hide marker is current for its name. Hide
+markers have `Metadata::is_deleted()` set to `true`, zero content length, and
+the B2 upload timestamp in `Metadata::last_modified()`. Listings omit unfinished
+uploads. Non-recursive listings include virtual directories without version
+metadata.
 
 ## File reads by version
 

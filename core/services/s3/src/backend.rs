@@ -1236,8 +1236,7 @@ impl S3Builder {
         // S3 CreateMultipartUpload does not support MD5 checksum_algorithm;
         // only single-shot PutObject supports Content-MD5.
         let s3_write_can_multi = !matches!(checksum_algorithm, Some(ChecksumAlgorithm::Md5));
-        // The RustFS preset verifies individual upload requests. The other
-        // schemes verify the complete object.
+        // RustFS and Swift s3api verify each upload request independently.
         let s3_can_checksum = !is_s3_express
             && matches!(
                 scheme,
@@ -1247,6 +1246,7 @@ impl S3Builder {
                     | crate::MINIO_SCHEME
                     | crate::RUSTFS_SCHEME
                     | crate::SEAWEEDFS_SCHEME
+                    | crate::SWIFT_S3API_SCHEME
             );
 
         let mut capability = Capability {
@@ -1647,6 +1647,15 @@ impl Service for S3Backend {
                 ErrorKind::Unsupported,
                 "S3 presigned writes do not support append",
             )),
+            PresignOperation::Write(v)
+                if self.core.info.scheme() == crate::SWIFT_S3API_SCHEME
+                    && v.checksum().is_some() =>
+            {
+                Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "Swift s3api presigned writes do not support checksum intents",
+                ))
+            }
             PresignOperation::Write(v) => {
                 let checksum = match v.checksum() {
                     None => None,
@@ -4144,6 +4153,11 @@ mod tests {
 
         let endpoint = "http://127.0.0.1:9000";
         for op in [
+            Operator::new(
+                crate::SwiftS3api::default()
+                    .bucket("test")
+                    .endpoint(endpoint),
+            )?,
             Operator::new(crate::Minio::default().bucket("test").endpoint(endpoint))?,
             Operator::new(
                 crate::Seaweedfs::default()

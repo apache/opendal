@@ -614,6 +614,15 @@ impl Service for B2Backend {
                 req = req.header(http::header::CONTENT_TYPE, content_type);
                 req = req.header(constants::X_BZ_CONTENT_SHA1, "do_not_verify");
 
+                if let Some(user_metadata) = write.user_metadata() {
+                    for (key, value) in user_metadata {
+                        req = req.header(
+                            format!("{}{}", constants::X_BZ_INFO_PREFIX, key),
+                            percent_encode_path(value),
+                        );
+                    }
+                }
+
                 let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
                 // We don't need this request anymore, consume it directly.
                 let (parts, _) = req.into_parts();

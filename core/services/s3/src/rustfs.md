@@ -12,6 +12,13 @@ and [virtual-host access guide](https://docs.rustfs.com/en/integration/virtual).
 Pass the provider’s access key ID and secret access key together, or supply them
 through the AWS credential environment variables or shared credentials file.
 
+The `Rustfs` preset supports `Any` and `Fast` with RustFS 1.0.6. OpenDAL
+verifies the CRC32C response for a single PUT and for each uploaded part.
+A single PUT returns the verified checksum in its metadata. A multipart
+write verifies individual parts and returns `None` from `Metadata::checksum()`.
+The `Algo` and `Expected` intents and explicit checksums on append or
+presigned writes return `Unsupported`.
+
 ```rust
 use opendal_core::{Operator, Result};
 use opendal_service_s3::Rustfs;

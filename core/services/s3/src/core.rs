@@ -259,7 +259,7 @@ fn format_crc64nvme_iter(body: Buffer) -> String {
     BASE64_STANDARD.encode(digest.finalize().to_be_bytes())
 }
 
-/// Parse the full-object checksum S3 reports for `algo` from a base64 value.
+/// Parse a checksum S3 reports for `algo` from a base64 value.
 pub fn parse_s3_checksum(algo: ChecksumAlgo, value: &str) -> Option<Checksum> {
     let value = BASE64_STANDARD.decode(value).ok()?;
     (value.len() == algo.digest_len()).then(|| Checksum::new(algo, value))

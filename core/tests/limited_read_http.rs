@@ -117,6 +117,56 @@ async fn test_limited_read_http_range_and_response_length() -> anyhow::Result<()
     Ok(())
 }
 
+#[tokio::test]
+async fn test_reused_http_reader_suffix_with_unknown_total() -> anyhow::Result<()> {
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let endpoint = format!("http://{}", listener.local_addr()?);
+    let responses = [
+        (
+            "bytes=0-0",
+            "206 Partial Content\r\nContent-Range: bytes 0-0/2\r\nContent-Length: 1\r\n\r\na",
+        ),
+        (
+            "bytes=-4",
+            "206 Partial Content\r\nContent-Range: bytes 2-5/*\r\nContent-Length: 4\r\n\r\ncdef",
+        ),
+        (
+            "bytes=-4",
+            "206 Partial Content\r\nContent-Range: bytes 0-0/*\r\nContent-Length: 1\r\n\r\nz",
+        ),
+        (
+            "bytes=-4",
+            // All four bytes arrive, but the terminating chunk never does.
+            "206 Partial Content\r\nContent-Range: bytes 2-5/*\r\nTransfer-Encoding: chunked\r\n\r\n4\r\ncdef\r\n",
+        ),
+    ];
+
+    opendal::install_default();
+    let op = Operator::new(Http::default().endpoint(&endpoint))?;
+    let client = async {
+        let reader = op.reader("file").await?;
+        assert_eq!(reader.read(0..1).await?.to_bytes(), "a");
+        let first_metadata = reader.metadata().expect("first range has metadata").clone();
+        assert_eq!(first_metadata.content_length(), 2);
+
+        let suffix = opendal::BytesRange::suffix(4);
+        assert_eq!(reader.read(suffix).await?.to_bytes(), "cdef");
+        assert_eq!(reader.read(suffix).await?.to_bytes(), "z");
+        assert_eq!(reader.metadata(), Some(&first_metadata));
+
+        let err = reader.read(suffix).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_temporary(), "{err:?}");
+        Ok(())
+    };
+
+    tokio::time::timeout(Duration::from_secs(10), async {
+        tokio::try_join!(serve_ranges(listener, &responses), client)
+    })
+    .await??;
+    Ok(())
+}
+
 #[cfg(feature = "layers-retry")]
 #[tokio::test]
 async fn test_truncated_http_range_resumption() -> anyhow::Result<()> {

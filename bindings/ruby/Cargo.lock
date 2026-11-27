@@ -1676,6 +1676,7 @@ name = "opendal-service-oss"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "crc-fast",
  "http",
  "log",
  "opendal-core",

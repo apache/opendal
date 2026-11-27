@@ -32,6 +32,17 @@ CRC-64/XZ uses the canonical polynomial `0x42F0E1EBA9EA3693`, with
 yields `0x6C40DF5F0B497347` for the same input and is incompatible with
 these service digests.
 
+Signed writes to standard OSS regional HTTPS endpoints support
+`WriteChecksum::Any` and `WriteChecksum::Fast`. OSS returns a checksum for
+each uploaded part and for the complete object after PUT or multipart
+completion. A successful write with either intent returns the verified
+full-object checksum in `Metadata::checksum()`. If OpenDAL cannot confirm the
+final receipt, it returns a non-temporary `Unexpected` error. The object may
+already be visible.
+
+OSS rejects `Algo` and `Expected` and rejects checksum requests for append
+writes and presigned writes.
+
 ## Configuration
 
 Use [`crate::OssConfig`] for serializable configuration and this builder's

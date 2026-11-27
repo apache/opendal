@@ -415,6 +415,7 @@ impl OssBuilder {
     }
 }
 
+#[derive(Clone, Copy)]
 enum AddressingStyle {
     Path,
     Cname,
@@ -460,13 +461,31 @@ impl Builder for OssBuilder {
             ),
         }?;
 
-        // Use the operation endpoint for signing unless a separate endpoint is configured.
-        let (endpoint, host) = self.parse_endpoint(
-            &self.config.endpoint,
-            bucket,
-            (&self.config.addressing_style).try_into()?,
-        )?;
+        let addressing_style = AddressingStyle::try_from(&self.config.addressing_style)?;
+        let (endpoint, host) =
+            self.parse_endpoint(&self.config.endpoint, bucket, addressing_style)?;
         debug!("backend use bucket {}, endpoint: {}", bucket, endpoint);
+
+        // Scope write receipt verification to native OSS regional endpoints.
+        let endpoint_host = match addressing_style {
+            AddressingStyle::Virtual => host
+                .strip_prefix(bucket)
+                .and_then(|host| host.strip_prefix('.')),
+            AddressingStyle::Path => Some(host.as_str()),
+            AddressingStyle::Cname => None,
+        };
+        let oss_can_checksum = !skip_signature
+            && endpoint.starts_with("https://")
+            && endpoint_host
+                .map(|host| host.strip_suffix(":443").unwrap_or(host))
+                .and_then(|host| host.strip_prefix("oss-"))
+                .and_then(|host| host.strip_suffix(".aliyuncs.com"))
+                .is_some_and(|region| {
+                    !region.is_empty()
+                        && region
+                            .bytes()
+                            .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+                });
 
         let presign_endpoint = if self.config.presign_endpoint.is_some() {
             self.parse_endpoint(
@@ -635,6 +654,7 @@ impl Builder for OssBuilder {
             write_with_content_disposition: true,
             write_with_content_encoding: true,
             write_with_if_not_exists: true,
+            write_with_checksum: oss_can_checksum,
 
             write_multi_min_size: Some(MIN_MULTIPART_PART_SIZE),
             write_multi_max_size: Some(MAX_MULTIPART_PART_SIZE),
@@ -753,7 +773,7 @@ impl Service for OssBackend {
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let output: OssWriters = {
-            let writer = OssWriter::new(self.core.clone(), ctx.clone(), path, args.clone());
+            let writer = OssWriter::new(self.core.clone(), ctx.clone(), path, args.clone())?;
 
             let w = if args.append() {
                 OssWriters::Two(oio::AppendWriter::new(writer))
@@ -941,6 +961,12 @@ impl Service for OssBackend {
                 self.core.oss_get_object_request(path, true, *range, v)
             }
             PresignOperation::Write(v) => {
+                if v.checksum().is_some() {
+                    return Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "OSS cannot verify a presigned write checksum",
+                    ));
+                }
                 self.core
                     .oss_put_object_request(path, None, v, Buffer::new(), true)
             }
@@ -1656,6 +1682,28 @@ mod tests {
         assert_eq!(err.to_string(), "failed to load signing credential");
         assert!(file_read.reads().is_empty());
         assert!(http.requests.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_write_checksum_uses_the_operation_endpoint() {
+        const NATIVE: &str = "https://oss-cn-hangzhou.aliyuncs.com";
+        const CUSTOM: &str = "https://oss.example.com";
+        let builder = || OssBuilder::default().bucket("test-bucket");
+        for operator in [
+            builder().endpoint(NATIVE).presign_endpoint(CUSTOM),
+            builder().endpoint(NATIVE).addressing_style("path"),
+        ] {
+            assert!(operator.build().unwrap().capability().write_with_checksum);
+        }
+        for operator in [
+            builder().endpoint(CUSTOM).presign_endpoint(NATIVE),
+            builder().endpoint(NATIVE).addressing_style("cname"),
+            builder().endpoint(NATIVE).skip_signature(),
+            builder().endpoint("http://oss-cn-hangzhou.aliyuncs.com"),
+            builder().endpoint("https://oss-cn-hangzhou.aliyuncs.com.example.org"),
+        ] {
+            assert!(!operator.build().unwrap().capability().write_with_checksum);
+        }
     }
 
     #[tokio::test]

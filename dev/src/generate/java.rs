@@ -226,6 +226,7 @@ const EXISTING_OPTIONS_FIELDS: &[OptionsSpec] = {
 struct OptionsClass<'a> {
     name: &'a str,
     summary: String,
+    details: Vec<String>,
     imports: BTreeSet<&'static str>,
     properties: Vec<OptionProperty>,
     rs_name: String,
@@ -499,6 +500,78 @@ fn select_options_fields<'a>(
         .collect()
 }
 
+const INSTANT_RANGE_JAVADOC: &str = concat!(
+    "An {@link Instant} outside the Rust core timestamp range fails with ",
+    "{@link OpenDALException.Code#Unexpected}."
+);
+
+fn option_class_details(name: &str) -> Vec<String> {
+    let mut details = match name {
+        "DeleteOptions" => vec![concat!(
+            "All supplied conditions must hold for deletion to proceed. ",
+            "Unsupported options fail with {@link OpenDALException.Code#Unsupported}. ",
+            "Failed conditions fail with {@link OpenDALException.Code#ConditionNotMatch}."
+        )],
+        "ListOptions" => {
+            vec!["Unsupported options fail with {@link OpenDALException.Code#Unsupported}."]
+        }
+        "ReadOptions" => vec![
+            "Version selection and conditions require service support and apply to every chunk.",
+            concat!(
+                "All supplied conditions must hold for data to be returned. ",
+                "Missing files fail with {@link OpenDALException.Code#NotFound} for nonempty ranges. ",
+                "Failed conditions on an existing file fail with ",
+                "{@link OpenDALException.Code#ConditionNotMatch}. Unsupported conditions fail with ",
+                "{@link OpenDALException.Code#Unsupported}."
+            ),
+            concat!(
+                "Invalid execution values fail with {@link OpenDALException.Code#ConfigInvalid}. ",
+                "Invalid ranges fail with {@link OpenDALException.Code#RangeNotSatisfied}."
+            ),
+            INSTANT_RANGE_JAVADOC,
+        ],
+        "ReaderOptions" => vec![
+            concat!(
+                "All supplied conditions must hold for data to be returned. ",
+                "Missing files fail with {@link OpenDALException.Code#NotFound}. ",
+                "Failed conditions on an existing file fail with ",
+                "{@link OpenDALException.Code#ConditionNotMatch}. Unsupported conditions fail with ",
+                "{@link OpenDALException.Code#Unsupported}."
+            ),
+            concat!(
+                "Depending on the service, errors can surface when creating the reader or while reading. ",
+                "Conditions apply to every request, including streams."
+            ),
+            concat!(
+                "Execution options apply independently of each logical range. ",
+                "OpenDAL uses {@link #concurrent} and {@link #prefetch} only for chunked reads enabled by ",
+                "{@link #chunk}. Invalid execution values fail with ",
+                "{@link OpenDALException.Code#ConfigInvalid} when OpenDAL creates the reader."
+            ),
+            INSTANT_RANGE_JAVADOC,
+        ],
+        "StatOptions" => vec![
+            concat!(
+                "All supplied conditions must hold for metadata to be returned. ",
+                "Missing files fail with {@link OpenDALException.Code#NotFound}. ",
+                "Failed conditions on an existing file fail with ",
+                "{@link OpenDALException.Code#ConditionNotMatch}. Unsupported conditions fail with ",
+                "{@link OpenDALException.Code#Unsupported}."
+            ),
+            INSTANT_RANGE_JAVADOC,
+        ],
+        "WriteOptions" => vec![concat!(
+            "All supplied conditions must hold for the write to commit. ",
+            "Unsupported conditions fail with {@link OpenDALException.Code#Unsupported}. ",
+            "Unsupported metadata options may be ignored. ",
+            "Failed conditions fail with {@link OpenDALException.Code#ConditionNotMatch}."
+        )],
+        _ => Vec::new(),
+    };
+    details.push("Optional reference fields default to {@code null}.");
+    details.into_iter().map(str::to_owned).collect()
+}
+
 fn options_class<'a>(
     options: &'a OptionsStruct,
     spec: &OptionsSpec,
@@ -529,16 +602,32 @@ fn options_class<'a>(
                         camel: "offset".to_owned(),
                         java_type: "long",
                         default_value: None,
-                        summary: "The byte offset to start reading from. Defaults to zero.".to_owned(),
-                        details: Vec::new(),
+                        summary: "Byte offset to start reading from.".to_owned(),
+                        details: vec![concat!(
+                            "Defaults to {@code 0L}. Negative values fail with ",
+                            "{@link OpenDALException.Code#RangeNotSatisfied}."
+                        )
+                        .to_owned()],
                         see_also: Vec::new(),
                     },
                     OptionProperty {
                         camel: "length".to_owned(),
                         java_type: "long",
                         default_value: Some("-1L"),
-                        summary: "The number of bytes to read from {@link #offset}. The default of {@code -1L} reads to the end.".to_owned(),
-                        details: Vec::new(),
+                        summary: "Number of bytes to read from {@link #offset}.".to_owned(),
+                        details: vec![
+                            concat!(
+                                "The default of {@code -1L} reads to the end. With {@code length == 0L}, ",
+                                "OpenDAL validates options and capabilities, then returns an empty result ",
+                                "without accessing storage or evaluating conditions against the file."
+                            )
+                            .to_owned(),
+                            concat!(
+                                "Values below {@code -1L} or an {@code offset + length} sum that overflows ",
+                                "the native unsigned 64-bit range fail with {@link OpenDALException.Code#RangeNotSatisfied}."
+                            )
+                            .to_owned(),
+                        ],
                         see_also: Vec::new(),
                     },
                 ]);
@@ -546,35 +635,12 @@ fn options_class<'a>(
             }
             OptionKind::OptionDuration => bail!("unsupported Java option {}::{name}", options.name),
         };
-        let details = match (options.name.as_str(), name) {
-            ("DeleteOptions", "if_not_changed") => field
-                .doc
-                .split(|line| line.is_empty())
-                .skip(1)
-                .filter(|paragraph| !paragraph.is_empty())
-                .map(|paragraph| option_javadoc(paragraph, spec, Some(name)))
-                .collect(),
-            ("ReadOptions" | "ReaderOptions", "content_length_hint") => vec![
-                concat!(
-                    "Supply the full object length in bytes, regardless of the requested range. ",
-                    "The default of {@code -1L} means the length is unknown. ",
-                    "Use {@code 0L} for an empty object. Values below {@code -1L} fail with ",
-                    "{@link OpenDALException.Code#ConfigInvalid}."
-                )
-                .to_owned(),
-                concat!(
-                    "OpenDAL can use this hint to avoid a metadata request when planning reads. ",
-                    "An incorrect hint can truncate reads or cause errors."
-                )
-                .to_owned(),
-            ],
-            _ => Vec::new(),
-        };
+        let (summary, details) = option_field_javadoc(spec, field);
         properties.push(OptionProperty {
             camel: case_java_field_name(name),
             java_type,
             default_value,
-            summary: option_javadoc(&field.doc, spec, Some(name)),
+            summary,
             details,
             see_also: option_capability_refs(&field.doc),
         });
@@ -582,7 +648,12 @@ fn options_class<'a>(
 
     Ok(OptionsClass {
         name: &options.name,
-        summary: option_javadoc(&options.doc, spec, None),
+        summary: match spec.name {
+            "ReadOptions" => "Options for a single read or a compatibility {@link OperatorInputStream}.".to_owned(),
+            "ReaderOptions" => "Configures version selection, read conditions, and execution options for an {@link OperatorReader}.".to_owned(),
+            _ => option_javadoc(&options.doc, spec, None),
+        },
+        details: option_class_details(spec.name),
         imports,
         properties,
         rs_name: heck::AsSnakeCase(options.name.as_str()).to_string(),
@@ -615,6 +686,99 @@ fn options_class<'a>(
             .collect::<Result<_>>()?,
         has_unmirrored_fields: options.has_unmirrored_fields,
     })
+}
+
+fn option_field_javadoc(spec: &OptionsSpec, field: &OptionField) -> (String, Vec<String>) {
+    let name = field.name.as_str();
+    let mut summary = option_javadoc(&field.doc, spec, Some(name));
+    let mut details = Vec::new();
+    match (spec.name, name) {
+        ("DeleteOptions", "if_not_changed") => details.extend(field
+            .doc
+            .split(|line| line.is_empty())
+            .skip(1)
+            .filter(|paragraph| !paragraph.is_empty())
+            .map(|paragraph| option_javadoc(paragraph, spec, Some(name)))),
+        ("DeleteOptions", "recursive")
+        | (_, "version" | "if_match" | "if_none_match" | "if_version_match" | "if_version_not_match"
+            | "if_modified_since" | "if_unmodified_since" | "if_not_exists"
+            | "override_content_type" | "override_cache_control" | "override_content_disposition") => {
+            if let Some(paragraph) = field.doc.split(|line| line.is_empty()).nth(1) {
+                details.push(option_javadoc(paragraph, spec, Some(name)));
+            }
+        }
+        ("ReadOptions" | "ReaderOptions", "chunk") => {
+            summary = "Target size of each internal range request in bytes.".to_owned();
+            details.push(concat!(
+                "The default of {@code -1L} keeps unchunked streaming. Positive values enable chunked reads ",
+                "and must fit the native platform's unsigned pointer-sized integer. ",
+                "{@code 0L}, other negative values, and values that do not fit fail with ",
+                "{@link OpenDALException.Code#ConfigInvalid}."
+            ).to_owned());
+        }
+        ("ReadOptions" | "ReaderOptions", "concurrent") => {
+            summary = "Maximum number of internal chunk requests executed concurrently.".to_owned();
+            details.push(concat!(
+                "Defaults to {@code 1}. Values less than or equal to {@code 0}, or too large for the ",
+                "native platform's unsigned pointer-sized integer, fail with ",
+                "{@link OpenDALException.Code#ConfigInvalid}."
+            ).to_owned());
+            details.push(concat!(
+                "This setting applies only to chunked reads enabled by {@link #chunk}. ",
+                "Application transfer and Java thread counts are independent of this setting."
+            ).to_owned());
+        }
+        ("ReaderOptions", "prefetch") => details.push(concat!(
+            "This option counts completed chunks buffered ahead of consumption, regardless of their size in bytes. ",
+            "The default of {@code 0} applies strict backpressure. Negative values fail with ",
+            "{@link OpenDALException.Code#ConfigInvalid}. This setting applies only to ",
+            "chunked reads enabled by {@link #chunk}."
+        ).to_owned()),
+        ("ReadOptions" | "ReaderOptions", "content_length_hint") => details.extend([
+            concat!(
+                "Supply the full object length in bytes, regardless of the requested range. ",
+                "The default of {@code -1L} means the length is unknown. ",
+                "Use {@code 0L} for an empty object. Values below {@code -1L} fail with ",
+                "{@link OpenDALException.Code#ConfigInvalid}."
+            )
+            .to_owned(),
+            concat!(
+                "OpenDAL can use this hint to avoid a metadata request when planning reads. ",
+                "Consistency conditions apply independently of the hint. ",
+                "An incorrect hint can truncate reads or cause errors."
+            )
+            .to_owned(),
+        ]),
+        ("ListOptions", "limit") => details.push(concat!(
+            "The default of {@code -1L} leaves the limit unset. Positive values must fit the ",
+            "native platform's unsigned pointer-sized integer. {@code 0L}, other negative values, ",
+            "and values that do not fit fail with {@link OpenDALException.Code#Unexpected}."
+        ).to_owned()),
+        ("WriteOptions", "concurrent") => details.push(concat!(
+            "Defaults to {@code 1}. Values less than or equal to {@code 0}, or too large for the ",
+            "native platform's unsigned pointer-sized integer, fail with ",
+            "{@link OpenDALException.Code#Unexpected}."
+        ).to_owned()),
+        ("WriteOptions", "chunk") => details.push(concat!(
+            "The default of {@code -1L} uses the service's default chunk size. ",
+            "Positive values set the chunk size in bytes and must fit the native platform's ",
+            "unsigned pointer-sized integer. {@code 0L}, other negative values, and values that ",
+            "do not fit fail with {@link OpenDALException.Code#Unexpected}."
+        ).to_owned()),
+        _ => {}
+    }
+    if field.kind == OptionKind::OptionTimestamp {
+        details.push(INSTANT_RANGE_JAVADOC.to_owned());
+    }
+    if name == "if_version_match"
+        && matches!(spec.name, "ReadOptions" | "ReaderOptions" | "StatOptions")
+    {
+        details.push(
+            "This condition checks the identity of the file selected by {@link #version}."
+                .to_owned(),
+        );
+    }
+    (summary, details)
 }
 
 fn option_rs_expr(options: &str, field: &OptionField) -> Result<String> {
@@ -949,17 +1113,11 @@ mod tests {
                 rendered.matches(&format!("    {modifiers} ")).count(),
                 names.len()
             );
-            if name == "DeleteOptions" {
-                assert!(rendered.contains("Use a trailing slash (for example, {@code \"a/\"})"));
-                assert!(rendered.contains(
-                    "such as {@code \"a\"} can also match entries under {@code \"ab/\"}"
-                ));
-            }
         }
     }
 
     #[test]
-    fn test_options_javadoc_notices() {
+    fn test_options_javadoc_contracts() {
         let structs = core_options_structs();
         let env = Environment::new();
         let template = env
@@ -967,36 +1125,291 @@ mod tests {
             .unwrap();
 
         for class in options_classes(&structs).unwrap() {
-            let (declaration, notices): (&str, &[&str]) = match class.name {
-                "DeleteOptions" => (
-                    "public final Metadata ifNotChanged",
-                    &[
-                        "Pass metadata previously returned by OpenDAL for the same path.",
-                        "OpenDAL derives a version match when the service supports version conditions and the metadata contains a version. Otherwise it uses a non-weak ETag if present.",
-                        "A changed or missing file fails the delete with {@link OpenDALException.Code#ConditionNotMatch}, as does combining this option with a conflicting {@link #ifMatch} or {@link #ifVersionMatch} value.",
-                        "{@link OpenDALException.Code#Unsupported} when the service does not support the derived primitive condition",
-                        "{@link OpenDALException.Code#ConfigInvalid} when the metadata contains neither a version nor a non-weak ETag.",
-                    ],
-                ),
-                "ReadOptions" | "ReaderOptions" => (
-                    "public final long contentLengthHint",
-                    &[
-                        "full object length in bytes, regardless of the requested range",
-                        "{@code -1L} means the length is unknown",
-                        "An incorrect hint can truncate reads or cause errors.",
-                    ],
-                ),
-                _ => continue,
-            };
             let rendered = template.render(context! { class => class }).unwrap();
-            let (preceding, _) = rendered.split_once(declaration).unwrap();
-            let (_, javadoc) = preceding.rsplit_once("/**").unwrap();
-            for notice in notices {
-                assert!(
-                    javadoc.contains(notice),
-                    "{} is missing {notice}",
-                    class.name
+            let class_doc = rendered
+                .split_once("/**")
+                .unwrap()
+                .1
+                .split_once("*/")
+                .unwrap()
+                .0;
+            let assert_doc = |name: &str, javadoc: &str, notices: &[&str]| {
+                for notice in notices {
+                    assert!(
+                        javadoc.contains(notice),
+                        "{} {name} is missing {notice}",
+                        class.name
+                    );
+                }
+            };
+            let assert_field = |field: &str, notices: &[&str]| {
+                let declaration = rendered
+                    .lines()
+                    .find(|line| {
+                        let (declaration, _) = line.split_once(['=', ';']).unwrap_or((line, ""));
+                        !line.trim_start().starts_with('*')
+                            && declaration.split_whitespace().last() == Some(field)
+                    })
+                    .unwrap();
+                let (preceding, _) = rendered.split_once(declaration).unwrap();
+                let (_, javadoc) = preceding.rsplit_once("/**").unwrap();
+                assert_doc(field, javadoc, notices);
+            };
+
+            assert_doc(
+                "class",
+                class_doc,
+                &[
+                    "<p>Optional reference fields default to {@code null}.",
+                    "fail with {@link OpenDALException.Code#Unsupported}",
+                ],
+            );
+            if class.name != "ListOptions" {
+                assert_doc(
+                    "class",
+                    class_doc,
+                    &[
+                        "<p>All supplied conditions must hold",
+                        "fail with {@link OpenDALException.Code#ConditionNotMatch}",
+                    ],
                 );
+            }
+
+            match class.name {
+                "DeleteOptions" => {
+                    assert_doc("class", class_doc, &["for deletion to proceed"]);
+                    assert_field(
+                        "version",
+                        &["selects which stored version the delete removes"],
+                    );
+                    assert_field(
+                        "recursive",
+                        &[
+                            "The default, {@code false}, deletes a single object.",
+                            "a trailing slash (for example, {@code \"a/\"}) scopes deletion to a directory and its descendants",
+                            "{@code memory}, {@code \"a\"} also matches entries under {@code \"ab/\"}",
+                        ],
+                    );
+                    assert_field(
+                        "ifMatch",
+                        &[
+                            "or a missing file, fails the delete with {@link OpenDALException.Code#ConditionNotMatch}",
+                            "a wildcard such as {@code \"*\"} has no portable meaning",
+                        ],
+                    );
+                    assert_field(
+                        "ifNoneMatch",
+                        &[
+                            "deleting a missing file is then a successful no-op",
+                            "a wildcard such as {@code \"*\"} has no portable meaning",
+                            "fails the delete with {@link OpenDALException.Code#ConditionNotMatch}",
+                        ],
+                    );
+                    assert_field(
+                        "ifVersionMatch",
+                        &[
+                            "or a missing file, fails the delete with {@link OpenDALException.Code#ConditionNotMatch}",
+                        ],
+                    );
+                    assert_field(
+                        "ifVersionNotMatch",
+                        &[
+                            "fails the delete with {@link OpenDALException.Code#ConditionNotMatch}",
+                            "When no file exists at the delete path, no portable behavior is defined.",
+                        ],
+                    );
+                    assert_field(
+                        "ifNotChanged",
+                        &[
+                            "Pass metadata previously returned by OpenDAL for the same path.",
+                            "OpenDAL derives a version match when the service supports version conditions and the metadata contains a version. Otherwise it uses a non-weak ETag if present.",
+                            "A changed or missing file fails the delete with {@link OpenDALException.Code#ConditionNotMatch}, as does combining this option with a conflicting {@link #ifMatch} or {@link #ifVersionMatch} value.",
+                            "{@link OpenDALException.Code#Unsupported} when the service does not support the derived primitive condition",
+                            "{@link OpenDALException.Code#ConfigInvalid} when the metadata contains neither a version nor a non-weak ETag.",
+                        ],
+                    );
+                }
+                "ListOptions" => assert_field(
+                    "limit",
+                    &[
+                        "{@code -1L} leaves the limit unset",
+                        "native platform's unsigned pointer-sized integer",
+                        "{@code 0L}, other negative values, and values that do not fit fail with {@link OpenDALException.Code#Unexpected}",
+                    ],
+                ),
+                "ReadOptions" | "ReaderOptions" => {
+                    assert_doc(
+                        "class",
+                        class_doc,
+                        &[
+                            "for data to be returned",
+                            "Invalid execution values fail with {@link OpenDALException.Code#ConfigInvalid}",
+                        ],
+                    );
+                    assert_field(
+                        "chunk",
+                        &[
+                            "Target size of each internal range request in bytes.",
+                            "{@code -1L} keeps unchunked streaming. Positive values enable chunked reads",
+                            "native platform's unsigned pointer-sized integer",
+                            "{@code 0L}, other negative values, and values that do not fit fail with {@link OpenDALException.Code#ConfigInvalid}",
+                        ],
+                    );
+                    assert_field(
+                        "concurrent",
+                        &[
+                            "Maximum number of internal chunk requests executed concurrently.",
+                            "Defaults to {@code 1}. Values less than or equal to {@code 0}",
+                            "native platform's unsigned pointer-sized integer, fail with {@link OpenDALException.Code#ConfigInvalid}",
+                            "only to chunked reads enabled by {@link #chunk}",
+                            "Application transfer and Java thread counts are independent",
+                        ],
+                    );
+                    assert_field(
+                        "contentLengthHint",
+                        &[
+                            "full object length in bytes, regardless of the requested range",
+                            "{@code -1L} means the length is unknown",
+                            "{@code 0L} for an empty object",
+                            "Values below {@code -1L} fail with {@link OpenDALException.Code#ConfigInvalid}",
+                            "Consistency conditions apply independently of the hint.",
+                            "An incorrect hint can truncate reads or cause errors.",
+                        ],
+                    );
+                    if class.name == "ReadOptions" {
+                        assert_doc(
+                            "class",
+                            class_doc,
+                            &[
+                                "a single read or a compatibility {@link OperatorInputStream}",
+                                "Version selection and conditions require service support and apply to every chunk.",
+                                "Missing files fail with {@link OpenDALException.Code#NotFound} for nonempty ranges.",
+                                "Invalid ranges fail with {@link OpenDALException.Code#RangeNotSatisfied}",
+                            ],
+                        );
+                        assert_field(
+                            "offset",
+                            &[
+                                "Byte offset to start reading from.",
+                                "Defaults to {@code 0L}. Negative values fail with {@link OpenDALException.Code#RangeNotSatisfied}",
+                            ],
+                        );
+                        assert_field(
+                            "length",
+                            &[
+                                "Number of bytes to read from {@link #offset}",
+                                "{@code -1L} reads to the end",
+                                "With {@code length == 0L}, OpenDAL validates options and capabilities",
+                                "returns an empty result without accessing storage or evaluating conditions against the file",
+                                "Values below {@code -1L} or an {@code offset + length} sum that overflows",
+                                "fail with {@link OpenDALException.Code#RangeNotSatisfied}",
+                            ],
+                        );
+                    } else {
+                        assert_doc(
+                            "class",
+                            class_doc,
+                            &[
+                                "execution options for an {@link OperatorReader}",
+                                "errors can surface when creating the reader or while reading",
+                                "Conditions apply to every request, including streams.",
+                                "Execution options apply independently of each logical range.",
+                                "{@link #concurrent} and {@link #prefetch} only for chunked reads enabled by {@link #chunk}",
+                                "{@link OpenDALException.Code#ConfigInvalid} when OpenDAL creates the reader",
+                            ],
+                        );
+                        assert_field(
+                            "prefetch",
+                            &[
+                                "counts completed chunks buffered ahead of consumption, regardless of their size in bytes",
+                                "{@code 0} applies strict backpressure",
+                                "Negative values fail with {@link OpenDALException.Code#ConfigInvalid}",
+                                "chunked reads enabled by {@link #chunk}",
+                            ],
+                        );
+                    }
+                }
+                "StatOptions" => assert_doc("class", class_doc, &["for metadata to be returned"]),
+                "WriteOptions" => {
+                    assert_doc(
+                        "class",
+                        class_doc,
+                        &[
+                            "for the write to commit",
+                            "Unsupported conditions fail with {@link OpenDALException.Code#Unsupported}",
+                            "Unsupported metadata options may be ignored.",
+                        ],
+                    );
+                    assert_field(
+                        "ifNotExists",
+                        &[
+                            "An existing file fails the write with {@link OpenDALException.Code#ConditionNotMatch}",
+                        ],
+                    );
+                    assert_field(
+                        "concurrent",
+                        &[
+                            "Defaults to {@code 1}. Values less than or equal to {@code 0}",
+                            "native platform's unsigned pointer-sized integer, fail with {@link OpenDALException.Code#Unexpected}",
+                        ],
+                    );
+                    assert_field(
+                        "chunk",
+                        &[
+                            "{@code -1L} uses the service's default chunk size",
+                            "Positive values set the chunk size in bytes",
+                            "unsigned pointer-sized integer",
+                            "{@code 0L}, other negative values, and values that do not fit fail with {@link OpenDALException.Code#Unexpected}",
+                        ],
+                    );
+                }
+                name => panic!("missing Javadoc expectations for {name}"),
+            }
+
+            if matches!(class.name, "ReadOptions" | "ReaderOptions" | "StatOptions") {
+                let timestamp = "An {@link Instant} outside the Rust core timestamp range fails with {@link OpenDALException.Code#Unexpected}.";
+                assert_doc(
+                    "class",
+                    class_doc,
+                    &[
+                        "Missing files fail with {@link OpenDALException.Code#NotFound}",
+                        "Failed conditions on an existing file fail with {@link OpenDALException.Code#ConditionNotMatch}",
+                        "Unsupported conditions fail with {@link OpenDALException.Code#Unsupported}",
+                        timestamp,
+                    ],
+                );
+                assert_field(
+                    "version",
+                    &[
+                        "selects which stored version",
+                        "A version that does not exist returns {@link OpenDALException.Code#NotFound}",
+                    ],
+                );
+                assert_field(
+                    "ifVersionMatch",
+                    &["checks the identity of the file selected by {@link #version}"],
+                );
+                for field in ["ifModifiedSince", "ifUnmodifiedSince"] {
+                    assert_field(
+                        field,
+                        &[
+                            "a missing file returns {@link OpenDALException.Code#NotFound}",
+                            timestamp,
+                        ],
+                    );
+                }
+            }
+            if matches!(class.name, "ReadOptions" | "StatOptions") {
+                for field in [
+                    "overrideContentType",
+                    "overrideCacheControl",
+                    "overrideContentDisposition",
+                ] {
+                    assert_field(
+                        field,
+                        &["<p>This option is only meaningful when used along with presign."],
+                    );
+                }
             }
         }
     }

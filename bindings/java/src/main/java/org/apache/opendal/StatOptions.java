@@ -27,6 +27,12 @@ import lombok.Data;
 
 /**
  * Options for stat operations.
+ *
+ * <p>All supplied conditions must hold for metadata to be returned. Missing files fail with {@link OpenDALException.Code#NotFound}. Failed conditions on an existing file fail with {@link OpenDALException.Code#ConditionNotMatch}. Unsupported conditions fail with {@link OpenDALException.Code#Unsupported}.
+ *
+ * <p>An {@link Instant} outside the Rust core timestamp range fails with {@link OpenDALException.Code#Unexpected}.
+ *
+ * <p>Optional reference fields default to {@code null}.
  */
 @Data
 @Builder
@@ -35,12 +41,16 @@ public class StatOptions {
     /**
      * Stat only when the file has this exact ETag.
      *
+     * <p>The condition succeeds when the file exists and its ETag equals this value. A file with a different ETag returns {@link OpenDALException.Code#ConditionNotMatch}; a missing file returns {@link OpenDALException.Code#NotFound}. Only concrete ETag values are portable; a wildcard such as {@code "*"} has no portable meaning here.
+     *
      * @see Capability#statWithIfMatch
      */
     private String ifMatch;
 
     /**
      * Stat only when the file does not have this ETag.
+     *
+     * <p>With a concrete ETag value, the condition succeeds when the file exists with a different ETag. A file whose ETag equals this value returns {@link OpenDALException.Code#ConditionNotMatch}; a missing file returns {@link OpenDALException.Code#NotFound}. Only concrete ETag values are portable; a wildcard such as {@code "*"} has no portable meaning here.
      *
      * @see Capability#statWithIfNoneMatch
      */
@@ -49,12 +59,18 @@ public class StatOptions {
     /**
      * Stat only when the file has this exact version.
      *
+     * <p>The condition succeeds when the file exists and its version equals this value. A file with a different version returns {@link OpenDALException.Code#ConditionNotMatch}; a missing file returns {@link OpenDALException.Code#NotFound}.
+     *
+     * <p>This condition checks the identity of the file selected by {@link #version}.
+     *
      * @see Capability#statWithIfVersionMatch
      */
     private String ifVersionMatch;
 
     /**
      * Stat only when the file does not have this version.
+     *
+     * <p>The condition succeeds when the file exists with a different version. A file whose version equals this value returns {@link OpenDALException.Code#ConditionNotMatch}; a missing file returns {@link OpenDALException.Code#NotFound}.
      *
      * @see Capability#statWithIfVersionNotMatch
      */
@@ -63,12 +79,20 @@ public class StatOptions {
     /**
      * Stat only when the file was modified after this timestamp.
      *
+     * <p>The condition succeeds when the file exists and was modified after this time. A file not modified since this time returns {@link OpenDALException.Code#ConditionNotMatch}; a missing file returns {@link OpenDALException.Code#NotFound}.
+     *
+     * <p>An {@link Instant} outside the Rust core timestamp range fails with {@link OpenDALException.Code#Unexpected}.
+     *
      * @see Capability#statWithIfModifiedSince
      */
     private Instant ifModifiedSince;
 
     /**
      * Stat only when the file was not modified after this timestamp.
+     *
+     * <p>The condition succeeds when the file exists and was not modified after this time. A file modified after this time returns {@link OpenDALException.Code#ConditionNotMatch}; a missing file returns {@link OpenDALException.Code#NotFound}.
+     *
+     * <p>An {@link Instant} outside the Rust core timestamp range fails with {@link OpenDALException.Code#Unexpected}.
      *
      * @see Capability#statWithIfUnmodifiedSince
      */
@@ -77,22 +101,30 @@ public class StatOptions {
     /**
      * Stat the given version of the file instead of the current one.
      *
+     * <p>This selects which stored version the stat describes; it is not a condition on the file. A version that does not exist returns {@link OpenDALException.Code#NotFound}.
+     *
      * @see Capability#statWithVersion
      */
     private String version;
 
     /**
      * Specify the content-type header that should be sent back by the operation.
+     *
+     * <p>This option is only meaningful when used along with presign.
      */
     private String overrideContentType;
 
     /**
      * Specify the {@code cache-control} header that should be sent back by the operation.
+     *
+     * <p>This option is only meaningful when used along with presign.
      */
     private String overrideCacheControl;
 
     /**
      * Specify the {@code content-disposition} header that should be sent back by the operation.
+     *
+     * <p>This option is only meaningful when used along with presign.
      */
     private String overrideContentDisposition;
 }

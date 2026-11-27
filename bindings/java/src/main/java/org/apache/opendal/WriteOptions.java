@@ -26,6 +26,10 @@ import lombok.Builder;
 
 /**
  * Options for write operations.
+ *
+ * <p>All supplied conditions must hold for the write to commit. Unsupported conditions fail with {@link OpenDALException.Code#Unsupported}. Unsupported metadata options may be ignored. Failed conditions fail with {@link OpenDALException.Code#ConditionNotMatch}.
+ *
+ * <p>Optional reference fields default to {@code null}.
  */
 @Builder
 public class WriteOptions {
@@ -61,12 +65,16 @@ public class WriteOptions {
     /**
      * Write only when the file at the write path has this exact ETag.
      *
+     * <p>The condition succeeds when the file exists and its ETag equals this value. A file with a different ETag, or a missing file, fails the write with {@link OpenDALException.Code#ConditionNotMatch}. Only concrete ETag values are portable; a wildcard such as {@code "*"} has no portable meaning here.
+     *
      * @see Capability#writeWithIfMatch
      */
     public final String ifMatch;
 
     /**
      * Write only when the file at the write path does not have this ETag.
+     *
+     * <p>With a concrete ETag value, the condition succeeds when the file has a different ETag or does not exist; the write then replaces or creates the file. A file whose ETag equals this value fails the write with {@link OpenDALException.Code#ConditionNotMatch}. Only concrete ETag values are portable; a wildcard such as {@code "*"} has no portable meaning here.
      *
      * @see Capability#writeWithIfNoneMatch
      */
@@ -89,18 +97,24 @@ public class WriteOptions {
     /**
      * Write only when no file exists at the write path.
      *
+     * <p>The condition succeeds when the path is empty, so the write creates the file. An existing file fails the write with {@link OpenDALException.Code#ConditionNotMatch}.
+     *
      * @see Capability#writeWithIfNotExists
      */
     public final boolean ifNotExists;
 
     /**
      * Sets concurrent write operations for this writer.
+     *
+     * <p>Defaults to {@code 1}. Values less than or equal to {@code 0}, or too large for the native platform's unsigned pointer-sized integer, fail with {@link OpenDALException.Code#Unexpected}.
      */
     @Builder.Default
     public final int concurrent = 1;
 
     /**
      * Sets chunk size for buffered writes.
+     *
+     * <p>The default of {@code -1L} uses the service's default chunk size. Positive values set the chunk size in bytes and must fit the native platform's unsigned pointer-sized integer. {@code 0L}, other negative values, and values that do not fit fail with {@link OpenDALException.Code#Unexpected}.
      *
      * @see Capability#writeMultiMinSize
      * @see Capability#writeMultiMaxSize

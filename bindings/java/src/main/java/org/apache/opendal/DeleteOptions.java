@@ -25,12 +25,18 @@ import lombok.Builder;
 
 /**
  * Options for delete operations.
+ *
+ * <p>All supplied conditions must hold for deletion to proceed. Unsupported options fail with {@link OpenDALException.Code#Unsupported}. Failed conditions fail with {@link OpenDALException.Code#ConditionNotMatch}.
+ *
+ * <p>Optional reference fields default to {@code null}.
  */
 @Builder
 public class DeleteOptions {
 
     /**
      * Delete the given version of the file instead of the current one.
+     *
+     * <p>This selects which stored version the delete removes; it is not a condition on the file.
      *
      * @see Capability#deleteWithVersion
      */
@@ -39,14 +45,14 @@ public class DeleteOptions {
     /**
      * Whether to delete the target recursively.
      *
-     * Use a trailing slash (for example, {@code "a/"}) to restrict deletion to a directory
-     * and its descendants. On prefix-based services such as {@code memory}, a path without
-     * a trailing slash such as {@code "a"} can also match entries under {@code "ab/"}.
+     * <p>The default, {@code false}, deletes a single object. With {@code true}, a trailing slash (for example, {@code "a/"}) scopes deletion to a directory and its descendants across services. Prefix matching for paths without a trailing slash is service-specific. On prefix-based services such as {@code memory}, {@code "a"} also matches entries under {@code "ab/"}.
      */
     public final boolean recursive;
 
     /**
      * Delete only when the file at the delete path has this exact ETag.
+     *
+     * <p>The condition succeeds when the file exists and its ETag equals this value. A file with a different ETag, or a missing file, fails the delete with {@link OpenDALException.Code#ConditionNotMatch}. Only concrete ETag values are portable; a wildcard such as {@code "*"} has no portable meaning here.
      *
      * @see Capability#deleteWithIfMatch
      */
@@ -55,6 +61,8 @@ public class DeleteOptions {
     /**
      * Delete only when the file at the delete path does not have this ETag.
      *
+     * <p>With a concrete ETag value, the condition succeeds when the file has a different ETag or does not exist; deleting a missing file is then a successful no-op. A file whose ETag equals this value fails the delete with {@link OpenDALException.Code#ConditionNotMatch}. Only concrete ETag values are portable; a wildcard such as {@code "*"} has no portable meaning here.
+     *
      * @see Capability#deleteWithIfNoneMatch
      */
     public final String ifNoneMatch;
@@ -62,12 +70,16 @@ public class DeleteOptions {
     /**
      * Delete only when the file at the delete path has this exact version.
      *
+     * <p>The condition succeeds when the file exists and its version equals this value. A file with a different version, or a missing file, fails the delete with {@link OpenDALException.Code#ConditionNotMatch}.
+     *
      * @see Capability#deleteWithIfVersionMatch
      */
     public final String ifVersionMatch;
 
     /**
      * Delete only when the file at the delete path does not have this version.
+     *
+     * <p>The condition succeeds when the file exists with a different version. A file whose version equals this value fails the delete with {@link OpenDALException.Code#ConditionNotMatch}. When no file exists at the delete path, no portable behavior is defined.
      *
      * @see Capability#deleteWithIfVersionNotMatch
      */

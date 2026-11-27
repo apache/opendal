@@ -25,13 +25,25 @@ import java.time.Instant;
 import lombok.Builder;
 
 /**
- * Options for reader operations.
+ * Configures version selection, read conditions, and execution options for an {@link OperatorReader}.
+ *
+ * <p>All supplied conditions must hold for data to be returned. Missing files fail with {@link OpenDALException.Code#NotFound}. Failed conditions on an existing file fail with {@link OpenDALException.Code#ConditionNotMatch}. Unsupported conditions fail with {@link OpenDALException.Code#Unsupported}.
+ *
+ * <p>Depending on the service, errors can surface when creating the reader or while reading. Conditions apply to every request, including streams.
+ *
+ * <p>Execution options apply independently of each logical range. OpenDAL uses {@link #concurrent} and {@link #prefetch} only for chunked reads enabled by {@link #chunk}. Invalid execution values fail with {@link OpenDALException.Code#ConfigInvalid} when OpenDAL creates the reader.
+ *
+ * <p>An {@link Instant} outside the Rust core timestamp range fails with {@link OpenDALException.Code#Unexpected}.
+ *
+ * <p>Optional reference fields default to {@code null}.
  */
 @Builder
 public final class ReaderOptions {
 
     /**
      * Read the given version of the file instead of the current one.
+     *
+     * <p>This selects which stored version the reader returns; it is not a condition on the file. A version that does not exist returns {@link OpenDALException.Code#NotFound}.
      *
      * @see Capability#readWithVersion
      */
@@ -40,12 +52,16 @@ public final class ReaderOptions {
     /**
      * Read only when the file has this exact ETag.
      *
+     * <p>The condition succeeds when the file exists and its ETag equals this value. A file with a different ETag returns {@link OpenDALException.Code#ConditionNotMatch}; a missing file returns {@link OpenDALException.Code#NotFound}. Only concrete ETag values are portable; a wildcard such as {@code "*"} has no portable meaning here.
+     *
      * @see Capability#readWithIfMatch
      */
     public final String ifMatch;
 
     /**
      * Read only when the file does not have this ETag.
+     *
+     * <p>With a concrete ETag value, the condition succeeds when the file exists with a different ETag. A file whose ETag equals this value returns {@link OpenDALException.Code#ConditionNotMatch}; a missing file returns {@link OpenDALException.Code#NotFound}. Only concrete ETag values are portable; a wildcard such as {@code "*"} has no portable meaning here.
      *
      * @see Capability#readWithIfNoneMatch
      */
@@ -54,12 +70,18 @@ public final class ReaderOptions {
     /**
      * Read only when the file has this exact version.
      *
+     * <p>The condition succeeds when the file exists and its version equals this value. A file with a different version returns {@link OpenDALException.Code#ConditionNotMatch}; a missing file returns {@link OpenDALException.Code#NotFound}.
+     *
+     * <p>This condition checks the identity of the file selected by {@link #version}.
+     *
      * @see Capability#readWithIfVersionMatch
      */
     public final String ifVersionMatch;
 
     /**
      * Read only when the file does not have this version.
+     *
+     * <p>The condition succeeds when the file exists with a different version. A file whose version equals this value returns {@link OpenDALException.Code#ConditionNotMatch}; a missing file returns {@link OpenDALException.Code#NotFound}.
      *
      * @see Capability#readWithIfVersionNotMatch
      */
@@ -68,6 +90,10 @@ public final class ReaderOptions {
     /**
      * Read only when the file was modified after this timestamp.
      *
+     * <p>The condition succeeds when the file exists and was modified after this time. A file not modified since this time returns {@link OpenDALException.Code#ConditionNotMatch}; a missing file returns {@link OpenDALException.Code#NotFound}.
+     *
+     * <p>An {@link Instant} outside the Rust core timestamp range fails with {@link OpenDALException.Code#Unexpected}.
+     *
      * @see Capability#readWithIfModifiedSince
      */
     public final Instant ifModifiedSince;
@@ -75,24 +101,36 @@ public final class ReaderOptions {
     /**
      * Read only when the file was not modified after this timestamp.
      *
+     * <p>The condition succeeds when the file exists and was not modified after this time. A file modified after this time returns {@link OpenDALException.Code#ConditionNotMatch}; a missing file returns {@link OpenDALException.Code#NotFound}.
+     *
+     * <p>An {@link Instant} outside the Rust core timestamp range fails with {@link OpenDALException.Code#Unexpected}.
+     *
      * @see Capability#readWithIfUnmodifiedSince
      */
     public final Instant ifUnmodifiedSince;
 
     /**
-     * Set {@code concurrent} for the operation.
+     * Maximum number of internal chunk requests executed concurrently.
+     *
+     * <p>Defaults to {@code 1}. Values less than or equal to {@code 0}, or too large for the native platform's unsigned pointer-sized integer, fail with {@link OpenDALException.Code#ConfigInvalid}.
+     *
+     * <p>This setting applies only to chunked reads enabled by {@link #chunk}. Application transfer and Java thread counts are independent of this setting.
      */
     @Builder.Default
     public final int concurrent = 1;
 
     /**
-     * Set {@code chunk} for the operation.
+     * Target size of each internal range request in bytes.
+     *
+     * <p>The default of {@code -1L} keeps unchunked streaming. Positive values enable chunked reads and must fit the native platform's unsigned pointer-sized integer. {@code 0L}, other negative values, and values that do not fit fail with {@link OpenDALException.Code#ConfigInvalid}.
      */
     @Builder.Default
     public final long chunk = -1L;
 
     /**
      * Controls the number of prefetched bytes ranges that can be buffered in memory during concurrent reading.
+     *
+     * <p>This option counts completed chunks buffered ahead of consumption, regardless of their size in bytes. The default of {@code 0} applies strict backpressure. Negative values fail with {@link OpenDALException.Code#ConfigInvalid}. This setting applies only to chunked reads enabled by {@link #chunk}.
      */
     @Builder.Default
     public final int prefetch = 0;
@@ -102,7 +140,7 @@ public final class ReaderOptions {
      *
      * <p>Supply the full object length in bytes, regardless of the requested range. The default of {@code -1L} means the length is unknown. Use {@code 0L} for an empty object. Values below {@code -1L} fail with {@link OpenDALException.Code#ConfigInvalid}.
      *
-     * <p>OpenDAL can use this hint to avoid a metadata request when planning reads. An incorrect hint can truncate reads or cause errors.
+     * <p>OpenDAL can use this hint to avoid a metadata request when planning reads. Consistency conditions apply independently of the hint. An incorrect hint can truncate reads or cause errors.
      */
     @Builder.Default
     public final long contentLengthHint = -1L;

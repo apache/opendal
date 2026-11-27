@@ -31,6 +31,10 @@ import lombok.Data;
 
 /**
  * {{ class.summary }}
+{%- for paragraph in class.details %}
+ *
+ * <p>{{ paragraph }}
+{%- endfor %}
  */
 {%- if class.name == "StatOptions" %}
 @Data
@@ -42,12 +46,6 @@ public {{ "final " if class.name == "ReaderOptions" else "" }}class {{ class.nam
 {% for p in class.properties %}
     /**
      * {{ p.summary }}
-{%- if class.name == "DeleteOptions" and p.camel == "recursive" %}
-     *
-     * Use a trailing slash (for example, {@code "a/"}) to restrict deletion to a directory
-     * and its descendants. On prefix-based services such as {@code memory}, a path without
-     * a trailing slash such as {@code "a"} can also match entries under {@code "ab/"}.
-{%- endif %}
 {%- for paragraph in p.details %}
      *
      * <p>{{ paragraph }}

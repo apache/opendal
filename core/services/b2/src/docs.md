@@ -70,6 +70,14 @@ option-bearing variants support overriding the response
 `Content-Type`, `Content-Disposition`, and `Cache-Control`. Use the returned
 method, URL, and headers to execute the request.
 
+## Presigned uploads
+
+`presign_write_options` returns a single-object POST with `user_metadata` in
+`X-Bz-Info-*` headers. When `WriteOptions::cache_control` is set, OpenDAL uses
+its value for `X-Bz-Info-b2-cache-control` to set the stored Cache-Control policy.
+In that case, OpenDAL skips the `cache-control` and `b2-cache-control`
+metadata keys with case-insensitive matching.
+
 ## Restore
 
 `restore(path)` removes one current B2 hide marker when a data version still

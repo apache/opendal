@@ -159,33 +159,62 @@ async fn test_presign_write_with_metadata(op: Operator) -> Result<()> {
 }
 
 async fn test_presign_write_b2_headers(op: Operator) -> Result<()> {
+    let reserved = "x-bz-info-b2-cache-control";
+    let metadata_cache_control = "x-bz-info-cache-control";
+    let unrelated = "x-bz-info-application-validation";
+    let unrelated_value = "b2%20trial%20%2B%20caf%C3%A9%20%25";
     let path = uuid::Uuid::new_v4().to_string();
     let expire = Duration::from_secs(60);
     let default_request = op.presign_write(&path, expire).await?;
-    assert_eq!(default_request.header()[header::CONTENT_TYPE], "b2/x-auto");
+    let headers = default_request.header();
+    assert_eq!(headers[header::CONTENT_TYPE], "b2/x-auto");
+    assert!(!headers.contains_key(reserved));
+    assert!(!headers.contains_key(metadata_cache_control));
+    assert!(!headers.contains_key(header::CACHE_CONTROL));
 
-    let request = op
-        .presign_write_options(
-            &path,
-            expire,
-            options::WriteOptions {
-                content_type: Some("application/json".to_owned()),
-                user_metadata: Some(
-                    [(
-                        "application-validation".to_owned(),
-                        "b2 trial + café %".to_owned(),
-                    )]
-                    .into(),
-                ),
-                ..Default::default()
-            },
-        )
+    let mut options = options::WriteOptions {
+        content_type: Some("application/json".to_owned()),
+        user_metadata: Some(
+            [
+                ("application-validation", "b2 trial + café %"),
+                ("cache-control", "no-cache"),
+                ("Cache-Control", "no-store"),
+                ("b2-cache-control", "max-age=30"),
+                ("B2-Cache-Control", "max-age=60"),
+            ]
+            .map(|(key, value)| (key.to_owned(), value.to_owned()))
+            .into(),
+        ),
+        ..Default::default()
+    };
+    let metadata_only = op
+        .presign_write_options(&path, expire, options.clone())
         .await?;
-    assert_eq!(request.header()[header::CONTENT_TYPE], "application/json");
-    assert_eq!(
-        request.header()["x-bz-info-application-validation"],
-        "b2%20trial%20%2B%20caf%C3%A9%20%25"
-    );
+    let headers = metadata_only.header();
+    assert_eq!(headers[header::CONTENT_TYPE], "application/json");
+    assert_eq!(headers[unrelated], unrelated_value);
+    assert!(!headers.contains_key(header::CACHE_CONTROL));
+    for (name, expected) in [
+        (reserved, ["max-age%3D30", "max-age%3D60"]),
+        (metadata_cache_control, ["no-cache", "no-store"]),
+    ] {
+        let mut values: Vec<_> = headers
+            .get_all(name)
+            .iter()
+            .map(|value| value.to_str().unwrap())
+            .collect();
+        values.sort_unstable();
+        assert_eq!(values, expected, "{name}");
+    }
+
+    options.cache_control = Some("private, max-age=137".to_owned());
+    let combined = op.presign_write_options(&path, expire, options).await?;
+    let headers = combined.header();
+    assert_eq!(headers.get_all(reserved).iter().count(), 1);
+    assert_eq!(headers[reserved], "private%2C%20max-age%3D137");
+    assert_eq!(headers[unrelated], unrelated_value);
+    assert!(!headers.contains_key(metadata_cache_control));
+    assert!(!headers.contains_key(header::CACHE_CONTROL));
     Ok(())
 }
 

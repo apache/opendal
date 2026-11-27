@@ -26,6 +26,7 @@ mod metadata;
 mod options;
 mod parser;
 mod python;
+mod ruby;
 
 use crate::workspace_dir;
 use anyhow::Result;
@@ -35,6 +36,9 @@ pub fn run(language: &str) -> Result<()> {
 
     if language == "gcs-grpc" {
         return gcs_grpc::generate(workspace_dir);
+    }
+    if language == "ruby" || language == "rb" {
+        return ruby::generate(&workspace_dir);
     }
 
     let mut services = parser::Services::new();

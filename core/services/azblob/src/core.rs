@@ -327,6 +327,10 @@ impl AzblobCore {
             req = req.header(CONTENT_TYPE, ty)
         }
 
+        if let Some(disposition) = args.content_disposition() {
+            req = req.header("x-ms-blob-content-disposition", disposition);
+        }
+
         // Specify the wildcard character (*) to perform the operation only if
         // the resource does not exist, and fail the operation if it does exist.
         if args.if_not_exists() {

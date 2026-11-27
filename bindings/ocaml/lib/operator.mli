@@ -480,52 +480,10 @@ module Lister : sig
       ]} *)
 end
 
+module Metadata : module type of Metadata
 (** {2 Metadata Operations}
 
     Module for accessing file and directory metadata. *)
-module Metadata : sig
-  val is_file : Opendal_core.Operator.metadata -> bool
-  (** [is_file metadata] checks if the metadata represents a file.
-
-      Example:
-      {[
-      if Metadata.is_file meta then print_endline "It's a file"
-      ]} *)
-
-  val is_dir : Opendal_core.Operator.metadata -> bool
-  (** [is_dir metadata] checks if the metadata represents a directory.
-
-      Example:
-      {[
-      if Metadata.is_dir meta then print_endline "It's a directory"
-      ]} *)
-
-  val content_length : Opendal_core.Operator.metadata -> int64
-  (** [content_length metadata] gets the size of the content in bytes.
-
-      Example:
-      {[
-      printf "File size: %Ld bytes\n" (Metadata.content_length meta)
-      ]} *)
-
-  val content_md5 : Opendal_core.Operator.metadata -> string option
-  (** [content_md5 metadata] gets the MD5 hash of the content, if available. *)
-
-  val content_type : Opendal_core.Operator.metadata -> string option
-  (** [content_type metadata] gets the MIME type of the content, if available.
-  *)
-
-  val content_disposition : Opendal_core.Operator.metadata -> string option
-  (** [content_disposition metadata] gets the Content-Disposition header, if
-      available. *)
-
-  val etag : Opendal_core.Operator.metadata -> string option
-  (** [etag metadata] gets the ETag of the content, if available. *)
-
-  val last_modified : Opendal_core.Operator.metadata -> int64 option
-  (** [last_modified metadata] gets the last modification time as Unix
-      timestamp, if available. *)
-end
 
 (** {2 Entry Operations}
 

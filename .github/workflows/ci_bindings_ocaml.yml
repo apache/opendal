@@ -26,6 +26,7 @@ on:
       - main
     paths:
       - "core/core/src/types/capability.rs"
+      - "core/core/src/types/metadata.rs"
       - "dev/src/generate/**"
       - "bindings/ocaml/**"
       - ".github/actions/setup-ocaml/**"

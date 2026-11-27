@@ -616,7 +616,53 @@ fn build_endpoint(uri: &Uri, bucket: &str) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
+    use http::header::CONTENT_ENCODING;
+
     use super::*;
+
+    #[tokio::test]
+    async fn presign_write_signs_optional_content_encoding() {
+        let op = Operator::new(
+            CosBuilder::default()
+                .bucket("test")
+                .endpoint("https://cos.example.com")
+                .secret_id("test")
+                .secret_key("test")
+                .disable_config_load(),
+        )
+        .unwrap();
+
+        for encoding in [Some("gzip"), None] {
+            let request = op
+                .presign_write_options(
+                    "object.txt",
+                    Duration::from_secs(60),
+                    options::WriteOptions {
+                        content_type: Some("text/plain".to_owned()),
+                        content_encoding: encoding.map(str::to_owned),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .unwrap();
+            let values: Vec<_> = request.header().get_all(CONTENT_ENCODING).iter().collect();
+            assert_eq!(values.as_slice(), encoding.as_slice());
+
+            let signed_headers = request
+                .uri()
+                .query()
+                .unwrap()
+                .split('&')
+                .find_map(|param| param.strip_prefix("q-header-list="))
+                .map(percent_decode_path)
+                .expect("missing COS signed headers");
+            let signed_count = signed_headers
+                .split(';')
+                .filter(|name| *name == CONTENT_ENCODING.as_str())
+                .count();
+            assert_eq!(signed_count, usize::from(encoding.is_some()));
+        }
+    }
 
     fn endpoint_of(raw: &str, bucket: &str) -> String {
         build_endpoint(&raw.parse::<Uri>().unwrap(), bucket).unwrap()

@@ -19,11 +19,15 @@ use crate::generate::parser::{Config, ConfigType, Services, sorted_services};
 use anyhow::{Result, bail};
 use minijinja::value::ViaDeserialize;
 use minijinja::{Environment, context};
+use regex::{Captures, Regex};
 use serde::Serialize;
+use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use super::capability;
+use super::core_options::{self, OptionField, OptionKind, OptionsStruct};
 use super::metadata::{self, MetadataKind};
 
 /// Fields present in the legacy 46-parameter public `Capability` constructor.
@@ -117,6 +121,124 @@ struct MetadataField {
     jni_argument: String,
 }
 
+struct OptionsSpec {
+    name: &'static str,
+    fields: &'static [(&'static str, OptionKind)],
+}
+
+/// Field order and kinds used by the existing Java constructors and builders.
+const EXISTING_OPTIONS_FIELDS: &[OptionsSpec] = {
+    use OptionKind::*;
+
+    &[
+        OptionsSpec {
+            name: "DeleteOptions",
+            fields: &[
+                ("version", OptionString),
+                ("recursive", Bool),
+                ("if_match", OptionString),
+                ("if_none_match", OptionString),
+                ("if_version_match", OptionString),
+                ("if_version_not_match", OptionString),
+                ("if_not_changed", OptionMetadata),
+            ],
+        },
+        OptionsSpec {
+            name: "ListOptions",
+            fields: &[
+                ("recursive", Bool),
+                ("limit", OptionUsize),
+                ("start_after", OptionString),
+                ("versions", Bool),
+                ("deleted", Bool),
+            ],
+        },
+        OptionsSpec {
+            name: "ReadOptions",
+            fields: &[
+                ("range", BytesRange),
+                ("version", OptionString),
+                ("if_match", OptionString),
+                ("if_none_match", OptionString),
+                ("if_version_match", OptionString),
+                ("if_version_not_match", OptionString),
+                ("if_modified_since", OptionTimestamp),
+                ("if_unmodified_since", OptionTimestamp),
+                ("concurrent", Usize),
+                ("chunk", OptionUsize),
+                ("content_length_hint", OptionU64),
+                ("override_content_type", OptionString),
+                ("override_cache_control", OptionString),
+                ("override_content_disposition", OptionString),
+            ],
+        },
+        OptionsSpec {
+            name: "ReaderOptions",
+            fields: &[
+                ("version", OptionString),
+                ("if_match", OptionString),
+                ("if_none_match", OptionString),
+                ("if_version_match", OptionString),
+                ("if_version_not_match", OptionString),
+                ("if_modified_since", OptionTimestamp),
+                ("if_unmodified_since", OptionTimestamp),
+                ("concurrent", Usize),
+                ("chunk", OptionUsize),
+                ("prefetch", Usize),
+                ("content_length_hint", OptionU64),
+            ],
+        },
+        OptionsSpec {
+            name: "StatOptions",
+            fields: &[
+                ("if_match", OptionString),
+                ("if_none_match", OptionString),
+                ("if_version_match", OptionString),
+                ("if_version_not_match", OptionString),
+                ("if_modified_since", OptionTimestamp),
+                ("if_unmodified_since", OptionTimestamp),
+                ("version", OptionString),
+                ("override_content_type", OptionString),
+                ("override_cache_control", OptionString),
+                ("override_content_disposition", OptionString),
+            ],
+        },
+        OptionsSpec {
+            name: "WriteOptions",
+            fields: &[
+                ("content_type", OptionString),
+                ("content_disposition", OptionString),
+                ("cache_control", OptionString),
+                ("content_encoding", OptionString),
+                ("if_match", OptionString),
+                ("if_none_match", OptionString),
+                ("user_metadata", OptionStringMap),
+                ("append", Bool),
+                ("if_not_exists", Bool),
+                ("concurrent", Usize),
+                ("chunk", OptionUsize),
+            ],
+        },
+    ]
+};
+
+#[derive(Serialize)]
+struct OptionsClass<'a> {
+    name: &'a str,
+    summary: String,
+    imports: BTreeSet<&'static str>,
+    properties: Vec<OptionProperty>,
+}
+
+#[derive(Serialize)]
+struct OptionProperty {
+    camel: String,
+    java_type: &'static str,
+    default_value: Option<&'static str>,
+    summary: String,
+    see_also: Vec<String>,
+}
+
 fn enabled_service(srv: &str) -> bool {
     match srv {
         // not enabled in bindings/java/Cargo.toml
@@ -128,7 +250,8 @@ fn enabled_service(srv: &str) -> bool {
 pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     generate_service_config(&workspace_dir, services)?;
     generate_capability(&workspace_dir)?;
-    generate_metadata(&workspace_dir)
+    generate_metadata(&workspace_dir)?;
+    generate_options(&workspace_dir)
 }
 
 fn generate_service_config(workspace_dir: &Path, services: Services) -> Result<()> {
@@ -294,6 +417,235 @@ fn generate_metadata(workspace_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+fn generate_options(workspace_dir: &Path) -> Result<()> {
+    let source = workspace_dir.join("core/core/src/types/options.rs");
+    let parsed = core_options::parse(&source)?;
+    let env = Environment::new();
+    let template = env.template_from_str(include_str!("java/options_java.j2"))?;
+    let java_dir = workspace_dir.join("bindings/java/src/main/java/org/apache/opendal");
+
+    for spec in EXISTING_OPTIONS_FIELDS {
+        let Some(options) = parsed.iter().find(|options| options.name == spec.name) else {
+            bail!(
+                "options struct {} not found in {}",
+                spec.name,
+                source.display()
+            );
+        };
+        let fields = select_options_fields(options, spec)?;
+        let class = options_class(options, spec, &fields)?;
+        let rendered = template.render(context! { class => class })?;
+        fs::write(
+            java_dir.join(format!("{}.java", class.name)),
+            format!("{rendered}\n"),
+        )?;
+    }
+    Ok(())
+}
+
+fn select_options_fields<'a>(
+    options: &'a OptionsStruct,
+    spec: &OptionsSpec,
+) -> Result<Vec<&'a OptionField>> {
+    let mut by_name = HashMap::new();
+    for field in &options.fields {
+        if by_name.insert(field.name.as_str(), field).is_some() {
+            bail!(
+                "core {} contains duplicate field `{}`",
+                options.name,
+                field.name
+            );
+        }
+    }
+
+    spec.fields
+        .iter()
+        .map(|&(name, expected)| {
+            let Some(&field) = by_name.get(name) else {
+                bail!("core {} is missing Java field `{name}`", options.name);
+            };
+            if field.kind != expected {
+                bail!(
+                    "core {} field `{name}` has kind {:?}; Java requires {expected:?}",
+                    options.name,
+                    field.kind
+                );
+            }
+            Ok(field)
+        })
+        .collect()
+}
+
+fn options_class<'a>(
+    options: &'a OptionsStruct,
+    spec: &OptionsSpec,
+    fields: &[&OptionField],
+) -> Result<OptionsClass<'a>> {
+    let mut imports = BTreeSet::new();
+    let mut properties = Vec::new();
+    for field in fields {
+        let name = field.name.as_str();
+        let (java_type, default_value) = match field.kind {
+            OptionKind::Bool => ("boolean", None),
+            OptionKind::Usize if name == "prefetch" => ("int", Some("0")),
+            OptionKind::Usize => ("int", Some("1")),
+            OptionKind::OptionUsize | OptionKind::OptionU64 => ("long", Some("-1L")),
+            OptionKind::OptionString => ("String", None),
+            OptionKind::OptionTimestamp => {
+                imports.insert("java.time.Instant");
+                ("Instant", None)
+            }
+            OptionKind::OptionStringMap => {
+                imports.insert("java.util.Map");
+                ("Map<String, String>", None)
+            }
+            OptionKind::OptionMetadata => ("Metadata", None),
+            OptionKind::BytesRange => {
+                properties.extend([
+                    OptionProperty {
+                        camel: "offset".to_owned(),
+                        java_type: "long",
+                        default_value: None,
+                        summary: "The byte offset to start reading from. Defaults to zero.".to_owned(),
+                        see_also: Vec::new(),
+                    },
+                    OptionProperty {
+                        camel: "length".to_owned(),
+                        java_type: "long",
+                        default_value: Some("-1L"),
+                        summary: "The number of bytes to read from {@link #offset}. The default of {@code -1L} reads to the end.".to_owned(),
+                        see_also: Vec::new(),
+                    },
+                ]);
+                continue;
+            }
+            OptionKind::OptionDuration => bail!("unsupported Java option {}::{name}", options.name),
+        };
+        properties.push(OptionProperty {
+            camel: case_java_field_name(name),
+            java_type,
+            default_value,
+            summary: option_javadoc(&field.doc, spec, Some(name)),
+            see_also: option_capability_refs(&field.doc),
+        });
+    }
+
+    Ok(OptionsClass {
+        name: &options.name,
+        summary: option_javadoc(&options.doc, spec, None),
+        imports,
+        properties,
+    })
+}
+
+/// Translate inline Rustdoc links and code spans in the first paragraph.
+fn option_javadoc(lines: &[String], spec: &OptionsSpec, current: Option<&str>) -> String {
+    static INLINE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"\[(?P<label>[^\]]+)\](?:\((?P<url>[^)]+)\)|\[(?P<reference>[^\]]+)\])|\[`(?P<path>[^`]+)`\]|`(?P<code>[^`]+)`")
+            .expect("valid inline Rustdoc regex")
+    });
+    let paragraph = lines
+        .iter()
+        .take_while(|line| !line.is_empty())
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut summary = String::new();
+    let mut end = 0;
+    for captures in INLINE.captures_iter(&paragraph) {
+        let token = captures.get(0).expect("matched inline token");
+        summary.push_str(&escape_javadoc(&paragraph[end..token.start()]));
+        summary.push_str(&option_javadoc_token(&captures, spec, current));
+        end = token.end();
+    }
+    summary.push_str(&escape_javadoc(&paragraph[end..]));
+    summary
+}
+
+fn option_javadoc_token(
+    captures: &Captures<'_>,
+    spec: &OptionsSpec,
+    current: Option<&str>,
+) -> String {
+    let group = |name| captures.name(name).map(|value| value.as_str());
+    if let Some(url) = group("url")
+        && (url.starts_with("https://") || url.starts_with("http://"))
+    {
+        return format!(
+            "<a href=\"{}\">{}</a>",
+            escape_javadoc(url).replace('"', "&quot;"),
+            escape_javadoc(group("label").expect("link has a label").trim_matches('`')),
+        );
+    }
+
+    let target = group("url")
+        .or_else(|| group("reference"))
+        .or_else(|| group("path"))
+        .or_else(|| group("code"))
+        .expect("inline token has a target");
+    let target = target.trim_matches('`');
+    let path = target.strip_prefix("crate::").unwrap_or(target);
+    let sibling = path.strip_prefix("Self::").unwrap_or(path);
+    if current != Some(sibling)
+        && spec
+            .fields
+            .iter()
+            .any(|&(name, kind)| name == sibling && kind != OptionKind::BytesRange)
+    {
+        return format!("{{@link #{}}}", case_java_field_name(sibling));
+    }
+
+    let (ty, member) = path.split_once("::").unwrap_or((path, ""));
+    match (ty, member) {
+        ("Capability" | "Metadata", "") => format!("{{@link {ty}}}"),
+        ("Capability", field) => format!("{{@link Capability#{}}}", case_java_field_name(field)),
+        ("Metadata", field)
+            if EXISTING_METADATA_FIELDS
+                .iter()
+                .any(|&(name, _)| name == field) =>
+        {
+            format!("{{@link Metadata#{}}}", case_java_field_name(field))
+        }
+        ("ErrorKind", "") => "{@link OpenDALException.Code}".to_owned(),
+        ("ErrorKind", variant) => format!("{{@link OpenDALException.Code#{variant}}}"),
+        (ty, "") if EXISTING_OPTIONS_FIELDS.iter().any(|spec| spec.name == ty) => {
+            format!("{{@link {ty}}}")
+        }
+        (ty, field)
+            if EXISTING_OPTIONS_FIELDS.iter().any(|spec| {
+                spec.name == ty
+                    && spec
+                        .fields
+                        .iter()
+                        .any(|&(name, kind)| name == field && kind != OptionKind::BytesRange)
+            }) =>
+        {
+            format!("{{@link {ty}#{}}}", case_java_field_name(field))
+        }
+        _ => format!("{{@code {path}}}"),
+    }
+}
+
+fn escape_javadoc(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+fn option_capability_refs(lines: &[String]) -> Vec<String> {
+    static CAPABILITY: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"\bCapability::([a-z][a-z0-9_]*)").expect("valid capability reference regex")
+    });
+    let mut refs = Vec::new();
+    for captures in lines.iter().flat_map(|line| CAPABILITY.captures_iter(line)) {
+        let cref = format!("Capability#{}", case_java_field_name(&captures[1]));
+        if !refs.contains(&cref) {
+            refs.push(cref);
+        }
+    }
+    refs
+}
+
 fn case_java_class_name(s: &str) -> String {
     heck::AsUpperCamelCase(s).to_string()
 }
@@ -412,6 +764,181 @@ mod tests {
                 "legacy capability field `{legacy}` is missing from core Capability"
             );
         }
+    }
+
+    fn core_options_structs() -> Vec<OptionsStruct> {
+        let path = crate::workspace_dir().join("core/core/src/types/options.rs");
+        core_options::parse(&path).expect("core options must parse")
+    }
+
+    #[test]
+    fn test_options_fields_follow_existing_java_order() {
+        let expected = [
+            (
+                "DeleteOptions",
+                "version recursive ifMatch ifNoneMatch ifVersionMatch ifVersionNotMatch ifNotChanged",
+            ),
+            ("ListOptions", "recursive limit startAfter versions deleted"),
+            (
+                "ReadOptions",
+                "offset length version ifMatch ifNoneMatch ifVersionMatch ifVersionNotMatch ifModifiedSince ifUnmodifiedSince concurrent chunk contentLengthHint overrideContentType overrideCacheControl overrideContentDisposition",
+            ),
+            (
+                "ReaderOptions",
+                "version ifMatch ifNoneMatch ifVersionMatch ifVersionNotMatch ifModifiedSince ifUnmodifiedSince concurrent chunk prefetch contentLengthHint",
+            ),
+            (
+                "StatOptions",
+                "ifMatch ifNoneMatch ifVersionMatch ifVersionNotMatch ifModifiedSince ifUnmodifiedSince version overrideContentType overrideCacheControl overrideContentDisposition",
+            ),
+            (
+                "WriteOptions",
+                "contentType contentDisposition cacheControl contentEncoding ifMatch ifNoneMatch userMetadata append ifNotExists concurrent chunk",
+            ),
+        ];
+        let mut structs = core_options_structs();
+        assert_eq!(EXISTING_OPTIONS_FIELDS.len(), expected.len());
+        let env = Environment::new();
+        let template = env
+            .template_from_str(include_str!("java/options_java.j2"))
+            .unwrap();
+
+        for (spec, (name, names)) in EXISTING_OPTIONS_FIELDS.iter().zip(expected) {
+            assert_eq!(spec.name, name);
+            let options = structs
+                .iter_mut()
+                .find(|options| options.name == name)
+                .unwrap();
+            options.fields.reverse();
+            let fields = select_options_fields(options, spec).unwrap();
+            let class = options_class(options, spec, &fields).unwrap();
+            let names: Vec<_> = names.split_whitespace().collect();
+            assert_eq!(
+                class
+                    .properties
+                    .iter()
+                    .map(|p| p.camel.as_str())
+                    .collect::<Vec<_>>(),
+                names,
+                "{name}"
+            );
+
+            let rendered = template.render(context! { class => class }).unwrap();
+            let (annotations, modifiers) = match name {
+                "StatOptions" => ("@Data\n@Builder\npublic class", "private"),
+                "ReaderOptions" => ("@Builder\npublic final class", "public final"),
+                _ => ("@Builder\npublic class", "public final"),
+            };
+            assert!(rendered.contains(&format!("{annotations} {name} {{")));
+            assert_eq!(rendered.contains("@Data"), name == "StatOptions");
+            assert!(!rendered.contains("toBuilder"));
+            assert_eq!(
+                rendered.matches(&format!("    {modifiers} ")).count(),
+                names.len()
+            );
+            if name == "DeleteOptions" {
+                assert!(rendered.contains("Use a trailing slash (for example, {@code \"a/\"})"));
+                assert!(rendered.contains(
+                    "such as {@code \"a\"} can also match entries under {@code \"ab/\"}"
+                ));
+            }
+        }
+    }
+
+    #[test]
+    fn test_options_fields_reject_missing_field() {
+        let mut options = core_options_structs()
+            .into_iter()
+            .find(|options| options.name == "ListOptions")
+            .unwrap();
+        let spec = EXISTING_OPTIONS_FIELDS
+            .iter()
+            .find(|spec| spec.name == options.name)
+            .unwrap();
+        options.fields.retain(|field| field.name != "limit");
+        let err = select_options_fields(&options, spec).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "core ListOptions is missing Java field `limit`"
+        );
+    }
+
+    #[test]
+    fn test_options_fields_reject_duplicate_unexposed_field() {
+        let mut options = core_options_structs()
+            .into_iter()
+            .find(|options| options.name == "ListOptions")
+            .unwrap();
+        let spec = EXISTING_OPTIONS_FIELDS
+            .iter()
+            .find(|spec| spec.name == options.name)
+            .unwrap();
+        options.fields.push(
+            options
+                .fields
+                .iter()
+                .find(|field| field.name == "glob")
+                .unwrap()
+                .clone(),
+        );
+        let err = select_options_fields(&options, spec).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "core ListOptions contains duplicate field `glob`"
+        );
+    }
+
+    #[test]
+    fn test_options_fields_reject_mismatched_kind() {
+        let mut options = core_options_structs()
+            .into_iter()
+            .find(|options| options.name == "ListOptions")
+            .unwrap();
+        let spec = EXISTING_OPTIONS_FIELDS
+            .iter()
+            .find(|spec| spec.name == options.name)
+            .unwrap();
+        options
+            .fields
+            .iter_mut()
+            .find(|field| field.name == "limit")
+            .unwrap()
+            .kind = OptionKind::OptionU64;
+        let err = select_options_fields(&options, spec).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "core ListOptions field `limit` has kind OptionU64; Java requires OptionUsize"
+        );
+    }
+
+    #[test]
+    fn test_option_javadoc_translates_inline_links() {
+        let spec = EXISTING_OPTIONS_FIELDS
+            .iter()
+            .find(|spec| spec.name == "ListOptions")
+            .unwrap();
+        let lines = [
+            "Use [`Self::start_after`] & [`crate::Capability::list_with_limit`]",
+            "or [the guide](https://example.com/list?a=b&c=d).",
+            "See [`Self::glob`], [`ReadOptions::chunk`], [`ReadOptions::gap`],",
+            "[`CopyOptions`], [`crate::Reader::fetch`], and [`Metadata::checksum`].",
+            "",
+            "Check `Capability::list_with_limit` and `Capability::list_with_versions`.",
+        ]
+        .map(str::to_owned);
+        assert_eq!(
+            option_javadoc(&lines, spec, None),
+            concat!(
+                "Use {@link #startAfter} &amp; {@link Capability#listWithLimit} ",
+                "or <a href=\"https://example.com/list?a=b&amp;c=d\">the guide</a>. ",
+                "See {@code Self::glob}, {@link ReadOptions#chunk}, {@code ReadOptions::gap}, ",
+                "{@code CopyOptions}, {@code Reader::fetch}, and {@code Metadata::checksum}."
+            )
+        );
+        assert_eq!(
+            option_capability_refs(&lines),
+            ["Capability#listWithLimit", "Capability#listWithVersions"]
+        );
     }
 
     fn core_metadata_fields() -> Vec<metadata::MetadataField> {

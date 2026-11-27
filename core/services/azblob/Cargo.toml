@@ -53,10 +53,10 @@ uuid = { workspace = true, features = ["v4", "serde"] }
 reqsign-command-execute-tokio = { version = "4.0.0", default-features = false }
 
 [dev-dependencies]
+futures = { workspace = true }
 opendal-core = { path = "../../core", version = "0.59.5", default-features = false, features = [
   "reqsign-rustcrypto",
 ] }
-futures = { workspace = true }
 opendal-executor-tokio = { path = "../../executors/tokio", version = "0.59.5" }
 opendal-layer-retry = { path = "../../layers/retry", version = "0.59.5" }
 pretty_assertions = "1"

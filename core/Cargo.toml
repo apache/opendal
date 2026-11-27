@@ -433,16 +433,3 @@ tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = [
   "registry",
 ] }
-
-[patch.crates-io]
-reqsign-aliyun-oss = { git = "https://github.com/apache/reqsign.git", rev = "5fad0a9cb4ed97063f171a0c911a67ea57f4a93a" }
-reqsign-aws-v4 = { git = "https://github.com/apache/reqsign.git", rev = "5fad0a9cb4ed97063f171a0c911a67ea57f4a93a" }
-reqsign-azure-storage = { git = "https://github.com/apache/reqsign.git", rev = "5fad0a9cb4ed97063f171a0c911a67ea57f4a93a" }
-reqsign-command-execute-tokio = { git = "https://github.com/apache/reqsign.git", rev = "5fad0a9cb4ed97063f171a0c911a67ea57f4a93a" }
-reqsign-core = { git = "https://github.com/apache/reqsign.git", rev = "5fad0a9cb4ed97063f171a0c911a67ea57f4a93a" }
-reqsign-crypto-rustcrypto = { git = "https://github.com/apache/reqsign.git", rev = "5fad0a9cb4ed97063f171a0c911a67ea57f4a93a" }
-reqsign-file-read-tokio = { git = "https://github.com/apache/reqsign.git", rev = "5fad0a9cb4ed97063f171a0c911a67ea57f4a93a" }
-reqsign-google = { git = "https://github.com/apache/reqsign.git", rev = "5fad0a9cb4ed97063f171a0c911a67ea57f4a93a" }
-reqsign-huaweicloud-obs = { git = "https://github.com/apache/reqsign.git", rev = "5fad0a9cb4ed97063f171a0c911a67ea57f4a93a" }
-reqsign-tencent-cos = { git = "https://github.com/apache/reqsign.git", rev = "5fad0a9cb4ed97063f171a0c911a67ea57f4a93a" }
-reqsign-volcengine-tos = { git = "https://github.com/apache/reqsign.git", rev = "5fad0a9cb4ed97063f171a0c911a67ea57f4a93a" }

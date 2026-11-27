@@ -30,6 +30,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 opendal = { path = "../..", default-features = false, features = [
   "http-transport-reqwest",
+  "reqsign-rustcrypto",
   "services-s3",
 ] }
 wasm-bindgen = "0.2.89"

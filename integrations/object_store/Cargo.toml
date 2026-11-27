@@ -28,6 +28,8 @@ rust-version = "1.95"
 version = "0.60.5"
 
 [features]
+default = ["reqsign-rustcrypto"]
+reqsign-rustcrypto = ["opendal/reqsign-rustcrypto"]
 send_wrapper = ["dep:send_wrapper"]
 services-s3 = ["opendal/services-s3", "object_store/aws"]
 

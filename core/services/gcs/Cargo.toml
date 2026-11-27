@@ -55,10 +55,10 @@ uuid = { workspace = true, features = ["v4"] }
 reqsign-command-execute-tokio = { version = "4.0.0", default-features = false }
 
 [dev-dependencies]
+asyncband = { workspace = true, features = ["latch", "mutex"] }
+futures = { workspace = true }
 opendal-core = { path = "../../core", version = "0.59.5", default-features = false, features = [
   "reqsign-rustcrypto",
 ] }
-asyncband = { workspace = true, features = ["latch", "mutex"] }
-futures = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

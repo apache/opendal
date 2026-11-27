@@ -41,6 +41,7 @@ opendal = { version = ">=0", path = "../../core", default-features = false, feat
   "blocking",
   "http-transport-reqwest",
   "executors-tokio",
+  "reqsign-rustcrypto",
 
   # enabled layers
   "layers-cache",

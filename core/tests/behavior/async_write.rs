@@ -1416,8 +1416,24 @@ fn s3_crc_checksum(algo: ChecksumAlgo, content: &[u8]) -> Checksum {
     }
 }
 
-fn s3_crc_checksums(content: &[u8]) -> [Checksum; 2] {
-    [ChecksumAlgo::Crc32c, ChecksumAlgo::Crc64Nvme].map(|algo| s3_crc_checksum(algo, content))
+fn s3_default_write_checksum(op: &Operator) -> ChecksumAlgo {
+    let info = op.info();
+    if info.scheme() == "s3"
+        && info.name().ends_with("--x-s3")
+        && !info.capability().stat_with_version
+    {
+        ChecksumAlgo::Crc32c
+    } else {
+        ChecksumAlgo::Crc64Nvme
+    }
+}
+
+fn s3_crc_checksums(op: &Operator, content: &[u8]) -> Vec<Checksum> {
+    let mut checksums = vec![s3_crc_checksum(ChecksumAlgo::Crc32c, content)];
+    if s3_default_write_checksum(op) == ChecksumAlgo::Crc64Nvme {
+        checksums.push(s3_crc_checksum(ChecksumAlgo::Crc64Nvme, content));
+    }
+    checksums
 }
 
 /// Return a checksum of the same algorithm and length that does not match.
@@ -1481,7 +1497,7 @@ pub async fn test_write_with_any_checksum(op: Operator) -> Result<()> {
 pub async fn test_write_with_checksum(op: Operator) -> Result<()> {
     let (_, content, _) = TEST_FIXTURE.new_file(op.clone());
 
-    for checksum in s3_crc_checksums(&content) {
+    for checksum in s3_crc_checksums(&op, &content) {
         let path = TEST_FIXTURE.new_file_path();
         let meta = op
             .write_with(&path, content.clone())
@@ -1564,7 +1580,7 @@ async fn test_minio_write_without_crc64nvme_receipt(op: Operator) -> Result<()> 
 pub async fn test_write_with_checksum_mismatch(op: Operator) -> Result<()> {
     let (_, content, _) = TEST_FIXTURE.new_file(op.clone());
 
-    for checksum in s3_crc_checksums(&content) {
+    for checksum in s3_crc_checksums(&op, &content) {
         let (op, attempts) = observe_s3_checksum_write(&op, ServiceOperation("PutObject"));
         let path = TEST_FIXTURE.new_file_path();
         let err = op
@@ -1682,7 +1698,7 @@ async fn test_s3_writer_with_checksum_intent(
 pub async fn test_writer_with_checksum_multipart(op: Operator) -> Result<()> {
     let (chunk, content) = multipart_checksum_content(&op);
 
-    for checksum in s3_crc_checksums(&content) {
+    for checksum in s3_crc_checksums(&op, &content) {
         let path = TEST_FIXTURE.new_file_path();
         let mut writer = op
             .writer_with(&path)
@@ -1719,7 +1735,7 @@ pub async fn test_writer_with_any_checksum_multipart(op: Operator) -> Result<()>
     let meta = writer.close().await?;
     assert_eq!(
         meta.checksum(),
-        Some(s3_crc_checksum(ChecksumAlgo::Crc64Nvme, &content))
+        Some(s3_crc_checksum(s3_default_write_checksum(&op), &content))
     );
     assert_eq!(op.read(&path).await?.to_bytes(), Bytes::from(content));
     Ok(())
@@ -1729,7 +1745,7 @@ pub async fn test_writer_with_any_checksum_multipart(op: Operator) -> Result<()>
 pub async fn test_writer_with_checksum_multipart_mismatch(op: Operator) -> Result<()> {
     let (chunk, content) = multipart_checksum_content(&op);
 
-    for checksum in s3_crc_checksums(&content) {
+    for checksum in s3_crc_checksums(&op, &content) {
         let (op, attempts) =
             observe_s3_checksum_write(&op, ServiceOperation("CompleteMultipartUpload"));
         let path = TEST_FIXTURE.new_file_path();

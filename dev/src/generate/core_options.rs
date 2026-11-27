@@ -80,6 +80,8 @@ pub struct OptionsStruct {
     pub doc: Vec<String>,
     /// The fields in declaration order.
     pub fields: Vec<OptionField>,
+    /// Whether parsing skipped a field that bindings do not mirror yet.
+    pub has_unmirrored_fields: bool,
 }
 
 /// Parse every public `*Options` struct out of the given core source file.
@@ -110,6 +112,7 @@ fn parse_struct(struct_: &ItemStruct) -> Result<OptionsStruct> {
     };
 
     let mut fields = Vec::with_capacity(named.named.len());
+    let mut has_unmirrored_fields = false;
     for field in &named.named {
         let field_name = field
             .ident
@@ -117,6 +120,7 @@ fn parse_struct(struct_: &ItemStruct) -> Result<OptionsStruct> {
             .expect("named field always has an ident")
             .to_string();
         if NOT_MIRRORED.contains(&(name.as_str(), field_name.as_str())) {
+            has_unmirrored_fields = true;
             continue;
         }
         let Some(kind) = classify(&field.ty) else {
@@ -136,6 +140,7 @@ fn parse_struct(struct_: &ItemStruct) -> Result<OptionsStruct> {
         doc: doc_lines(&struct_.attrs),
         name,
         fields,
+        has_unmirrored_fields,
     })
 }
 
@@ -212,5 +217,29 @@ mod tests {
         assert_eq!(kind("user_metadata"), OptionKind::OptionStringMap);
         assert_eq!(kind("if_not_changed"), OptionKind::OptionMetadata);
         assert!(!write.fields[0].doc.is_empty());
+    }
+
+    #[test]
+    fn test_unmirrored_fields() {
+        let path = crate::workspace_dir().join("core/core/src/types/options.rs");
+        let structs = parse(&path).expect("core options must parse");
+        for (name, expected) in [
+            ("DeleteOptions", false),
+            ("ListOptions", false),
+            ("ReadOptions", false),
+            ("ReaderOptions", false),
+            ("StatOptions", false),
+            ("WriteOptions", true),
+        ] {
+            let options = structs.iter().find(|options| options.name == name).unwrap();
+            assert_eq!(options.has_unmirrored_fields, expected, "{name}");
+        }
+
+        let without_checksum = syn::parse_quote! { pub struct WriteOptions { pub append: bool } };
+        assert!(
+            !parse_struct(&without_checksum)
+                .unwrap()
+                .has_unmirrored_fields
+        );
     }
 }

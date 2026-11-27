@@ -25,6 +25,8 @@ on:
     branches:
       - main
     paths:
+      - "core/core/src/types/capability.rs"
+      - "dev/src/generate/**"
       - "bindings/cpp/**"
       - "examples/cpp/**"
       - ".github/actions/setup/**"
@@ -61,6 +63,14 @@ jobs:
       - name: Clippy Check
         working-directory: "bindings/cpp"
         run: cargo clippy -- -D warnings
+
+      - name: Regenerate code from core
+        run: |
+          cargo run --manifest-path=dev/Cargo.toml -- generate -l cpp
+          cargo fmt --manifest-path bindings/cpp/Cargo.toml --all
+
+      - name: Check diff
+        run: git diff --exit-code
 
       - name: Build Cpp binding && Run tests
         working-directory: "bindings/cpp"

@@ -17,6 +17,7 @@ service.
 - **Services & configuration**: [opendal.apache.org/services](https://opendal.apache.org/services)
 - **Source**: [`bindings/cpp/`](https://github.com/apache/opendal/tree/main/bindings/cpp)
 - **Examples**: [`examples/cpp/`](https://github.com/apache/opendal/tree/main/examples/cpp)
+- **Upgrade guide**: [`upgrade.md`](./upgrade.md)
 
 ## Integration via CMake
 

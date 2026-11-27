@@ -44,7 +44,7 @@ asyncband = { version = "0.8.0", features = ["mutex"] }
 bytes = "1"
 chrono = { version = "0.4.42", features = ["std", "clock"] }
 futures = "0.3"
-object_store = "0.14.1"
+object_store = "0.14.2"
 opendal = { version = "0.59.5", path = "../../core", default-features = false, features = [
   "auto-simulate",
 ] }

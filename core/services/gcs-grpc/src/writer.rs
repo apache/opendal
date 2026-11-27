@@ -17,6 +17,7 @@
 
 use std::sync::Arc;
 
+use crc_fast::{CrcAlgorithm, Digest};
 use futures::stream;
 
 use opendal_core::raw::*;
@@ -33,6 +34,7 @@ pub(super) struct GcsGrpcWriter {
     ctx: OperationContext,
     path: String,
     args: OpWrite,
+    crc32c: Option<WriteCrc32c>,
     buffer: Option<Buffer>,
     upload_id: Option<String>,
     write_offset: i64,
@@ -46,27 +48,77 @@ impl GcsGrpcWriter {
         ctx: OperationContext,
         path: &str,
         args: OpWrite,
-    ) -> Self {
-        Self {
+    ) -> Result<Self> {
+        let crc32c = if let Some(intent) = args.checksum() {
+            args.check(&core.capability)?;
+            Some(match intent {
+                WriteChecksum::Any
+                | WriteChecksum::Fast
+                | WriteChecksum::Algo(ChecksumAlgo::Crc32c) => {
+                    WriteCrc32c::Computed(Box::new(Digest::new(CrcAlgorithm::Crc32Iscsi)))
+                }
+                WriteChecksum::Expected(checksum) if checksum.algo == ChecksumAlgo::Crc32c => {
+                    let value = checksum.value.try_into().map_err(|_| {
+                        Error::new(
+                            ErrorKind::ConfigInvalid,
+                            "CRC32C requires a four-byte digest",
+                        )
+                    })?;
+                    WriteCrc32c::Expected(u32::from_be_bytes(value))
+                }
+                _ => {
+                    return Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "GCS gRPC write checksums require CRC32C",
+                    ));
+                }
+            })
+        } else {
+            None
+        };
+        Ok(Self {
             core,
             ctx,
             path: path.to_string(),
             args,
+            crc32c,
             buffer: None,
             upload_id: None,
             write_offset: 0,
             pending: None,
             state: GcsGrpcWriterState::Open,
-        }
+        })
     }
 
     fn error_context(&self, service_operation: ServiceOperation) -> ErrorContext {
         ErrorContext::new(service_operation).with_if_not_exists(self.args.if_not_exists())
     }
 
+    fn parse_write_status(&self, status: tonic::Status, checksum_sent: bool) -> Error {
+        if checksum_sent && status.code() == tonic::Code::InvalidArgument {
+            let message = status.message().to_ascii_lowercase();
+            if message.starts_with("object crc32c mismatch")
+                && message.contains("server computed")
+                && message.contains("client provided")
+            {
+                return Error::new(
+                    ErrorKind::ChecksumMismatch,
+                    "GCS rejected the full-object CRC32C",
+                )
+                .with_context("grpc_code", status.code().description())
+                .with_context("service_operation", "WriteObject");
+            }
+        }
+        parse_status(self.error_context(ServiceOperation("WriteObject")), status)
+    }
+
     fn ensure_open(&self) -> Result<()> {
         match self.state {
             GcsGrpcWriterState::Open => Ok(()),
+            GcsGrpcWriterState::FinalizeFailed => Err(Error::new(
+                ErrorKind::Unexpected,
+                "writer cannot retry finalization",
+            )),
             GcsGrpcWriterState::Closed => Err(Error::new(
                 ErrorKind::Unexpected,
                 "writer is already closed",
@@ -142,25 +194,47 @@ impl GcsGrpcWriter {
         Ok(())
     }
 
-    async fn write_once(&self, body: Buffer) -> Result<Object> {
+    fn hash_accepted(&mut self, body: &Buffer) {
+        if let Some(WriteCrc32c::Computed(digest)) = &mut self.crc32c {
+            for chunk in body.clone() {
+                digest.update(&chunk);
+            }
+        }
+    }
+
+    async fn write_once(&mut self, body: Buffer) -> Result<Metadata> {
+        let size = body.len();
+        let crc32c = self.crc32c.as_ref().map(WriteCrc32c::value);
         let first_message = write_object_request::FirstMessage::WriteObjectSpec(self.write_spec());
-        let requests = write_object_requests(body, 0, true, first_message)?;
+        let requests = write_object_requests(body, 0, true, crc32c, first_message)?;
         let bucket = self.core.bucket_resource();
         let request = self
             .core
             .request(&self.ctx, requests, &[("bucket", &bucket)])
             .await?;
+        if crc32c.is_some() {
+            // A cancelled or lost single-request response has no upload ID to query.
+            self.state = GcsGrpcWriterState::FinalizeFailed;
+        }
         let response = self
             .core
             .client()
             .write_object(request)
             .await
             .map_err(|status| {
-                parse_status(self.error_context(ServiceOperation("WriteObject")), status)
+                let error = self.parse_write_status(status, crc32c.is_some());
+                if crc32c.is_some() {
+                    error.set_permanent()
+                } else {
+                    error
+                }
             })?
             .into_inner();
         match response.write_status {
-            Some(write_object_response::WriteStatus::Resource(object)) => Ok(object),
+            Some(write_object_response::WriteStatus::Resource(object)) => {
+                let size = i64::try_from(size).expect("validated GCS write size must fit in i64");
+                self.finish_write(object, size, crc32c)
+            }
             _ => Err(Error::new(
                 ErrorKind::Unexpected,
                 "GCS write completed without object metadata",
@@ -168,25 +242,62 @@ impl GcsGrpcWriter {
         }
     }
 
-    async fn finish_pending(&mut self) -> Result<Option<Object>> {
-        let outcome = self.drive_pending().await?;
+    fn finish_write(&mut self, object: Object, size: i64, crc32c: Option<u32>) -> Result<Metadata> {
+        self.write_offset = size;
+        self.buffer = None;
+        self.upload_id = None;
+        self.state = GcsGrpcWriterState::FinalizeFailed;
+
+        let mut metadata = parse_object(&object);
+        if let Some(crc32c) = crc32c {
+            if object.name != self.core.object_name(&self.path)
+                || object.bucket != self.core.bucket_resource()
+                || object.generation <= 0
+                || object.size != size
+            {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "GCS write returned an incomplete or inconsistent object receipt",
+                ));
+            }
+            if object.checksums.and_then(|checksums| checksums.crc32c) != Some(crc32c) {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "GCS completed the write without confirming the full-object CRC32C",
+                ));
+            }
+            let mut builder = metadata.into_builder();
+            builder.checksum(Checksum::new(ChecksumAlgo::Crc32c, crc32c.to_be_bytes()));
+            metadata = builder.build();
+        }
+
+        self.state = GcsGrpcWriterState::Closed;
+        Ok(metadata)
+    }
+
+    async fn finish_pending(&mut self) -> Result<Option<Metadata>> {
+        let pending = self.pending.as_ref().expect("pending upload must exist");
+        let crc32c = if pending.finish_write {
+            self.crc32c.as_ref().map(WriteCrc32c::value)
+        } else {
+            None
+        };
+        let outcome = self.drive_pending(crc32c).await?;
         let pending = self
             .pending
             .take()
             .expect("pending upload must exist while finishing");
         match outcome {
             UploadOutcome::Persisted(size) if !pending.finish_write => {
+                // A retried request may send only a suffix of the same logical write.
+                self.hash_accepted(&pending.incoming);
                 self.write_offset = size;
                 self.buffer = Some(pending.tail);
                 Ok(None)
             }
-            UploadOutcome::Finalized(object) if pending.finish_write => {
-                self.write_offset = pending.end_offset()?;
-                self.buffer = None;
-                self.upload_id = None;
-                self.state = GcsGrpcWriterState::Closed;
-                Ok(Some(*object))
-            }
+            UploadOutcome::Finalized(object) if pending.finish_write => self
+                .finish_write(*object, pending.end_offset()?, crc32c)
+                .map(Some),
             UploadOutcome::Persisted(_) => Err(Error::new(
                 ErrorKind::Unexpected,
                 "GCS write did not finalize the object",
@@ -198,7 +309,7 @@ impl GcsGrpcWriter {
         }
     }
 
-    async fn drive_pending(&mut self) -> Result<UploadOutcome> {
+    async fn drive_pending(&mut self, crc32c: Option<u32>) -> Result<UploadOutcome> {
         loop {
             if self
                 .pending
@@ -249,8 +360,13 @@ impl GcsGrpcWriter {
                 .in_flight = true;
 
             let first_message = write_object_request::FirstMessage::UploadId(upload_id);
-            let requests =
-                write_object_requests(body.clone(), write_offset, finish_write, first_message)?;
+            let requests = write_object_requests(
+                body.clone(),
+                write_offset,
+                finish_write,
+                crc32c,
+                first_message,
+            )?;
             let bucket = self.core.bucket_resource();
             let request = self
                 .core
@@ -262,7 +378,11 @@ impl GcsGrpcWriter {
                 .write_object(request)
                 .await
                 .map_err(|status| {
-                    parse_status(self.error_context(ServiceOperation("WriteObject")), status)
+                    let error = self.parse_write_status(status, crc32c.is_some());
+                    if error.kind() == ErrorKind::ChecksumMismatch {
+                        self.state = GcsGrpcWriterState::FinalizeFailed;
+                    }
+                    error
                 })?
                 .into_inner();
 
@@ -391,6 +511,7 @@ impl oio::Write for GcsGrpcWriter {
         }
 
         if self.buffer.is_none() && self.upload_id.is_none() {
+            self.hash_accepted(&bs);
             self.buffer = Some(bs);
             return Ok(());
         }
@@ -400,6 +521,7 @@ impl oio::Write for GcsGrpcWriter {
         let combined = merge_buffers(self.buffer.clone().unwrap_or_default(), bs.clone());
         let upload_size = combined.len() / WRITE_CHUNK_ALIGNMENT * WRITE_CHUNK_ALIGNMENT;
         if upload_size == 0 {
+            self.hash_accepted(&bs);
             self.buffer = Some(combined);
             return Ok(());
         }
@@ -421,49 +543,44 @@ impl oio::Write for GcsGrpcWriter {
     async fn close(&mut self) -> Result<Metadata> {
         self.ensure_open()?;
 
-        if let Some(pending) = self.pending.as_ref() {
-            if !pending.finish_write {
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    "writer has an unacknowledged pending write; retry write or abort before close",
-                ));
-            }
-            let object = self.finish_pending().await?.ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "GCS write finalized without object metadata",
-                )
-            })?;
-            return Ok(parse_object(&object));
+        if self
+            .pending
+            .as_ref()
+            .is_some_and(|pending| !pending.finish_write)
+        {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "writer has an unacknowledged pending write; retry write or abort before close",
+            ));
         }
 
         if self.upload_id.is_none() {
             let body = self.buffer.clone().unwrap_or_default();
-            let object = self.write_once(body).await?;
-            self.buffer = None;
-            self.state = GcsGrpcWriterState::Closed;
-            return Ok(parse_object(&object));
+            return self.write_once(body).await;
         }
 
-        self.pending = Some(PendingUpload {
-            incoming: Buffer::new(),
-            body: self.buffer.clone().unwrap_or_default(),
-            tail: Buffer::new(),
-            write_offset: self.write_offset,
-            finish_write: true,
-            in_flight: false,
-        });
-        let object = self.finish_pending().await?.ok_or_else(|| {
+        if self.pending.is_none() {
+            self.pending = Some(PendingUpload {
+                incoming: Buffer::new(),
+                body: self.buffer.clone().unwrap_or_default(),
+                tail: Buffer::new(),
+                write_offset: self.write_offset,
+                finish_write: true,
+                in_flight: false,
+            });
+        }
+        self.finish_pending().await?.ok_or_else(|| {
             Error::new(
                 ErrorKind::Unexpected,
                 "GCS write finalized without object metadata",
             )
-        })?;
-        Ok(parse_object(&object))
+        })
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.ensure_open()?;
+        if self.state != GcsGrpcWriterState::FinalizeFailed {
+            self.ensure_open()?;
+        }
         if let Some(upload_id) = self.upload_id.as_deref() {
             let request = CancelResumableWriteRequest {
                 upload_id: upload_id.to_string(),
@@ -492,6 +609,20 @@ impl oio::Write for GcsGrpcWriter {
     }
 }
 
+enum WriteCrc32c {
+    Computed(Box<Digest>),
+    Expected(u32),
+}
+
+impl WriteCrc32c {
+    fn value(&self) -> u32 {
+        match self {
+            Self::Computed(digest) => digest.finalize() as u32,
+            Self::Expected(value) => *value,
+        }
+    }
+}
+
 struct PendingUpload {
     incoming: Buffer,
     body: Buffer,
@@ -514,6 +645,7 @@ impl PendingUpload {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum GcsGrpcWriterState {
     Open,
+    FinalizeFailed,
     Closed,
     Aborted,
 }
@@ -558,6 +690,7 @@ struct WriteObjectRequestState {
     body: Buffer,
     write_offset: i64,
     finish_write: bool,
+    crc32c: Option<u32>,
     first_message: Option<write_object_request::FirstMessage>,
     emitted: bool,
 }
@@ -566,6 +699,7 @@ fn write_object_requests(
     body: Buffer,
     write_offset: i64,
     finish_write: bool,
+    crc32c: Option<u32>,
     first_message: write_object_request::FirstMessage,
 ) -> Result<impl futures::Stream<Item = WriteObjectRequest> + Send + 'static> {
     if !finish_write && !body.len().is_multiple_of(WRITE_CHUNK_ALIGNMENT) {
@@ -585,6 +719,7 @@ fn write_object_requests(
             body,
             write_offset,
             finish_write,
+            crc32c,
             first_message: Some(first_message),
             emitted: false,
         },
@@ -600,9 +735,18 @@ fn write_object_requests(
                 let size = state.body.len().min(MAX_WRITE_CHUNK_SIZE);
                 (Some(state.body.split_to(size).to_bytes()), size)
             };
+            let finish_write = state.finish_write && state.body.is_empty();
+            let object_checksums = if finish_write {
+                state.crc32c.map(|crc32c| ObjectChecksums {
+                    crc32c: Some(crc32c),
+                })
+            } else {
+                None
+            };
             let request = WriteObjectRequest {
                 write_offset: state.write_offset,
-                finish_write: state.finish_write && state.body.is_empty(),
+                finish_write,
+                object_checksums,
                 first_message: state.first_message.take(),
                 data: content.map(|content| {
                     write_object_request::Data::ChecksummedData(ChecksummedData { content })
@@ -624,40 +768,12 @@ fn write_object_requests(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::mock_tests::test_writer;
     use bytes::Bytes;
     use futures::StreamExt;
     use futures::executor::block_on;
     use opendal_core::raw::oio::Write as _;
-    use reqsign_core::ProvideCredentialChain;
-    use reqsign_google::RequestSigner;
-    use tonic::transport::Endpoint;
-
-    use super::*;
-    use crate::GCS_GRPC_SCHEME;
-
-    fn test_writer() -> GcsGrpcWriter {
-        let sign_ctx = opendal_core::raw::reqsign_context();
-        let core = Arc::new(GcsGrpcCore {
-            info: ServiceInfo::new(GCS_GRPC_SCHEME, "/", "example-bucket"),
-            capability: Capability::default(),
-            endpoint: "http://127.0.0.1:1".to_string(),
-            bucket: "example-bucket".to_string(),
-            root: "/".to_string(),
-            channel_endpoint: Endpoint::from_static("http://127.0.0.1:1"),
-            channel: Default::default(),
-            sign_ctx,
-            credential_provider: Arc::new(ProvideCredentialChain::new()),
-            request_signer: Arc::new(RequestSigner::new("storage")),
-            signers: HttpTransportCache::new(),
-            skip_signature: true,
-        });
-        GcsGrpcWriter::new(
-            core,
-            OperationContext::default(),
-            "test",
-            OpWrite::default(),
-        )
-    }
 
     fn request_content(request: &WriteObjectRequest) -> Option<&Bytes> {
         request.data.as_ref().map(|data| match data {
@@ -667,7 +783,7 @@ mod tests {
 
     #[test]
     fn writer_keeps_the_first_write_on_the_one_shot_path() {
-        let mut writer = test_writer();
+        let mut writer = test_writer("http://127.0.0.1:1", "test", None);
 
         block_on(writer.write(Buffer::from(Bytes::from_static(b"hello world")))).unwrap();
 
@@ -691,6 +807,7 @@ mod tests {
                 body,
                 0,
                 true,
+                Some(0x1234_5678),
                 write_object_request::FirstMessage::WriteObjectSpec(WriteObjectSpec::default()),
             )
             .unwrap()
@@ -719,8 +836,16 @@ mod tests {
             MAX_WRITE_CHUNK_SIZE
         );
         assert_eq!(request_content(&requests[2]).unwrap().len(), 17);
-        assert!(requests[..2].iter().all(|request| !request.finish_write));
+        assert!(
+            requests[..2]
+                .iter()
+                .all(|request| !request.finish_write && request.object_checksums.is_none())
+        );
         assert!(requests[2].finish_write);
+        assert_eq!(
+            requests[2].object_checksums.unwrap().crc32c,
+            Some(0x1234_5678)
+        );
     }
 
     #[test]
@@ -730,6 +855,7 @@ mod tests {
                 Buffer::new(),
                 0,
                 true,
+                Some(0),
                 write_object_request::FirstMessage::WriteObjectSpec(WriteObjectSpec::default()),
             )
             .unwrap()
@@ -740,6 +866,7 @@ mod tests {
         assert_eq!(requests[0].write_offset, 0);
         assert!(requests[0].data.is_none());
         assert!(requests[0].finish_write);
+        assert_eq!(requests[0].object_checksums.unwrap().crc32c, Some(0));
         assert!(matches!(
             requests[0].first_message,
             Some(write_object_request::FirstMessage::WriteObjectSpec(_))
@@ -753,6 +880,7 @@ mod tests {
                 Buffer::from(vec![0; WRITE_CHUNK_ALIGNMENT - 1]),
                 0,
                 false,
+                None,
                 write_object_request::FirstMessage::UploadId("upload-id".to_string()),
             )
             .is_err()
@@ -763,6 +891,7 @@ mod tests {
                 Buffer::from(vec![0; WRITE_CHUNK_ALIGNMENT]),
                 23,
                 false,
+                None,
                 write_object_request::FirstMessage::UploadId("upload-id".to_string()),
             )
             .unwrap()
@@ -790,7 +919,7 @@ mod tests {
 
     #[test]
     fn persisted_size_advances_only_the_pending_range() {
-        let mut writer = test_writer();
+        let mut writer = test_writer("http://127.0.0.1:1", "test", None);
         writer.pending = Some(PendingUpload {
             incoming: Buffer::new(),
             body: Buffer::from(vec![1; MAX_WRITE_CHUNK_SIZE * 2]),
@@ -820,6 +949,90 @@ mod tests {
                 if size == 17 + (MAX_WRITE_CHUNK_SIZE * 2) as i64
         ));
         assert!(writer.pending.as_ref().unwrap().body.is_empty());
+    }
+
+    #[test]
+    fn checksum_rejection_requires_the_object_checksum_diagnostic() {
+        let writer = test_writer("http://127.0.0.1:1", "test", Some(WriteChecksum::Fast));
+        let diagnostic = "Object CRC32C mismatch: server computed 1, client provided 0";
+        for (status, sent, kind) in [
+            (
+                tonic::Status::invalid_argument(diagnostic),
+                true,
+                ErrorKind::ChecksumMismatch,
+            ),
+            (
+                tonic::Status::invalid_argument(diagnostic),
+                false,
+                ErrorKind::Unexpected,
+            ),
+            (
+                tonic::Status::invalid_argument("CRC32C value is malformed"),
+                true,
+                ErrorKind::Unexpected,
+            ),
+            (
+                tonic::Status::failed_precondition(diagnostic),
+                true,
+                ErrorKind::Conflict,
+            ),
+        ] {
+            let err = writer.parse_write_status(status, sent);
+            assert_eq!(err.kind(), kind);
+            assert!(!err.is_temporary());
+        }
+    }
+
+    #[test]
+    fn checksummed_close_requires_a_matching_receipt() {
+        let mut writer = test_writer("http://127.0.0.1:1", "test", Some(WriteChecksum::Fast));
+        let valid = Object {
+            name: "test".to_string(),
+            bucket: writer.core.bucket_resource(),
+            generation: 42,
+            size: 0,
+            checksums: Some(ObjectChecksums { crc32c: Some(0) }),
+            ..Default::default()
+        };
+        for object in [
+            Object {
+                name: "other".to_string(),
+                ..valid.clone()
+            },
+            Object {
+                bucket: String::new(),
+                ..valid.clone()
+            },
+            Object {
+                generation: 0,
+                ..valid.clone()
+            },
+            Object {
+                size: 1,
+                ..valid.clone()
+            },
+            Object {
+                checksums: None,
+                ..valid.clone()
+            },
+            Object {
+                checksums: Some(ObjectChecksums { crc32c: None }),
+                ..valid.clone()
+            },
+            Object {
+                checksums: Some(ObjectChecksums { crc32c: Some(1) }),
+                ..valid.clone()
+            },
+        ] {
+            let err = writer.finish_write(object, 0, Some(0)).unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(!err.is_temporary());
+        }
+        let metadata = writer.finish_write(valid, 0, Some(0)).unwrap();
+        assert_eq!(
+            metadata.checksum(),
+            Some(Checksum::new(ChecksumAlgo::Crc32c, [0; 4]))
+        );
     }
 
     #[test]

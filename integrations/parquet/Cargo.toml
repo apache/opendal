@@ -32,13 +32,13 @@ async-trait = "0.1"
 bytes = "1"
 futures = "0.3"
 opendal = { version = "0.59.5", path = "../../core" }
-parquet = { version = "59.2", default-features = false, features = [
+parquet = { version = "60.2", default-features = false, features = [
   "async",
   "arrow",
 ] }
 
 [dev-dependencies]
-arrow = { version = "59.0" }
+arrow = { version = "60.2" }
 opendal = { version = "0.59.5", path = "../../core", features = [
   "services-fs",
   "services-memory",

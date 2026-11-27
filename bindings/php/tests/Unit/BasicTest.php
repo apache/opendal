@@ -80,4 +80,4 @@ it('invalid UTF-8 encoding', function () {
     $op = new \OpenDAL\Operator('fs', ['root' => '/tmp']);
 
     $op->write('test.txt', 'invalid UTF-8: '.chr(0x80));
-})->throws('Exception')->expectExceptionMessage('Invalid value given for argument `content`.');
+})->throws(TypeError::class)->expectExceptionMessage('Invalid value given for argument `content`.');

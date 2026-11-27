@@ -143,7 +143,8 @@ pub fn parse_builder_setters(path: &Path) -> Result<Vec<String>> {
                 && matches!(func.vis, syn::Visibility::Public(_))
                 && matches!(
                     func.sig.inputs.first(),
-                    Some(FnArg::Receiver(receiver)) if receiver.reference.is_some() && receiver.mutability.is_some()
+                    Some(FnArg::Receiver(receiver))
+                        if matches!(receiver.kind, syn::ReceiverKind::Reference(_, _, Some(_)))
                 )
             {
                 setters.push(func.sig.ident.to_string());
@@ -170,7 +171,7 @@ fn takes_only_ref_self(sig: &syn::Signature) -> bool {
         Some(FnArg::Receiver(receiver)) => receiver,
         _ => return false,
     };
-    receiver.reference.is_some() && receiver.mutability.is_none() && inputs.next().is_none()
+    matches!(receiver.kind, syn::ReceiverKind::Reference(_, _, None)) && inputs.next().is_none()
 }
 
 fn classify(output: &ReturnType) -> Option<MetadataKind> {

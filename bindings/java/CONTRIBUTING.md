@@ -41,7 +41,7 @@ You can apply the code style with the following command:
 
 ## Code generation
 
-`ServiceConfig.java`, `Capability.java`, `Metadata.java`, `src/capability.rs`, and `src/metadata.rs` are generated from OpenDAL core definitions. After changing service configurations, `core/core/src/types/capability.rs`, or `core/core/src/types/metadata.rs`, regenerate them from the repository root:
+`ServiceConfig.java`, `Capability.java`, `Metadata.java`, `*Options.java`, `src/capability.rs`, `src/metadata.rs`, and `src/options.rs` are generated from OpenDAL core definitions. After changing service configurations, `core/core/src/types/capability.rs`, `core/core/src/types/metadata.rs`, or `core/core/src/types/options.rs`, regenerate them from the repository root:
 
 ```shell
 just generate java

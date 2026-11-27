@@ -17,3 +17,15 @@ The URI form is `gcs-grpc://bucket/root`.
 The endpoint must use `http` or `https`. Use an `http` endpoint only with a
 trusted local emulator and `skip_signature`, because authenticated gRPC metadata
 would otherwise be sent without TLS.
+
+## Write checksums
+
+Authenticated writes to the default endpoint support `Any`, `Fast`,
+`Algo(Crc32c)`, and `Expected` with a CRC32C digest. GCS verifies the
+full-object CRC32C before commit for both single-request and resumable uploads.
+A successful checksummed write returns the verified CRC32C in its metadata.
+A recognized checksum rejection returns a non-temporary `ChecksumMismatch`.
+An unconfirmed receipt returns a non-temporary `Unexpected` error, and the object
+may already be visible. Retrying a resumable close queries the upload session
+to confirm or resume finalization. An ambiguous single-request close returns a
+non-temporary error because it has no upload session to query.

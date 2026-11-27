@@ -616,6 +616,10 @@ func minimalMetadataContext(ctx context.Context, t *testing.T, want *opendalMeta
 		check(m)
 		return nil
 	})
+	ctx = context.WithValue(ctx, ffiMetaContentLanguage.sym, func(m *opendalMetadata) *string {
+		check(m)
+		return nil
+	})
 	ctx = context.WithValue(ctx, ffiMetaContentLength.sym, func(m *opendalMetadata) uint64 {
 		check(m)
 		return 0
@@ -628,7 +632,7 @@ func minimalMetadataContext(ctx context.Context, t *testing.T, want *opendalMeta
 		check(m)
 		return nil
 	})
-	ctx = context.WithValue(ctx, ffiMetaEtag.sym, func(m *opendalMetadata) *string {
+	ctx = context.WithValue(ctx, ffiMetaETag.sym, func(m *opendalMetadata) *string {
 		check(m)
 		return nil
 	})

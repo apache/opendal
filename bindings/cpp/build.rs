@@ -40,6 +40,8 @@ fn export_bridge(out_dir: &Path, bridge_dir: &Path) -> io::Result<()> {
     let generated = out_dir.join("cxxbridge");
     let mut files = vec![
         ("include", "rust/cxx.h"),
+        ("include", "opendal-cpp/src/capability.rs.h"),
+        ("sources", "opendal-cpp/src/capability.rs.cc"),
         ("include", "opendal-cpp/src/lib.rs.h"),
         ("sources", "opendal-cpp/src/lib.rs.cc"),
     ];
@@ -61,9 +63,9 @@ fn export_bridge(out_dir: &Path, bridge_dir: &Path) -> io::Result<()> {
 
 fn main() -> io::Result<()> {
     let sources = if cfg!(feature = "async") {
-        &["src/lib.rs", "src/async.rs"][..]
+        &["src/capability.rs", "src/lib.rs", "src/async.rs"][..]
     } else {
-        &["src/lib.rs"][..]
+        &["src/capability.rs", "src/lib.rs"][..]
     };
     let _ = cxx_build::bridges(sources);
 

@@ -230,6 +230,8 @@ impl Builder for CosBuilder {
             stat: true,
             stat_with_if_match: true,
             stat_with_if_none_match: true,
+            stat_with_if_modified_since: true,
+            stat_with_if_unmodified_since: true,
             stat_with_version: true,
 
             read: true,

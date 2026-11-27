@@ -319,59 +319,41 @@ mod tests {
         let mut reader = open_test_reader(&operator, path).await;
         let options = ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Required);
         let metadata = reader.get_metadata(Some(&options)).await.unwrap();
-        assert!(metadata.column_index().is_some());
-        assert!(metadata.offset_index().is_some());
-        assert_eq!(metadata.column_index().unwrap().len(), 1);
-        assert_eq!(metadata.offset_index().unwrap().len(), 1);
+        let page_index = metadata.page_index_for_row_group(0);
+        assert!(page_index.column_index(0).is_some());
+        assert!(page_index.offset_index(0).is_some());
 
         // `PageIndexPolicy::Optional` loads the page indexes when present.
         let mut reader = open_test_reader(&operator, path).await;
         let options = ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional);
         let metadata = reader.get_metadata(Some(&options)).await.unwrap();
-        assert!(metadata.column_index().is_some());
-        assert!(metadata.offset_index().is_some());
+        let page_index = metadata.page_index_for_row_group(0);
+        assert!(page_index.column_index(0).is_some());
+        assert!(page_index.offset_index(0).is_some());
 
         // `PageIndexPolicy::Skip` (the default) does not load the page indexes,
         // matching the previous `get_metadata(None)` behavior.
         let mut reader = open_test_reader(&operator, path).await;
         let metadata = reader.get_metadata(None).await.unwrap();
-        assert!(metadata.column_index().is_none());
-        assert!(metadata.offset_index().is_none());
+        assert!(metadata.page_index().is_none());
 
         let mut reader = open_test_reader(&operator, path).await;
         let options = ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Skip);
         let metadata = reader.get_metadata(Some(&options)).await.unwrap();
-        assert!(metadata.column_index().is_none());
-        assert!(metadata.offset_index().is_none());
-    }
-
-    #[tokio::test]
-    async fn test_get_metadata_honors_deprecated_with_page_index() {
-        let operator = Operator::new(services::Memory::default()).unwrap();
-        let path = "/path/with_page_index.parquet";
-        write_test_file(&operator, path, None).await;
-
-        // `with_page_index(true)` maps to `PageIndexPolicy::Required`.
-        let mut reader = open_test_reader(&operator, path).await;
-        #[allow(deprecated)]
-        let options = ArrowReaderOptions::new().with_page_index(true);
-        let metadata = reader.get_metadata(Some(&options)).await.unwrap();
-        assert!(metadata.column_index().is_some());
-        assert!(metadata.offset_index().is_some());
+        assert!(metadata.page_index().is_none());
     }
 
     #[tokio::test]
     async fn test_get_metadata_page_index_required_without_index() {
         let operator = Operator::new(services::Memory::default()).unwrap();
         let path = "/path/without_page_index.parquet";
-        // `set_offset_index_disabled` drops both the column and the offset
-        // index ranges from the file metadata.
+        // `set_offset_index_disabled` drops the offset index from the file metadata.
         let writer_properties = WriterProperties::builder()
             .set_offset_index_disabled(true)
             .build();
         write_test_file(&operator, path, Some(writer_properties)).await;
 
-        // `PageIndexPolicy::Required` errors when the file has no page index.
+        // `PageIndexPolicy::Required` errors when the file has no offset index.
         let mut reader = open_test_reader(&operator, path).await;
         let options = ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Required);
         let err = reader.get_metadata(Some(&options)).await.unwrap_err();
@@ -380,12 +362,12 @@ mod tests {
             "unexpected error: {err}"
         );
 
-        // `PageIndexPolicy::Optional` succeeds but leaves the indexes empty.
+        // `PageIndexPolicy::Optional` succeeds and leaves the offset index empty.
         let mut reader = open_test_reader(&operator, path).await;
         let options = ArrowReaderOptions::new().with_page_index_policy(PageIndexPolicy::Optional);
         let metadata = reader.get_metadata(Some(&options)).await.unwrap();
-        assert!(metadata.column_index().is_none());
-        assert!(metadata.offset_index().is_none());
+        let page_index = metadata.page_index_for_row_group(0);
+        assert!(page_index.offset_index(0).is_none());
     }
 
     #[tokio::test]
@@ -401,8 +383,9 @@ mod tests {
             .with_preload_column_index(true)
             .with_preload_offset_index(true);
         let metadata = reader.get_metadata(None).await.unwrap();
-        assert!(metadata.column_index().is_some());
-        assert!(metadata.offset_index().is_some());
+        let page_index = metadata.page_index_for_row_group(0);
+        assert!(page_index.column_index(0).is_some());
+        assert!(page_index.offset_index(0).is_some());
 
         // An explicit `Required` policy overrides the preload flags entirely:
         // the offset index policy falls back to `Skip` when the options only
@@ -413,8 +396,9 @@ mod tests {
             .with_preload_offset_index(true);
         let options = ArrowReaderOptions::new().with_column_index_policy(PageIndexPolicy::Required);
         let metadata = reader.get_metadata(Some(&options)).await.unwrap();
-        assert!(metadata.column_index().is_some());
-        assert!(metadata.offset_index().is_none());
+        let page_index = metadata.page_index_for_row_group(0);
+        assert!(page_index.column_index(0).is_some());
+        assert!(page_index.offset_index(0).is_none());
     }
 
     #[tokio::test]
@@ -428,8 +412,9 @@ mod tests {
         let stream = ParquetRecordBatchStreamBuilder::new_with_options(reader, options)
             .await
             .unwrap();
-        assert!(stream.metadata().column_index().is_some());
-        assert!(stream.metadata().offset_index().is_some());
+        let page_index = stream.metadata().page_index_for_row_group(0);
+        assert!(page_index.column_index(0).is_some());
+        assert!(page_index.offset_index(0).is_some());
 
         let mut stream = stream.build().unwrap();
         let read = stream.next().await.unwrap().unwrap();

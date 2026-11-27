@@ -718,6 +718,12 @@ fn describe_bool_condition(expr: &Expr, rel_path: &str) -> Result<String> {
                             .to_string(),
                     );
                 }
+                if ident == "gcs_grpc_can_checksum" {
+                    return Ok(
+                        "Requires authenticated writes to the default gRPC endpoint (`https://storage.googleapis.com`)"
+                            .to_string(),
+                    );
+                }
                 if ident == "gcs_can_list_deleted" {
                     return Ok(
                         "Requires a bucket with a soft-delete policy at the default endpoint (`https://storage.googleapis.com`) with `skip_signature` and `allow_anonymous` disabled. Entries requiring a hierarchical namespace restore token are unsupported"
@@ -734,7 +740,10 @@ fn describe_bool_condition(expr: &Expr, rel_path: &str) -> Result<String> {
                     );
                 }
                 if ident == "s3_can_checksum" {
-                    return Ok("Standard S3 buckets (not S3 Express One Zone)".to_string());
+                    return Ok(
+                        "General-purpose S3 buckets, or signed non-append CRC32C writes to S3 Express One Zone directory buckets"
+                            .to_string(),
+                    );
                 }
                 if let Some(rest) = ident.strip_prefix("has_") {
                     return Ok(format!("Requires `{rest}`"));
@@ -1173,7 +1182,8 @@ mod tests {
         assert_eq!(
             s3.native.get("write_with_checksum"),
             Some(&NativeBoolDoc::Conditional(
-                "Standard S3 buckets (not S3 Express One Zone)".to_string()
+                "General-purpose S3 buckets, or signed non-append CRC32C writes to S3 Express One Zone directory buckets"
+                    .to_string()
             ))
         );
         for scheme in [

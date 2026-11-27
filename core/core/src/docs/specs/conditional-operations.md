@@ -24,6 +24,12 @@ A version selector chooses the stored version an operation acts on. A version
 condition compares the version of the file checked by the condition. They are
 different concepts.
 
+For directories whose metadata OpenDAL simulates, an unconditional `stat` may
+infer a directory from its children. A conditional `stat` checks the stored
+marker at the exact directory path and returns `NotFound` if that marker is
+missing, even when the path has children. A conditional `stat` of a synthesized
+root without a version selector returns `Unsupported`.
+
 A copy or rename may also fail because its source does not exist, and a
 restore may also fail because its selected version does not exist. When such an
 error and a condition error occur together, this specification does not define

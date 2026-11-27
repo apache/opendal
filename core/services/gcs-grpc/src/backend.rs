@@ -228,6 +228,13 @@ impl GcsGrpcBuilder {
 
         let credential_provider = Arc::new(credential_chain);
         let request_signer = Arc::new(RequestSigner::new("storage").with_scope(&scope));
+        let gcs_grpc_can_checksum = !self.config.skip_signature
+            && channel_endpoint.uri().scheme_str() == Some("https")
+            && channel_endpoint
+                .uri()
+                .host()
+                .is_some_and(|host| host.eq_ignore_ascii_case("storage.googleapis.com"))
+            && channel_endpoint.uri().port_u16().unwrap_or(443) == 443;
         let capability = Capability {
             stat: true,
             stat_with_version: true,
@@ -243,6 +250,7 @@ impl GcsGrpcBuilder {
             write_with_cache_control: true,
             write_with_if_not_exists: true,
             write_with_user_metadata: true,
+            write_with_checksum: gcs_grpc_can_checksum,
             delete: true,
             delete_with_version: true,
             copy: true,
@@ -384,7 +392,7 @@ impl Service for GcsGrpcBackend {
             ctx.clone(),
             path,
             args,
-        )))
+        )?))
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -528,6 +536,27 @@ mod tests {
     fn endpoint_accepts_http_schemes_case_insensitively() {
         assert!(build_endpoint("HTTPS://storage.googleapis.com").is_ok());
         assert!(build_endpoint("ftp://storage.googleapis.com").is_err());
+    }
+
+    #[test]
+    fn write_checksum_capability_requires_the_authenticated_default_endpoint() {
+        for (endpoint, skip_signature, expected) in [
+            (DEFAULT_GCS_GRPC_ENDPOINT, false, true),
+            ("HTTPS://STORAGE.GOOGLEAPIS.COM:443/", false, true),
+            (DEFAULT_GCS_GRPC_ENDPOINT, true, false),
+            ("https://storage.googleapis.com:444", false, false),
+            ("https://storage.example.com", false, false),
+            ("http://storage.googleapis.com", false, false),
+        ] {
+            let mut builder = GcsGrpcBuilder::default()
+                .bucket("example-bucket")
+                .endpoint(endpoint);
+            if skip_signature {
+                builder = builder.skip_signature();
+            }
+            let backend = builder.build_backend().unwrap();
+            assert_eq!(backend.capability().write_with_checksum, expected);
+        }
     }
 
     #[test]

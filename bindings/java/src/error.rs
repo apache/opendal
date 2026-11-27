@@ -63,6 +63,7 @@ impl Error {
             ErrorKind::ConditionNotMatch => "ConditionNotMatch",
             ErrorKind::RangeNotSatisfied => "RangeNotSatisfied",
             ErrorKind::Conflict => "Conflict",
+            ErrorKind::ChecksumMismatch => "ChecksumMismatch",
             _ => "Unexpected",
         })?;
         let message = env.new_string(format!("{:?}", self.inner))?;

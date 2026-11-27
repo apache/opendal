@@ -73,5 +73,7 @@ public class OpenDALException extends RuntimeException {
         ConditionNotMatch,
         RangeNotSatisfied,
         Conflict,
+        /** The content does not match the checksum for the operation. */
+        ChecksumMismatch,
     }
 }

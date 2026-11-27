@@ -695,14 +695,10 @@ impl Stream for BufferStream {
                             } else if let Some(suffix_size) = this.suffix_size
                                 && let TwoWays::One(reader) = &reader
                             {
-                                // The reader's first-observed metadata can describe an earlier response.
-                                let length = reader.suffix_object_length.or_else(|| {
-                                    this.ctx
-                                        .metadata()
-                                        .filter(|meta| meta.is_file())
-                                        .map(Metadata::content_length)
-                                });
-                                length.map(|length| suffix_size.min(length))
+                                // Shared reader metadata may describe an earlier response.
+                                reader
+                                    .suffix_object_length
+                                    .map(|length| suffix_size.min(length))
                             } else {
                                 None
                             };

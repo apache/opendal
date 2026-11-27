@@ -159,17 +159,14 @@ async fn list_with_executors(
     pattern: &str,
 ) -> [(Result<Vec<String>, ErrorKind>, Vec<String>); 3] {
     let executors = [
-        None,
-        Some(Executor::with(EagerExecutor)),
-        Some(Executor::with(IdleExecutor(Mutex::default()))),
+        Executor::with(()),
+        Executor::with(EagerExecutor),
+        Executor::with(IdleExecutor(Mutex::default())),
     ];
     let mut results = Vec::new();
     for executor in executors {
         let inner = Arc::new(fixture());
-        let mut ctx = OperationContext::default();
-        if let Some(executor) = executor {
-            ctx = ctx.with_executor(executor);
-        }
+        let ctx = OperationContext::default().with_executor(executor);
         let op = Operator::from_parts(ctx, inner.clone()).layer(SimulateLayer::default());
         let paths = match op.list_with("/").glob(pattern).await {
             Ok(entries) => Ok(entries.iter().map(|e| e.path().to_owned()).collect()),
@@ -249,11 +246,11 @@ async fn background_listing_returns_entries_before_an_error() -> Result<()> {
 #[tokio::test]
 async fn background_listing_skips_unreadable_discovered_directories() {
     let fixture = || ListFixture {
-        denied: Some("a/"),
-        ..ListFixture::tree(&["a/", "b/", "b/1.jpg"])
+        denied: Some("b/"),
+        ..ListFixture::tree(&["a/", "a/1.jpg", "b/"])
     };
     for (paths, _) in list_with_executors(fixture, "*/*.jpg").await {
-        assert_eq!(paths, Ok(vec!["b/1.jpg".to_owned()]));
+        assert_eq!(paths, Ok(vec!["a/1.jpg".to_owned()]));
     }
 }
 

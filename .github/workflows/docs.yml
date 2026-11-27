@@ -18,38 +18,33 @@
 name: Docs
 
 on:
+  schedule:
+    # Daily 02:45 Asia/Shanghai (18:45 UTC), after Nightly Tier A/B and Fuzz.
+    - cron: "45 18 * * *"
   push:
-    branches:
-      - main
     tags:
       - "v*"
-    paths: &paths
-      - "core/**"
-      - "bindings/**"
-      - "integrations/**"
-      - "website/**"
-      - ".asf.yaml"
-      - ".github/actions/setup/**"
-      - ".github/actions/setup-ocaml/**"
-      - ".github/workflows/docs.yml"
-  pull_request:
-    branches:
-      - main
-    paths: *paths
   workflow_dispatch:
     inputs:
+      deploy-gh-pages:
+        description: "Deploy built documentation to gh-pages (main only)"
+        type: boolean
+        default: true
       deploy-nightlies:
         description: "Deploy built documentation to nightlies"
         type: boolean
-        default: true
+        default: false
       release_version:
         description: "Release tag to deploy to nightlies"
-        required: true
+        required: false
         type: string
 
+permissions:
+  contents: read
+
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref == 'refs/heads/main' }}
 
 env:
   # This is the toolchain used by docs.rs
@@ -65,6 +60,7 @@ env:
 
 jobs:
   build-rust-doc:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     runs-on: ubuntu-latest
 
     steps:
@@ -129,6 +125,7 @@ jobs:
           path: ./core/target/llms.json
 
   build-java-doc:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     runs-on: ubuntu-latest
 
     steps:
@@ -150,6 +147,7 @@ jobs:
           path: ./bindings/java/target/site/apidocs
 
   build-nodejs-doc:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     runs-on: ubuntu-latest
 
     steps:
@@ -185,6 +183,7 @@ jobs:
           path: ./bindings/nodejs/docs
 
   build-python-doc:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     runs-on: ubuntu-latest
 
     steps:
@@ -225,6 +224,7 @@ jobs:
           path: ./bindings/python/docs/_build/html
 
   build-ruby-doc:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     runs-on: ubuntu-latest
 
     steps:
@@ -253,6 +253,7 @@ jobs:
           path: ./bindings/ruby/doc
 
   build-c-doc:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     runs-on: ubuntu-latest
 
     steps:
@@ -279,6 +280,7 @@ jobs:
           path: ./bindings/c/docs/doxygen/html
 
   build-lua-doc:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     runs-on: ubuntu-latest
 
     steps:
@@ -300,6 +302,7 @@ jobs:
           path: ./bindings/lua/doc/
 
   build-haskell-doc:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     runs-on: ubuntu-latest
 
     steps:
@@ -365,6 +368,7 @@ jobs:
           path: ./bindings/haskell/doc/
 
   build-cpp-doc:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     runs-on: ubuntu-latest
 
     steps:
@@ -395,6 +399,7 @@ jobs:
           path: ./bindings/cpp/build/docs_doxygen/html
 
   build-ocaml-doc:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     runs-on: ubuntu-22.04
 
     steps:
@@ -431,6 +436,7 @@ jobs:
           path: ./bindings/ocaml/_build/default/_doc/_html
 
   build-object-store-opendal-doc:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     runs-on: ubuntu-latest
 
     steps:
@@ -454,6 +460,7 @@ jobs:
           path: ./integrations/object_store/target/doc
 
   build-dav-server-opendalfs-doc:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     runs-on: ubuntu-latest
 
     steps:
@@ -477,6 +484,7 @@ jobs:
           path: ./integrations/dav-server/target/doc
 
   build-unftp-sbe-opendal-doc:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     runs-on: ubuntu-latest
 
     steps:
@@ -500,6 +508,7 @@ jobs:
           path: ./integrations/unftp-sbe/target/doc
 
   build-parquet-opendal-doc:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     runs-on: ubuntu-latest
 
     steps:
@@ -523,6 +532,7 @@ jobs:
           path: ./integrations/parquet/target/doc
 
   build-website:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     runs-on: ubuntu-latest
     env:
       DOCUSAURUS_PERF_LOGGER: "true"
@@ -626,7 +636,11 @@ jobs:
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
         # Keep the public root site pinned to main; tag builds are published below.
-        if: ${{ github.event_name == 'push' && github.ref_name == 'main' }}
+        if: >-
+          github.repository == 'apache/opendal' &&
+          github.ref_name == 'main' &&
+          (github.event_name == 'schedule' ||
+          (github.event_name == 'workflow_dispatch' && inputs.deploy-gh-pages && !inputs.deploy-nightlies))
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: website/build
@@ -670,6 +684,7 @@ jobs:
         run: rm -rf ./build
 
       - name: Build for nightlies with tagged version
+        if: ${{ (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc')) || (github.event_name == 'workflow_dispatch' && inputs.deploy-nightlies) }}
         run: |
           pnpm build
           cp ${{ github.workspace }}/.asf.yaml ./build/.asf.yaml
@@ -698,9 +713,11 @@ jobs:
             "${NIGHTLIES_RSYNC_USER}@${NIGHTLIES_RSYNC_HOST}:${NIGHTLIES_RSYNC_PATH}/opendal/opendal-docs-release-${RELEASE_VERSION}/"
 
       - name: Clear build
+        if: ${{ (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc')) || (github.event_name == 'workflow_dispatch' && inputs.deploy-nightlies) }}
         run: rm -rf ./build
 
       - name: Build for nightlies with stable version
+        if: ${{ (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc')) || (github.event_name == 'workflow_dispatch' && inputs.deploy-nightlies) }}
         run: |
           pnpm build
           cp ${{ github.workspace }}/.asf.yaml ./build/.asf.yaml

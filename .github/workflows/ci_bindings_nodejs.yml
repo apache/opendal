@@ -105,3 +105,8 @@ jobs:
 
       - name: Test
         run: cargo test --no-fail-fast
+
+      - name: Build docs
+        run: |
+          pnpm run build:theme
+          pnpm run docs

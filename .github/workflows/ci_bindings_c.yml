@@ -58,7 +58,7 @@ jobs:
       - name: Install C build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config uuid-dev libcurl4-gnutls-dev
+          sudo apt-get install -y build-essential pkg-config uuid-dev libcurl4-gnutls-dev doxygen
 
       # Useful for debugging
       - name: Print Clippy version
@@ -114,3 +114,7 @@ jobs:
       - name: Run CI integration test
         working-directory: "bindings/c/tests"
         run: ./test_ci_integration.sh
+
+      - name: Build docs
+        working-directory: "bindings/c"
+        run: make doc

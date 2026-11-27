@@ -224,6 +224,7 @@ class LabelTests(unittest.TestCase):
             "integrations/parquet",
             "ci/nightly",
             "ci/live-service",
+            "ci/deploy-docs",
         ):
             self.assertIn(name, catalog)
         self.assertNotIn("services/hf", catalog)

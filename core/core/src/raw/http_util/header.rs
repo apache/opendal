@@ -253,16 +253,21 @@ fn extract_multipart_boundary(content_type: &str) -> Option<&str> {
                 }
             }
             let end = close?;
+            let after_closing = after_quote[end + 1..].trim_start_matches([' ', '\t']);
+            let next_rest = if after_closing.is_empty() {
+                ""
+            } else {
+                after_closing.strip_prefix(';')?
+            };
             if is_boundary {
+                // Decoding backslash escapes would require owned storage, incompatible with `Result<Option<&str>>`.
                 if has_escape {
                     return None;
                 }
                 let boundary = &after_quote[..end];
                 return (!boundary.is_empty()).then_some(boundary);
             }
-            rest = after_quote[end + 1..]
-                .split_once(';')
-                .map_or("", |(_, after)| after);
+            rest = next_rest;
             continue;
         }
         let end = val.find(';').unwrap_or(val.len());
@@ -707,6 +712,12 @@ mod tests {
             ),
             // Quoted boundary containing backslash escapes cannot be returned losslessly as &str.
             ("multipart/mixed; boundary=\"a\\\"b\"", None),
+            // Malformed trailing non-whitespace bytes after closing quote must be rejected.
+            ("multipart/mixed; boundary=\"Batch_Example\"suffix", None),
+            (
+                "multipart/mixed; boundary=\"Batch_Example\" \t; charset=utf-8",
+                Some("Batch_Example"),
+            ),
         ];
 
         for (input, expected) in cases {

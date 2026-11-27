@@ -54,15 +54,17 @@ impl Operator {
         Ok(Operator(op))
     }
 
-    /// Write string into given path.
-    pub fn write(&self, path: &str, content: String) -> PhpResult<()> {
+    /// Write a PHP string to the given path, preserving every byte.
+    pub fn write(&self, path: &str, content: Binary<u8>) -> PhpResult<()> {
         self.0
-            .write(path, content)
+            .write(path, Vec::from(content))
             .map(|_| ())
             .map_err(format_php_err)
     }
 
-    /// Write bytes into given path, binary safe.
+    /// Write an array of bytes to the given path.
+    ///
+    /// Prefer `write` for binary strings.
     pub fn write_binary(&self, path: &str, content: Vec<u8>) -> PhpResult<()> {
         self.0
             .write(path, content)

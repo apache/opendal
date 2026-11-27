@@ -60,15 +60,17 @@ if ($op->is_exist("hello.txt") === 1) {
 
 ## Write binary data
 
-`write` requires valid UTF-8. For arbitrary bytes, convert with `unpack` first
-and use `write_binary`:
+Use `write` for text and binary data. It stores the bytes of the PHP string
+as provided.
 
 ```php
-$bytes = unpack("C*", $binaryContent); // array of unsigned byte values
-$op->write_binary("data.bin", $bytes);
+$binaryContent = "prefix\0\x80\xff suffix";
+$op->write("data.bin", $binaryContent);
 
-$content = $op->read("data.bin");      // returns a binary-safe string
+$content = $op->read("data.bin"); // same bytes as $binaryContent
 ```
+
+`write_binary` is still available for arrays of byte values.
 
 ## Create a directory
 
@@ -98,5 +100,4 @@ try {
 
 An unknown scheme, missing required configuration such as `"root"` for `fs`,
 or a missing path can produce an OpenDAL error. PHP argument conversion can
-also throw separately. Use `write_binary` to write content that contains
-invalid UTF-8.
+also throw separately.

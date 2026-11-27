@@ -206,9 +206,12 @@ async fn background_listing_keeps_entries_order_and_requests() {
         sequential.1,
         ["/", "b/", "b/2/", "b/1/", "a/", "a/3/", "a/1/"]
     );
-    // The walk opens a sibling ahead of traversal, without changing output order.
     assert_eq!(eager.0, sequential.0);
-    assert_eq!(eager.1, ["/", "b/", "a/", "b/2/", "b/1/", "a/3/", "a/1/"]);
+    let mut eager_requests = eager.1.clone();
+    let mut sequential_requests = sequential.1.clone();
+    eager_requests.sort_unstable();
+    sequential_requests.sort_unstable();
+    assert_eq!(eager_requests, sequential_requests);
     // The walk lists each directory itself if a background listing does not start.
     assert_eq!(idle, sequential);
 
@@ -220,15 +223,16 @@ async fn background_listing_keeps_entries_order_and_requests() {
     let [sequential, eager, idle] = list_with_executors(recursive, "?/**/*.jpg").await;
     assert_eq!(sequential.0, Ok(paths.map(String::from).to_vec()));
     assert_eq!(sequential.1, ["/", "b/", "a/"]);
-    assert_eq!(eager, sequential);
+    assert_eq!(eager.0, sequential.0);
+    assert_eq!(eager.1, ["/", "a/", "b/"]);
     assert_eq!(idle, sequential);
 }
 
 #[tokio::test]
 async fn background_listing_returns_entries_before_an_error() -> Result<()> {
     let fixture = || ListFixture {
-        fail_after: Some(("a/", 2)),
-        ..ListFixture::tree(&["a/", "a/1.jpg", "a/2.jpg", "a/3.jpg", "b/", "b/1.jpg"])
+        fail_after: Some(("b/", 1)),
+        ..ListFixture::tree(&["a/", "a/1.jpg", "b/", "b/1.jpg", "b/2.jpg"])
     };
     for (paths, _) in list_with_executors(fixture, "*/*.jpg").await {
         assert_eq!(paths, Err(ErrorKind::Unexpected));
@@ -237,7 +241,7 @@ async fn background_listing_returns_entries_before_an_error() -> Result<()> {
     let op = Operator::from_parts(ctx, Arc::new(fixture())).layer(SimulateLayer::default());
     let mut lister = op.lister_with("/").glob("*/*.jpg").await?;
     assert_eq!(lister.try_next().await?.unwrap().path(), "a/1.jpg");
-    assert_eq!(lister.try_next().await?.unwrap().path(), "a/2.jpg");
+    assert_eq!(lister.try_next().await?.unwrap().path(), "b/1.jpg");
     assert!(lister.try_next().await.is_err());
     Ok(())
 }
@@ -269,8 +273,8 @@ async fn background_listing_uses_the_executor_timeout() {
     }
 
     let inner = Arc::new(ListFixture {
-        stalled: Some("a/"),
-        ..ListFixture::tree(&["a/", "a/1.jpg"])
+        stalled: Some("b/"),
+        ..ListFixture::tree(&["a/", "a/1.jpg", "b/", "b/1.jpg"])
     });
     let ctx = OperationContext::default().with_executor(Executor::with(TimeoutExecutor));
     let op = Operator::from_parts(ctx, inner).layer(SimulateLayer::default());
@@ -893,12 +897,20 @@ impl List for TestLister {
         if self.stalled {
             return std::future::pending().await;
         }
+        if self.fail_after == Some(0) {
+            return Err(Error::new(ErrorKind::Unexpected, "list failed"));
+        }
+        Ok(self.next_buffered(oio::BufferedEntries))
+    }
+
+    fn next_buffered(&mut self, _: oio::BufferedEntries) -> Option<oio::Entry> {
+        if self.stalled || self.fail_after == Some(0) {
+            return None;
+        }
+        let entry = self.entries.pop_front()?;
         if let Some(remaining) = &mut self.fail_after {
-            if *remaining == 0 {
-                return Err(Error::new(ErrorKind::Unexpected, "list failed"));
-            }
             *remaining -= 1;
         }
-        Ok(self.entries.pop_front())
+        Some(entry)
     }
 }

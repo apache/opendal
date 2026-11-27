@@ -218,7 +218,7 @@ async fn glob_yields_first_match_before_requesting_next_page() -> Result<()> {
 }
 
 #[tokio::test]
-async fn glob_descends_while_the_parent_page_is_pending() -> Result<()> {
+async fn glob_leaves_the_parent_page_unrequested_while_descending() -> Result<()> {
     for finish in [true, false] {
         let (op, mut requests, activity) = operator(
             &["a/", "b/", "c/", "a/file.jpg"],
@@ -233,34 +233,38 @@ async fn glob_descends_while_the_parent_page_is_pending() -> Result<()> {
         });
         timeout(Duration::from_secs(10), async {
             let mut pending = BTreeMap::new();
-            for _ in 0..3 {
+            for _ in 0..2 {
                 let (path, release) = requests.next().await.unwrap();
                 assert!(pending.insert(path, release).is_none());
             }
+            assert_eq!(
+                pending.keys().map(String::as_str).collect::<Vec<_>>(),
+                ["a/", "b/"]
+            );
             pending.remove("a/").unwrap().send(()).unwrap();
             let (mut lister, entry) = first.await.unwrap()?;
             assert_eq!(entry.path(), "a/file.jpg");
+            assert!(requests.try_recv().is_err());
+            let mut sibling = pending.remove("b/").unwrap();
             if finish {
-                // The original parent request resumes and discovers c/.
-                for release in pending.into_values() {
+                sibling.send(()).unwrap();
+                let rest = tokio::spawn(async move { lister.try_next().await });
+                for expected in ["/", "c/"] {
+                    let (path, release) = requests.next().await.unwrap();
+                    assert_eq!(path, expected);
                     release.send(()).unwrap();
                 }
-                let rest = tokio::spawn(async move { lister.try_next().await });
-                let (path, release) = requests.next().await.unwrap();
-                assert_eq!(path, "c/");
-                release.send(()).unwrap();
                 assert!(rest.await.unwrap()?.is_none());
             } else {
                 drop(lister);
-                for mut release in pending.into_values() {
-                    release.cancellation().await;
-                }
+                sibling.cancellation().await;
+                assert!(requests.try_recv().is_err());
             }
             assert_eq!(activity.active.load(Ordering::Relaxed), 0);
             Ok::<(), Error>(())
         })
         .await
-        .expect("the pending parent page must resume or be cancelled")?;
+        .expect("descent must progress without starting the parent page")?;
     }
     Ok(())
 }

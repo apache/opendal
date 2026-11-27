@@ -16,6 +16,7 @@
 // under the License.
 
 mod api;
+pub(crate) use api::BufferedEntries;
 pub use api::List;
 pub use api::ListDyn;
 pub use api::Lister;

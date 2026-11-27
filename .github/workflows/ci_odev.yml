@@ -24,6 +24,8 @@ on:
     paths:
       - "**/*.rs"
       - "dev/**"
+      - "core/services/gcs-grpc/proto/**"
+      - ".github/actions/setup/action.yaml"
       - ".github/workflows/ci_odev.yml"
       - "scripts/verify_source_reproducibility.py"
       - "scripts/sign_source_release.py"
@@ -96,6 +98,10 @@ jobs:
         uses: ./.github/actions/setup
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          need-protoc: true
+
+      - name: Generate GCS gRPC client code
+        run: cargo run --locked --manifest-path=dev/Cargo.toml -- generate -l gcs-grpc
 
       - name: Generate Python bindings code
         run: cargo run --manifest-path=dev/Cargo.toml -- generate -l python

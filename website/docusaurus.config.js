@@ -35,7 +35,7 @@ const {
 
 const repoAddress = "https://github.com/apache/opendal";
 
-const { baseUrl, websiteNotLatest, websiteStaging, websiteVersion } =
+const { baseUrl, latestRelease, websiteNotLatest, websiteStaging, websiteVersion } =
   getWebsiteSettings();
 const localImages = require("./plugins/local-images")({
   siteDir: __dirname,
@@ -51,7 +51,7 @@ const config = {
 
   customFields: {
     isStaging: websiteStaging,
-    version: websiteVersion,
+    latestRelease,
   },
 
   url: "https://opendal.apache.org/",

@@ -115,6 +115,9 @@ jobs:
       - name: Generate Node.js bindings code
         run: cargo run --manifest-path=dev/Cargo.toml -- generate -l nodejs
 
+      - name: Generate OCaml bindings code
+        run: cargo run --manifest-path=dev/Cargo.toml -- generate -l ocaml
+
       - name: Generate services documentation data
         run: cargo run --manifest-path=dev/Cargo.toml -- generate -l docs
       - run: cargo fmt --manifest-path bindings/python/Cargo.toml --all
@@ -122,6 +125,7 @@ jobs:
       - run: cargo fmt --manifest-path bindings/ruby/Cargo.toml --all
       - run: cargo fmt --manifest-path bindings/c/Cargo.toml --all
       - run: cargo fmt --manifest-path bindings/nodejs/Cargo.toml --all
+      - run: cargo fmt --manifest-path bindings/ocaml/Cargo.toml --all
 
       - name: Check diff
         run: git diff --exit-code

@@ -19,6 +19,14 @@ C_BINDING_SRC_DIR=../c
 SWIFT_PKG_DIR=./OpenDAL
 ROOT_DIR=../..
 OPENDAL_FEATURES ?=
+OPENDAL_C_PROFILE ?= debug
+CARGO_TARGET_DIR ?= $(or $(CARGO_BUILD_TARGET_DIR),$(C_BINDING_SRC_DIR)/target)
+
+ifeq ($(OPENDAL_C_PROFILE),release)
+CARGO_PROFILE_FLAG = --release
+else ifneq ($(OPENDAL_C_PROFILE),debug)
+$(error OPENDAL_C_PROFILE must be debug or release)
+endif
 
 INCLUDE_DIR=$(SWIFT_PKG_DIR)/Sources/COpenDAL/include
 LIB_DIR=$(SWIFT_PKG_DIR)/Sources/COpenDAL/lib
@@ -30,9 +38,10 @@ all: build-swift
 .PHONY: build-c
 build-c: $(DIRS)
 	cargo build --manifest-path $(C_BINDING_SRC_DIR)/Cargo.toml \
+		--target-dir "$(CARGO_TARGET_DIR)" $(CARGO_PROFILE_FLAG) \
 		$(if $(strip $(OPENDAL_FEATURES)),--features "$(OPENDAL_FEATURES)")
 	cp $(C_BINDING_SRC_DIR)/include/* $(INCLUDE_DIR)
-	cp $(C_BINDING_SRC_DIR)/target/debug/libopendal_c.a $(LIB_DIR)
+	cp "$(CARGO_TARGET_DIR)/$(OPENDAL_C_PROFILE)/libopendal_c.a" $(LIB_DIR)
 
 .PHONY: build-swift
 build-swift: build-c

@@ -53,14 +53,30 @@ dependency and reference the package by local path.
 
 ### 1. Build the C dependency
 
+Run the following command from the repository root to build and stage the C
+header and static library for the Swift package.
+
 ```shell
-cd bindings/swift
-make build-c
+make -C bindings/swift build-c
 ```
+
+The C library builds in debug mode by default. To build an optimized C library,
+set `OPENDAL_C_PROFILE=release`.
+
+```shell
+make -C bindings/swift build-c OPENDAL_C_PROFILE=release
+```
+
+You can combine this option with `OPENDAL_FEATURES` to [enable additional
+services](./02-getting-started.md#pointing-at-a-real-backend). SwiftPM's
+`-c release` selects the Swift build configuration separately. If you already
+built your app, run `swift package clean` in the app directory before rebuilding
+to link against the newly staged library.
 
 ### 2. Add a local path dependency
 
-In your project's `Package.swift`:
+In your project's `Package.swift`, use the local path to `bindings/swift/OpenDAL`
+in the checkout where you ran `make build-c`.
 
 ```swift
 // swift-tools-version:5.7

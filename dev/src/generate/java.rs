@@ -17,7 +17,7 @@
 
 use crate::generate::parser::{Config, ConfigType, Services, sorted_services};
 use anyhow::{Result, bail};
-use minijinja::value::ViaDeserialize;
+use minijinja::value::Serde;
 use minijinja::{Environment, context};
 use regex::{Captures, Regex};
 use serde::Serialize;
@@ -279,7 +279,7 @@ fn generate_service_config(workspace_dir: &Path, services: Services) -> Result<(
 
     let output =
         workspace_dir.join("bindings/java/src/main/java/org/apache/opendal/ServiceConfig.java");
-    let rendered = tmpl.render(context! { srvs => srvs })?;
+    let rendered = tmpl.render(context! { srvs => Serde(&srvs) })?;
     fs::write(output, format!("{rendered}\n"))?;
     Ok(())
 }
@@ -314,7 +314,7 @@ fn generate_capability(workspace_dir: &Path) -> Result<()> {
     ];
     for (template, relative) in outputs {
         let tmpl = env.get_template(template)?;
-        let rendered = tmpl.render(context! { fields => fields, jni_sig => jni_sig })?;
+        let rendered = tmpl.render(context! { fields => Serde(&fields), jni_sig => &jni_sig })?;
         fs::write(workspace_dir.join(relative), format!("{rendered}\n"))?;
     }
 
@@ -461,7 +461,7 @@ fn generate_metadata(workspace_dir: &Path) -> Result<Vec<MetadataField>> {
     ];
     for (template, relative) in outputs {
         let tmpl = env.get_template(template)?;
-        let rendered = tmpl.render(context! { fields => fields })?;
+        let rendered = tmpl.render(context! { fields => Serde(&fields) })?;
         fs::write(workspace_dir.join(relative), format!("{rendered}\n"))?;
     }
 
@@ -477,7 +477,7 @@ fn generate_options(workspace_dir: &Path, metadata_fields: &[MetadataField]) -> 
 
     let classes = options_classes(&parsed, metadata_fields)?;
     for class in &classes {
-        let rendered = template.render(context! { class => class })?;
+        let rendered = template.render(context! { class => Serde(class) })?;
         fs::write(
             java_dir.join(format!("{}.java", class.name)),
             format!("{rendered}\n"),
@@ -486,7 +486,7 @@ fn generate_options(workspace_dir: &Path, metadata_fields: &[MetadataField]) -> 
 
     let rendered = env.render_str(
         include_str!("java/options_rs.j2"),
-        context! { classes => classes },
+        context! { classes => Serde(&classes) },
     )?;
     fs::write(
         workspace_dir.join("bindings/java/src/options.rs"),
@@ -1007,7 +1007,7 @@ fn case_java_field_name(s: &str) -> String {
     heck::AsLowerCamelCase(s).to_string()
 }
 
-fn make_field(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
+fn make_field(field: Serde<Config>) -> Result<String, minijinja::Error> {
     use std::fmt::Write;
 
     let mut result = String::new();
@@ -1057,7 +1057,7 @@ fn make_field(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error>
     Ok(result)
 }
 
-fn make_populate_map(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
+fn make_populate_map(field: Serde<Config>) -> Result<String, minijinja::Error> {
     use std::fmt::Write;
 
     let mut result = String::new();
@@ -1177,7 +1177,7 @@ mod tests {
                 "{name}"
             );
 
-            let rendered = template.render(context! { class => class }).unwrap();
+            let rendered = template.render(context! { class => Serde(class) }).unwrap();
             let (annotations, modifiers) = match name {
                 "StatOptions" => ("@Data\n@Builder\npublic class", "private"),
                 "ReaderOptions" => ("@Builder\npublic final class", "public final"),
@@ -1203,7 +1203,9 @@ mod tests {
             .unwrap();
 
         for class in options_classes(&structs, &metadata_fields).unwrap() {
-            let rendered = template.render(context! { class => class }).unwrap();
+            let rendered = template
+                .render(context! { class => Serde(&class) })
+                .unwrap();
             let class_doc = rendered
                 .split_once("/**")
                 .unwrap()
@@ -1636,7 +1638,7 @@ mod tests {
         let rendered = Environment::new()
             .render_str(
                 include_str!("java/options_rs.j2"),
-                context! { classes => classes },
+                context! { classes => Serde(&classes) },
             )
             .unwrap();
 
@@ -1748,7 +1750,7 @@ mod tests {
         let rendered = Environment::new()
             .render_str(
                 include_str!("java/metadata_rs.j2"),
-                context! { fields => fields },
+                context! { fields => Serde(&fields) },
             )
             .unwrap();
         assert!(rendered.contains(

@@ -48,6 +48,22 @@ export function run(op) {
       }
     })
 
+    test.runIf(op.capability().write && op.capability().stat)('stat exposes every metadata accessor', async () => {
+      const filename = `random_file_${randomUUID()}`
+      await op.write(filename, generateFixedBytes(16))
+
+      const meta = await op.stat(filename)
+      assert.isTrue(meta.isFile())
+      assert.isFalse(meta.isDirectory())
+      assert.isFalse(meta.isDeleted())
+      assert.equal(meta.contentLength, 16n)
+      for (const value of [meta.isCurrent(), meta.contentLanguage, meta.cacheControl, meta.version]) {
+        assert.notStrictEqual(value, undefined)
+      }
+
+      await op.delete(filename)
+    })
+
     test.runIf(op.capability().read && op.capability().write && op.capability().writeCanMulti)(
       'reader/writer stream pipeline',
       async () => {

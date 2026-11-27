@@ -51,6 +51,10 @@ jobs:
         id: plan
         run: python3 .github/scripts/release_rust/plan.py --github-output
 
+  docsrs:
+    if: ${{ github.event_name != 'pull_request' && (!startsWith(github.ref, 'refs/tags/') || contains(github.ref, '-')) }}
+    uses: ./.github/workflows/ci_docsrs.yml
+
   publish:
     if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-') }}
     needs: plan

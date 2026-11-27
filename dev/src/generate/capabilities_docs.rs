@@ -734,7 +734,10 @@ fn describe_bool_condition(expr: &Expr, rel_path: &str) -> Result<String> {
                     );
                 }
                 if ident == "s3_can_checksum" {
-                    return Ok("Standard S3 buckets (not S3 Express One Zone)".to_string());
+                    return Ok(
+                        "General-purpose S3 buckets, or signed non-append CRC32C writes to S3 Express One Zone directory buckets"
+                            .to_string(),
+                    );
                 }
                 if let Some(rest) = ident.strip_prefix("has_") {
                     return Ok(format!("Requires `{rest}`"));
@@ -1173,7 +1176,8 @@ mod tests {
         assert_eq!(
             s3.native.get("write_with_checksum"),
             Some(&NativeBoolDoc::Conditional(
-                "Standard S3 buckets (not S3 Express One Zone)".to_string()
+                "General-purpose S3 buckets, or signed non-append CRC32C writes to S3 Express One Zone directory buckets"
+                    .to_string()
             ))
         );
         for scheme in [

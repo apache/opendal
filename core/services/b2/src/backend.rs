@@ -768,7 +768,10 @@ mod tests {
                             r#"{"files":[{"fileName":"root/dir/","contentLength":0}]}"#
                         } else {
                             assert!(query.contains("prefix=root/file"));
-                            r#"{"files":[{"fileName":"root/file","fileId":"new","contentLength":13,"fileInfo":{"content-disposition":"inline"}}]}"#
+                            r#"{"files":[{
+                                "fileName":"root/file","fileId":"new","contentLength":13,
+                                "fileInfo":{"content-disposition":"inline","cache-control":"no-store"}
+                            }]}"#
                         };
                         (StatusCode::OK, body)
                     }
@@ -809,6 +812,8 @@ mod tests {
                 "bucketId":"bucket-id","fileName":"root/file","fileId":"old","action":"upload",
                 "contentLength":5,"contentType":"text/plain","contentMd5":"md5",
                 "fileInfo":{
+                    "b2-cache-control":"private, max-age=137, no-cache=\"x-probe%20\"",
+                    "cache-control":"max-age=19",
                     "Owner":"a%2Bb",
                     "b2-content-disposition":"attachment; filename=\"OpenDAL %20 + probe.txt\""
                 }
@@ -822,11 +827,20 @@ mod tests {
         assert_eq!(old.content_type(), Some("text/plain"));
         assert_eq!(old.content_md5(), Some("md5"));
         assert_eq!(
+            old.cache_control(),
+            Some(r#"private, max-age=137, no-cache="x-probe%20""#)
+        );
+        assert_eq!(
             old.content_disposition(),
             Some("attachment; filename=\"OpenDAL %20 + probe.txt\"")
         );
         let user_metadata = old.user_metadata().unwrap();
         assert_eq!(user_metadata.get("owner"), Some("a+b"));
+        assert_eq!(
+            user_metadata.get("b2-cache-control"),
+            Some(r#"private, max-age=137, no-cache="x-probe ""#)
+        );
+        assert_eq!(user_metadata.get("cache-control"), Some("max-age=19"));
         assert_eq!(
             user_metadata.get("b2-content-disposition"),
             Some("attachment; filename=\"OpenDAL   + probe.txt\"")
@@ -835,11 +849,11 @@ mod tests {
         let current = op.stat("file").await?;
         assert_eq!(current.version(), Some("new"));
         assert_eq!(current.content_length(), 13);
+        assert_eq!(current.cache_control(), None);
         assert_eq!(current.content_disposition(), None);
-        assert_eq!(
-            current.user_metadata().unwrap().get("content-disposition"),
-            Some("inline")
-        );
+        let user_metadata = current.user_metadata().unwrap();
+        assert_eq!(user_metadata.get("cache-control"), Some("no-store"));
+        assert_eq!(user_metadata.get("content-disposition"), Some("inline"));
 
         let op = stat_operator(
             StatusCode::OK,

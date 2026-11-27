@@ -1025,6 +1025,10 @@ pub(super) fn parse_file_info(file: &File) -> MetadataBuilder {
         metadata.content_type(content_type);
     }
 
+    if let Some(cache_control) = file.file_info.get(constants::CACHE_CONTROL_FILE_INFO_KEY) {
+        metadata.cache_control(cache_control);
+    }
+
     if let Some(content_disposition) = file
         .file_info
         .get(constants::CONTENT_DISPOSITION_FILE_INFO_KEY)

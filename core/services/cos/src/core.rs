@@ -23,6 +23,7 @@ use http::Request;
 use http::Response;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
+use http::header::CONTENT_ENCODING;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
@@ -209,6 +210,9 @@ impl CosCore {
         }
         if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime)
+        }
+        if let Some(encoding) = args.content_encoding() {
+            req = req.header(CONTENT_ENCODING, encoding)
         }
 
         // For a bucket which has never enabled versioning, you may use it to

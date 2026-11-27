@@ -25,6 +25,19 @@ function envValue(name, fallback) {
   return process.env[name] ? process.env[name] : fallback;
 }
 
+function getLatestRelease() {
+  try {
+    // Weekly final tags live on release branches outside main's history.
+    const tags = exec("git tag --list 'v[0-9]*'", { encoding: "utf8" })
+      .trim()
+      .split("\n");
+    const latest = semver.maxSatisfying(tags, "*");
+    return latest && semver.clean(latest);
+  } catch {
+    return null;
+  }
+}
+
 function getWebsiteVersion(websiteStaging) {
   if (websiteStaging && process.env.GITHUB_REF_TYPE === "tag") {
     const refName = process.env.GITHUB_REF_NAME;
@@ -53,6 +66,7 @@ function getWebsiteSettings() {
 
   return {
     baseUrl,
+    latestRelease: getLatestRelease(),
     websiteNotLatest,
     websiteStaging,
     websiteVersion: getWebsiteVersion(websiteStaging),

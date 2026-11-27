@@ -151,6 +151,24 @@ impl CosCore {
                 percent_decode_path(version)
             ))
         }
+        if let Some(cache_control) = args.override_cache_control() {
+            query_args.push(format!(
+                "response-cache-control={}",
+                percent_encode_path(cache_control)
+            ));
+        }
+        if let Some(disposition) = args.override_content_disposition() {
+            query_args.push(format!(
+                "response-content-disposition={}",
+                percent_encode_path(disposition)
+            ));
+        }
+        if let Some(content_type) = args.override_content_type() {
+            query_args.push(format!(
+                "response-content-type={}",
+                percent_encode_path(content_type)
+            ));
+        }
         if !query_args.is_empty() {
             url.push_str(&format!("?{}", query_args.join("&")));
         }

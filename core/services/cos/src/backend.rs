@@ -242,6 +242,9 @@ impl Builder for CosBuilder {
             read_with_if_none_match: true,
             read_with_if_modified_since: true,
             read_with_if_unmodified_since: true,
+            read_with_override_cache_control: true,
+            read_with_override_content_disposition: true,
+            read_with_override_content_type: true,
             read_with_version: true,
 
             write: true,
@@ -619,6 +622,68 @@ mod tests {
     use http::header::CONTENT_ENCODING;
 
     use super::*;
+
+    #[tokio::test]
+    async fn presign_read_signs_optional_response_overrides() {
+        let op = Operator::new(
+            CosBuilder::default()
+                .bucket("test")
+                .endpoint("https://cos.example.com")
+                .secret_id("test")
+                .secret_key("test")
+                .disable_config_load(),
+        )
+        .unwrap();
+
+        let cache_control = Some("private, max-age=42, no-transform");
+        let disposition = Some("attachment; filename=\"preview & report.txt\"");
+        let content_type = Some("application/json; profile=\"a&b\"");
+        for (cache_control, disposition, content_type) in [
+            (None, None, None),
+            (cache_control, None, None),
+            (None, disposition, None),
+            (None, None, content_type),
+            (cache_control, disposition, content_type),
+        ] {
+            let request = op
+                .presign_read_options(
+                    "object.txt",
+                    Duration::from_secs(60),
+                    options::ReadOptions {
+                        override_cache_control: cache_control.map(str::to_owned),
+                        override_content_disposition: disposition.map(str::to_owned),
+                        override_content_type: content_type.map(str::to_owned),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .unwrap();
+            let query = request.uri().query().unwrap();
+            let signed_params = query
+                .split('&')
+                .find_map(|param| param.strip_prefix("q-url-param-list="))
+                .map(percent_decode_path)
+                .expect("missing COS signed query parameters");
+            for (key, expected) in [
+                ("response-cache-control", cache_control),
+                ("response-content-disposition", disposition),
+                ("response-content-type", content_type),
+            ] {
+                let values: Vec<_> = query
+                    .split('&')
+                    .filter_map(|param| param.split_once('='))
+                    .filter(|(name, _)| *name == key)
+                    .map(|(_, value)| percent_decode_path(value))
+                    .collect();
+                assert_eq!(values.as_slice(), expected.as_slice(), "{key} query values");
+                assert_eq!(
+                    signed_params.split(';').filter(|name| *name == key).count(),
+                    usize::from(expected.is_some()),
+                    "{key} signed query count"
+                );
+            }
+        }
+    }
 
     #[tokio::test]
     async fn presign_write_signs_optional_content_encoding() {

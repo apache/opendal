@@ -224,6 +224,9 @@ impl WriteState {
     }
 
     pub(crate) async fn write_all(&mut self, mut bs: Buffer) -> Result<()> {
+        if bs.is_empty() && self.closed && !self.abort_started {
+            return Ok(());
+        }
         self.check_writable()?;
         while !bs.is_empty() {
             let n = self

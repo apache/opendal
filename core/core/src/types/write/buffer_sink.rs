@@ -41,8 +41,12 @@ enum State {
     Writing(BoxedStaticFuture<(WriteState, Result<usize>)>),
     /// A close request is in flight and owns the writer.
     Closing(BoxedStaticFuture<(WriteState, Result<Metadata>)>),
-    /// The sink has been closed and accepts no more items.
-    Closed,
+    /// The sink has reached a terminal state and accepts no more items.
+    ///
+    /// Already-terminal writers passed to [`BufferSink::new`] retain their
+    /// `WriteState` here so drop-time cleanup still runs in the adapter's drop
+    /// context (such as `StdWriter::drop`).
+    Closed(#[allow(dead_code)] Option<WriteState>),
 }
 
 /// # Safety
@@ -57,7 +61,7 @@ impl BufferSink {
     #[inline]
     pub(crate) fn new(w: WriteState) -> Self {
         let state = if w.is_terminal() {
-            State::Closed
+            State::Closed(Some(w))
         } else {
             State::Idle(w)
         };
@@ -71,10 +75,10 @@ impl BufferSink {
     /// Take the writer out of an idle sink so a request can own it.
     ///
     /// Returns `None` and leaves the state unchanged when the sink is not idle.
-    /// The state has to move out for this hand-off; `State::Closed` only fills
-    /// the slot during that move, and no await point is crossed here.
+    /// The state has to move out for this hand-off; `State::Closed(None)` only
+    /// fills the slot during that move, and no await point is crossed here.
     fn take_idle_writer(&mut self) -> Option<WriteState> {
-        match std::mem::replace(&mut self.state, State::Closed) {
+        match std::mem::replace(&mut self.state, State::Closed(None)) {
             State::Idle(w) => Some(w),
             state => {
                 self.state = state;
@@ -93,7 +97,7 @@ impl BufferSink {
 
     /// Return whether the sink has been closed.
     pub(crate) fn is_closed(&self) -> bool {
-        matches!(self.state, State::Closed)
+        matches!(self.state, State::Closed(_))
     }
 
     /// Return whether the sink is closing.
@@ -111,7 +115,7 @@ impl futures::Sink<Buffer> for BufferSink {
 
     fn start_send(mut self: Pin<&mut Self>, item: Buffer) -> Result<()> {
         match &self.state {
-            State::Closed => Err(Error::new(
+            State::Closed(_) => Err(Error::new(
                 ErrorKind::Unexpected,
                 "state invalid: sink has been closed",
             )),
@@ -154,7 +158,7 @@ impl futures::Sink<Buffer> for BufferSink {
                         "state invalid: sink is closing",
                     )));
                 }
-                State::Closed => {
+                State::Closed(_) => {
                     return Poll::Ready(Err(Error::new(
                         ErrorKind::Unexpected,
                         "state invalid: sink has been closed",
@@ -187,7 +191,7 @@ impl futures::Sink<Buffer> for BufferSink {
         let (w, res) = ready!(fut.as_mut().poll(cx));
         match res {
             Ok(_) => {
-                this.state = State::Closed;
+                this.state = State::Closed(None);
                 Poll::Ready(Ok(()))
             }
             Err(err) => {

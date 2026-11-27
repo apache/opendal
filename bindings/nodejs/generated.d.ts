@@ -91,119 +91,207 @@ export declare class BlockingWriter {
  * - What's current Operator max supports batch operations count.
  *
  * Add fields of Capabilities to be public and can be accessed directly.
+ *
+ * These flags describe the underlying OpenDAL operator. A flag can be true even
+ * when the Node.js binding does not expose the matching method (for example,
+ * `restore`).
  */
 export declare class Capability {
-  /** If operator supports stat. */
+  /** Indicates if the operator supports metadata retrieval operations. */
   get stat(): boolean
-  /** If operator supports stat with if matched. */
+  /** Indicates if conditional stat operations using If-Match are supported. */
   get statWithIfMatch(): boolean
-  /** If operator supports stat with if not match. */
+  /** Indicates if conditional stat operations using If-None-Match are supported. */
   get statWithIfNoneMatch(): boolean
-  /** If operator supports stat with if modified since. */
+  /** Indicates if conditional stat operations using version match are supported. */
+  get statWithIfVersionMatch(): boolean
+  /** Indicates if conditional stat operations using version non-match are supported. */
+  get statWithIfVersionNotMatch(): boolean
+  /** Indicates if conditional stat operations using If-Modified-Since are supported. */
   get statWithIfModifiedSince(): boolean
-  /** If operator supports stat with if unmodified since. */
+  /** Indicates if conditional stat operations using If-Unmodified-Since are supported. */
   get statWithIfUnmodifiedSince(): boolean
-  /** If operator supports stat with versions. */
-  get statWithVersion(): boolean
-  /** If operator supports stat with override content type. */
-  get statWithOverrideContentType(): boolean
-  /** If operator supports stat with override cache control. */
+  /** Indicates if Cache-Control header override is supported during stat operations. */
   get statWithOverrideCacheControl(): boolean
-  /** If operator supports stat with override content disposition. */
+  /** Indicates if Content-Disposition header override is supported during stat operations. */
   get statWithOverrideContentDisposition(): boolean
-  /** If operator supports read. */
+  /** Indicates if Content-Type header override is supported during stat operations. */
+  get statWithOverrideContentType(): boolean
+  /** Indicates if versions stat operations are supported. */
+  get statWithVersion(): boolean
+  /** Indicates if the operator supports read operations. */
   get read(): boolean
-  /** If operator supports read with version. */
-  get readWithVersion(): boolean
-  /** If operator supports read with range. */
-  get readWithIfModifiedSince(): boolean
-  /** If operator supports read with if unmodified since. */
-  get readWithIfUnmodifiedSince(): boolean
-  /** If operator supports read with if matched. */
+  /** Indicates if conditional read operations using If-Match are supported. */
   get readWithIfMatch(): boolean
-  /** If operator supports read with if not match. */
+  /** Indicates if conditional read operations using If-None-Match are supported. */
   get readWithIfNoneMatch(): boolean
-  /** if operator supports read with override cache control. */
+  /** Indicates if conditional read operations using version match are supported. */
+  get readWithIfVersionMatch(): boolean
+  /** Indicates if conditional read operations using version non-match are supported. */
+  get readWithIfVersionNotMatch(): boolean
+  /** Indicates if conditional read operations using If-Modified-Since are supported. */
+  get readWithIfModifiedSince(): boolean
+  /** Indicates if conditional read operations using If-Unmodified-Since are supported. */
+  get readWithIfUnmodifiedSince(): boolean
+  /** Indicates if Cache-Control header override is supported during read operations. */
   get readWithOverrideCacheControl(): boolean
-  /** if operator supports `read` with override content disposition. */
+  /** Indicates if Content-Disposition header override is supported during read operations. */
   get readWithOverrideContentDisposition(): boolean
-  /** if operator supports read with override content type. */
+  /** Indicates if Content-Type header override is supported during read operations. */
   get readWithOverrideContentType(): boolean
-  /** If operator supports write. */
+  /** Indicates if versions read operations are supported. */
+  get readWithVersion(): boolean
+  /** Indicates if suffix read operations are supported. */
+  get readWithSuffix(): boolean
+  /** Indicates if the operator supports requesting stored full-file checksum metadata. Stat and read responses may include that metadata when requested. */
+  get readWithChecksum(): boolean
+  /** Indicates if the operator supports write operations. */
   get write(): boolean
-  /** If operator supports write can be called in multi times. */
+  /** Indicates if multiple write operations can be performed on the same object. */
   get writeCanMulti(): boolean
-  /** If operator supports write with empty content. */
+  /** Indicates if writing empty content is supported. */
   get writeCanEmpty(): boolean
-  /** If operator supports write by append. */
+  /** Indicates if append operations are supported. */
   get writeCanAppend(): boolean
-  /** If operator supports write with content type. */
+  /** Indicates if a non-append writer can natively copy source ranges into an in-progress write. `Writer::copy_from` remains available through streaming fallback when false or when appending. */
+  get writeCanCopyFrom(): boolean
+  /** Indicates if Content-Type can be specified during write operations. */
   get writeWithContentType(): boolean
-  /** If operator supports write with content disposition. */
+  /** Indicates if Content-Disposition can be specified during write operations. */
   get writeWithContentDisposition(): boolean
-  /** If operator supports write with cache control. */
-  get writeWithCacheControl(): boolean
-  /** If operator supports write with content encoding. */
+  /** Indicates if Content-Encoding can be specified during write operations. */
   get writeWithContentEncoding(): boolean
-  /** If operator supports write with user metadata. */
-  get writeWithUserMetadata(): boolean
-  /** If operator supports write with if match. */
+  /** Indicates if a write can store Content-Language and a subsequent stat can retrieve it. */
+  get writeWithContentLanguage(): boolean
+  /** Indicates if Cache-Control can be specified during write operations. */
+  get writeWithCacheControl(): boolean
+  /** Indicates if conditional write operations using If-Match are supported. */
   get writeWithIfMatch(): boolean
-  /** If operator supports write with if none match. */
+  /** Indicates if conditional write operations using If-None-Match are supported. */
   get writeWithIfNoneMatch(): boolean
-  /** If operator supports write with if not exists. */
+  /** Indicates if conditional write operations using version match are supported. */
+  get writeWithIfVersionMatch(): boolean
+  /** Indicates if conditional write operations using version non-match are supported. */
+  get writeWithIfVersionNotMatch(): boolean
+  /** Indicates if write operations can be conditional on object non-existence. */
   get writeWithIfNotExists(): boolean
-  /**
-   * write_multi_max_size is the max size that services support in write_multi.
-   *
-   * For example, AWS S3 supports 5GiB as max in write_multi.
-   */
+  /** Indicates if custom user metadata can be attached during write operations. */
+  get writeWithUserMetadata(): boolean
+  /** Indicates if writes can set a lifetime for the new file. */
+  get writeWithExpires(): boolean
+  /** Indicates if non-append writes support native checksum verification. A service with this capability supports at least [`crate::WriteChecksum::Any`] and validates each requested intent before performing I/O. */
+  get writeWithChecksum(): boolean
+  /** Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads. */
   get writeMultiMaxSize(): bigint | null
-  /**
-   * write_multi_min_size is the min size that services support in write_multi.
-   *
-   * For example, AWS S3 requires at least 5MiB in write_multi expect the last one.
-   */
+  /** Minimum size required for multipart uploads (except for the last part). For example, AWS S3 requires at least 5MiB per part. */
   get writeMultiMinSize(): bigint | null
-  /**
-   * write_total_max_size is the max size that services support in write_total.
-   *
-   * For example, Cloudflare D1 supports 1MB as max in write_total.
-   */
+  /** Maximum total size supported for write operations. For example, Cloudflare D1 has a 1MB total size limit. */
   get writeTotalMaxSize(): bigint | null
-  /** If operator supports create dir. */
+  /** Indicates if directory creation is supported. */
   get createDir(): boolean
-  /** If operator supports delete. */
+  /** Indicates if delete operations are supported. */
   get delete(): boolean
-  /** If operator supports delete by version. */
+  /** Indicates if versions delete operations are supported. */
   get deleteWithVersion(): boolean
-  /** If operator supports copy. */
+  /** Indicates if recursive delete operations are supported. */
+  get deleteWithRecursive(): boolean
+  /** Indicates if conditional delete operations using If-Match are supported. */
+  get deleteWithIfMatch(): boolean
+  /** Indicates if conditional delete operations using If-None-Match are supported. */
+  get deleteWithIfNoneMatch(): boolean
+  /** Indicates if conditional delete operations using version match are supported. */
+  get deleteWithIfVersionMatch(): boolean
+  /** Indicates if conditional delete operations using version non-match are supported. */
+  get deleteWithIfVersionNotMatch(): boolean
+  /** Maximum size supported for single delete operations. */
+  get deleteMaxSize(): bigint | null
+  /** Indicates if copy operations are supported. */
   get copy(): boolean
-  /** If operator supports rename. */
+  /** Indicates if conditional copy operations with if-not-exists are supported. */
+  get copyWithIfNotExists(): boolean
+  /** Indicates if conditional copy operations with if-match are supported. */
+  get copyWithIfMatch(): boolean
+  /** Indicates if conditional copy operations with if-none-match are supported. */
+  get copyWithIfNoneMatch(): boolean
+  /** Indicates if conditional copy operations using version match are supported. */
+  get copyWithIfVersionMatch(): boolean
+  /** Indicates if conditional copy operations using version non-match are supported. */
+  get copyWithIfVersionNotMatch(): boolean
+  /** Indicates if copy operations from a specific source version are supported. */
+  get copyWithSourceVersion(): boolean
+  /** Indicates if copy operations can replace the destination's user metadata. */
+  get copyWithUserMetadata(): boolean
+  /** Indicates if copy operations can replace the destination's Content-Type. */
+  get copyWithContentType(): boolean
+  /** Indicates if copy operations can replace the destination's Content-Language. */
+  get copyWithContentLanguage(): boolean
+  /** Indicates if copy operations can be split into multiple server-side tasks. */
+  get copyCanMulti(): boolean
+  /** Maximum size supported for segmented copy tasks. */
+  get copyMultiMaxSize(): bigint | null
+  /** Minimum size required for segmented copy tasks. */
+  get copyMultiMinSize(): bigint | null
+  /** Indicates if the operator supports composing complete source objects. */
+  get compose(): boolean
+  /** Indicates if Content-Type can be specified during composition. */
+  get composeWithContentType(): boolean
+  /** Indicates if Content-Disposition can be specified during composition. */
+  get composeWithContentDisposition(): boolean
+  /** Indicates if Content-Encoding can be specified during composition. */
+  get composeWithContentEncoding(): boolean
+  /** Indicates if Cache-Control can be specified during composition. */
+  get composeWithCacheControl(): boolean
+  /** Indicates if custom user metadata can be attached during composition. */
+  get composeWithUserMetadata(): boolean
+  /** Indicates if composition supports a destination ETag match condition. */
+  get composeWithIfMatch(): boolean
+  /** Indicates if composition supports a destination ETag non-match condition. */
+  get composeWithIfNoneMatch(): boolean
+  /** Indicates if composition supports a destination version match condition. */
+  get composeWithIfVersionMatch(): boolean
+  /** Indicates if composition supports a destination version non-match condition. */
+  get composeWithIfVersionNotMatch(): boolean
+  /** Indicates if composition can require a missing destination. */
+  get composeWithIfNotExists(): boolean
+  /** Indicates if composition can select a specific source version. */
+  get composeWithSourceVersion(): boolean
+  /** Indicates if composition supports a source ETag match condition. */
+  get composeWithSourceIfMatch(): boolean
+  /** Indicates if restore operations are supported. */
+  get restore(): boolean
+  /** Indicates if restoring a specific version is supported. */
+  get restoreWithVersion(): boolean
+  /** Indicates if conditional restore operations using if-not-exists are supported. */
+  get restoreWithIfNotExists(): boolean
+  /** Indicates if rename operations are supported. */
   get rename(): boolean
-  /** If operator supports list. */
+  /** Indicates if conditional rename operations with if-not-exists are supported. */
+  get renameWithIfNotExists(): boolean
+  /** Indicates if list operations are supported. */
   get list(): boolean
-  /** If backend supports list with limit. */
+  /** Indicates if list operations support result limiting. */
   get listWithLimit(): boolean
-  /** If backend supports list with start after. */
+  /** Indicates if list operations support continuation from a specific point. */
   get listWithStartAfter(): boolean
-  /** If backend supports list with recursive. */
+  /** Indicates if recursive listing is supported. */
   get listWithRecursive(): boolean
-  /** If backend supports list with versions. */
+  /** Indicates if listing with versions included is supported. */
   get listWithVersions(): boolean
-  /** If backend supports list with deleted. */
+  /** Indicates if listing with deleted files included is supported. */
   get listWithDeleted(): boolean
-  /** If operator supports presign. */
+  /** Indicates if listing with a glob pattern is supported by this service stack. */
+  get listWithGlob(): boolean
+  /** Indicates if presigned URL generation is supported. */
   get presign(): boolean
-  /** If operator supports presign read. */
+  /** Indicates if presigned URLs for read operations are supported. */
   get presignRead(): boolean
-  /** If operator supports presign stat. */
+  /** Indicates if presigned URLs for stat operations are supported. */
   get presignStat(): boolean
-  /** If operator supports presign write. */
+  /** Indicates if presigned URLs for write operations are supported. */
   get presignWrite(): boolean
-  /** If operator supports presign delete. */
+  /** Indicates if presigned URLs for delete operations are supported. */
   get presignDelete(): boolean
-  /** If operator supports shared. */
+  /** Indicate if the operator supports shared access. */
   get shared(): boolean
 }
 

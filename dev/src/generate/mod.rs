@@ -24,6 +24,7 @@ mod dotnet;
 mod gcs_grpc;
 mod java;
 mod metadata;
+mod nodejs;
 mod options;
 mod parser;
 mod python;
@@ -43,6 +44,9 @@ pub fn run(language: &str) -> Result<()> {
     }
     if language == "c" || language == "go" {
         return c::generate(&workspace_dir);
+    }
+    if language == "nodejs" || language == "node" {
+        return nodejs::generate(&workspace_dir);
     }
 
     let mut services = parser::Services::new();

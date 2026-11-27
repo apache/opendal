@@ -33,6 +33,7 @@ all-features = true
 
 [dependencies]
 bytes = { workspace = true }
+crc-fast = { workspace = true }
 http = { workspace = true }
 opendal-core = { path = "../../core", version = "0.59.5", default-features = false, features = [
   "reqsign",
@@ -43,3 +44,7 @@ reqsign-file-read-tokio = { version = "3.0.9", default-features = false }
 reqsign-volcengine-tos = { version = "3.2.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+
+[dev-dependencies]
+futures = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt"] }

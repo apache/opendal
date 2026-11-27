@@ -199,6 +199,7 @@ impl Builder for TosBuilder {
             write_can_empty: true,
             write_can_multi: true,
             write_with_cache_control: true,
+            write_with_checksum: !config.skip_signature,
             write_with_content_type: true,
             write_with_content_encoding: true,
             write_with_if_match: true,
@@ -368,15 +369,13 @@ impl Service for TosBackend {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        let output: oio::MultipartWriter<TosWriter> = {
-            let writer = TosWriter::new(self.core.clone(), ctx.clone(), path, args.clone());
-
-            let w = oio::MultipartWriter::new(ctx.executor().clone(), writer, args.concurrent());
-
-            Ok(w)
-        }?;
-
-        Ok(output)
+        let concurrent = args.concurrent();
+        let writer = TosWriter::new(self.core.clone(), ctx.clone(), path, args)?;
+        Ok(oio::MultipartWriter::new(
+            ctx.executor().clone(),
+            writer,
+            concurrent,
+        ))
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -581,6 +580,12 @@ impl Service for TosBackend {
             PresignOperation::Stat(v) => self.core.tos_head_object_request(path, v),
             PresignOperation::Read(range, v) => self.core.tos_get_object_request(path, range, &v),
             PresignOperation::Write(v) => {
+                if v.checksum().is_some() {
+                    return Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "TOS cannot verify a presigned write checksum",
+                    ));
+                }
                 self.core
                     .tos_put_object_request(path, None, &v, Buffer::new())
             }

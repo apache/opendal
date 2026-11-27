@@ -48,6 +48,7 @@ pub mod constants {
 
     pub const X_TOS_VERSION_ID: &str = "x-tos-version-id";
     pub const X_TOS_OBJECT_SIZE: &str = "x-tos-object-size";
+    pub const X_TOS_HASH_CRC64ECMA: &str = "x-tos-hash-crc64ecma";
 
     pub const X_TOS_DIRECTORY: &str = "x-tos-directory";
 
@@ -868,14 +869,13 @@ impl TosCore {
         Ok(req)
     }
 
-    pub async fn tos_complete_multipart_upload(
+    pub fn tos_complete_multipart_upload_request(
         &self,
-        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
         args: &OpWrite,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path);
 
         let url = format!(
@@ -900,13 +900,10 @@ impl TosCore {
             req = req.header(http::header::IF_NONE_MATCH, "*");
         }
 
-        let req = req
-            .extension(Operation::Write)
+        req.extension(Operation::Write)
             .extension(ServiceOperation("CompleteMultipartUpload"))
             .body(Buffer::from(content))
-            .map_err(new_request_build_error)?;
-
-        self.send(ctx, req).await
+            .map_err(new_request_build_error)
     }
 
     pub async fn tos_abort_multipart_upload(
@@ -1165,7 +1162,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     err
 }
 
-fn parse_tos_error(bs: &bytes::Bytes) -> Option<TosError> {
+pub(super) fn parse_tos_error(bs: &bytes::Bytes) -> Option<TosError> {
     de::from_reader::<_, TosError>(bs.chunk().reader())
         .or_else(|_| serde_json::from_slice::<TosError>(bs))
         .ok()

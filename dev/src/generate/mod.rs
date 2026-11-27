@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+mod c;
 mod capabilities_docs;
 mod capability;
 mod core_options;
@@ -39,6 +40,9 @@ pub fn run(language: &str) -> Result<()> {
     }
     if language == "ruby" || language == "rb" {
         return ruby::generate(&workspace_dir);
+    }
+    if language == "c" || language == "go" {
+        return c::generate(&workspace_dir);
     }
 
     let mut services = parser::Services::new();

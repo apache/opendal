@@ -59,6 +59,9 @@ pub use operator::opendal_operator;
 
 mod operator_info;
 
+mod capability;
+pub use capability::opendal_capability;
+
 mod presign;
 pub use presign::opendal_http_header_pair;
 pub use presign::opendal_presigned_request;

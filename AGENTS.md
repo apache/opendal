@@ -284,6 +284,7 @@ When adding or changing a service:
 - Expose standard capabilities a service declares directly through `capability()` without gating them behind `enable_*` configuration switches. Letting an individual server reject an unsupported request is valid.
 - Withhold a capability only when exposing it risks incorrectness—such as wrong results, silent omissions, or skipped verification—and document why in the service or preset docs.
 - Separate non-standard protocol extensions absent from most servers from standard declared capabilities; only those extensions warrant an explicit opt-in.
+- Verify capability decisions and upstream quirks against a current release rather than an outdated pinned fixture; document version-specific caveats instead of withholding a capability or adding a workaround for already-fixed server behavior.
 - Before working around an upstream service bug, weigh how many users it affects. Report the bug upstream and track it in an OpenDAL issue first; add a client-side workaround only when a mainstream service blocks a broad user base, and keep it small and easy to remove once upstream fixes it.
 
 ## Layer Implementation Pattern

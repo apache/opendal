@@ -214,6 +214,25 @@ Existing databases need no data migration. `redb` 5 changed the encoding of `Opt
 `Option<String>`, `Option<bool>`, and `Option<char>` only, and the Redb service stores entries
 in a `TableDefinition<&str, &[u8]>` table.
 
+### RocksDB on-disk compatibility
+
+The bundled native RocksDB version changed from 10.4.2 to 11.8.1. If you
+supply an external RocksDB library, check the version your build links to.
+RocksDB 11.8.1 cannot read block-based SST files in format 0 or 1, so it can
+fail to open a database that still uses either format. It writes new
+block-based SST files in format 7 by default.
+
+Before opening an existing directory with the upgraded build, keep a
+restorable pre-upgrade copy and test the upgrade on a separate copy. For
+format 0 or 1 files, follow the full-compaction upgrade path in the
+[RocksDB release history](https://github.com/facebook/rocksdb/blob/v11.8.1/HISTORY.md#L155-L188).
+
+In a native rollback test, RocksDB 9.11.2 rejected the format-7 SST file
+written by 11.8.1. To roll back to 9.11.2 after format-7 files have been
+written, use a pre-upgrade copy verified with 9.11.2. RocksDB 10.4.2
+supports format 7 and read data written by 11.8.1 in a separate native
+rollback test.
+
 ## Zig binding
 
 `Operator.read()` returns `Bytes`. Use `slice()` to borrow the data and defer

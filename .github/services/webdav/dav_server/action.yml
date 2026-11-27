@@ -43,7 +43,7 @@ runs:
             # before reading the HTTP/1 request body, which can cause EPIPE on multi-MiB PUTs.
             cat <<EOF >>"$GITHUB_ENV"
         OPENDAL_WEBDAV_ENDPOINT=$endpoint
-        OPENDAL_TEST_CAPABILITY_OVERRIDES=write_total_max_size=4096,write_with_user_metadata=false,read_with_if_none_match=false,read_with_if_modified_since=false,rename_with_if_not_exists=false
+        OPENDAL_TEST_CAPABILITY_OVERRIDES=write_total_max_size=4096,write_with_user_metadata=false,rename_with_if_not_exists=false
         EOF
             exit 0
           fi

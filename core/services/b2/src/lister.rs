@@ -132,6 +132,8 @@ pub struct B2VersionLister {
     start_after: Option<String>,
     delimiter: Option<&'static str>,
     limit: Option<usize>,
+    include_versions: bool,
+    include_deleted: bool,
     cursor: VersionCursor,
     last_version_name: Option<String>,
     entries: VecDeque<oio::Entry>,
@@ -162,11 +164,22 @@ enum ListedFileVersion {
     },
     Hide {
         file_name: String,
+        file_id: String,
+        #[serde(deserialize_with = "deserialize_upload_timestamp")]
+        upload_timestamp: Timestamp,
     },
     Start,
     Folder {
         file_name: String,
     },
+}
+
+fn deserialize_upload_timestamp<'de, D>(deserializer: D) -> std::result::Result<Timestamp, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let millis = i64::deserialize(deserializer)?;
+    Timestamp::from_millisecond(millis).map_err(serde::de::Error::custom)
 }
 
 impl B2VersionLister {
@@ -178,6 +191,8 @@ impl B2VersionLister {
                 .map(|key| build_absolute_path(&core.root, key)),
             delimiter: (!args.recursive()).then_some("/"),
             limit: args.limit(),
+            include_versions: args.versions(),
+            include_deleted: args.deleted(),
             core,
             ctx,
             cursor: VersionCursor::Start,
@@ -241,12 +256,32 @@ impl oio::List for B2VersionLister {
                 match version {
                     ListedFileVersion::Data { file_id, file } => {
                         let is_current = self.last_version_name.as_ref() != Some(&file.file_name);
-                        let mut metadata = parse_file_info(&file);
-                        metadata.version(&file_id).is_current(Some(is_current));
-                        self.push_entry(&file.file_name, metadata.build());
+                        if self.include_versions || is_current {
+                            let mut metadata = parse_file_info(&file);
+                            metadata.version(&file_id).is_current(Some(is_current));
+                            self.push_entry(&file.file_name, metadata.build());
+                        }
                         self.last_version_name = Some(file.file_name);
                     }
-                    ListedFileVersion::Hide { file_name } => {
+                    ListedFileVersion::Hide {
+                        file_name,
+                        file_id,
+                        upload_timestamp,
+                    } => {
+                        if self.include_deleted {
+                            let is_current = self.last_version_name.as_ref() != Some(&file_name);
+                            let mut metadata = if file_name.ends_with('/') {
+                                MetadataBuilder::dir()
+                            } else {
+                                MetadataBuilder::file(0)
+                            };
+                            metadata
+                                .version(&file_id)
+                                .is_deleted(true)
+                                .is_current(Some(is_current))
+                                .last_modified(upload_timestamp);
+                            self.push_entry(&file_name, metadata.build());
+                        }
                         self.last_version_name = Some(file_name);
                     }
                     ListedFileVersion::Start => {}
@@ -280,11 +315,16 @@ mod tests {
 
     impl HttpTransport for ScriptedListTransport {
         async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-            self.requests.lock().unwrap().push(req);
-            let mut pages = self.pages.lock().unwrap();
-            assert!(!pages.is_empty(), "unexpected extra list page request");
-            let body = pages.remove(0);
-            let buf = Buffer::from(body);
+            let buf = if req.uri().path() == "/b2api/v4/b2_authorize_account" {
+                Buffer::from(
+                    r#"{"authorizationToken":"token","apiInfo":{"storageApi":{"apiUrl":"https://api.example","downloadUrl":"https://download.example"}}}"#,
+                )
+            } else {
+                self.requests.lock().unwrap().push(req);
+                let mut pages = self.pages.lock().unwrap();
+                assert!(!pages.is_empty(), "unexpected extra list page request");
+                Buffer::from(pages.remove(0))
+            };
             let len = buf.len() as u64;
             Response::builder()
                 .status(StatusCode::OK)
@@ -398,77 +438,113 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_version_listing_keeps_current_state_across_native_pages() {
-        let requests = Arc::new(Mutex::new(Vec::new()));
-        let transport = ScriptedListTransport {
-            pages: Mutex::new(
-                [
-                    r#"{"files":[{"action":"start","fileName":"sub/a"}],"nextFileName":"sub/a","nextFileId":"after-start"}"#,
-                    r#"{"files":[{"action":"upload","fileName":"sub/a","fileId":"current","contentLength":3}],"nextFileName":"sub/a","nextFileId":"after-current"}"#,
-                    r#"{"files":[{"action":"upload","fileName":"sub/a","fileId":"old","contentLength":1}],"nextFileName":"sub/a","nextFileId":"after-old"}"#,
-                    r#"{"files":[{"action":"hide","fileName":"sub/b"}],"nextFileName":"sub/b","nextFileId":"after-hide"}"#,
-                    r#"{"files":[{"action":"upload","fileName":"sub/b","fileId":"hidden","contentLength":2}],"nextFileName":"sub/b","nextFileId":"after-hidden"}"#,
-                    r#"{"files":[{"action":"folder","fileName":"sub/dir/","fileId":null}],"nextFileName":"sub/dir0","nextFileId":null}"#,
-                    r#"{"files":[{"action":"upload","fileName":"sub/z","fileId":"last","contentLength":1}],"nextFileName":null,"nextFileId":null}"#,
-                ]
-                .map(str::to_string)
-                .into(),
+    async fn test_version_listing_filters_data_and_hides_across_native_pages() -> Result<()> {
+        let pages = [
+            r#"{"files":[{"action":"start","fileName":"sub/a","fileId":"unfinished"}],"nextFileName":"sub/a","nextFileId":"current"}"#,
+            r#"{"files":[{"action":"upload","fileName":"sub/a","fileId":"current","contentLength":3}],"nextFileName":"sub/a","nextFileId":"old-hide"}"#,
+            r#"{"files":[{"action":"hide","fileName":"sub/a","fileId":"old-hide","uploadTimestamp":1700000000123}],"nextFileName":"sub/a","nextFileId":"old"}"#,
+            r#"{"files":[{"action":"upload","fileName":"sub/a","fileId":"old","contentLength":1}],"nextFileName":"sub/b","nextFileId":"current-hide"}"#,
+            r#"{"files":[{"action":"hide","fileName":"sub/b","fileId":"current-hide","uploadTimestamp":1700000000456}],"nextFileName":"sub/b","nextFileId":"hidden"}"#,
+            r#"{"files":[{"action":"upload","fileName":"sub/b","fileId":"hidden","contentLength":2}],"nextFileName":"sub/dir/","nextFileId":null}"#,
+            r#"{"files":[{"action":"folder","fileName":"sub/dir/","fileId":null}],"nextFileName":"sub/z","nextFileId":"last"}"#,
+            r#"{"files":[{"action":"upload","fileName":"sub/z","fileId":"last","contentLength":1}],"nextFileName":null,"nextFileId":null}"#,
+        ];
+        let current = ("a", Some("current"), Some(true), false);
+        let old = ("a", Some("old"), Some(false), false);
+        let old_hide = ("a", Some("old-hide"), Some(false), true);
+        let current_hide = ("b", Some("current-hide"), Some(true), true);
+        let hidden = ("b", Some("hidden"), Some(false), false);
+        let folder = ("dir/", None, None, false);
+        let last = ("z", Some("last"), Some(true), false);
+        for (versions, deleted, expected) in [
+            (true, false, vec![current, old, hidden, folder, last]),
+            (
+                false,
+                true,
+                vec![current, old_hide, current_hide, folder, last],
             ),
-            requests: requests.clone(),
-        };
-        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
-        let args = OpList::from(options::ListOptions {
-            versions: true,
-            limit: Some(1),
-            ..Default::default()
-        });
-        let mut lister = B2VersionLister::new(test_core("/sub/"), ctx, "/", &args);
+            (
+                true,
+                true,
+                vec![current, old_hide, old, current_hide, hidden, folder, last],
+            ),
+        ] {
+            let requests = Arc::new(Mutex::new(Vec::new()));
+            let transport = ScriptedListTransport {
+                pages: Mutex::new(pages.map(str::to_string).into()),
+                requests: requests.clone(),
+            };
+            let ctx = OperationContext::new().with_http_transport(HttpTransporter::new(transport));
+            let op = Operator::new(
+                crate::B2::default()
+                    .root("sub")
+                    .bucket("version-list-tests")
+                    .bucket_id("bucket-id")
+                    .application_key_id("test-key")
+                    .application_key("test-secret"),
+            )?
+            .with_context(ctx);
 
-        let mut entries = Vec::new();
-        while let Some(entry) = lister.next().await.unwrap() {
-            entries.push(entry);
+            let entries = op
+                .list_with("/")
+                .limit(1)
+                .versions(versions)
+                .deleted(deleted)
+                .await?;
+            let actual: Vec<_> = entries
+                .iter()
+                .map(|entry| {
+                    let metadata = entry.metadata();
+                    if metadata.is_deleted() {
+                        let timestamp = if entry.path() == "a" {
+                            "2023-11-14T22:13:20.123Z"
+                        } else {
+                            "2023-11-14T22:13:20.456Z"
+                        };
+                        assert_eq!(metadata.last_modified(), Some(timestamp.parse().unwrap()));
+                        assert!(metadata.is_file());
+                        assert_eq!(metadata.content_length(), 0);
+                    }
+                    (
+                        entry.path(),
+                        metadata.version(),
+                        metadata.is_current(),
+                        metadata.is_deleted(),
+                    )
+                })
+                .collect();
+            assert_eq!(actual, expected, "versions={versions}, deleted={deleted}");
+
+            let recorded = requests.lock().unwrap();
+            let bodies: Vec<serde_json::Value> = recorded
+                .iter()
+                .map(|request| {
+                    assert_eq!(request.uri().path(), "/b2api/v2/b2_list_file_versions");
+                    serde_json::from_slice(&request.body().to_bytes()).unwrap()
+                })
+                .collect();
+            let markers: Vec<_> = bodies
+                .iter()
+                .map(|body| {
+                    assert_eq!(body["delimiter"], "/");
+                    assert_eq!(body["maxFileCount"], 1);
+                    (body["startFileName"].as_str(), body["startFileId"].as_str())
+                })
+                .collect();
+            assert_eq!(
+                markers,
+                [
+                    (None, None),
+                    (Some("sub/a"), Some("current")),
+                    (Some("sub/a"), Some("old-hide")),
+                    (Some("sub/a"), Some("old")),
+                    (Some("sub/b"), Some("current-hide")),
+                    (Some("sub/b"), Some("hidden")),
+                    (Some("sub/dir/"), None),
+                    (Some("sub/z"), Some("last")),
+                ]
+            );
         }
-        let actual: Vec<_> = entries
-            .iter()
-            .map(|entry| {
-                (
-                    entry.path(),
-                    entry.metadata().version(),
-                    entry.metadata().is_current(),
-                )
-            })
-            .collect();
-        assert_eq!(
-            actual,
-            [
-                ("a", Some("current"), Some(true)),
-                ("a", Some("old"), Some(false)),
-                ("b", Some("hidden"), Some(false)),
-                ("dir/", None, None),
-                ("z", Some("last"), Some(true)),
-            ]
-        );
-
-        let recorded = requests.lock().unwrap();
-        let bodies: Vec<serde_json::Value> = recorded
-            .iter()
-            .map(|request| serde_json::from_slice(&request.body().to_bytes()).unwrap())
-            .collect();
-        let markers: Vec<_> = bodies
-            .iter()
-            .map(|body| (body["startFileName"].as_str(), body["startFileId"].as_str()))
-            .collect();
-        assert_eq!(
-            markers,
-            [
-                (None, None),
-                (Some("sub/a"), Some("after-start")),
-                (Some("sub/a"), Some("after-current")),
-                (Some("sub/a"), Some("after-old")),
-                (Some("sub/b"), Some("after-hide")),
-                (Some("sub/b"), Some("after-hidden")),
-                (Some("sub/dir0"), None),
-            ]
-        );
+        Ok(())
     }
 }

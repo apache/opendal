@@ -8573,6 +8573,7 @@ name = "opendal-service-tos"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "crc-fast",
  "http 1.5.0",
  "opendal-core",
  "quick-xml",

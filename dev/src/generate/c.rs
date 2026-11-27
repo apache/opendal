@@ -22,6 +22,7 @@
 //! same ordered field list to keep the layouts in lockstep.
 
 use super::capability;
+use super::metadata::{self, MetadataKind};
 use anyhow::Result;
 use minijinja::{Environment, context};
 use serde::Serialize;
@@ -45,8 +46,32 @@ struct CapabilityField {
     doc: String,
 }
 
+/// Render model handed to the C and Go metadata templates.
+#[derive(Serialize)]
+struct MetadataAccessor {
+    /// snake_case accessor name in core.
+    name: String,
+    /// Exported C function that returns this accessor's value.
+    c_function: String,
+    /// PascalCase method name on the Go `Metadata`.
+    go_method: String,
+    /// lowerCamelCase field name in the Go `Metadata`.
+    go_field: String,
+    /// `go_field` padded so that gofmt aligns the struct field types.
+    go_field_padded: String,
+    /// `go_field:` padded so that gofmt aligns the composite literal values.
+    go_key_padded: String,
+    /// The shape of the core return type, which picks the C and Go mapping.
+    kind: MetadataKind,
+    /// First paragraph of the core accessor doc.
+    doc: String,
+    /// The core doc rephrased to start with the Go method name.
+    go_doc: String,
+}
+
 pub fn generate(workspace_dir: &Path) -> Result<()> {
-    generate_capability(workspace_dir)
+    generate_capability(workspace_dir)?;
+    generate_metadata(workspace_dir)
 }
 
 fn generate_capability(workspace_dir: &Path) -> Result<()> {
@@ -91,6 +116,81 @@ fn generate_capability(workspace_dir: &Path) -> Result<()> {
     Ok(())
 }
 
+fn generate_metadata(workspace_dir: &Path) -> Result<()> {
+    let source = workspace_dir.join("core/core/src/types/metadata.rs");
+    let parsed = metadata::parse(&source)?;
+
+    let width = parsed
+        .iter()
+        .map(|f| go_field_name(&f.name).len())
+        .max()
+        .unwrap_or(0);
+    let accessors: Vec<MetadataAccessor> = parsed
+        .into_iter()
+        .map(|f| {
+            let go_field = go_field_name(&f.name);
+            // Keep the released C function names.
+            let c_function = match f.kind {
+                MetadataKind::OptionTimestamp => format!("opendal_metadata_{}_ms", f.name),
+                MetadataKind::OptionUserMetadata => format!("opendal_metadata_get_{}", f.name),
+                _ => format!("opendal_metadata_{}", f.name),
+            };
+            let go_method = go_method_name(&f.name);
+            let go_doc = match f.doc.strip_prefix("Return ") {
+                Some(rest) => format!("{go_method} returns {rest}"),
+                None => format!("{go_method} reports: {}", f.doc),
+            };
+            MetadataAccessor {
+                c_function,
+                go_method,
+                go_doc,
+                go_field_padded: format!("{go_field:<width$} "),
+                go_key_padded: format!("{:<w$} ", format!("{go_field}:"), w = width + 1),
+                go_field,
+                name: f.name,
+                kind: f.kind,
+                doc: f.doc,
+            }
+        })
+        .collect();
+
+    let mut env = Environment::new();
+    env.add_template("metadata_rs", include_str!("c/metadata_rs.j2"))?;
+    env.add_template("metadata_go", include_str!("c/metadata_go.j2"))?;
+
+    let outputs = [
+        ("metadata_rs", "bindings/c/src/metadata.rs"),
+        ("metadata_go", "bindings/go/metadata.go"),
+    ];
+    for (template, relative) in outputs {
+        let rendered = env
+            .get_template(template)?
+            .render(context! { accessors => accessors })?;
+        fs::write(workspace_dir.join(relative), format!("{rendered}\n"))?;
+    }
+    Ok(())
+}
+
+/// Go spells these words as initialisms, for example `ContentMD5` and `ETag`.
+const GO_INITIALISMS: &[(&str, &str)] = &[("md5", "MD5"), ("etag", "ETag")];
+
+fn go_word(word: &str) -> String {
+    match GO_INITIALISMS.iter().find(|(w, _)| *w == word) {
+        Some((_, initialism)) => initialism.to_string(),
+        None => to_pascal(word),
+    }
+}
+
+fn go_method_name(snake: &str) -> String {
+    snake.split('_').map(go_word).collect()
+}
+
+fn go_field_name(snake: &str) -> String {
+    let mut words = snake.split('_');
+    let first = words.next().unwrap_or_default().to_string();
+    words.fold(first, |name, word| name + &go_word(word))
+}
+
 fn to_pascal(snake: &str) -> String {
     snake
         .split('_')
@@ -121,5 +221,11 @@ mod tests {
         assert_eq!(to_pascal("write_multi_max_size"), "WriteMultiMaxSize");
         assert_eq!(lower_first("WriteMultiMaxSize"), "writeMultiMaxSize");
         assert_eq!(to_pascal("stat"), "Stat");
+
+        assert_eq!(go_method_name("content_md5"), "ContentMD5");
+        assert_eq!(go_method_name("etag"), "ETag");
+        assert_eq!(go_field_name("content_md5"), "contentMD5");
+        assert_eq!(go_field_name("etag"), "etag");
+        assert_eq!(go_field_name("last_modified"), "lastModified");
     }
 }

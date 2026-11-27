@@ -96,6 +96,7 @@ set(GTEST_SRCS
     tests/error_msg.cpp
     tests/list.cpp
     tests/logging.cpp
+    tests/metadata.cpp
     tests/opinfo.cpp
     tests/reader.cpp
 )

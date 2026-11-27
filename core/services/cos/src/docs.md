@@ -29,6 +29,21 @@ CRC-64/XZ uses the canonical polynomial `0x42F0E1EBA9EA3693`, with
 yields `0x6C40DF5F0B497347` for the same input and is incompatible with
 these service digests.
 
+## Write checksums
+
+`WriteChecksum::Any` and `WriteChecksum::Fast` verify the CRC64-ECMA receipt
+for a non-append write. For multipart uploads, OpenDAL verifies each part
+before accepting it and combines the verified CRCs in part order to check the
+completion receipt. A successful write returns the full-object checksum in
+[`opendal_core::Metadata::checksum`].
+
+For the final PUT or multipart completion, COS returns the receipt after
+publishing the object. A missing, invalid, or mismatched receipt returns a
+permanent `Unexpected` error. The new object may already be visible, and
+calling `close` again on the same writer cannot replay the final request.
+`WriteChecksum::Algo`, `WriteChecksum::Expected`, and explicitly requesting
+a checksum on append or presigned writes return `Unsupported` before I/O.
+
 ## Configuration
 
 Use [`crate::CosConfig`] for serializable configuration and this builder's

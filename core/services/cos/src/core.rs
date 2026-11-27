@@ -44,6 +44,7 @@ pub mod constants {
     pub const COS_QUERY_VERSION_ID: &str = "versionId";
 
     pub const X_COS_VERSION_ID: &str = "x-cos-version-id";
+    pub const X_COS_HASH_CRC64ECMA: &str = "x-cos-hash-crc64ecma";
 }
 
 pub struct CosCore {
@@ -980,6 +981,7 @@ pub(crate) struct ErrorContext {
     caller_condition: bool,
     if_not_exists: bool,
     source_if_match: bool,
+    checksum: bool,
 }
 
 impl ErrorContext {
@@ -989,7 +991,13 @@ impl ErrorContext {
             caller_condition: false,
             if_not_exists: false,
             source_if_match: false,
+            checksum: false,
         }
+    }
+
+    pub(crate) const fn with_checksum(mut self, checksum: bool) -> Self {
+        self.checksum = checksum;
+        self
     }
 
     pub(crate) const fn with_source_if_match(mut self) -> Self {
@@ -1030,6 +1038,12 @@ fn classify_error(ctx: ErrorContext, status: StatusCode, code: Option<&str>) -> 
 
     if let Some(code) = code {
         match code {
+            "BadDigest" if ctx.checksum => {
+                (kind, retryable) = (
+                    ErrorKind::ChecksumMismatch,
+                    ctx.service_operation.0 != "CompleteMultipartUpload",
+                );
+            }
             "PreconditionFailed" if ctx.caller_condition => {
                 (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
             }

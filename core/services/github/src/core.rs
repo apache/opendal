@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::borrow::Cow;
 use std::fmt::Debug;
 
 use base64::Engine;
@@ -166,12 +167,7 @@ impl GithubCore {
             .header(header::RANGE, range.to_header());
 
         if let Some(etag) = args.if_none_match() {
-            // Stat exposes the bare blob SHA, but the raw response uses a quoted ETag.
-            req = if etag.len() == 40 && etag.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-                req.header(header::IF_NONE_MATCH, format!("\"{etag}\""))
-            } else {
-                req.header(header::IF_NONE_MATCH, etag)
-            };
+            req = req.header(header::IF_NONE_MATCH, format_if_none_match(etag).as_ref());
         }
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
@@ -370,6 +366,26 @@ impl GithubCore {
     }
 }
 
+fn format_if_none_match(value: &str) -> Cow<'_, str> {
+    // Stat exposes the bare blob SHA. Raw downloads use a quoted ETag.
+    if value.len() == 40 && value.as_bytes().iter().all(u8::is_ascii_hexdigit) {
+        return Cow::Owned(format!("\"{value}\""));
+    }
+
+    // Anonymous downloads can ignore weak tags. Removing the prefix from a
+    // single entity-tag preserves If-None-Match's weak comparison (RFC 9110).
+    if let Some(quoted) = value.trim_matches([' ', '\t']).strip_prefix("W/")
+        && let [b'"', opaque @ .., b'"'] = quoted.as_bytes()
+        && opaque
+            .iter()
+            .all(|&byte| matches!(byte, b'!' | b'#'..=b'~' | 0x80..=0xff))
+    {
+        return Cow::Borrowed(quoted);
+    }
+
+    Cow::Borrowed(value)
+}
+
 #[derive(Default, Debug, Clone, Serialize)]
 pub struct CreateOrUpdateContentsRequest {
     pub message: String,
@@ -450,7 +466,6 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (kind, retryable) = match parts.status.as_u16() {
         401 | 403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
-        304 | 412 => (ErrorKind::ConditionNotMatch, false),
         416 => (ErrorKind::RangeNotSatisfied, false),
         // https://github.com/apache/opendal/issues/4146
         // https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/423

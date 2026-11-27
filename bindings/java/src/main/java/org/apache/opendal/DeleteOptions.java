@@ -75,6 +75,10 @@ public class DeleteOptions {
 
     /**
      * Delete only when the file at the delete path still has the identity recorded in this metadata.
+     *
+     * <p>Pass metadata previously returned by OpenDAL for the same path. OpenDAL derives a version match when the service supports version conditions and the metadata contains a version. Otherwise it uses a non-weak ETag if present. A changed or missing file fails the delete with {@link OpenDALException.Code#ConditionNotMatch}, as does combining this option with a conflicting {@link #ifMatch} or {@link #ifVersionMatch} value.
+     *
+     * <p>The operation returns {@link OpenDALException.Code#Unsupported} when the service does not support the derived primitive condition, and {@link OpenDALException.Code#ConfigInvalid} when the metadata contains neither a version nor a non-weak ETag.
      */
     public final Metadata ifNotChanged;
 }

@@ -547,6 +547,13 @@ fn options_class<'a>(
             OptionKind::OptionDuration => bail!("unsupported Java option {}::{name}", options.name),
         };
         let details = match (options.name.as_str(), name) {
+            ("DeleteOptions", "if_not_changed") => field
+                .doc
+                .split(|line| line.is_empty())
+                .skip(1)
+                .filter(|paragraph| !paragraph.is_empty())
+                .map(|paragraph| option_javadoc(paragraph, spec, Some(name)))
+                .collect(),
             ("ReadOptions" | "ReaderOptions", "content_length_hint") => vec![
                 concat!(
                     "Supply the full object length in bytes, regardless of the requested range. ",
@@ -961,6 +968,16 @@ mod tests {
 
         for class in options_classes(&structs).unwrap() {
             let (declaration, notices): (&str, &[&str]) = match class.name {
+                "DeleteOptions" => (
+                    "public final Metadata ifNotChanged",
+                    &[
+                        "Pass metadata previously returned by OpenDAL for the same path.",
+                        "OpenDAL derives a version match when the service supports version conditions and the metadata contains a version. Otherwise it uses a non-weak ETag if present.",
+                        "A changed or missing file fails the delete with {@link OpenDALException.Code#ConditionNotMatch}, as does combining this option with a conflicting {@link #ifMatch} or {@link #ifVersionMatch} value.",
+                        "{@link OpenDALException.Code#Unsupported} when the service does not support the derived primitive condition",
+                        "{@link OpenDALException.Code#ConfigInvalid} when the metadata contains neither a version nor a non-weak ETag.",
+                    ],
+                ),
                 "ReadOptions" | "ReaderOptions" => (
                     "public final long contentLengthHint",
                     &[

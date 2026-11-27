@@ -983,27 +983,7 @@ mod tests {
             assert!(cap.presign_write);
             assert!(!cap.presign_delete);
 
-            let disposition = "attachment; filename=\"test.txt\"";
-            let upload = op
-                .presign_write_options(
-                    "path/to/file.txt",
-                    std::time::Duration::from_secs(120),
-                    options::WriteOptions {
-                        content_disposition: Some(disposition.to_owned()),
-                        ..Default::default()
-                    },
-                )
-                .await
-                .unwrap();
-            assert_eq!(
-                upload
-                    .header()
-                    .get("x-ms-blob-content-disposition")
-                    .and_then(|value| value.to_str().ok()),
-                Some(disposition)
-            );
-
-            for req in [
+            let mut requests = vec![
                 op.presign_stat("path/to/file.txt", std::time::Duration::from_secs(120))
                     .await
                     .unwrap(),
@@ -1013,8 +993,44 @@ mod tests {
                 op.presign_write("path/to/file.txt", std::time::Duration::from_secs(120))
                     .await
                     .unwrap(),
-                upload,
+            ];
+
+            let disposition = "attachment; filename=\"test.txt\"";
+            for (encoding, language) in [
+                (Some("gzip"), Some("fr-CA")),
+                (Some("gzip"), None),
+                (None, Some("fr-CA")),
+                (None, None),
             ] {
+                let upload = op
+                    .presign_write_options(
+                        "path/to/file.txt",
+                        std::time::Duration::from_secs(120),
+                        options::WriteOptions {
+                            content_disposition: Some(disposition.to_owned()),
+                            content_encoding: encoding.map(str::to_owned),
+                            content_language: language.map(str::to_owned),
+                            ..Default::default()
+                        },
+                    )
+                    .await
+                    .unwrap();
+
+                for (name, expected) in [
+                    ("x-ms-blob-content-disposition", Some(disposition)),
+                    ("x-ms-blob-content-encoding", encoding),
+                    ("x-ms-blob-content-language", language),
+                ] {
+                    assert_eq!(
+                        upload.header().get(name).map(http::HeaderValue::as_bytes),
+                        expected.map(str::as_bytes),
+                        "{name} with encoding={encoding:?}, language={language:?}"
+                    );
+                }
+                requests.push(upload);
+            }
+
+            for req in requests {
                 assert_eq!(req.uri().path(), "/test/path/to/file.txt");
                 assert!(
                     !req.header()

@@ -35,8 +35,8 @@ heck = { version = "0.5.0" }
 ignore = { version = "0.4.23" }
 log = { version = "0.4.22" }
 logforth = { version = "0.30.1", features = ["starter-log"] }
-markdown = { version = "1.0.0-alpha.21" }
-minijinja = { version = "2.5.0" }
+markdown = { version = "1.0.0" }
+minijinja = { version = "3.1.0", features = ["serde"] }
 proc-macro2 = { version = "1.0.94", features = ["span-locations"] }
 prost = "0.14.3"
 prost-types = "0.14.3"
@@ -45,10 +45,10 @@ semver = { version = "1.0.25" }
 serde = { version = "1.0.216", features = ["derive"] }
 serde_json = { version = "1.0.138", features = ["preserve_order"] }
 sha2 = { version = "0.11.0" }
-syn = { version = "2.0.91", features = ["visit", "full", "extra-traits"] }
+syn = { version = "3.0.10", features = ["visit", "full", "extra-traits"] }
 tar = { version = "0.4.43" }
 toml_edit = { version = "0.25.11", features = ["serde"] }
-tonic-prost-build = "=0.14.6"
+tonic-prost-build = "=0.14.9"
 which = { version = "8.0.2" }
 
 [dev-dependencies]

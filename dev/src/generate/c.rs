@@ -24,6 +24,7 @@
 use super::capability;
 use super::metadata::{self, MetadataKind};
 use anyhow::Result;
+use minijinja::value::Serde;
 use minijinja::{Environment, context};
 use serde::Serialize;
 use std::fs;
@@ -110,7 +111,7 @@ fn generate_capability(workspace_dir: &Path) -> Result<()> {
     for (template, relative) in outputs {
         let rendered = env
             .get_template(template)?
-            .render(context! { fields => fields })?;
+            .render(context! { fields => Serde(&fields) })?;
         fs::write(workspace_dir.join(relative), format!("{rendered}\n"))?;
     }
     Ok(())
@@ -165,7 +166,7 @@ fn generate_metadata(workspace_dir: &Path) -> Result<()> {
     for (template, relative) in outputs {
         let rendered = env
             .get_template(template)?
-            .render(context! { accessors => accessors })?;
+            .render(context! { accessors => Serde(&accessors) })?;
         fs::write(workspace_dir.join(relative), format!("{rendered}\n"))?;
     }
     Ok(())

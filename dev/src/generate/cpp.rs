@@ -23,6 +23,7 @@
 
 use super::capability;
 use anyhow::{Context, Result, bail};
+use minijinja::value::Serde;
 use minijinja::{Environment, context};
 use serde::Serialize;
 use std::fs;
@@ -251,9 +252,9 @@ fn render_capability(workspace_dir: &Path) -> Result<Vec<(&'static str, String)>
     ];
     let mut rendered = Vec::with_capacity(outputs.len());
     for (template, relative) in outputs {
-        let content = env
-            .get_template(template)?
-            .render(context! { fields => fields, public_fields => public_fields })?;
+        let content = env.get_template(template)?.render(
+            context! { fields => Serde(&fields), public_fields => Serde(&public_fields) },
+        )?;
         rendered.push((relative, content));
     }
     Ok(rendered)

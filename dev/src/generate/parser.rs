@@ -323,7 +323,7 @@ impl ServiceParser {
                 }
                 None
             })
-            .ok_or_else(|| anyhow!("there is no Config in {}", &self.path))?;
+            .ok_or_else(|| anyhow!("there is no Config in {}", self.path))?;
 
         let custom_types = collect_custom_type_names(&ast.items);
 
@@ -342,7 +342,7 @@ impl ServiceParser {
         let name = field
             .ident
             .clone()
-            .ok_or_else(|| anyhow!("field name is missing for {:?}", &field))?;
+            .ok_or_else(|| anyhow!("field name is missing for {:?}", field))?;
 
         let deprecated = Self::parse_attr_deprecated(&field)?;
         let comments = Self::parse_attr_comments(&field)?;

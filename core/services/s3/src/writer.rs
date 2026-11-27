@@ -49,14 +49,17 @@ pub struct S3Writer {
 
 enum WriteVerification {
     FullObject(FullObjectChecksum),
-    PerRequest(ChecksumAlgorithm),
+    PerRequest {
+        algorithm: ChecksumAlgorithm,
+        require_receipt: bool,
+    },
 }
 
 impl WriteVerification {
     fn algorithm(&self) -> ChecksumAlgorithm {
         match self {
             Self::FullObject(checksum) => checksum.algorithm,
-            Self::PerRequest(algorithm) => *algorithm,
+            Self::PerRequest { algorithm, .. } => *algorithm,
         }
     }
 }
@@ -145,6 +148,7 @@ fn verify_committed_checksum(
 
 impl S3Writer {
     pub fn new(core: Arc<S3Core>, ctx: OperationContext, path: &str, op: OpWrite) -> Result<Self> {
+        let scheme = core.info.scheme();
         let verification = match op.checksum() {
             None => None,
             Some(_) if !core.capability.write_with_checksum || op.append() => {
@@ -153,17 +157,23 @@ impl S3Writer {
                     "S3 write cannot fulfill the checksum intent",
                 ));
             }
-            Some(intent) if core.info.scheme() == crate::RUSTFS_SCHEME => match intent {
-                WriteChecksum::Any | WriteChecksum::Fast => {
-                    Some(WriteVerification::PerRequest(ChecksumAlgorithm::Crc32c))
+            Some(intent) if matches!(scheme, crate::RUSTFS_SCHEME | crate::SWIFT_S3API_SCHEME) => {
+                match intent {
+                    WriteChecksum::Any | WriteChecksum::Fast => {
+                        Some(WriteVerification::PerRequest {
+                            algorithm: ChecksumAlgorithm::Crc32c,
+                            // Swift confirms a matching CRC through the upload status.
+                            require_receipt: scheme == crate::RUSTFS_SCHEME,
+                        })
+                    }
+                    _ => {
+                        return Err(Error::new(
+                            ErrorKind::Unsupported,
+                            format!("{scheme} supports only Any and Fast write checksum intents"),
+                        ));
+                    }
                 }
-                _ => {
-                    return Err(Error::new(
-                        ErrorKind::Unsupported,
-                        "RustFS supports only Any and Fast write checksum intents",
-                    ));
-                }
-            },
+            }
             Some(intent) => {
                 let (algorithm, expected) = match intent {
                     WriteChecksum::Any | WriteChecksum::Fast => {
@@ -264,6 +274,15 @@ impl oio::MultipartWrite for S3Writer {
                 let Some((algorithm, sent)) = checksum else {
                     return Ok(meta);
                 };
+                if matches!(
+                    self.verification,
+                    Some(WriteVerification::PerRequest {
+                        require_receipt: false,
+                        ..
+                    })
+                ) {
+                    return Ok(meta);
+                }
                 let returned = resp
                     .headers()
                     .get(algorithm.to_header_name())
@@ -362,34 +381,37 @@ impl oio::MultipartWrite for S3Writer {
                     })?
                     .to_string();
 
-                let checksum = if let Some(WriteVerification::PerRequest(algorithm)) =
-                    self.verification.as_ref()
-                {
-                    let receipt = resp
-                        .headers()
-                        .get(algorithm.to_header_name())
-                        .and_then(|value| value.to_str().ok());
-                    if receipt != checksum.as_deref() {
-                        let error = match receipt
-                            .and_then(|value| parse_s3_checksum(algorithm.checksum_algo(), value))
-                        {
-                            Some(_) => Error::new(
-                                ErrorKind::ChecksumMismatch,
-                                "S3 part receipt differs from the uploaded checksum",
-                            ),
-                            None => Error::new(
-                                ErrorKind::Unexpected,
-                                "S3 did not return a valid part checksum",
-                            ),
-                        };
-                        // Replaying the original bytes under the same part number is safe.
-                        return Err(error
-                            .with_context("part_number", part_number)
-                            .set_temporary());
+                let checksum = match &self.verification {
+                    Some(WriteVerification::PerRequest {
+                        algorithm,
+                        require_receipt: true,
+                    }) => {
+                        let receipt = resp
+                            .headers()
+                            .get(algorithm.to_header_name())
+                            .and_then(|value| value.to_str().ok());
+                        if receipt != checksum.as_deref() {
+                            let error = match receipt.and_then(|value| {
+                                parse_s3_checksum(algorithm.checksum_algo(), value)
+                            }) {
+                                Some(_) => Error::new(
+                                    ErrorKind::ChecksumMismatch,
+                                    "S3 part receipt differs from the uploaded checksum",
+                                ),
+                                None => Error::new(
+                                    ErrorKind::Unexpected,
+                                    "S3 did not return a valid part checksum",
+                                ),
+                            };
+                            // Replaying the original bytes under the same part number is safe.
+                            return Err(error
+                                .with_context("part_number", part_number)
+                                .set_temporary());
+                        }
+                        None
                     }
-                    None
-                } else {
-                    checksum
+                    Some(WriteVerification::PerRequest { .. }) => None,
+                    _ => checksum,
                 };
                 Ok(oio::MultipartPart {
                     part_number,
@@ -486,7 +508,7 @@ impl oio::MultipartWrite for S3Writer {
             .map(|checksum| Ok::<_, Error>((checksum, checksum.complete_value(parts)?)))
             .transpose()?;
         let algorithm = match &self.verification {
-            Some(WriteVerification::PerRequest(_)) => None,
+            Some(WriteVerification::PerRequest { .. }) => None,
             Some(WriteVerification::FullObject(checksum)) => Some(checksum.algorithm),
             None => self.core.checksum_algorithm,
         };

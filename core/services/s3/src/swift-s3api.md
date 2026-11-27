@@ -17,6 +17,18 @@ which uses the Swift account URL and token.
 See the [s3api middleware](https://docs.openstack.org/swift/latest/middleware.html#aws-s3-api)
 and [Swift proxy configuration](https://github.com/openstack/swift/blob/master/etc/proxy-server.conf-sample).
 
+## Write checksums
+
+Checksum writes require Swift 2.38.3 or later with `s3api` enabled. Use
+`WriteChecksum::Any` or `WriteChecksum::Fast` on signed non-append writes.
+Swift verifies CRC32C on each `PutObject` and `UploadPart` request. OpenDAL
+reports a rejected CRC32C as `ErrorKind::ChecksumMismatch`.
+
+Multipart completion sends ordered part numbers and ETags. Successful writes
+leave `Metadata::checksum()` empty. Explicit `Algo` and `Expected` intents,
+append with a checksum, and presigned writes with a checksum return
+`Unsupported` before I/O.
+
 ## Example
 
 ```rust

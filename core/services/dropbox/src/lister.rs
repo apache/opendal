@@ -129,3 +129,107 @@ impl oio::PageList for DropboxLister {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use asyncband::mutex::Mutex;
+    use http::Request;
+    use http::Response;
+    use http::StatusCode;
+
+    use super::*;
+    use opendal_core::raw::oio::PageList;
+
+    struct FixedJsonTransport {
+        body: String,
+    }
+
+    impl HttpTransport for FixedJsonTransport {
+        async fn fetch(&self, _req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let buf = Buffer::from(self.body.clone());
+            let len = buf.len() as u64;
+            Response::builder()
+                .status(StatusCode::OK)
+                .body(HttpBody::new(futures::stream::iter([Ok(buf)]), Some(len)))
+                .map_err(new_request_build_error)
+        }
+    }
+
+    fn listed_paths(entries: &std::collections::VecDeque<oio::Entry>) -> Vec<String> {
+        let mut paths = entries
+            .iter()
+            .map(|entry| entry.path().to_string())
+            .collect::<Vec<_>>();
+        paths.sort();
+        paths
+    }
+
+    async fn list_paths(root: &str, path: &str, body: &str) -> Vec<String> {
+        let ctx = OperationContext::from_parts(
+            HttpTransporter::new(FixedJsonTransport {
+                body: body.to_string(),
+            }),
+            Executor::default(),
+        );
+        let core = Arc::new(DropboxCore {
+            info: ServiceInfo::new("dropbox", root, ""),
+            capability: Capability::default(),
+            root: root.to_string(),
+            signer: Arc::new(Mutex::new(DropboxSigner {
+                access_token: "test-token".to_string(),
+                expires_in: Timestamp::from_second(4_000_000_000).unwrap(),
+                ..DropboxSigner::default()
+            })),
+        });
+        let lister = DropboxLister::new(core, ctx, path.to_string(), true, None);
+        let mut page = oio::PageContext {
+            done: false,
+            token: String::new(),
+            entries: std::collections::VecDeque::new(),
+        };
+        lister.next_page(&mut page).await.unwrap();
+        listed_paths(&page.entries)
+    }
+
+    #[tokio::test]
+    async fn test_list_keeps_directory_prefix_and_lists_itself() {
+        let body = r#"{
+            "entries": [
+                {
+                    ".tag": "folder",
+                    "name": "sub",
+                    "path_display": "/dir/sub",
+                    "path_lower": "/dir/sub",
+                    "id": "id:folder"
+                },
+                {
+                    ".tag": "file",
+                    "name": "a.txt",
+                    "path_display": "/dir/a.txt",
+                    "path_lower": "/dir/a.txt",
+                    "client_modified": "2020-01-01T00:00:00Z",
+                    "size": 3,
+                    "id": "id:file"
+                },
+                {
+                    ".tag": "file",
+                    "name": "nested.txt",
+                    "path_display": "/dir/sub/nested.txt",
+                    "path_lower": "/dir/sub/nested.txt",
+                    "client_modified": "2020-01-01T00:00:00Z",
+                    "size": 4,
+                    "id": "id:nested"
+                }
+            ],
+            "cursor": "cur",
+            "has_more": false
+        }"#;
+
+        assert_eq!(
+            list_paths("/", "dir/", body).await,
+            vec!["dir/", "dir/a.txt", "dir/sub/", "dir/sub/nested.txt",]
+        );
+    }
+}

@@ -1978,7 +1978,7 @@ mod tests {
             .bucket("example")
             .region("us-east-1")
             .skip_signature()
-            .build_with_scheme(crate::S3_SCHEME)
+            .build_with_scheme(crate::S3_SCHEME, false)
             .unwrap();
         let cases = [
             (Some((StatusCode::NO_CONTENT, "")), None),

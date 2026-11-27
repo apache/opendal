@@ -985,8 +985,12 @@ impl S3Builder {
         }
     }
 
-    pub(crate) fn build_with_scheme(self, scheme: &'static str) -> Result<S3Backend> {
-        self.build_inner(scheme)
+    pub(crate) fn build_with_scheme(
+        self,
+        scheme: &'static str,
+        preset_write_checksum: bool,
+    ) -> Result<S3Backend> {
+        self.build_backend(scheme, None, preset_write_checksum)
     }
 
     pub(crate) fn build_with_resolved_endpoint(
@@ -4135,8 +4139,10 @@ mod tests {
         let cap = builder().build().unwrap().capability();
         assert!(cap.write_with_checksum);
 
-        let cap = builder()
-            .build_with_scheme(crate::MINIO_SCHEME)
+        let cap = crate::Minio::default()
+            .bucket("test")
+            .endpoint("http://127.0.0.1:9000")
+            .build()
             .unwrap()
             .capability();
         assert!(!cap.write_with_checksum);

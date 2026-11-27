@@ -41,6 +41,10 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public bool? DisableConfigLoad { get; init; }
         /// <summary>
+        /// Allow per-write checksum intents for signed, non-append writes. Defaults to false. Supply a checksum intent on each write that needs verification. Verified with signed path-style requests to MinIO RELEASE.2025-01-20T14-49-07Z.
+        /// </summary>
+        public bool? EnableWriteChecksum { get; init; }
+        /// <summary>
         /// MinIO endpoint. This field is required because MinIO deployments do not share a universal endpoint.
         /// </summary>
         public string? Endpoint { get; init; }
@@ -81,6 +85,10 @@ namespace OpenDAL.ServiceConfig
             if (DisableConfigLoad is not null)
             {
                 map["disable_config_load"] = Utilities.ToOptionString(DisableConfigLoad);
+            }
+            if (EnableWriteChecksum is not null)
+            {
+                map["enable_write_checksum"] = Utilities.ToOptionString(EnableWriteChecksum);
             }
             if (Endpoint is not null)
             {

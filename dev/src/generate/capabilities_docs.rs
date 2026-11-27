@@ -351,13 +351,19 @@ fn parse_capability_literal(
                     "read_with_checksum" | "write_with_checksum"
                 )
             {
-                if name == "seaweedfs" && field_name == "write_with_checksum" {
+                let condition = match (name, field_name.as_str()) {
+                    ("minio", "write_with_checksum") => Some(
+                        "Requires `enable_write_checksum=true` for signed, non-append writes. Verified with signed path-style requests to MinIO RELEASE.2025-01-20T14-49-07Z.",
+                    ),
+                    ("seaweedfs", "write_with_checksum") => Some(
+                        "Requires `enable_write_checksum=true` for non-append writes. Verified with signed path-style requests to SeaweedFS 4.52.",
+                    ),
+                    _ => None,
+                };
+                if let Some(condition) = condition {
                     native.insert(
                         field_name,
-                        NativeBoolDoc::Conditional(
-                            "Requires `enable_write_checksum=true` for non-append writes. Verified with signed path-style requests to SeaweedFS 4.52."
-                                .to_string(),
-                        ),
+                        NativeBoolDoc::Conditional(condition.to_string()),
                     );
                 }
                 continue;
@@ -1173,7 +1179,11 @@ mod tests {
         );
         let minio = out.services.iter().find(|s| s.scheme == "minio").unwrap();
         assert!(!minio.native.contains_key("read_with_checksum"));
-        assert!(!minio.native.contains_key("write_with_checksum"));
+        assert!(matches!(
+            minio.native.get("write_with_checksum"),
+            Some(NativeBoolDoc::Conditional(condition))
+                if condition.contains("enable_write_checksum") && condition.contains("signed")
+        ));
         let seaweedfs = out
             .services
             .iter()

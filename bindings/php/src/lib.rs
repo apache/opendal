@@ -131,37 +131,37 @@ pub struct Metadata(od::Metadata);
 #[php_impl]
 #[php(change_method_case = "none")]
 impl Metadata {
-    #[php(getter)]
+    #[php(getter, change_case = "none")]
     pub fn content_disposition(&self) -> Option<String> {
         self.0.content_disposition().map(|s| s.to_string())
     }
 
     /// Content length of this entry.
-    #[php(getter)]
+    #[php(getter, change_case = "none")]
     pub fn content_length(&self) -> u64 {
         self.0.content_length()
     }
 
     /// Content MD5 of this entry.
-    #[php(getter)]
+    #[php(getter, change_case = "none")]
     pub fn content_md5(&self) -> Option<String> {
         self.0.content_md5().map(|s| s.to_string())
     }
 
     /// Content Type of this entry.
-    #[php(getter)]
+    #[php(getter, change_case = "none")]
     pub fn content_type(&self) -> Option<String> {
         self.0.content_type().map(|s| s.to_string())
     }
 
     /// ETag of this entry.
-    #[php(getter)]
+    #[php(getter, change_case = "none")]
     pub fn etag(&self) -> Option<String> {
         self.0.etag().map(|s| s.to_string())
     }
 
     /// mode represent this entry's mode.
-    #[php(getter)]
+    #[php(getter, change_case = "none")]
     pub fn mode(&self) -> EntryMode {
         EntryMode(self.0.mode())
     }
@@ -182,7 +182,7 @@ impl<'b> FromZval<'b> for EntryMode {
 #[php_impl]
 #[php(change_method_case = "none")]
 impl EntryMode {
-    #[php(getter)]
+    #[php(getter, change_case = "none")]
     pub fn is_dir(&self) -> u8 {
         match self.0.is_dir() {
             true => 1,
@@ -190,7 +190,7 @@ impl EntryMode {
         }
     }
 
-    #[php(getter)]
+    #[php(getter, change_case = "none")]
     pub fn is_file(&self) -> u8 {
         match self.0.is_file() {
             true => 1,

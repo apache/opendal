@@ -123,9 +123,9 @@ impl Metadata {
         self.0.version().map(|v| v.to_string())
     }
 
-    /// Return a borrowed view of this entry's user metadata.
+    /// Return a copy of this entry's user metadata as a plain object, or `null` when absent.
     ///
-    /// The pairs are copied into a plain object.
+    /// Each read returns a new object, so mutating it does not update this `Metadata`.
     #[napi(getter)]
     pub fn user_metadata(&self) -> Option<std::collections::HashMap<String, String>> {
         self.0.user_metadata().map(|m| {

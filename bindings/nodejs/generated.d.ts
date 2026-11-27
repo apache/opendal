@@ -480,9 +480,9 @@ export declare class Metadata {
   /** Return this entry's service-specific version identifier. */
   get version(): string | null
   /**
-   * Return a borrowed view of this entry's user metadata.
+   * Return a copy of this entry's user metadata as a plain object, or `null` when absent.
    *
-   * The pairs are copied into a plain object.
+   * Each read returns a new object, so mutating it does not update this `Metadata`.
    */
   get userMetadata(): Record<string, string> | null
 }

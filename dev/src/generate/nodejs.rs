@@ -60,7 +60,8 @@ struct MetadataField {
     /// The core return shape; the template adds `isFile()` and
     /// `isDirectory()` after `mode`.
     kind: MetadataKind,
-    /// First paragraph of the core accessor doc.
+    /// First paragraph of the core accessor doc, unless it does not hold for
+    /// the JS form.
     doc: String,
     /// Extra doc paragraph for shapes whose JS form needs explaining, empty
     /// when none.
@@ -106,6 +107,7 @@ fn generate_metadata(workspace_dir: &Path) -> Result<()> {
 /// in `metadata.rs` fails to compile here until it is mapped.
 fn metadata_field(f: metadata::MetadataField) -> MetadataField {
     let name = f.name;
+    let mut doc = f.doc;
     let getter = "getter".to_string();
     let method = String::new();
 
@@ -136,21 +138,29 @@ fn metadata_field(f: metadata::MetadataField) -> MetadataField {
             format!("self.0.{name}().map(|v| v.to_string())"),
             "The time is formatted as RFC 3339, like `1996-12-19T16:39:57Z`.",
         ),
-        MetadataKind::OptionUserMetadata => (
-            getter,
-            "Option<std::collections::HashMap<String, String>>",
-            format!(
-                "self.0.{name}().map(|m| \
-                 m.into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect())"
-            ),
-            "The pairs are copied into a plain object.",
-        ),
+        MetadataKind::OptionUserMetadata => {
+            // Core returns a borrowed view, while JS receives a copy, so the
+            // core doc would be misleading here.
+            doc = format!(
+                "Return a copy of this entry's {} as a plain object, or `null` when absent.",
+                name.replace('_', " ")
+            );
+            (
+                getter,
+                "Option<std::collections::HashMap<String, String>>",
+                format!(
+                    "self.0.{name}().map(|m| \
+                     m.into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect())"
+                ),
+                "Each read returns a new object, so mutating it does not update this `Metadata`.",
+            )
+        }
     };
 
     MetadataField {
         name,
         kind: f.kind,
-        doc: f.doc,
+        doc,
         note: note.to_string(),
         napi,
         rs_type: rs_type.to_string(),
@@ -226,5 +236,7 @@ mod tests {
             assert!(rendered.contains(expected), "missing `{expected}`");
         }
         assert!(!rendered.contains("pub fn is_dir(&self)"));
+        // JS receives a copy of user metadata, not core's borrowed view.
+        assert!(!rendered.contains("borrowed"));
     }
 }

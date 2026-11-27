@@ -27,7 +27,7 @@ import lombok.Builder;
 /**
  * Options for write operations.
  *
- * <p>All supplied conditions must hold for the write to commit. Unsupported conditions fail with {@link OpenDALException.Code#Unsupported}. Unsupported metadata options may be ignored. Failed conditions fail with {@link OpenDALException.Code#ConditionNotMatch}.
+ * <p>All supplied conditions must hold for the write to commit. Unsupported conditions or {@link #append} fail with {@link OpenDALException.Code#Unsupported}. Unsupported metadata options may be ignored. Failed conditions fail with {@link OpenDALException.Code#ConditionNotMatch}. Presigned write requests validate options and capabilities without executing against storage.
  *
  * <p>Optional reference fields default to {@code null}.
  */

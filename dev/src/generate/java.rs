@@ -512,17 +512,21 @@ fn option_class_details(name: &str) -> Vec<String> {
             "Unsupported options fail with {@link OpenDALException.Code#Unsupported}. ",
             "Failed conditions fail with {@link OpenDALException.Code#ConditionNotMatch}."
         )],
-        "ListOptions" => {
-            vec!["Unsupported options fail with {@link OpenDALException.Code#Unsupported}."]
-        }
+        "ListOptions" => vec![concat!(
+            "Options that require an unsupported service capability fail with ",
+            "{@link OpenDALException.Code#Unsupported}. ",
+            "{@link #limit} is a pagination hint that services may ignore even when ",
+            "{@link Capability#listWithLimit} is supported."
+        )],
         "ReadOptions" => vec![
             "Version selection and conditions require service support and apply to every chunk.",
             concat!(
                 "All supplied conditions must hold for data to be returned. ",
-                "Missing files fail with {@link OpenDALException.Code#NotFound} for nonempty ranges. ",
-                "Failed conditions on an existing file fail with ",
-                "{@link OpenDALException.Code#ConditionNotMatch}. Unsupported conditions fail with ",
-                "{@link OpenDALException.Code#Unsupported}."
+                "When a direct read or {@link OperatorInputStream} issues a backend read, missing files fail with ",
+                "{@link OpenDALException.Code#NotFound} and failed conditions on an existing file fail with ",
+                "{@link OpenDALException.Code#ConditionNotMatch}. Unsupported version selection or conditions fail with ",
+                "{@link OpenDALException.Code#Unsupported}. ",
+                "Presigned read requests validate options and capabilities without executing against storage."
             ),
             concat!(
                 "Invalid execution values fail with {@link OpenDALException.Code#ConfigInvalid}. ",
@@ -533,9 +537,9 @@ fn option_class_details(name: &str) -> Vec<String> {
         "ReaderOptions" => vec![
             concat!(
                 "All supplied conditions must hold for data to be returned. ",
-                "Missing files fail with {@link OpenDALException.Code#NotFound}. ",
-                "Failed conditions on an existing file fail with ",
-                "{@link OpenDALException.Code#ConditionNotMatch}. Unsupported conditions fail with ",
+                "When OpenDAL issues a backend read, missing files fail with ",
+                "{@link OpenDALException.Code#NotFound} and failed conditions on an existing file fail with ",
+                "{@link OpenDALException.Code#ConditionNotMatch}. Unsupported version selection or conditions fail with ",
                 "{@link OpenDALException.Code#Unsupported}."
             ),
             concat!(
@@ -553,18 +557,20 @@ fn option_class_details(name: &str) -> Vec<String> {
         "StatOptions" => vec![
             concat!(
                 "All supplied conditions must hold for metadata to be returned. ",
-                "Missing files fail with {@link OpenDALException.Code#NotFound}. ",
-                "Failed conditions on an existing file fail with ",
-                "{@link OpenDALException.Code#ConditionNotMatch}. Unsupported conditions fail with ",
-                "{@link OpenDALException.Code#Unsupported}."
+                "For direct stat operations, missing files fail with ",
+                "{@link OpenDALException.Code#NotFound} and failed conditions on an existing file fail with ",
+                "{@link OpenDALException.Code#ConditionNotMatch}. Unsupported version selection or conditions fail with ",
+                "{@link OpenDALException.Code#Unsupported}. ",
+                "Presigned stat requests validate options and capabilities without executing against storage."
             ),
             INSTANT_RANGE_JAVADOC,
         ],
         "WriteOptions" => vec![concat!(
             "All supplied conditions must hold for the write to commit. ",
-            "Unsupported conditions fail with {@link OpenDALException.Code#Unsupported}. ",
+            "Unsupported conditions or {@link #append} fail with {@link OpenDALException.Code#Unsupported}. ",
             "Unsupported metadata options may be ignored. ",
-            "Failed conditions fail with {@link OpenDALException.Code#ConditionNotMatch}."
+            "Failed conditions fail with {@link OpenDALException.Code#ConditionNotMatch}. ",
+            "Presigned write requests validate options and capabilities without executing against storage."
         )],
         _ => Vec::new(),
     };
@@ -617,14 +623,16 @@ fn options_class<'a>(
                         summary: "Number of bytes to read from {@link #offset}.".to_owned(),
                         details: vec![
                             concat!(
-                                "The default of {@code -1L} reads to the end. With {@code length == 0L}, ",
+                                "The default of {@code -1L} reads to the end, and {@code 0L} selects an empty range. ",
+                                "For direct reads and {@link OperatorInputStream} with {@code length == 0L}, ",
                                 "OpenDAL validates options and capabilities, then returns an empty result ",
-                                "without accessing storage or evaluating conditions against the file."
+                                "without accessing storage or evaluating conditions against the file. ",
+                                "Presigning a read with this value still goes through request generation."
                             )
                             .to_owned(),
                             concat!(
-                                "Values below {@code -1L} or an {@code offset + length} sum that overflows ",
-                                "the native unsigned 64-bit range fail with {@link OpenDALException.Code#RangeNotSatisfied}."
+                                "Values below {@code -1L} or an invalid {@code offset + length} range fail with ",
+                                "{@link OpenDALException.Code#RangeNotSatisfied}."
                             )
                             .to_owned(),
                         ],
@@ -743,13 +751,17 @@ fn option_field_javadoc(spec: &OptionsSpec, field: &OptionField) -> (String, Vec
             )
             .to_owned(),
             concat!(
-                "OpenDAL can use this hint to avoid a metadata request when planning reads. ",
-                "Consistency conditions apply independently of the hint. ",
+                "OpenDAL uses this hint only to plan reads and can use it to avoid a metadata request. ",
+                "For chunked reads ({@link #chunk} set), a {@code contentLengthHint} no greater than the ",
+                "starting offset can result in no backend read requests. When the hint equals the starting offset, ",
+                "including {@code 0L} at the start of a file, OpenDAL may return empty data without checking file ",
+                "existence or evaluating conditions. ",
                 "An incorrect hint can truncate reads or cause errors."
             )
             .to_owned(),
         ]),
         ("ListOptions", "limit") => details.push(concat!(
+            "Services may ignore this pagination hint even when {@link Capability#listWithLimit} is supported. ",
             "The default of {@code -1L} leaves the limit unset. Positive values must fit the ",
             "native platform's unsigned pointer-sized integer. {@code 0L}, other negative values, ",
             "and values that do not fit fail with {@link OpenDALException.Code#Unexpected}."
@@ -773,10 +785,14 @@ fn option_field_javadoc(spec: &OptionsSpec, field: &OptionField) -> (String, Vec
     if name == "if_version_match"
         && matches!(spec.name, "ReadOptions" | "ReaderOptions" | "StatOptions")
     {
-        details.push(
-            "This condition checks the identity of the file selected by {@link #version}."
-                .to_owned(),
-        );
+        let version = if spec.name == "StatOptions" {
+            "{@code version}"
+        } else {
+            "{@link #version}"
+        };
+        details.push(format!(
+            "This condition checks the identity of the file selected by {version}."
+        ));
     }
     (summary, details)
 }
@@ -1229,14 +1245,25 @@ mod tests {
                         ],
                     );
                 }
-                "ListOptions" => assert_field(
-                    "limit",
-                    &[
-                        "{@code -1L} leaves the limit unset",
-                        "native platform's unsigned pointer-sized integer",
-                        "{@code 0L}, other negative values, and values that do not fit fail with {@link OpenDALException.Code#Unexpected}",
-                    ],
-                ),
+                "ListOptions" => {
+                    assert_doc(
+                        "class",
+                        class_doc,
+                        &[
+                            "Options that require an unsupported service capability fail with {@link OpenDALException.Code#Unsupported}.",
+                            "{@link #limit} is a pagination hint that services may ignore even when {@link Capability#listWithLimit} is supported.",
+                        ],
+                    );
+                    assert_field(
+                        "limit",
+                        &[
+                            "Services may ignore this pagination hint even when {@link Capability#listWithLimit} is supported.",
+                            "{@code -1L} leaves the limit unset",
+                            "native platform's unsigned pointer-sized integer",
+                            "{@code 0L}, other negative values, and values that do not fit fail with {@link OpenDALException.Code#Unexpected}",
+                        ],
+                    );
+                }
                 "ReadOptions" | "ReaderOptions" => {
                     assert_doc(
                         "class",
@@ -1272,7 +1299,9 @@ mod tests {
                             "{@code -1L} means the length is unknown",
                             "{@code 0L} for an empty object",
                             "Values below {@code -1L} fail with {@link OpenDALException.Code#ConfigInvalid}",
-                            "Consistency conditions apply independently of the hint.",
+                            "OpenDAL uses this hint only to plan reads and can use it to avoid a metadata request.",
+                            "For chunked reads ({@link #chunk} set), a {@code contentLengthHint} no greater than the starting offset can result in no backend read requests.",
+                            "When the hint equals the starting offset, including {@code 0L} at the start of a file, OpenDAL may return empty data without checking file existence or evaluating conditions.",
                             "An incorrect hint can truncate reads or cause errors.",
                         ],
                     );
@@ -1283,7 +1312,8 @@ mod tests {
                             &[
                                 "a single read or a compatibility {@link OperatorInputStream}",
                                 "Version selection and conditions require service support and apply to every chunk.",
-                                "Missing files fail with {@link OpenDALException.Code#NotFound} for nonempty ranges.",
+                                "When a direct read or {@link OperatorInputStream} issues a backend read, missing files fail with {@link OpenDALException.Code#NotFound}",
+                                "Presigned read requests validate options and capabilities without executing against storage.",
                                 "Invalid ranges fail with {@link OpenDALException.Code#RangeNotSatisfied}",
                             ],
                         );
@@ -1299,10 +1329,11 @@ mod tests {
                             &[
                                 "Number of bytes to read from {@link #offset}",
                                 "{@code -1L} reads to the end",
-                                "With {@code length == 0L}, OpenDAL validates options and capabilities",
+                                "{@code 0L} selects an empty range",
+                                "For direct reads and {@link OperatorInputStream} with {@code length == 0L}, OpenDAL validates options and capabilities",
                                 "returns an empty result without accessing storage or evaluating conditions against the file",
-                                "Values below {@code -1L} or an {@code offset + length} sum that overflows",
-                                "fail with {@link OpenDALException.Code#RangeNotSatisfied}",
+                                "Presigning a read with this value still goes through request generation.",
+                                "Values below {@code -1L} or an invalid {@code offset + length} range fail with {@link OpenDALException.Code#RangeNotSatisfied}.",
                             ],
                         );
                     } else {
@@ -1311,6 +1342,7 @@ mod tests {
                             class_doc,
                             &[
                                 "execution options for an {@link OperatorReader}",
+                                "When OpenDAL issues a backend read, missing files fail with {@link OpenDALException.Code#NotFound}",
                                 "errors can surface when creating the reader or while reading",
                                 "Conditions apply to every request, including streams.",
                                 "Execution options apply independently of each logical range.",
@@ -1329,15 +1361,24 @@ mod tests {
                         );
                     }
                 }
-                "StatOptions" => assert_doc("class", class_doc, &["for metadata to be returned"]),
+                "StatOptions" => assert_doc(
+                    "class",
+                    class_doc,
+                    &[
+                        "for metadata to be returned",
+                        "For direct stat operations, missing files fail with {@link OpenDALException.Code#NotFound}",
+                        "Presigned stat requests validate options and capabilities without executing against storage.",
+                    ],
+                ),
                 "WriteOptions" => {
                     assert_doc(
                         "class",
                         class_doc,
                         &[
                             "for the write to commit",
-                            "Unsupported conditions fail with {@link OpenDALException.Code#Unsupported}",
+                            "Unsupported conditions or {@link #append} fail with {@link OpenDALException.Code#Unsupported}",
                             "Unsupported metadata options may be ignored.",
+                            "Presigned write requests validate options and capabilities without executing against storage.",
                         ],
                     );
                     assert_field(
@@ -1372,9 +1413,8 @@ mod tests {
                     "class",
                     class_doc,
                     &[
-                        "Missing files fail with {@link OpenDALException.Code#NotFound}",
-                        "Failed conditions on an existing file fail with {@link OpenDALException.Code#ConditionNotMatch}",
-                        "Unsupported conditions fail with {@link OpenDALException.Code#Unsupported}",
+                        "and failed conditions on an existing file fail with {@link OpenDALException.Code#ConditionNotMatch}",
+                        "Unsupported version selection or conditions fail with {@link OpenDALException.Code#Unsupported}",
                         timestamp,
                     ],
                 );
@@ -1387,7 +1427,11 @@ mod tests {
                 );
                 assert_field(
                     "ifVersionMatch",
-                    &["checks the identity of the file selected by {@link #version}"],
+                    &[if class.name == "StatOptions" {
+                        "checks the identity of the file selected by {@code version}"
+                    } else {
+                        "checks the identity of the file selected by {@link #version}"
+                    }],
                 );
                 for field in ["ifModifiedSince", "ifUnmodifiedSince"] {
                     assert_field(

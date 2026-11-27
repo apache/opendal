@@ -29,7 +29,7 @@ import lombok.Builder;
  *
  * <p>Version selection and conditions require service support and apply to every chunk.
  *
- * <p>All supplied conditions must hold for data to be returned. Missing files fail with {@link OpenDALException.Code#NotFound} for nonempty ranges. Failed conditions on an existing file fail with {@link OpenDALException.Code#ConditionNotMatch}. Unsupported conditions fail with {@link OpenDALException.Code#Unsupported}.
+ * <p>All supplied conditions must hold for data to be returned. When a direct read or {@link OperatorInputStream} issues a backend read, missing files fail with {@link OpenDALException.Code#NotFound} and failed conditions on an existing file fail with {@link OpenDALException.Code#ConditionNotMatch}. Unsupported version selection or conditions fail with {@link OpenDALException.Code#Unsupported}. Presigned read requests validate options and capabilities without executing against storage.
  *
  * <p>Invalid execution values fail with {@link OpenDALException.Code#ConfigInvalid}. Invalid ranges fail with {@link OpenDALException.Code#RangeNotSatisfied}.
  *
@@ -50,9 +50,9 @@ public class ReadOptions {
     /**
      * Number of bytes to read from {@link #offset}.
      *
-     * <p>The default of {@code -1L} reads to the end. With {@code length == 0L}, OpenDAL validates options and capabilities, then returns an empty result without accessing storage or evaluating conditions against the file.
+     * <p>The default of {@code -1L} reads to the end, and {@code 0L} selects an empty range. For direct reads and {@link OperatorInputStream} with {@code length == 0L}, OpenDAL validates options and capabilities, then returns an empty result without accessing storage or evaluating conditions against the file. Presigning a read with this value still goes through request generation.
      *
-     * <p>Values below {@code -1L} or an {@code offset + length} sum that overflows the native unsigned 64-bit range fail with {@link OpenDALException.Code#RangeNotSatisfied}.
+     * <p>Values below {@code -1L} or an invalid {@code offset + length} range fail with {@link OpenDALException.Code#RangeNotSatisfied}.
      */
     @Builder.Default
     public final long length = -1L;
@@ -149,7 +149,7 @@ public class ReadOptions {
      *
      * <p>Supply the full object length in bytes, regardless of the requested range. The default of {@code -1L} means the length is unknown. Use {@code 0L} for an empty object. Values below {@code -1L} fail with {@link OpenDALException.Code#ConfigInvalid}.
      *
-     * <p>OpenDAL can use this hint to avoid a metadata request when planning reads. Consistency conditions apply independently of the hint. An incorrect hint can truncate reads or cause errors.
+     * <p>OpenDAL uses this hint only to plan reads and can use it to avoid a metadata request. For chunked reads ({@link #chunk} set), a {@code contentLengthHint} no greater than the starting offset can result in no backend read requests. When the hint equals the starting offset, including {@code 0L} at the start of a file, OpenDAL may return empty data without checking file existence or evaluating conditions. An incorrect hint can truncate reads or cause errors.
      */
     @Builder.Default
     public final long contentLengthHint = -1L;

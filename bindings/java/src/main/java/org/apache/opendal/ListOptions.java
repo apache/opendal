@@ -26,7 +26,7 @@ import lombok.Builder;
 /**
  * Options for list operations.
  *
- * <p>Unsupported options fail with {@link OpenDALException.Code#Unsupported}.
+ * <p>Options that require an unsupported service capability fail with {@link OpenDALException.Code#Unsupported}. {@link #limit} is a pagination hint that services may ignore even when {@link Capability#listWithLimit} is supported.
  *
  * <p>Optional reference fields default to {@code null}.
  */
@@ -43,7 +43,7 @@ public class ListOptions {
     /**
      * Maximum results per request (backend hint) to control memory and throttling.
      *
-     * <p>The default of {@code -1L} leaves the limit unset. Positive values must fit the native platform's unsigned pointer-sized integer. {@code 0L}, other negative values, and values that do not fit fail with {@link OpenDALException.Code#Unexpected}.
+     * <p>Services may ignore this pagination hint even when {@link Capability#listWithLimit} is supported. The default of {@code -1L} leaves the limit unset. Positive values must fit the native platform's unsigned pointer-sized integer. {@code 0L}, other negative values, and values that do not fit fail with {@link OpenDALException.Code#Unexpected}.
      */
     @Builder.Default
     public final long limit = -1L;

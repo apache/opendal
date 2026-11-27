@@ -28,7 +28,7 @@ import lombok.Data;
 /**
  * Options for stat operations.
  *
- * <p>All supplied conditions must hold for metadata to be returned. Missing files fail with {@link OpenDALException.Code#NotFound}. Failed conditions on an existing file fail with {@link OpenDALException.Code#ConditionNotMatch}. Unsupported conditions fail with {@link OpenDALException.Code#Unsupported}.
+ * <p>All supplied conditions must hold for metadata to be returned. For direct stat operations, missing files fail with {@link OpenDALException.Code#NotFound} and failed conditions on an existing file fail with {@link OpenDALException.Code#ConditionNotMatch}. Unsupported version selection or conditions fail with {@link OpenDALException.Code#Unsupported}. Presigned stat requests validate options and capabilities without executing against storage.
  *
  * <p>An {@link Instant} outside the Rust core timestamp range fails with {@link OpenDALException.Code#Unexpected}.
  *
@@ -61,7 +61,7 @@ public class StatOptions {
      *
      * <p>The condition succeeds when the file exists and its version equals this value. A file with a different version returns {@link OpenDALException.Code#ConditionNotMatch}; a missing file returns {@link OpenDALException.Code#NotFound}.
      *
-     * <p>This condition checks the identity of the file selected by {@link #version}.
+     * <p>This condition checks the identity of the file selected by {@code version}.
      *
      * @see Capability#statWithIfVersionMatch
      */

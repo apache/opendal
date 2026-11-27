@@ -27,7 +27,7 @@ import lombok.Builder;
 /**
  * Configures version selection, read conditions, and execution options for an {@link OperatorReader}.
  *
- * <p>All supplied conditions must hold for data to be returned. Missing files fail with {@link OpenDALException.Code#NotFound}. Failed conditions on an existing file fail with {@link OpenDALException.Code#ConditionNotMatch}. Unsupported conditions fail with {@link OpenDALException.Code#Unsupported}.
+ * <p>All supplied conditions must hold for data to be returned. When OpenDAL issues a backend read, missing files fail with {@link OpenDALException.Code#NotFound} and failed conditions on an existing file fail with {@link OpenDALException.Code#ConditionNotMatch}. Unsupported version selection or conditions fail with {@link OpenDALException.Code#Unsupported}.
  *
  * <p>Depending on the service, errors can surface when creating the reader or while reading. Conditions apply to every request, including streams.
  *
@@ -140,7 +140,7 @@ public final class ReaderOptions {
      *
      * <p>Supply the full object length in bytes, regardless of the requested range. The default of {@code -1L} means the length is unknown. Use {@code 0L} for an empty object. Values below {@code -1L} fail with {@link OpenDALException.Code#ConfigInvalid}.
      *
-     * <p>OpenDAL can use this hint to avoid a metadata request when planning reads. Consistency conditions apply independently of the hint. An incorrect hint can truncate reads or cause errors.
+     * <p>OpenDAL uses this hint only to plan reads and can use it to avoid a metadata request. For chunked reads ({@link #chunk} set), a {@code contentLengthHint} no greater than the starting offset can result in no backend read requests. When the hint equals the starting offset, including {@code 0L} at the start of a file, OpenDAL may return empty data without checking file existence or evaluating conditions. An incorrect hint can truncate reads or cause errors.
      */
     @Builder.Default
     public final long contentLengthHint = -1L;

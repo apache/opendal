@@ -1949,6 +1949,7 @@
         "list_with_recursive": true,
         "read": true,
         "read_with_suffix": true,
+        "read_with_version": true,
         "rename": true,
         "shared": true,
         "stat": true,

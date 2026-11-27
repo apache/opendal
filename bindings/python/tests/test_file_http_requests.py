@@ -16,6 +16,7 @@
 # under the License.
 
 import asyncio
+import base64
 import contextlib
 import multiprocessing
 from collections import Counter
@@ -49,6 +50,9 @@ class RequestState:
     def _uploads(self) -> list[bytes]:
         return [entry[1] for entry in self._requests if entry[0] == "PUT"]
 
+    def _upload_checksums(self) -> list[dict[str, str]]:
+        return [entry[2] for entry in self._requests if entry[0] == "PUT"]
+
     def _reads(self) -> list[tuple[str, str | None]]:
         return [(entry[1], entry[2]) for entry in self._requests if entry[0] == "GET"]
 
@@ -71,9 +75,17 @@ def serve_requests(port_queue, requests, slow_started, slow_release, stop):
 
         def do_PUT(self) -> None:
             body = self.rfile.read(int(self.headers["Content-Length"]))
-            requests.append(("PUT", body))
-            if self.path == "/checksum-test/checksum-mismatch" and self.headers.get(
-                "x-amz-checksum-crc32c"
+            checksums = {
+                name.lower(): value
+                for name, value in self.headers.items()
+                if name.lower() == "content-md5"
+                or name.lower().startswith("x-amz-checksum-")
+            }
+            requests.append(("PUT", body, checksums))
+            path = urlsplit(self.path).path
+            if (
+                path == "/checksum-test/checksum-mismatch"
+                and "x-amz-checksum-crc32c" in checksums
             ):
                 error = (
                     b"<Error><Code>BadDigest</Code>"
@@ -91,8 +103,31 @@ def serve_requests(port_queue, requests, slow_started, slow_release, stop):
             uploads = [entry for entry in requests if entry[0] == "PUT"]
             status = 403 if self.path == "/retry" and len(uploads) == 1 else 201
             self.send_response(status)
+            if path.startswith("/checksum-test/"):
+                for name, value in checksums.items():
+                    if name.startswith("x-amz-checksum-"):
+                        self.send_header(name, value)
             self.send_header("Content-Length", "0")
             self.end_headers()
+
+        def do_POST(self) -> None:
+            requests.append(("POST",))
+            url = urlsplit(self.path)
+            if (
+                url.path != "/checksum-test/checksum-mismatch"
+                or "uploads" not in parse_qs(url.query, keep_blank_values=True)
+            ):
+                self.send_error(404)
+                return
+            result = (
+                b"<InitiateMultipartUploadResult><UploadId>local-upload</UploadId>"
+                b"</InitiateMultipartUploadResult>"
+            )
+            self.send_response(200)
+            self.send_header("Content-Type", "application/xml")
+            self.send_header("Content-Length", str(len(result)))
+            self.end_headers()
+            self.wfile.write(result)
 
         def do_GET(self) -> None:
             range_header = self.headers.get("Range")
@@ -242,6 +277,134 @@ async def test_operator_write_preserves_checksum_mismatch(request_server, operat
 
     assert state._uploads() == [CONTENT]
     assert error.type is opendal.exceptions.ChecksumMismatch
+
+
+@pytest.fixture
+def checksum_operator(request_server):
+    endpoint, state = request_server
+    state._reset()
+    return opendal.Operator(
+        "s3",
+        endpoint=endpoint,
+        bucket="checksum-test",
+        region="us-west-2",
+        disable_config_load="true",
+        skip_signature="true",
+        checksum_algorithm="md5",
+    ), state
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("asynchronous", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize(
+    ("options", "header", "digest"),
+    [
+        pytest.param(
+            {}, "content-md5", "25f9e794323b453885f5181f1b624d0b", id="omitted"
+        ),
+        pytest.param(
+            {"checksum": None},
+            "content-md5",
+            "25f9e794323b453885f5181f1b624d0b",
+            id="none",
+        ),
+        pytest.param(
+            {"checksum": "crc32c"}, "x-amz-checksum-crc32c", "e3069283", id="crc32c"
+        ),
+        pytest.param(
+            {"checksum": "crc64nvme"},
+            "x-amz-checksum-crc64nvme",
+            "ae8b14860a799888",
+            id="crc64nvme",
+        ),
+    ],
+)
+async def test_write_and_open_forward_checksum(
+    checksum_operator, asynchronous, options, header, digest
+):
+    operator, state = checksum_operator
+    payload = b"123456789"
+    if asynchronous:
+        async_operator = operator.to_async_operator()
+        await async_operator.write("write", payload, **options)
+        async with await async_operator.open("open", "wb", **options) as file:
+            assert await file.write(payload) == len(payload)
+    else:
+        operator.write("write", payload, **options)
+        with operator.open("open", "wb", **options) as file:
+            assert file.write(payload) == len(payload)
+
+    assert state._uploads() == [payload, payload]
+    assert (
+        state._upload_checksums()
+        == [{header: base64.b64encode(bytes.fromhex(digest)).decode("ascii")}] * 2
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("asynchronous", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize(
+    ("checksum", "exception", "message"),
+    [
+        ("sha512", ValueError, "unknown checksum algorithm"),
+        (("crc32c", b"wrong"), TypeError, "checksum"),
+        ("md5", opendal.exceptions.Unsupported, "full-object Md5"),
+        ("sha1", opendal.exceptions.Unsupported, "full-object Sha1"),
+        ("sha256", opendal.exceptions.Unsupported, "full-object Sha256"),
+    ],
+)
+async def test_write_and_open_reject_invalid_or_unsupported_checksum(
+    checksum_operator, asynchronous, checksum, exception, message
+):
+    operator, state = checksum_operator
+    if asynchronous:
+        async_operator = operator.to_async_operator()
+        with pytest.raises(exception, match=message):
+            await async_operator.write("write", CONTENT, checksum=checksum)
+        with pytest.raises(exception, match=message):
+            await async_operator.open("open", "wb", checksum=checksum)
+    else:
+        with pytest.raises(exception, match=message):
+            operator.write("write", CONTENT, checksum=checksum)
+        with pytest.raises(exception, match=message):
+            operator.open("open", "wb", checksum=checksum)
+
+    assert state._methods() == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("asynchronous", [False, True], ids=["sync", "async"])
+async def test_file_write_and_flush_preserve_checksum_mismatch(
+    request_server, asynchronous
+):
+    endpoint, state = request_server
+    state._reset()
+    operator = opendal.Operator(
+        "s3",
+        endpoint=endpoint,
+        bucket="checksum-test",
+        region="us-west-2",
+        disable_config_load="true",
+        skip_signature="true",
+        checksum_algorithm="crc32c",
+    )
+    part = b"x" * (5 * 1024 * 1024)
+    if asynchronous:
+        file = await operator.to_async_operator().open(
+            "checksum-mismatch", "wb", concurrent=1
+        )
+        assert await file.write(part) == len(part)
+        with pytest.raises(opendal.exceptions.ChecksumMismatch, match="BadDigest"):
+            await file.write(part)
+    else:
+        file = operator.open("checksum-mismatch", "wb", concurrent=1)
+        assert file.write(part) == len(part)
+        with pytest.raises(opendal.exceptions.ChecksumMismatch, match="BadDigest"):
+            file.write(part)
+        with pytest.raises(opendal.exceptions.ChecksumMismatch, match="BadDigest"):
+            file.flush()
+
+    assert state._uploads()[0] == part
 
 
 @pytest.mark.asyncio

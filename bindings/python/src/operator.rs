@@ -32,6 +32,7 @@ use pyo3::types::PyString;
 use pyo3::types::PyTuple;
 use pyo3::types::PyType;
 
+use crate::options::parse_checksum_algorithm;
 use crate::runtime::{check_runtime_process, future_into_py, get_runtime};
 use crate::*;
 
@@ -537,7 +538,10 @@ impl Operator {
     ///     `"rt"` raise `ValueError`. Wrap the returned file with
     ///     `io.TextIOWrapper` to read or write text.
     /// **kwargs
-    ///     Additional options for the underlying reader or writer.
+    ///     Additional options for the underlying reader or writer. In write and
+    ///     create modes, `checksum` selects the `ChecksumAlgorithm` the service
+    ///     uses to verify the full object before committing. Omit `checksum` or
+    ///     pass `None` to use the service default.
     ///
     /// Raises
     /// ------
@@ -548,12 +552,16 @@ impl Operator {
     /// ValueError
     ///     If the mode is invalid or unsupported, including text (`"t"`) and
     ///     update (`"+"`) modes, or if the mode conflicts with `append` or
-    ///     `if_not_exists` in `**kwargs`.
+    ///     `if_not_exists` in `**kwargs`, or if the checksum name is unrecognized.
     /// ConditionNotMatch
     ///     If create mode (`"x"`) targets an existing file. The failure can
     ///     surface from `write()`, `flush()`, or `close()`.
     /// Unsupported
-    ///     If the service does not support append or `if_not_exists` writes.
+    ///     If the service does not support the requested write options, including
+    ///     the selected checksum algorithm. Append writes cannot request a checksum.
+    /// ChecksumMismatch
+    ///     If the checksum fails verification. The failure can surface from
+    ///     `write()`, `flush()`, or `close()`.
     ///
     /// Returns
     /// -------
@@ -755,6 +763,19 @@ impl Operator {
     ///     Whether to fail if the file already exists.
     /// user_metadata : dict, optional
     ///     The user metadata to set on the file.
+    /// checksum : ChecksumAlgorithm | None, optional
+    ///     The algorithm the service uses to verify the full object before
+    ///     committing. Omit it or pass `None` to use the service default.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the checksum name is unrecognized.
+    /// Unsupported
+    ///     If the service cannot verify the write with the selected algorithm,
+    ///     including when appending.
+    /// ChecksumMismatch
+    ///     If the checksum fails verification.
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (path, bs: "bytes", *,
         append= None,
@@ -767,7 +788,8 @@ impl Operator {
         if_match = None,
         if_none_match = None,
         if_not_exists = None,
-        user_metadata = None))]
+        user_metadata = None,
+        checksum: "ChecksumAlgorithm | None" = None))]
     pub fn write(
         &self,
         py: Python<'_>,
@@ -784,6 +806,7 @@ impl Operator {
         if_none_match: Option<String>,
         if_not_exists: Option<bool>,
         user_metadata: Option<HashMap<String, String>>,
+        checksum: Option<&str>,
     ) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
         let bs = py_bytes_like_into_buffer(bs)?;
@@ -799,6 +822,7 @@ impl Operator {
             if_none_match,
             if_not_exists,
             user_metadata,
+            checksum: checksum.map(parse_checksum_algorithm).transpose()?,
         };
 
         check_runtime_process()?;
@@ -1424,7 +1448,10 @@ impl AsyncOperator {
     ///     `"rt"` raise `ValueError`. `AsyncFile` writes bytes, so encode text
     ///     with `str.encode()` and decode reads with `bytes.decode()`.
     /// **kwargs : dict
-    ///     Additional options for the underlying reader or writer.
+    ///     Additional options for the underlying reader or writer. In write and
+    ///     create modes, `checksum` selects the `ChecksumAlgorithm` the service
+    ///     uses to verify the full object before committing. Omit `checksum` or
+    ///     pass `None` to use the service default.
     ///
     /// Raises
     /// ------
@@ -1435,12 +1462,16 @@ impl AsyncOperator {
     /// ValueError
     ///     If the mode is invalid or unsupported, including text (`"t"`) and
     ///     update (`"+"`) modes, or if the mode conflicts with `append` or
-    ///     `if_not_exists` in `**kwargs`.
+    ///     `if_not_exists` in `**kwargs`, or if the checksum name is unrecognized.
     /// ConditionNotMatch
     ///     If create mode (`"x"`) targets an existing file. The failure can
     ///     surface from `write()` or `close()`.
     /// Unsupported
-    ///     If the service does not support append or `if_not_exists` writes.
+    ///     If the service does not support the requested write options, including
+    ///     the selected checksum algorithm. Append writes cannot request a checksum.
+    /// ChecksumMismatch
+    ///     If the checksum fails verification. The failure can surface from
+    ///     `write()` or `close()`.
     ///
     /// Returns
     /// -------
@@ -1645,6 +1676,19 @@ impl AsyncOperator {
     ///     Whether to fail if the file already exists.
     /// user_metadata : dict, optional
     ///     The user metadata to set on the file.
+    /// checksum : ChecksumAlgorithm | None, optional
+    ///     The algorithm the service uses to verify the full object before
+    ///     committing. Omit it or pass `None` to use the service default.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the checksum name is unrecognized.
+    /// Unsupported
+    ///     If the service cannot verify the write with the selected algorithm,
+    ///     including when appending.
+    /// ChecksumMismatch
+    ///     If the checksum fails verification.
     ///
     /// Returns
     /// -------
@@ -1662,7 +1706,8 @@ impl AsyncOperator {
         if_match = None,
         if_none_match = None,
         if_not_exists = None,
-        user_metadata = None) -> "collections.abc.Awaitable[None]")]
+        user_metadata = None,
+        checksum: "ChecksumAlgorithm | None" = None) -> "collections.abc.Awaitable[None]")]
     pub fn write<'p>(
         &'p self,
         py: Python<'p>,
@@ -1679,6 +1724,7 @@ impl AsyncOperator {
         if_none_match: Option<String>,
         if_not_exists: Option<bool>,
         user_metadata: Option<HashMap<String, String>>,
+        checksum: Option<&str>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let opts = WriteOptions {
             append,
@@ -1692,6 +1738,7 @@ impl AsyncOperator {
             if_none_match,
             if_not_exists,
             user_metadata,
+            checksum: checksum.map(parse_checksum_algorithm).transpose()?,
         };
         let this = self.core.clone();
         let bs = py_bytes_like_into_buffer(bs)?;

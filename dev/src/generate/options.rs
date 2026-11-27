@@ -36,6 +36,8 @@ pub enum OptionType {
     DateTime,
     /// `Option<HashMap<String, String>>`
     Dict,
+    /// `Option<ocore::ChecksumAlgo>`
+    ChecksumAlgo,
 }
 
 /// One keyword option of an operator method.
@@ -155,6 +157,7 @@ fn parse_type(ty: &Type) -> Result<OptionType> {
         "Timestamp" => OptionType::DateTime,
         // HashMap<String, String>
         "HashMap" => OptionType::Dict,
+        "ChecksumAlgo" => OptionType::ChecksumAlgo,
         other => bail!("unsupported option type: {other}"),
     })
 }
@@ -213,7 +216,9 @@ mod tests {
         assert_eq!(read.fields[0].doc, "The version of the file.");
 
         let write = &options[1];
-        assert_eq!(write.fields.len(), 11);
+        assert_eq!(write.fields.len(), 12);
+        assert_eq!(write.fields[11].name, "checksum");
+        assert_eq!(write.fields[11].ty, OptionType::ChecksumAlgo);
         assert_eq!(write.fields[10].name, "user_metadata");
         assert_eq!(write.fields[10].ty, OptionType::Dict);
         assert_eq!(

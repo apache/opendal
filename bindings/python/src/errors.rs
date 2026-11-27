@@ -125,13 +125,14 @@ pub fn format_pyerr(err: ocore::Error) -> PyErr {
 
 /// Format an error from a file write or flush.
 ///
-/// Conditional failures keep their OpenDAL exception so callers can catch
-/// `ConditionNotMatch`. Other failures remain `OSError`, matching raw I/O.
+/// Preserve conditional and checksum exceptions for file writes and flushes.
+/// Keep other failures as `OSError` for compatibility with raw I/O.
 pub fn format_pyerr_from_write_error(err: ocore::Error) -> PyErr {
-    if err.kind() == ocore::ErrorKind::ConditionNotMatch {
-        format_pyerr_impl(&err)
-    } else {
-        PyIOError::new_err(err.to_string())
+    match err.kind() {
+        ocore::ErrorKind::ConditionNotMatch | ocore::ErrorKind::ChecksumMismatch => {
+            format_pyerr_impl(&err)
+        }
+        _ => PyIOError::new_err(err.to_string()),
     }
 }
 

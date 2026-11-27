@@ -113,6 +113,9 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         if !minio_without_crc64nvme {
             tests.extend(async_trials!(op, test_write_with_any_checksum));
         }
+        if scheme == "oss" && cap.write_can_multi {
+            tests.extend(async_trials!(op, test_oss_writer_with_fast_checksum));
+        }
         if test_s3_checksums && cap.stat {
             tests.extend(async_trials!(
                 op,
@@ -1619,6 +1622,28 @@ fn multipart_checksum_content(op: &Operator) -> (usize, Vec<u8>) {
     content.extend(std::iter::repeat_n(2, chunk));
     content.push(3);
     (chunk, content)
+}
+
+/// OSS verifies and returns the full-object CRC across unequal concurrent parts.
+pub async fn test_oss_writer_with_fast_checksum(op: Operator) -> Result<()> {
+    let (chunk, content) = multipart_checksum_content(&op);
+    let crc = crc_fast::checksum(crc_fast::CrcAlgorithm::Crc64Xz, &content);
+    let content = Bytes::from(content);
+    let path = TEST_FIXTURE.new_file_path();
+    let mut writer = op
+        .writer_with(&path)
+        .chunk(chunk)
+        .concurrent(3)
+        .checksum(WriteChecksum::Fast)
+        .await?;
+    writer.write(content.clone()).await?;
+    let metadata = writer.close().await?;
+    assert_eq!(
+        metadata.checksum(),
+        Some(Checksum::new(ChecksumAlgo::Crc64Ecma, crc.to_be_bytes()))
+    );
+    assert_eq!(op.read(&path).await?.to_bytes(), content);
+    Ok(())
 }
 
 /// S3 returns the verified digest across concurrent parts and the short final part.

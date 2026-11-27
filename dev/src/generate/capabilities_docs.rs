@@ -691,6 +691,12 @@ fn describe_bool_condition(expr: &Expr, rel_path: &str) -> Result<String> {
         }
         Expr::Path(ExprPath { path, .. }) => {
             if let Some(ident) = path.get_ident().map(ToString::to_string) {
+                if ident == "oss_can_checksum" {
+                    return Ok(
+                        "Standard OSS regional HTTPS endpoints for signed, non-append Any and Fast writes"
+                            .to_string(),
+                    );
+                }
                 if ident == "azblob_can_checksum" {
                     return Ok(
                         "Standard Azure Blob endpoints (`https://<account>.blob.core.windows.net`)"

@@ -595,6 +595,8 @@ impl Service for B2Backend {
                     .await
             }
             PresignOperation::Write(write) => {
+                const CACHE_CONTROL_FILE_INFO_KEY: &str = "b2-cache-control";
+
                 if write.checksum().is_some() {
                     return Err(Error::new(
                         ErrorKind::Unsupported,
@@ -614,8 +616,25 @@ impl Service for B2Backend {
                 req = req.header(http::header::CONTENT_TYPE, content_type);
                 req = req.header(constants::X_BZ_CONTENT_SHA1, "do_not_verify");
 
+                let cache_control = write.cache_control();
+                if let Some(value) = cache_control {
+                    req = req.header(
+                        format!(
+                            "{}{CACHE_CONTROL_FILE_INFO_KEY}",
+                            constants::X_BZ_INFO_PREFIX
+                        ),
+                        percent_encode_path(value),
+                    );
+                }
+
                 if let Some(user_metadata) = write.user_metadata() {
                     for (key, value) in user_metadata {
+                        if cache_control.is_some()
+                            && (key.eq_ignore_ascii_case("cache-control")
+                                || key.eq_ignore_ascii_case(CACHE_CONTROL_FILE_INFO_KEY))
+                        {
+                            continue;
+                        }
                         req = req.header(
                             format!("{}{}", constants::X_BZ_INFO_PREFIX, key),
                             percent_encode_path(value),

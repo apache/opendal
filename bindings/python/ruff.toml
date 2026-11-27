@@ -83,6 +83,7 @@ known-first-party = ["opendal"]
 ]
 "benchmark/*" = ["D100", "D101", "D103", "ANN201"]
 "examples/*" = ["D100", "D101", "D103", "ANN201"]
-# Generated file; docstrings are copied verbatim from Rust and can be long.
+# Generated files; docstrings are copied verbatim from Rust and can be long.
+"python/opendal/capability.pyi" = ["E501"]
 "python/opendal/config.py" = ["E501"]
 "tests/*" = ["D101", "D100", "D103", "ANN201", "ANN001"]

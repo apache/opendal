@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::generate::capability;
 use crate::generate::options;
 use crate::generate::parser::{Config, ConfigType, Services, service_feature, sorted_services};
 use anyhow::{Context, Result, bail};
@@ -203,6 +204,29 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     // Generate the typed operator options TypedDicts (Python).
     generate_options_py(&workspace_dir)?;
 
+    // Generate the `Capability` pyclass (Rust) from core.
+    generate_capability(&workspace_dir)?;
+
+    Ok(())
+}
+
+/// Render `bindings/python/src/capability.rs` from
+/// `core/core/src/types/capability.rs`, so that every core capability field is
+/// exposed with its core doc comment and nothing is maintained by hand.
+///
+/// The `.pyi` stub is derived from this pyclass by `just stub-gen`.
+fn generate_capability(workspace_dir: &Path) -> Result<()> {
+    let source = workspace_dir.join("core/core/src/types/capability.rs");
+    let fields = capability::parse(&source)?;
+
+    let mut env = Environment::new();
+    env.add_template("capability_rs", include_str!("python/capability_rs.j2"))?;
+    let rendered = env
+        .get_template("capability_rs")?
+        .render(context! { fields => fields })?;
+
+    let output = workspace_dir.join("bindings/python/src/capability.rs");
+    fs::write(output, format!("{rendered}\n"))?;
     Ok(())
 }
 

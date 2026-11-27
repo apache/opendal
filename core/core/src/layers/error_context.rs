@@ -38,7 +38,6 @@ use crate::*;
 /// - `size`: The size of the current write operation.
 /// - `written`: The already written size in given writer.
 /// - `listed`: The already listed size in given lister.
-/// - `deleted`: The already deleted size in given deleter.
 pub struct ErrorContextLayer;
 
 impl std::fmt::Debug for ErrorContextLayer {
@@ -375,7 +374,6 @@ impl<T: oio::Delete> oio::Delete for ErrorContextWrapper<T> {
             err.with_operation(Operation::Delete)
                 .with_context("service", self.scheme)
                 .with_context("path", path)
-                .with_context("deleted", self.processed.to_string())
         })
     }
 
@@ -383,7 +381,6 @@ impl<T: oio::Delete> oio::Delete for ErrorContextWrapper<T> {
         self.inner.close().await.map_err(|err| {
             err.with_operation(Operation::Delete)
                 .with_context("service", self.scheme)
-                .with_context("deleted", self.processed.to_string())
         })
     }
 }
@@ -447,5 +444,73 @@ impl<T: oio::Compose> oio::Compose for ErrorContextWrapper<T> {
                 .with_context("to", &self.path)
                 .with_context("accepted", self.processed.to_string())
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::error::Error as _;
+
+    use super::*;
+    use crate::raw::oio::Delete;
+
+    struct FailingDeleter;
+
+    impl oio::Delete for FailingDeleter {
+        async fn delete(&mut self, path: &str, _: OpDelete) -> Result<()> {
+            if path == "denied" {
+                return Err(Error::new(ErrorKind::PermissionDenied, "delete denied")
+                    .with_context("request_id", "delete-request"));
+            }
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            Err(Error::new(ErrorKind::RateLimited, "batch flush failed")
+                .set_temporary()
+                .with_operation("batch_delete")
+                .with_context("deleted", 1)
+                .with_context("path", "pending")
+                .set_source(std::io::Error::other("batch request failed")))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_delete_error_omits_unreported_count() {
+        let mut deleter = ErrorContextWrapper::new("test", "", FailingDeleter);
+        deleter.delete("queued", OpDelete::new()).await.unwrap();
+        let err = deleter.delete("denied", OpDelete::new()).await.unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+        assert_eq!(err.message(), "delete denied");
+        let rendered = err.to_string();
+        assert!(rendered.contains(" at delete,"), "{rendered}");
+        assert!(rendered.contains("service: test"), "{rendered}");
+        assert!(rendered.contains("path: denied"), "{rendered}");
+        assert!(
+            rendered.contains("request_id: delete-request"),
+            "{rendered}"
+        );
+        assert!(!rendered.contains("deleted: "), "{rendered}");
+    }
+
+    #[tokio::test]
+    async fn test_delete_close_error_preserves_reported_count() {
+        let mut deleter = ErrorContextWrapper::new("test", "", FailingDeleter);
+        deleter.delete("removed", OpDelete::new()).await.unwrap();
+        deleter.delete("pending", OpDelete::new()).await.unwrap();
+        let err = deleter.close().await.unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::RateLimited);
+        assert!(err.is_temporary());
+        assert_eq!(err.message(), "batch flush failed");
+        assert_eq!(err.source().unwrap().to_string(), "batch request failed");
+        let rendered = err.to_string();
+        assert!(rendered.contains(" at delete,"), "{rendered}");
+        assert!(rendered.contains("service: test"), "{rendered}");
+        assert!(rendered.contains("path: pending"), "{rendered}");
+        assert!(rendered.contains("called: batch_delete"), "{rendered}");
+        assert!(rendered.contains("deleted: 1,"), "{rendered}");
+        assert_eq!(rendered.matches("deleted: ").count(), 1, "{rendered}");
     }
 }

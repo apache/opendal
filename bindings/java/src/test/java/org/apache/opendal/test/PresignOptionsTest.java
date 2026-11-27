@@ -28,6 +28,7 @@ import java.util.Collections;
 import org.apache.hc.core5.http.NameValuePair;
 import org.apache.hc.core5.net.URIBuilder;
 import org.apache.opendal.AsyncOperator;
+import org.apache.opendal.OpenDALException;
 import org.apache.opendal.PresignedRequest;
 import org.apache.opendal.ReadOptions;
 import org.apache.opendal.ServiceConfig;
@@ -176,17 +177,29 @@ public class PresignOptionsTest {
     @Test
     public void testPresignAcceptsBoundaryDurations() throws Exception {
         try (final AsyncOperator op = AsyncOperator.of(CONFIG)) {
-            final PresignedRequest zero =
-                    op.presignRead("report.csv", Duration.ZERO).join();
-            assertThat(new URIBuilder(zero.getUri()).getQueryParams())
+            final PresignedRequest min =
+                    op.presignRead("report.csv", Duration.ofSeconds(1)).join();
+            assertThat(new URIBuilder(min.getUri()).getQueryParams())
                     .extracting(NameValuePair::getName, NameValuePair::getValue)
-                    .contains(tuple("X-Amz-Expires", "0"));
+                    .contains(tuple("X-Amz-Expires", "1"));
 
-            final PresignedRequest max = op.presignStat("report.csv", Duration.ofNanos(Long.MAX_VALUE))
-                    .join();
+            final PresignedRequest max =
+                    op.presignStat("report.csv", Duration.ofSeconds(604_800)).join();
             assertThat(new URIBuilder(max.getUri()).getQueryParams())
                     .extracting(NameValuePair::getName, NameValuePair::getValue)
-                    .contains(tuple("X-Amz-Expires", String.valueOf(Long.MAX_VALUE / 1_000_000_000L)));
+                    .contains(tuple("X-Amz-Expires", "604800"));
+        }
+    }
+
+    @Test
+    public void testPresignPassesConvertibleDurationsToTheSigner() throws Exception {
+        try (final AsyncOperator op = AsyncOperator.of(CONFIG)) {
+            for (final Duration duration : Arrays.asList(Duration.ZERO, Duration.ofNanos(Long.MAX_VALUE))) {
+                assertThatThrownBy(() -> op.presignRead("report.csv", duration).join())
+                        .hasRootCauseInstanceOf(OpenDALException.class)
+                        .rootCause()
+                        .hasMessageContaining("lifetime");
+            }
         }
     }
 }

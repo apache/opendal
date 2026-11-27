@@ -76,9 +76,10 @@ invalid values for other supported built-in options also fail with
 
 An option that holds a map of strings takes a JSON object whose values are
 strings, such as `{"fs.defaultFS":"hdfs://ns"}`. OpenDAL keeps the case of the
-keys inside the object, and the last occurrence of a duplicate key wins. Any
-other JSON value, including a number, `null`, an array, or a nested object,
-fails with `ConfigInvalid`.
+keys inside the object. A key that appears more than once fails with
+`ConfigInvalid`, even when every occurrence has the same value. Any other JSON
+value, including a number, `null`, an array, or a nested object, also fails
+with `ConfigInvalid`.
 
 ## Trusted input
 

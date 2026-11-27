@@ -1804,6 +1804,31 @@ mod tests {
     }
 
     #[test]
+    fn test_xml_object_name_percent_encodes_reserved_characters() {
+        let core = test_core();
+        let path = "dir/a?b";
+        let expected = "https://storage.googleapis.com/test-bucket/dir/a%3Fb";
+
+        let get = core
+            .gcs_get_object_xml_request(path, BytesRange::default(), &read_args(Default::default()))
+            .expect("read request must build");
+        assert_eq!(get.uri().query(), None);
+        assert_eq!(get.uri().to_string(), expected);
+
+        let head = core
+            .gcs_head_object_xml_request(path, &options::StatOptions::default().into())
+            .expect("stat request must build");
+        assert_eq!(head.uri().query(), None);
+        assert_eq!(head.uri().to_string(), expected);
+
+        let insert = core
+            .gcs_insert_object_xml_request(path, &write_args(Default::default()), Buffer::new())
+            .expect("write request must build");
+        assert_eq!(insert.uri().query(), None);
+        assert_eq!(insert.uri().to_string(), expected);
+    }
+
+    #[test]
     fn test_media_get_accepts_stored_gzip() {
         let core = test_core();
         let args = read_args(options::ReadOptions::default());

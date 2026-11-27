@@ -237,7 +237,7 @@ impl GcsCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_absolute_path(&self.root, path);
+        let p = percent_encode_path(&build_absolute_path(&self.root, path));
 
         let mut url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
@@ -549,7 +549,7 @@ impl GcsCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_absolute_path(&self.root, path);
+        let p = percent_encode_path(&build_absolute_path(&self.root, path));
 
         let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
@@ -652,7 +652,7 @@ impl GcsCore {
         path: &str,
         args: &OpStat,
     ) -> Result<Request<Buffer>> {
-        let p = build_absolute_path(&self.root, path);
+        let p = percent_encode_path(&build_absolute_path(&self.root, path));
 
         let mut url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 

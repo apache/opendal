@@ -1241,7 +1241,11 @@ impl S3Builder {
         let s3_can_checksum = !is_s3_express
             && matches!(
                 scheme,
-                S3_SCHEME | crate::CEPH_RGW_SCHEME | crate::MINIO_SCHEME | crate::SEAWEEDFS_SCHEME
+                S3_SCHEME
+                    | crate::CEPH_RGW_SCHEME
+                    | crate::GARAGE_SCHEME
+                    | crate::MINIO_SCHEME
+                    | crate::SEAWEEDFS_SCHEME
             );
 
         let mut capability = Capability {
@@ -4140,6 +4144,12 @@ mod tests {
                     .endpoint(endpoint),
             )?,
             Operator::new(crate::CephRgw::default().bucket("test").endpoint(endpoint))?,
+            Operator::new(
+                crate::Garage::default()
+                    .bucket("test")
+                    .endpoint(endpoint)
+                    .region("garage"),
+            )?,
         ] {
             let info = op.info();
             assert!(info.capability().write_with_checksum, "{}", info.scheme());

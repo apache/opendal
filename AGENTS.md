@@ -284,6 +284,14 @@ When adding or changing a service:
 6. Obtain runtime resources from the operation's `OperationContext` rather than caching them in the service constructed by the builder.
 7. Run focused clippy/tests first, then broaden validation based on the blast radius.
 
+### Capabilities and Upstream Bug Workarounds
+
+- Expose standard capabilities a service declares directly through `capability()` without gating them behind `enable_*` configuration switches. Letting an individual server reject an unsupported request is valid.
+- Withhold a capability only when exposing it risks incorrectness—such as wrong results, silent omissions, or skipped verification—and document why in the service or preset docs.
+- A service-level opt-in can be appropriate for a non-standard protocol extension that most servers lack. Callers can still request a standard capability for an individual operation. For example, `WriteChecksum` requests verification for one write.
+- Verify capability decisions and upstream quirks against a current release rather than an outdated pinned fixture; document version-specific caveats instead of withholding a capability or adding a workaround for already-fixed server behavior.
+- Before working around an upstream service bug, weigh how many users it affects. Report the bug upstream and track it in an OpenDAL issue first; add a client-side workaround only when a mainstream service blocks a broad user base, and keep it small and easy to remove once upstream fixes it.
+
 ## Layer Implementation Pattern
 
 Reusable layers live under `core/layers/<layer>/` as `opendal-layer-*` crates. Core layers that are required by `opendal-core` itself live under `core/core/src/layers/`.

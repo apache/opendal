@@ -266,6 +266,18 @@ passed directly to another operator method while the owner is alive.
 epoch, or `-1` when absent. Update exhaustive switches for `Code.CANCELLED`
 and `error.Cancelled` in `OpendalError`.
 
+## PHP binding
+
+After the upgrade from `ext-php-rs` 0.15.15 to 0.16.5,
+`OpenDAL\Operator::write($path, $content)` throws `\TypeError` when the
+content string contains invalid UTF-8. The earlier build threw `\Exception`,
+so a `catch (\Exception $e)` handler for this input must be updated.
+
+If your application handles invalid UTF-8 specifically, validate the content
+string before calling `write()`. This works with both binding versions and
+lets storage errors propagate to your usual `OpenDAL\Exception` handler.
+To store arbitrary bytes, pass an array of byte values to `write_binary()`.
+
 # Upgrade to v0.59
 
 ## Public API

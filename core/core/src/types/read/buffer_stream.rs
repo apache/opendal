@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::num::NonZeroU64;
 use std::ops::Range;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -190,6 +191,21 @@ struct ChunkedReadInput {
     ctx: Arc<ReadContext>,
     range: BytesRange,
     reader: Option<Box<dyn oio::ReadStreamDyn>>,
+    observe_length: bool,
+}
+
+struct ChunkedReadOutput {
+    buffer: Buffer,
+    object_length: Option<NonZeroU64>,
+}
+
+#[derive(Clone, Copy)]
+enum RangeRevalidation {
+    Suffix(SuffixRevalidation),
+    /// Extend a warmed open-ended plan from its original start offset.
+    OpenEnded(u64),
+    /// Schedule these additional bytes after the original plan.
+    Extension(NonZeroU64),
 }
 
 /// A planned chunk and the chunked reader state after it is scheduled.
@@ -216,11 +232,10 @@ pub struct ChunkedReader {
     ctx: Arc<ReadContext>,
     offset: u64,
     remaining: Option<u64>,
-    suffix_revalidation: Option<SuffixRevalidation>,
+    revalidation: Option<RangeRevalidation>,
     revalidated_range: Option<Range<u64>>,
     opened: Option<OpenedChunk>,
-    tasks: ConcurrentTasks<ChunkedReadInput, Buffer>,
-    done: bool,
+    tasks: ConcurrentTasks<ChunkedReadInput, ChunkedReadOutput>,
 }
 
 impl ChunkedReader {
@@ -229,18 +244,10 @@ impl ChunkedReader {
     /// # Notes
     ///
     /// We don't need to handle `Executor::timeout` since we are outside the layer.
-    fn new(ctx: Arc<ReadContext>, range: BytesRange) -> Self {
-        Self::with_revalidation(ctx, range, None)
-    }
-
-    fn with_suffix_revalidation(ctx: Arc<ReadContext>, reval: SuffixRevalidation) -> Self {
-        Self::with_revalidation(ctx, reval.resolved_range().into(), Some(reval))
-    }
-
-    fn with_revalidation(
+    fn new(
         ctx: Arc<ReadContext>,
         range: BytesRange,
-        suffix_revalidation: Option<SuffixRevalidation>,
+        revalidation: Option<RangeRevalidation>,
     ) -> Self {
         let tasks = ConcurrentTasks::new(
             ctx.context().executor().clone(),
@@ -249,19 +256,31 @@ impl ChunkedReader {
             |mut input: ChunkedReadInput| {
                 Box::pin(async move {
                     let result = if let Some(mut reader) = input.reader.take() {
-                        reader.read_all().await
+                        reader.read_all().await.map(|buffer| (buffer, None))
                     } else {
-                        match input.ctx.reader().read(input.range).await {
-                            Ok((rp, buffer)) => {
+                        input
+                            .ctx
+                            .reader()
+                            .read(input.range)
+                            .await
+                            .map(|(rp, buffer)| {
+                                let length = if input.observe_length {
+                                    rp.metadata()
+                                        .filter(|m| m.is_file())
+                                        .and_then(|m| NonZeroU64::new(m.content_length()))
+                                } else {
+                                    None
+                                };
                                 input.ctx.observe_read_response(rp);
-                                Ok(buffer)
-                            }
-                            Err(err) => Err(err),
-                        }
+                                (buffer, length)
+                            })
                     };
-                    let result = result.and_then(|buffer| {
+                    let result = result.and_then(|(buffer, object_length)| {
                         check_complete(input.range.size(), buffer.len() as u64)?;
-                        Ok(buffer)
+                        Ok(ChunkedReadOutput {
+                            buffer,
+                            object_length,
+                        })
                     });
                     (input, result)
                 })
@@ -271,11 +290,10 @@ impl ChunkedReader {
             ctx,
             offset: range.offset(),
             remaining: range.size(),
-            suffix_revalidation,
+            revalidation,
             revalidated_range: None,
             opened: None,
             tasks,
-            done: false,
         }
     }
 
@@ -287,11 +305,7 @@ impl ChunkedReader {
         self.tasks.is_errored()
     }
 
-    async fn open_revalidated_first_chunk(&mut self) -> Result<()> {
-        let Some(mut reval) = self.suffix_revalidation else {
-            return Ok(());
-        };
-
+    async fn open_revalidated_first_chunk(&mut self, mut reval: SuffixRevalidation) -> Result<()> {
         let chunk = self.ctx.options().chunk();
         let opened = self
             .ctx
@@ -319,13 +333,14 @@ impl ChunkedReader {
                 self.offset = full_range.start;
                 self.remaining = Some(total);
                 self.revalidated_range = Some(full_range);
-                self.suffix_revalidation = None;
+                self.revalidation = None;
                 self.ctx.observe_read_response(rp);
                 self.opened = Some(OpenedChunk {
                     input: ChunkedReadInput {
                         ctx: self.ctx.clone(),
                         range: first_range,
                         reader: Some(reader),
+                        observe_length: false,
                     },
                     planned: PlannedRange {
                         range: first_range,
@@ -340,43 +355,35 @@ impl ChunkedReader {
                 self.offset = full_range.start;
                 self.remaining = Some(0);
                 self.revalidated_range = Some(full_range);
-                self.suffix_revalidation = None;
-                self.done = true;
+                self.revalidation = None;
                 Ok(())
             }
             Err(err) => {
-                self.suffix_revalidation = Some(reval);
+                self.revalidation = Some(RangeRevalidation::Suffix(reval));
                 Err(err)
             }
         }
     }
 
     async fn prepare_metadata(&mut self) -> Result<()> {
-        if self.ctx.metadata().is_some() && self.suffix_revalidation.is_none() {
-            return Ok(());
-        }
-
-        if self.suffix_revalidation.is_some() {
-            self.open_revalidated_first_chunk().await?;
-            return Ok(());
-        }
-
-        if self.opened.is_none() {
-            if let Some(planned) = self.plan_next_range() {
-                let range = planned.range;
-                let (rp, reader) = self.ctx.reader().open(range).await?;
-                self.ctx.observe_read_response(rp);
-                self.opened = Some(OpenedChunk {
-                    input: ChunkedReadInput {
-                        ctx: self.ctx.clone(),
-                        range,
-                        reader: Some(reader),
-                    },
-                    planned,
-                });
-            } else {
-                self.done = true;
-            }
+        if let Some(RangeRevalidation::Suffix(reval)) = self.revalidation {
+            self.open_revalidated_first_chunk(reval).await?;
+        } else if self.ctx.metadata().is_none()
+            && self.opened.is_none()
+            && let Some(planned) = self.plan_next_range()
+        {
+            let range = planned.range;
+            let (rp, reader) = self.ctx.reader().open(range).await?;
+            self.ctx.observe_read_response(rp);
+            self.opened = Some(OpenedChunk {
+                input: ChunkedReadInput {
+                    ctx: self.ctx.clone(),
+                    range,
+                    reader: Some(reader),
+                    observe_length: false,
+                },
+                planned,
+            });
         }
 
         Ok(())
@@ -429,11 +436,19 @@ impl ChunkedReader {
 
 impl oio::ReadStream for ChunkedReader {
     async fn read(&mut self) -> Result<Buffer> {
-        if self.suffix_revalidation.is_some() {
-            self.open_revalidated_first_chunk().await?;
+        if let Some(RangeRevalidation::Suffix(reval)) = self.revalidation {
+            self.open_revalidated_first_chunk(reval).await?;
         }
 
-        while self.tasks.has_remaining() && !self.done {
+        let observe_length = matches!(self.revalidation, Some(RangeRevalidation::OpenEnded(_)));
+        while self.tasks.has_remaining() {
+            if self.remaining == Some(0)
+                && let Some(RangeRevalidation::Extension(additional)) = self.revalidation
+            {
+                self.remaining = Some(additional.get());
+                self.revalidation = None;
+            }
+
             if let Some(opened) = self.opened.take() {
                 let OpenedChunk { input, planned } = opened;
                 self.tasks.execute(input).await?;
@@ -444,11 +459,11 @@ impl oio::ReadStream for ChunkedReader {
                         ctx: self.ctx.clone(),
                         range: planned.range,
                         reader: None,
+                        observe_length,
                     })
                     .await?;
                 self.commit_range(planned);
             } else {
-                self.done = true;
                 break;
             }
             if self.tasks.has_result() {
@@ -456,9 +471,25 @@ impl oio::ReadStream for ChunkedReader {
             }
         }
 
-        let Some(buffer) = self.tasks.next().await.transpose()? else {
+        let Some(ChunkedReadOutput {
+            buffer,
+            object_length,
+        }) = self.tasks.next().await.transpose()?
+        else {
             return Ok(Buffer::new());
         };
+
+        if let (Some(length), Some(RangeRevalidation::OpenEnded(start))) =
+            (object_length, self.revalidation)
+        {
+            // Use the first length in submission order. Keep the original
+            // ranges intact, including any short final chunk.
+            let planned_end = self.offset + self.remaining.expect("warm plan must be bounded");
+            let end = planned_end.max(length.get());
+            self.revalidated_range = Some(start..end);
+            self.revalidation =
+                NonZeroU64::new(end - planned_end).map(RangeRevalidation::Extension);
+        }
 
         Ok(buffer)
     }
@@ -481,7 +512,7 @@ pub struct BufferStream {
     exact: bool,
     suffix_size: Option<u64>,
     read: u64,
-    revalidated_suffix_range: Option<Range<u64>>,
+    revalidated_range: Option<Range<u64>>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -500,22 +531,29 @@ enum State {
 }
 
 impl BufferStream {
-    /// Create a new buffer stream with already calculated offset and size.
-    pub(crate) fn new(ctx: Arc<ReadContext>, offset: u64, size: Option<u64>) -> Self {
+    /// Create a new buffer stream with an already calculated offset and size.
+    pub(crate) fn new(
+        ctx: Arc<ReadContext>,
+        offset: u64,
+        size: Option<u64>,
+        observe_open_end: bool,
+    ) -> Self {
         debug_assert!(
             size.is_some() || ctx.options().chunk().is_none(),
             "size must be known if chunk is set"
         );
 
-        Self::from_range(ctx, BytesRange::new(offset, size), None, None)
+        let revalidation = observe_open_end.then_some(RangeRevalidation::OpenEnded(offset));
+        Self::from_range(ctx, BytesRange::new(offset, size), None, revalidation)
     }
 
     /// Create a new buffer stream for a suffix range resolved via `stat`,
     /// revalidating the object size on the first read open.
     pub(crate) fn new_suffix(ctx: Arc<ReadContext>, reval: SuffixRevalidation) -> Self {
         let resolved = reval.resolved_range();
-        let suffix_revalidation = (resolved.end > resolved.start).then_some(reval);
-        Self::from_range(ctx, resolved.into(), None, suffix_revalidation)
+        let revalidation =
+            (resolved.end > resolved.start).then_some(RangeRevalidation::Suffix(reval));
+        Self::from_range(ctx, resolved.into(), None, revalidation)
     }
 
     /// Create a stream, resolving the range first if chunk planning needs its size.
@@ -536,7 +574,7 @@ impl BufferStream {
                 "range end overflow: offset + size exceeds u64::MAX",
             ));
         }
-        let mut suffix_revalidation = None;
+        let mut revalidation = None;
         if ctx.options().chunk().is_some() {
             if let BytesRange::Suffix { size } = range
                 && ctx.args().content_length_hint().is_none()
@@ -545,21 +583,28 @@ impl BufferStream {
                 let reval = SuffixRevalidation::new(size, expected_len);
                 let resolved = reval.resolved_range();
                 if resolved.end > resolved.start {
-                    suffix_revalidation = Some(reval);
+                    revalidation = Some(RangeRevalidation::Suffix(reval));
                 }
                 range = resolved.into();
             } else {
+                if let BytesRange::Range { offset, size: None } = range
+                    && limit.is_none()
+                    && ctx.args().content_length_hint().is_none()
+                    && ctx.metadata().is_some()
+                {
+                    revalidation = Some(RangeRevalidation::OpenEnded(offset));
+                }
                 range = ctx.parse_into_range(range).await?.into();
             }
         }
-        Ok(Self::from_range(ctx, range, limit, suffix_revalidation))
+        Ok(Self::from_range(ctx, range, limit, revalidation))
     }
 
     fn from_range(
         ctx: Arc<ReadContext>,
         range: BytesRange,
         limit: Option<u64>,
-        suffix_revalidation: Option<SuffixRevalidation>,
+        revalidation: Option<RangeRevalidation>,
     ) -> Self {
         let exact = limit.is_none() && !range.is_suffix() && range.size().is_some();
         let size = if exact { range.size() } else { limit };
@@ -568,13 +613,8 @@ impl BufferStream {
             _ => None,
         };
         let reader = if ctx.options().chunk().is_some() {
-            match suffix_revalidation {
-                Some(reval) => {
-                    TwoWays::Two(ChunkedReader::with_suffix_revalidation(ctx.clone(), reval))
-                }
-                None => TwoWays::Two(ChunkedReader::new(ctx.clone(), range)),
-            }
-        } else if let Some(reval) = suffix_revalidation {
+            TwoWays::Two(ChunkedReader::new(ctx.clone(), range, revalidation))
+        } else if let Some(RangeRevalidation::Suffix(reval)) = revalidation {
             TwoWays::One(StreamingReader::with_suffix_revalidation(
                 ctx.clone(),
                 reval,
@@ -590,11 +630,11 @@ impl BufferStream {
             exact,
             suffix_size,
             read: 0,
-            revalidated_suffix_range: None,
+            revalidated_range: None,
         }
     }
 
-    fn sync_revalidated_suffix(&mut self, reader: &mut TwoWays<StreamingReader, ChunkedReader>) {
+    fn sync_revalidated_range(&mut self, reader: &mut TwoWays<StreamingReader, ChunkedReader>) {
         let revalidated = match reader {
             TwoWays::One(v) => v.take_revalidated_range(),
             TwoWays::Two(v) => v.take_revalidated_range(),
@@ -603,12 +643,12 @@ impl BufferStream {
             if self.exact {
                 self.size = Some(range.end - range.start);
             }
-            self.revalidated_suffix_range = Some(range);
+            self.revalidated_range = Some(range);
         }
     }
 
-    pub(crate) fn take_revalidated_suffix_range(&mut self) -> Option<Range<u64>> {
-        self.revalidated_suffix_range.take()
+    pub(crate) fn take_revalidated_range(&mut self) -> Option<Range<u64>> {
+        self.revalidated_range.take()
     }
 
     /// Get metadata for this stream.
@@ -649,7 +689,7 @@ impl BufferStream {
             unreachable!("metadata state must be preparing")
         };
         let (mut reader, result) = fut.as_mut().await;
-        self.sync_revalidated_suffix(&mut reader);
+        self.sync_revalidated_range(&mut reader);
         self.state = State::Idle(Some(reader));
         result
     }
@@ -687,7 +727,7 @@ impl Stream for BufferStream {
                 State::Reading(fut) => {
                     let fut = fut.as_mut();
                     let (mut reader, buf) = ready!(fut.poll(cx));
-                    this.sync_revalidated_suffix(&mut reader);
+                    this.sync_revalidated_range(&mut reader);
                     return match buf {
                         Ok(mut buf) => {
                             let expected = if this.exact {
@@ -739,7 +779,7 @@ impl Stream for BufferStream {
                 }
                 State::PreparingMetadata(fut) => {
                     let (mut reader, result) = ready!(fut.as_mut().poll(cx));
-                    this.sync_revalidated_suffix(&mut reader);
+                    this.sync_revalidated_range(&mut reader);
                     this.state = State::Idle(Some(reader));
                     match result {
                         Ok(_) => {}
@@ -1023,7 +1063,7 @@ mod tests {
             fault.clone(),
             OpReader::new().with_chunk(4),
         ));
-        let mut reader = ChunkedReader::new(ctx, BytesRange::new(0, Some(10)));
+        let mut reader = ChunkedReader::new(ctx, BytesRange::new(0, Some(10)), None);
 
         {
             let mut metadata = Box::pin(reader.metadata());
@@ -1078,7 +1118,7 @@ mod tests {
                 fault.clone(),
                 OpReader::new().with_chunk(4).with_concurrent(concurrent),
             ));
-            let mut reader = ChunkedReader::new(ctx, BytesRange::new(0, Some(10)));
+            let mut reader = ChunkedReader::new(ctx, BytesRange::new(0, Some(10)), None);
 
             let metadata = reader.metadata().await?;
             assert_eq!(metadata.content_length(), 10);
@@ -1112,7 +1152,7 @@ mod tests {
                 fault.clone(),
                 OpReader::new().with_chunk(4).with_concurrent(concurrent),
             ));
-            let mut reader = ChunkedReader::new(ctx, BytesRange::new(0, Some(10)));
+            let mut reader = ChunkedReader::new(ctx, BytesRange::new(0, Some(10)), None);
 
             let metadata = reader.metadata().await?;
             assert_eq!(metadata.content_length(), 10);

@@ -485,6 +485,22 @@ let test_config_duplicate_key_last_wins _ =
   let info = Operator.info bo in
   assert_equal "/second/" (Operator.OperatorInfo.root info)
 
+(* Compile-time check: the [Metadata] accessors that the hand-written module
+   exposed before it was generated from core. The signature is a literal copy
+   from the previous [operator.mli]; do not derive it from the generator.
+   Dropping or retyping one of these accessors fails to type-check. *)
+module Released_metadata : sig
+  val is_file : Opendal_core.Operator.metadata -> bool
+  val is_dir : Opendal_core.Operator.metadata -> bool
+  val content_length : Opendal_core.Operator.metadata -> int64
+  val content_md5 : Opendal_core.Operator.metadata -> string option
+  val content_type : Opendal_core.Operator.metadata -> string option
+  val content_disposition : Opendal_core.Operator.metadata -> string option
+  val etag : Opendal_core.Operator.metadata -> string option
+  val last_modified : Opendal_core.Operator.metadata -> int64 option
+end =
+  Opendal.Operator.Metadata
+
 (* Compile-time check: wrappers that re-include [Capability] or [Metadata]
    must still match the signature of [Opendal.Operator]. This fails to
    type-check if [operator.mli] exposes either module as a module alias. *)

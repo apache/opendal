@@ -1236,8 +1236,8 @@ impl S3Builder {
         // S3 CreateMultipartUpload does not support MD5 checksum_algorithm;
         // only single-shot PutObject supports Content-MD5.
         let s3_write_can_multi = !matches!(checksum_algorithm, Some(ChecksumAlgorithm::Md5));
-        // Full-object CRCs require a confirmation from the endpoint on both PutObject
-        // and CompleteMultipartUpload.
+        // The RustFS preset verifies individual upload requests. The other
+        // schemes verify the complete object.
         let s3_can_checksum = !is_s3_express
             && matches!(
                 scheme,
@@ -1245,6 +1245,7 @@ impl S3Builder {
                     | crate::CEPH_RGW_SCHEME
                     | crate::GARAGE_SCHEME
                     | crate::MINIO_SCHEME
+                    | crate::RUSTFS_SCHEME
                     | crate::SEAWEEDFS_SCHEME
             );
 
@@ -1649,6 +1650,12 @@ impl Service for S3Backend {
             PresignOperation::Write(v) => {
                 let checksum = match v.checksum() {
                     None => None,
+                    Some(_) if self.core.info.scheme() == crate::RUSTFS_SCHEME => {
+                        return Err(Error::new(
+                            ErrorKind::Unsupported,
+                            "RustFS presigned writes do not support checksum intents",
+                        ));
+                    }
                     Some(WriteChecksum::Expected(checksum)) => Some((
                         self.core.write_checksum_algorithm(Some(checksum.algo))?,
                         BASE64_STANDARD.encode(checksum.value),
@@ -4150,6 +4157,7 @@ mod tests {
                     .endpoint(endpoint)
                     .region("garage"),
             )?,
+            Operator::new(crate::Rustfs::default().bucket("test").endpoint(endpoint))?,
         ] {
             let info = op.info();
             assert!(info.capability().write_with_checksum, "{}", info.scheme());

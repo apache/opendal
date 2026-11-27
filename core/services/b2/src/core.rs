@@ -28,6 +28,7 @@ use http::StatusCode;
 use http::header;
 use serde::Deserialize;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use self::constants::X_BZ_CONTENT_SHA1;
 use self::constants::X_BZ_FILE_NAME;
@@ -644,28 +645,21 @@ impl B2Core {
         self.send(ctx, req).await
     }
 
-    pub async fn list_file_versions(
+    pub(super) async fn list_file_versions<T: DeserializeOwned>(
         &self,
         ctx: &OperationContext,
-        key: &str,
-        start_file_id: Option<&str>,
-    ) -> Result<ListFileVersionsResponse> {
+        request: ListFileVersionsRequest<'_>,
+        operation: Operation,
+    ) -> Result<ListFileVersionsResponse<T>> {
         let auth_info = self.get_auth_info(ctx).await?;
-        let body = ListFileVersionsRequest {
-            bucket_id: &self.bucket_id,
-            prefix: key,
-            max_file_count: 2,
-            start_file_name: start_file_id.map(|_| key),
-            start_file_id,
-        };
-        let body = serde_json::to_vec(&body).map_err(new_json_serialize_error)?;
+        let body = serde_json::to_vec(&request).map_err(new_json_serialize_error)?;
         let req = Request::post(format!(
             "{}/b2api/v2/b2_list_file_versions",
             auth_info.api_url
         ))
         .header(header::AUTHORIZATION, auth_info.authorization_token)
         .header(header::CONTENT_TYPE, "application/json")
-        .extension(Operation::Restore)
+        .extension(operation)
         .extension(ServiceOperation("ListFileVersions"))
         .body(Buffer::from(body))
         .map_err(new_request_build_error)?;
@@ -944,20 +938,24 @@ pub struct ListFileNamesResponse {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ListFileVersionsRequest<'a> {
-    bucket_id: &'a str,
-    prefix: &'a str,
-    max_file_count: usize,
+pub(super) struct ListFileVersionsRequest<'a> {
+    pub bucket_id: &'a str,
+    #[serde(skip_serializing_if = "str::is_empty")]
+    pub prefix: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
-    start_file_name: Option<&'a str>,
+    pub max_file_count: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    start_file_id: Option<&'a str>,
+    pub start_file_name: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start_file_id: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delimiter: Option<&'a str>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ListFileVersionsResponse {
-    pub files: Vec<FileVersion>,
+pub(super) struct ListFileVersionsResponse<T> {
+    pub files: Vec<T>,
     pub next_file_name: Option<String>,
     pub next_file_id: Option<String>,
 }
@@ -1005,9 +1003,9 @@ pub struct File {
     pub file_info: HashMap<String, String>,
 }
 
-pub(super) fn parse_file_info(file: &File) -> Metadata {
+pub(super) fn parse_file_info(file: &File) -> MetadataBuilder {
     if file.file_name.ends_with('/') {
-        return MetadataBuilder::dir().build();
+        return MetadataBuilder::dir();
     }
 
     let mut metadata = MetadataBuilder::file(file.content_length);
@@ -1038,7 +1036,7 @@ pub(super) fn parse_file_info(file: &File) -> Metadata {
         }
     }
 
-    metadata.build()
+    metadata
 }
 
 #[derive(Debug, Serialize)]

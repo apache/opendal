@@ -509,9 +509,12 @@ mod tests {
     use bytes::{Buf, Bytes};
     use rand::{Rng, RngExt};
 
+    use crate::Buffer;
     use crate::BytesRange;
     use crate::Capability;
+    use crate::Error;
     use crate::ErrorKind;
+    use crate::Metadata;
     use crate::OperationContext;
     use crate::Operator;
     use crate::Result;
@@ -944,6 +947,245 @@ mod tests {
         assert_eq!(err.kind(), ErrorKind::Unsupported);
         assert!(err.to_string().contains("version"));
         writer.abort().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_writer_terminal_state_rejects_writes_across_chunking_and_adapters() -> Result<()>
+    {
+        use futures::{AsyncWriteExt, SinkExt};
+
+        let op = Operator::new(services::Memory::default())?;
+
+        // 1. Default writer: close() is terminal.
+        let mut w = op.writer("default-closed").await?;
+        w.write("old").await?;
+        w.close().await?;
+        let err = w.write("x").await.expect_err("write after close must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        let err = w.close().await.expect_err("second close must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(op.read("default-closed").await?.to_bytes(), "old");
+
+        // 2. Chunked writer: write("x") after close() must fail before buffering.
+        let mut w = op.writer_with("chunked-closed").chunk(8).await?;
+        w.write("old").await?;
+        w.close().await?;
+        let err = w
+            .write("x")
+            .await
+            .expect_err("chunked write after close must fail immediately");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        let err = w.close().await.expect_err("second close must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(op.read("chunked-closed").await?.to_bytes(), "old");
+
+        // 3. Chunked writer: write("x") after abort() must fail immediately.
+        let mut w = op.writer_with("chunked-aborted").chunk(8).await?;
+        w.write("old").await?;
+        w.abort().await?;
+        let err = w
+            .write("x")
+            .await
+            .expect_err("chunked write after abort must fail immediately");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        // 4. Adapter conversions after close() must reject immediately.
+        let mut w = op.writer("closed-async").await?;
+        w.write("old").await?;
+        w.close().await?;
+        let mut async_w = w.into_futures_async_write();
+        let err = async_w
+            .write_all(b"x")
+            .await
+            .expect_err("FuturesAsyncWriter::write after close must fail");
+        assert_eq!(err.kind(), std::io::ErrorKind::Other);
+        assert_eq!(op.read("closed-async").await?.to_bytes(), "old");
+
+        let mut w = op.writer("closed-sink").await?;
+        w.write("old").await?;
+        w.close().await?;
+        let mut sink = w.into_sink();
+        let err = sink
+            .send(Buffer::from("x"))
+            .await
+            .expect_err("BufferSink::send after close must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(op.read("closed-sink").await?.to_bytes(), "old");
+
+        let mut w = op.writer("closed-bytes-sink").await?;
+        w.write("old").await?;
+        w.close().await?;
+        let mut bytes_sink = w.into_bytes_sink();
+        let err = bytes_sink
+            .send(Bytes::from_static(b"x"))
+            .await
+            .expect_err("FuturesBytesSink::send after close must fail");
+        assert_eq!(err.kind(), std::io::ErrorKind::Other);
+        assert_eq!(op.read("closed-bytes-sink").await?.to_bytes(), "old");
+
+        // 5. Adapter conversion after abort() must reject immediately.
+        let mut w = op.writer("aborted-async").await?;
+        w.write("old").await?;
+        w.abort().await?;
+        let mut async_w = w.into_futures_async_write();
+        let err = async_w
+            .write_all(b"x")
+            .await
+            .expect_err("FuturesAsyncWriter::write after abort must fail");
+        assert_eq!(err.kind(), std::io::ErrorKind::Other);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_chunked_writer_temporary_close_failure_remains_retryable() -> Result<()> {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        #[derive(Debug)]
+        struct FailOnceCloseService {
+            inner: Servicer,
+            fail_close: Arc<AtomicBool>,
+        }
+
+        impl Service for FailOnceCloseService {
+            type Reader = oio::Reader;
+            type Writer = oio::Writer;
+            type Lister = ();
+            type Deleter = ();
+            type Copier = ();
+            type Composer = ();
+
+            fn info(&self) -> ServiceInfo {
+                self.inner.info()
+            }
+
+            fn capability(&self) -> Capability {
+                self.inner.capability()
+            }
+
+            async fn create_dir(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpCreateDir,
+            ) -> Result<RpCreateDir> {
+                unreachable!()
+            }
+
+            async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+                unreachable!()
+            }
+
+            fn read(
+                &self,
+                ctx: &OperationContext,
+                path: &str,
+                args: OpRead,
+            ) -> Result<Self::Reader> {
+                self.inner.read(ctx, path, args)
+            }
+
+            fn write(
+                &self,
+                ctx: &OperationContext,
+                path: &str,
+                args: OpWrite,
+            ) -> Result<Self::Writer> {
+                let w = self.inner.write(ctx, path, args)?;
+                Ok(Box::new(FailOnceCloseWriter {
+                    inner: w,
+                    fail_close: self.fail_close.clone(),
+                }))
+            }
+
+            fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+                unreachable!()
+            }
+
+            fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+                unreachable!()
+            }
+
+            fn copy(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpCopy,
+            ) -> Result<Self::Copier> {
+                unreachable!()
+            }
+
+            async fn rename(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpRename,
+            ) -> Result<RpRename> {
+                unreachable!()
+            }
+
+            async fn presign(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpPresign,
+            ) -> Result<RpPresign> {
+                unreachable!()
+            }
+        }
+
+        struct FailOnceCloseWriter {
+            inner: oio::Writer,
+            fail_close: Arc<AtomicBool>,
+        }
+
+        impl oio::Write for FailOnceCloseWriter {
+            async fn write(&mut self, bs: Buffer) -> Result<()> {
+                self.inner.write(bs).await
+            }
+
+            async fn close(&mut self) -> Result<Metadata> {
+                if self.fail_close.swap(false, Ordering::SeqCst) {
+                    return Err(Error::new(ErrorKind::Unexpected, "temporary close failure")
+                        .set_temporary());
+                }
+                self.inner.close().await
+            }
+
+            async fn abort(&mut self) -> Result<()> {
+                self.inner.abort().await
+            }
+        }
+
+        let op = Operator::new(services::Memory::default())?;
+        let (ctx, inner) = op.into_parts();
+        let op = Operator::from_parts(
+            ctx,
+            Arc::new(FailOnceCloseService {
+                inner,
+                fail_close: Arc::new(AtomicBool::new(true)),
+            }),
+        );
+
+        let mut w = op.writer_with("retry-close").chunk(8).await?;
+        w.write("old").await?;
+
+        let err = w.close().await.expect_err("first close must fail");
+        assert!(err.to_string().contains("temporary close failure"));
+
+        // Retry after temporary close failure must still commit and then transition to terminal closed.
+        w.close().await?;
+        assert_eq!(op.read("retry-close").await?.to_bytes(), "old");
+
+        let err = w
+            .write("x")
+            .await
+            .expect_err("write after retried close succeeds must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
 
         Ok(())
     }

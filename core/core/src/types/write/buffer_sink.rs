@@ -56,8 +56,13 @@ impl BufferSink {
     /// Create a new sink from a [`oio::Writer`].
     #[inline]
     pub(crate) fn new(w: WriteState) -> Self {
+        let state = if w.is_terminal() {
+            State::Closed
+        } else {
+            State::Idle(w)
+        };
         BufferSink {
-            state: State::Idle(w),
+            state,
             buf: Buffer::new(),
             position: 0,
         }

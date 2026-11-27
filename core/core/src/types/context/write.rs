@@ -161,6 +161,8 @@ pub struct WriteState {
     requires_abort: bool,
     /// Abort discards buffered data immediately and permanently disables writes and close.
     abort_started: bool,
+    /// Close has completed successfully and permanently disables writes, copies, and close.
+    closed: bool,
     /// A source copy that stopped after accepting part of its range.
     pending_copy: Option<Box<PendingCopy>>,
     buffer: oio::QueueBuf,
@@ -186,6 +188,7 @@ impl WriteState {
             can_copy_from,
             requires_abort: false,
             abort_started: false,
+            closed: false,
             pending_copy: None,
             buffer: oio::QueueBuf::new(),
         })
@@ -202,9 +205,16 @@ impl WriteState {
             can_copy_from: false,
             requires_abort: false,
             abort_started: false,
+            closed: false,
             pending_copy: None,
             buffer: oio::QueueBuf::new(),
         }
+    }
+
+    /// Return whether this writer has already reached a terminal state via close or abort.
+    #[inline]
+    pub(crate) fn is_terminal(&self) -> bool {
+        self.closed || self.abort_started
     }
 
     /// Write as much of the buffer as the next chunk can accept.
@@ -242,6 +252,12 @@ impl WriteState {
     }
 
     fn check_not_aborted(&self) -> Result<()> {
+        if self.closed {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "writer cannot accept data or close after close has succeeded",
+            ));
+        }
         if self.abort_started {
             return Err(Error::new(
                 ErrorKind::Unexpected,
@@ -612,11 +628,19 @@ impl WriteState {
         if !self.buffer.is_empty() {
             self.flush_buffer(None).await?;
         }
-        self.w.close().await
+        let meta = self.w.close().await?;
+        self.closed = true;
+        Ok(meta)
     }
 
     /// Abort the write process.
     pub async fn abort(&mut self) -> Result<()> {
+        if self.closed {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "writer cannot be aborted after close has succeeded",
+            ));
+        }
         self.abort_started = true;
         self.buffer.clear();
         self.pending_copy = None;

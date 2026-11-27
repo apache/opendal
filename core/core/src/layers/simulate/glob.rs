@@ -16,15 +16,21 @@
 // under the License.
 
 use std::collections::{HashSet, VecDeque};
+#[cfg(not(target_arch = "wasm32"))]
 use std::pin::pin;
 use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::Mutex;
+#[cfg(not(target_arch = "wasm32"))]
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(not(target_arch = "wasm32"))]
 use std::task::Poll;
 
+#[cfg(not(target_arch = "wasm32"))]
 use asyncband::semaphore::{OwnedSemaphorePermit, Semaphore};
+#[cfg(not(target_arch = "wasm32"))]
 use futures::FutureExt;
+#[cfg(not(target_arch = "wasm32"))]
 use futures::future::{Either, select};
 
 use super::SimulateService;
@@ -32,6 +38,7 @@ use crate::raw::oio::{self, List};
 use crate::raw::*;
 use crate::*;
 
+#[cfg(not(target_arch = "wasm32"))]
 const LIST_CONCURRENCY: usize = 8;
 
 pub(super) enum GlobLister {
@@ -151,8 +158,8 @@ pub(super) fn simulate_list(
         // The active directory has a reserved slot. Descent can always make
         // progress even while earlier levels have outstanding sibling reads.
         // On wasm32, background Tokio tasks would require a LocalSet.
-        slots: cfg!(not(target_arch = "wasm32"))
-            .then(|| Arc::new(Semaphore::new(LIST_CONCURRENCY - 1))),
+        #[cfg(not(target_arch = "wasm32"))]
+        prefetch_slots: Some(Arc::new(Semaphore::new(LIST_CONCURRENCY - 1))),
     }))
 }
 
@@ -185,24 +192,31 @@ impl Walk {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 type ListedEntry = (oio::Lister, Result<Option<oio::Entry>>);
 
-struct Prefetch {
-    task: Task<Result<Option<ListedEntry>>>,
-    started: Arc<AtomicBool>,
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-struct PendingRead {
-    // Polling requires exclusive access to the directory.
-    future: Mutex<BoxedStaticFuture<ListedEntry>>,
-    _permit: OwnedSemaphorePermit,
+#[derive(Default)]
+enum Listing {
+    #[default]
+    Unopened,
+    Open(oio::Lister),
+    #[cfg(not(target_arch = "wasm32"))]
+    Prefetched {
+        task: Task<Result<Option<ListedEntry>>>,
+        started: Arc<AtomicBool>,
+    },
+    #[cfg(not(target_arch = "wasm32"))]
+    Pending {
+        // Polling requires exclusive access to the directory.
+        future: Mutex<BoxedStaticFuture<ListedEntry>>,
+        _permit: OwnedSemaphorePermit,
+    },
 }
 
 enum Step {
     Yield(oio::Entry),
     Descend {
-        child: Box<Directory>,
+        child: Directory,
         entry: Option<oio::Entry>,
     },
 }
@@ -214,13 +228,10 @@ struct Directory {
     discovered: bool,
     /// Filter one recursive listing instead of walking the directory.
     recursive: bool,
-    lister: Option<oio::Lister>,
-    prefetch: Option<Prefetch>,
-    #[cfg(not(target_arch = "wasm32"))]
-    pending_read: Option<PendingRead>,
+    listing: Listing,
     steps: VecDeque<Step>,
     /// End of the listing or an error to return after the buffered steps.
-    end: Option<Result<()>>,
+    end: Option<Result<(), Box<Error>>>,
 }
 
 impl Directory {
@@ -230,10 +241,7 @@ impl Directory {
             positions,
             discovered,
             recursive,
-            lister: None,
-            prefetch: None,
-            #[cfg(not(target_arch = "wasm32"))]
-            pending_read: None,
+            listing: Listing::Unopened,
             steps: VecDeque::new(),
             end: None,
         }
@@ -242,8 +250,9 @@ impl Directory {
     /// Open the listing and get its first entry. A paged lister buffers the
     /// rest of the page itself. Reading another entry here could start a second
     /// request and delay a match that is already available.
+    #[cfg(not(target_arch = "wasm32"))]
     fn prefetch(&mut self, walk: &Arc<Walk>, permit: Option<OwnedSemaphorePermit>) -> Result<()> {
-        if self.prefetch.is_some() {
+        if !matches!(self.listing, Listing::Unopened) {
             return Ok(());
         }
         let walk = walk.clone();
@@ -279,38 +288,39 @@ impl Directory {
             };
             Ok(Some((lister, entry)))
         })?;
-        self.prefetch = Some(Prefetch { task, started });
+        self.listing = Listing::Prefetched { task, started };
         Ok(())
     }
 
     async fn next_entry(&mut self, walk: &Walk) -> Result<Option<oio::Entry>> {
-        if let Some(prefetch) = &mut self.prefetch {
-            // An executor that is not being driven may accept work without
-            // starting it. Claim the listing here in that case.
-            if prefetch.started.swap(true, Ordering::AcqRel) {
-                let result = (&mut prefetch.task).await;
-                self.prefetch = None;
-                let (lister, entry) = result??.expect("prefetch started the listing");
-                self.lister = Some(lister);
-                return entry;
+        loop {
+            match &mut self.listing {
+                Listing::Unopened => {
+                    self.listing = Listing::Open(walk.list(&self.path, self.recursive)?);
+                }
+                Listing::Open(lister) => return lister.next().await,
+                #[cfg(not(target_arch = "wasm32"))]
+                Listing::Prefetched { task, started } => {
+                    // An executor that is not being driven may accept work
+                    // without starting it. Claim the listing here in that case.
+                    if !started.swap(true, Ordering::AcqRel) {
+                        self.listing = Listing::Unopened;
+                        continue;
+                    }
+                    let result = task.await;
+                    self.listing = Listing::Unopened;
+                    let (lister, entry) = result??.expect("prefetch started the listing");
+                    self.listing = Listing::Open(lister);
+                    return entry;
+                }
+                #[cfg(not(target_arch = "wasm32"))]
+                Listing::Pending { future, .. } => {
+                    let (lister, entry) = future.get_mut().expect("exclusive access").await;
+                    self.listing = Listing::Open(lister);
+                    return entry;
+                }
             }
-            self.prefetch = None;
         }
-        #[cfg(not(target_arch = "wasm32"))]
-        if let Some(pending) = &mut self.pending_read {
-            let (lister, entry) = pending.future.get_mut().expect("exclusive access").await;
-            self.pending_read = None;
-            self.lister = Some(lister);
-            return entry;
-        }
-        if self.lister.is_none() {
-            self.lister = Some(walk.list(&self.path, self.recursive)?);
-        }
-        self.lister
-            .as_mut()
-            .expect("directory is open")
-            .next()
-            .await
     }
 
     fn step(&self, walk: &Walk, prefix: &str, entry: oio::Entry) -> Option<Step> {
@@ -334,12 +344,7 @@ impl Directory {
                 && positions
                     .iter()
                     .any(|&position| walk.pattern.walks_whole_subtree(position));
-            let child = Box::new(Self::new(
-                entry.path().to_owned(),
-                positions,
-                true,
-                recursive,
-            ));
+            let child = Self::new(entry.path().to_owned(), positions, true, recursive);
             return Some(Step::Descend {
                 child,
                 entry: matches.then_some(entry),
@@ -353,7 +358,7 @@ impl Directory {
             return Ok(Some(step));
         }
         if let Some(end) = self.end.take() {
-            return end.map(|()| None);
+            return end.map(|()| None).map_err(|err| *err);
         }
         while let Some(entry) = self.next_entry(walk).await? {
             if let Some(step) = self.step(walk, prefix, entry) {
@@ -374,43 +379,47 @@ impl Directory {
         // descending. Keep a pending read and its slot until the walk resumes
         // this directory so that it never drops and reissues that request.
         for _ in self.steps.len()..LIST_CONCURRENCY - 1 {
-            if self.pending_read.is_some() || self.end.is_some() {
-                break;
-            }
-            if matches!(
-                self.steps.back(),
-                Some(Step::Yield(_) | Step::Descend { entry: Some(_), .. })
-            ) {
+            if self.end.is_some()
+                || matches!(
+                    self.steps.back(),
+                    Some(Step::Yield(_) | Step::Descend { entry: Some(_), .. })
+                )
+            {
                 break;
             }
             let Some(permit) = slots.clone().try_acquire_owned(1) else {
                 break;
             };
-            let mut lister = self.lister.take().expect("parent directory is open");
+            let listing = std::mem::take(&mut self.listing);
+            let Listing::Open(mut lister) = listing else {
+                self.listing = listing;
+                break;
+            };
             let mut future: BoxedStaticFuture<ListedEntry> = Box::pin(async move {
                 let entry = lister.next().await;
                 (lister, entry)
             });
             let Poll::Ready((lister, entry)) = futures::poll!(&mut future) else {
-                self.pending_read = Some(PendingRead {
+                self.listing = Listing::Pending {
                     future: Mutex::new(future),
                     _permit: permit,
-                });
+                };
                 break;
             };
-            self.lister = Some(lister);
+            self.listing = Listing::Open(lister);
             match entry {
                 Ok(Some(entry)) => {
                     self.steps.extend(self.step(walk, prefix, entry));
                 }
-                end => self.end = Some(end.map(|_| ())),
+                Ok(None) => self.end = Some(Ok(())),
+                Err(err) => self.end = Some(Err(Box::new(err))),
             }
         }
         for step in &mut self.steps {
             let Step::Descend { child, entry: None } = step else {
                 break;
             };
-            if child.prefetch.is_some() {
+            if !matches!(child.listing, Listing::Unopened) {
                 continue;
             }
             let Some(permit) = slots.clone().try_acquire_owned(1) else {
@@ -426,8 +435,10 @@ pub(super) struct GuidedLister {
     walk: Arc<Walk>,
     prefix: String,
     directories: Vec<Directory>,
-    next_directory: Option<Box<Directory>>,
-    slots: Option<Arc<Semaphore>>,
+    // A matching directory must be yielded before starting its listing.
+    next_directory: Option<Directory>,
+    #[cfg(not(target_arch = "wasm32"))]
+    prefetch_slots: Option<Arc<Semaphore>>,
 }
 
 impl List for GuidedLister {
@@ -436,24 +447,25 @@ impl List for GuidedLister {
             let Some(directory) = self.directories.last_mut() else {
                 return Ok(None);
             };
-            if let Some(mut child) = self.next_directory.take() {
-                if let Some(_slots) = &self.slots {
-                    let submitted = child.prefetch(&self.walk, None);
-                    #[cfg(not(target_arch = "wasm32"))]
-                    let submitted = match submitted {
+            if let Some(child) = self.next_directory.take() {
+                #[cfg(not(target_arch = "wasm32"))]
+                let mut child = child;
+                #[cfg(not(target_arch = "wasm32"))]
+                if let Some(slots) = &self.prefetch_slots {
+                    let submitted = match child.prefetch(&self.walk, None) {
                         Ok(()) => {
                             directory
-                                .prefetch_siblings(&self.walk, &self.prefix, _slots)
+                                .prefetch_siblings(&self.walk, &self.prefix, slots)
                                 .await
                         }
                         Err(err) => Err(err),
                     };
                     if submitted.is_err() {
                         // Without an executor, list each directory on entry.
-                        self.slots = None;
+                        self.prefetch_slots = None;
                     }
                 }
-                self.directories.push(*child);
+                self.directories.push(child);
                 continue;
             }
             match directory.next_step(&self.walk, &self.prefix).await {

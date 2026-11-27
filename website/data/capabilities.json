@@ -3182,6 +3182,7 @@
         "write_can_empty": true,
         "write_can_multi": true,
         "write_with_cache_control": true,
+        "write_with_checksum": "Standard OSS regional HTTPS endpoints for signed, non-append Any and Fast writes",
         "write_with_content_disposition": true,
         "write_with_content_encoding": true,
         "write_with_content_type": true,

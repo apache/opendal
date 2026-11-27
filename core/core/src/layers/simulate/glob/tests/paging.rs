@@ -75,12 +75,12 @@ impl oio::PageList for Pages {
             .fetch_max(active, Ordering::Relaxed);
 
         let split = self.fixture.split.filter(|(path, _)| *path == self.path);
-        if let Some((_, count)) = split {
-            if ctx.token.is_empty() {
-                ctx.entries.extend(self.entries[..count].iter().cloned());
-                ctx.token = "page-two".into();
-                return Ok(());
-            }
+        if let Some((_, count)) = split
+            && ctx.token.is_empty()
+        {
+            ctx.entries.extend(self.entries[..count].iter().cloned());
+            ctx.token = "page-two".into();
+            return Ok(());
         }
         if split.is_some() || (self.fixture.hold_children && self.path != "/") {
             let (release, wait) = oneshot::channel();
@@ -218,31 +218,49 @@ async fn glob_yields_first_match_before_requesting_next_page() -> Result<()> {
 }
 
 #[tokio::test]
-async fn glob_descends_past_a_pending_parent_page_and_cancels_lookahead() -> Result<()> {
-    let (op, mut requests, activity) = operator(
-        &["a/", "b/", "c/", "a/file.jpg"],
-        Some(("/", 2)),
-        true,
-        TokioExecutor,
-    );
-    let first = tokio::spawn(async move {
-        let mut lister = op.lister_with("/").glob("*/*.jpg").await?;
-        lister.try_next().await
-    });
-    timeout(Duration::from_secs(10), async {
-        let mut pending = BTreeMap::new();
-        for _ in 0..3 {
-            let (path, release) = requests.next().await.unwrap();
-            assert!(pending.insert(path, release).is_none());
-        }
-        pending.remove("a/").unwrap().send(()).unwrap();
-        assert_eq!(first.await.unwrap()?.unwrap().path(), "a/file.jpg");
-        for mut release in pending.into_values() {
-            release.cancellation().await;
-        }
-        assert_eq!(activity.active.load(Ordering::Relaxed), 0);
-        Ok(())
-    })
-    .await
-    .expect("dropping the glob lister must cancel pending lookahead")
+async fn glob_descends_while_the_parent_page_is_pending() -> Result<()> {
+    for finish in [true, false] {
+        let (op, mut requests, activity) = operator(
+            &["a/", "b/", "c/", "a/file.jpg"],
+            Some(("/", 2)),
+            true,
+            TokioExecutor,
+        );
+        let first = tokio::spawn(async move {
+            let mut lister = op.lister_with("/").glob("*/*.jpg").await?;
+            let entry = lister.try_next().await?.unwrap();
+            Ok::<_, Error>((lister, entry))
+        });
+        timeout(Duration::from_secs(10), async {
+            let mut pending = BTreeMap::new();
+            for _ in 0..3 {
+                let (path, release) = requests.next().await.unwrap();
+                assert!(pending.insert(path, release).is_none());
+            }
+            pending.remove("a/").unwrap().send(()).unwrap();
+            let (mut lister, entry) = first.await.unwrap()?;
+            assert_eq!(entry.path(), "a/file.jpg");
+            if finish {
+                // The original parent request resumes and discovers c/.
+                for release in pending.into_values() {
+                    release.send(()).unwrap();
+                }
+                let rest = tokio::spawn(async move { lister.try_next().await });
+                let (path, release) = requests.next().await.unwrap();
+                assert_eq!(path, "c/");
+                release.send(()).unwrap();
+                assert!(rest.await.unwrap()?.is_none());
+            } else {
+                drop(lister);
+                for mut release in pending.into_values() {
+                    release.cancellation().await;
+                }
+            }
+            assert_eq!(activity.active.load(Ordering::Relaxed), 0);
+            Ok::<(), Error>(())
+        })
+        .await
+        .expect("the pending parent page must resume or be cancelled")?;
+    }
+    Ok(())
 }

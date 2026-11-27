@@ -350,17 +350,14 @@ impl oio::MultipartCopy for OssMultipartCopy {
             })
             .collect();
         let request = &self.request;
-        let resp = request
-            .core
-            .oss_complete_multipart_upload_request(
-                &request.ctx,
-                &request.to,
-                upload_id,
-                false,
-                parts,
-                &OpWrite::new(),
-            )
-            .await?;
+        let req = request.core.oss_complete_multipart_upload_request(
+            &request.to,
+            upload_id,
+            parts,
+            &OpWrite::new(),
+        )?;
+        let req = request.core.sign(&request.ctx, req).await?;
+        let resp = request.core.send(&request.ctx, req).await?;
 
         match resp.status() {
             StatusCode::OK => {

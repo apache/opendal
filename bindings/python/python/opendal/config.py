@@ -956,8 +956,6 @@ class MinioConfig(TypedDict):
     """Bucket name.  This field is required."""
     disable_config_load: NotRequired[bool]
     """Disable loading credentials from AWS environment variables and shared profile files.  When enabled, signing requires both `access_key_id` and `secret_access_key`."""
-    enable_write_checksum: NotRequired[bool]
-    """Allow per-write checksum intents for signed, non-append writes. Defaults to false. Supply a checksum intent on each write that needs verification. Verified with signed path-style requests to MinIO RELEASE.2025-01-20T14-49-07Z. Keep the option disabled on RELEASE.2024-09-22T00-33-43Z because it accepted an incorrect CRC."""
     endpoint: Required[str]
     """MinIO endpoint.  This field is required because MinIO deployments do not share a universal endpoint."""
     region: NotRequired[str]
@@ -1304,7 +1302,7 @@ class R2Config(TypedDict):
     endpoint: NotRequired[str]
     """Explicit R2-compatible endpoint.  Use this field for a proxy, gateway, or test server. Set exactly one of `endpoint` and `account_id`."""
     jurisdiction: NotRequired[str]
-    """R2 jurisdiction.  Supported values are `eu` and `fedramp`. This field requires `account_id` and cannot be used with `endpoint`."""
+    """R2 jurisdiction.  Supported values are `eu`, `fedramp`, and `us`. This field requires `account_id` and cannot be used with `endpoint`."""
     root: NotRequired[str | os.PathLike[str]]
     """Root within the bucket.  All operations happen under this root. The default is `/`."""
     secret_access_key: NotRequired[str]
@@ -1516,8 +1514,6 @@ class SeaweedfsConfig(TypedDict):
     """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style addressing when the gateway has a matching `domainName`."""
-    enable_write_checksum: NotRequired[bool]
-    """Opt in to native checksum verification for non-append writes. Defaults to false. Verified with signed path-style requests to SeaweedFS 4.52."""
     endpoint: Required[str]
     """HTTP(S) base URL of the deployment’s S3 gateway."""
     region: NotRequired[str]

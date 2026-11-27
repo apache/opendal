@@ -92,17 +92,31 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ));
     }
 
-    let is_s3 = op.info().scheme() == "s3";
-    if cap.write && cap.stat && (!cap.write_with_checksum || is_s3) {
+    let scheme = op.info().scheme();
+    let test_s3_checksums = matches!(scheme, "s3" | "seaweedfs");
+    if cap.write && cap.stat && (!cap.write_with_checksum || test_s3_checksums) {
         tests.extend(async_trials!(op, test_write_with_unsupported_checksum));
     }
-    if is_s3 && cap.write && cap.write_with_checksum {
+    if test_s3_checksums && cap.write && cap.write_with_checksum {
         tests.extend(async_trials!(op, test_s3_writer_rejects_sha256_checksum));
     }
 
+    let minio_without_crc64nvme = scheme == "minio"
+        && std::env::var("OPENDAL_TEST_MINIO_WITHOUT_CRC64NVME").as_deref() == Ok("true");
+    if minio_without_crc64nvme && cap.read && cap.write {
+        tests.extend(async_trials!(
+            op,
+            test_minio_write_without_crc64nvme_receipt
+        ));
+    }
     if cap.read && cap.write && cap.write_with_checksum {
-        tests.extend(async_trials!(op, test_write_with_any_checksum));
-        if is_s3 && cap.stat {
+        if !minio_without_crc64nvme {
+            tests.extend(async_trials!(op, test_write_with_any_checksum));
+        }
+        if scheme == "oss" && cap.write_can_multi {
+            tests.extend(async_trials!(op, test_oss_writer_with_fast_checksum));
+        }
+        if test_s3_checksums && cap.stat {
             tests.extend(async_trials!(
                 op,
                 test_write_with_checksum,
@@ -1524,6 +1538,28 @@ fn observe_s3_checksum_write(
     )
 }
 
+/// The pinned MinIO fixture stores a PUT but omits the requested CRC-64/NVME receipt.
+async fn test_minio_write_without_crc64nvme_receipt(op: Operator) -> Result<()> {
+    let content = Bytes::from_static(b"123456789");
+    for intent in [
+        WriteChecksum::Any,
+        WriteChecksum::Expected(Checksum::new(ChecksumAlgo::Crc64Nvme, [0; 8])),
+    ] {
+        let (op, attempts) = observe_s3_checksum_write(&op, ServiceOperation("PutObject"));
+        let path = TEST_FIXTURE.new_file_path();
+        let err = op
+            .write_with(&path, content.clone())
+            .checksum(intent)
+            .await
+            .expect_err("a PUT without a checksum receipt must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected, "{err}");
+        assert!(!err.is_temporary(), "{err}");
+        assert_eq!(attempts.load(Ordering::Relaxed), 1);
+        assert_eq!(op.read(&path).await?.to_bytes(), content);
+    }
+    Ok(())
+}
+
 /// Write with a mismatching checksum should fail without creating the file.
 pub async fn test_write_with_checksum_mismatch(op: Operator) -> Result<()> {
     let (_, content, _) = TEST_FIXTURE.new_file(op.clone());
@@ -1586,6 +1622,28 @@ fn multipart_checksum_content(op: &Operator) -> (usize, Vec<u8>) {
     content.extend(std::iter::repeat_n(2, chunk));
     content.push(3);
     (chunk, content)
+}
+
+/// OSS verifies and returns the full-object CRC across unequal concurrent parts.
+pub async fn test_oss_writer_with_fast_checksum(op: Operator) -> Result<()> {
+    let (chunk, content) = multipart_checksum_content(&op);
+    let crc = crc_fast::checksum(crc_fast::CrcAlgorithm::Crc64Xz, &content);
+    let content = Bytes::from(content);
+    let path = TEST_FIXTURE.new_file_path();
+    let mut writer = op
+        .writer_with(&path)
+        .chunk(chunk)
+        .concurrent(3)
+        .checksum(WriteChecksum::Fast)
+        .await?;
+    writer.write(content.clone()).await?;
+    let metadata = writer.close().await?;
+    assert_eq!(
+        metadata.checksum(),
+        Some(Checksum::new(ChecksumAlgo::Crc64Ecma, crc.to_be_bytes()))
+    );
+    assert_eq!(op.read(&path).await?.to_bytes(), content);
+    Ok(())
 }
 
 /// S3 returns the verified digest across concurrent parts and the short final part.

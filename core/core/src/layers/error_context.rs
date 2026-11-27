@@ -366,6 +366,12 @@ impl<T: oio::List> oio::List for ErrorContextWrapper<T> {
                     .with_context("listed", self.processed.to_string())
             })
     }
+
+    fn next_buffered(&mut self, buffered: oio::BufferedEntries) -> Option<oio::Entry> {
+        let entry = self.inner.next_buffered(buffered)?;
+        self.processed += 1;
+        Some(entry)
+    }
 }
 
 impl<T: oio::Delete> oio::Delete for ErrorContextWrapper<T> {

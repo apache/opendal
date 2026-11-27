@@ -140,6 +140,9 @@ jobs:
       - name: Check Clippy
         working-directory: bindings/java
         run: cargo clippy -- -D warnings
+      - name: Build Javadoc
+        working-directory: bindings/java
+        run: ./mvnw javadoc:javadoc
 
   test:
     runs-on: ${{ matrix.os }}

@@ -27,6 +27,7 @@ pub struct GithubReader {
     backend: GithubBackend,
     ctx: OperationContext,
     path: String,
+    args: OpRead,
 }
 
 impl GithubReader {
@@ -34,12 +35,13 @@ impl GithubReader {
         backend: GithubBackend,
         ctx: OperationContext,
         path: &str,
-        _: OpRead,
+        args: OpRead,
     ) -> Self {
         Self {
             backend,
             ctx,
             path: path.to_string(),
+            args,
         }
     }
 }
@@ -48,7 +50,7 @@ impl oio::StreamRead for GithubReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let resp = backend.core.get(&self.ctx, path, range).await?;
+        let resp = backend.core.get(&self.ctx, path, range, &self.args).await?;
 
         let status = resp.status();
 
@@ -78,11 +80,21 @@ impl oio::StreamRead for GithubReader {
                 }
             }
             _ => {
-                let (part, mut body) = resp.into_parts();
+                let (parts, mut body) = resp.into_parts();
+                let service_operation = ServiceOperation("GetRawContent");
+                if status == StatusCode::NOT_MODIFIED && self.args.if_none_match().is_some() {
+                    let err = Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "GitHub file matches the If-None-Match ETag",
+                    )
+                    .with_context("service_operation", service_operation.0);
+                    return Err(with_error_response_context(err, parts));
+                }
+
                 let buf = body.to_buffer().await?;
                 return Err(parse_error(
-                    ErrorContext::new(ServiceOperation("GetRawContent")),
-                    Response::from_parts(part, buf),
+                    ErrorContext::new(service_operation),
+                    Response::from_parts(parts, buf),
                 ));
             }
         };
@@ -95,23 +107,37 @@ impl oio::StreamRead for GithubReader {
 mod tests {
     use super::*;
     use http::Request;
+    use http::header::IF_NONE_MATCH;
     use opendal_core::raw::oio::{Read, ReadStream};
 
-    #[derive(Debug)]
-    struct FullBodyTransport;
+    #[derive(Debug, Default)]
+    struct ReadTransport {
+        status: StatusCode,
+        if_none_match: Option<&'static str>,
+    }
 
-    impl HttpTransport for FullBodyTransport {
-        async fn fetch(&self, _req: Request<Buffer>) -> Result<Response<HttpBody>> {
-            Ok(Response::builder()
-                .status(StatusCode::OK)
-                .header("content-length", "10")
-                .header("content-type", "text/plain")
-                .header("etag", "\"fixture\"")
-                .body(HttpBody::new(
-                    futures::stream::iter([Ok(Buffer::from("0123456789"))]),
-                    Some(10),
-                ))
-                .expect("response must build"))
+    impl HttpTransport for ReadTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let if_none_match = req
+                .headers()
+                .get(IF_NONE_MATCH)
+                .map(|value| value.as_bytes());
+            assert_eq!(if_none_match, self.if_none_match.map(str::as_bytes));
+
+            let response = Response::builder().status(self.status);
+            let response = if self.status == StatusCode::OK {
+                response
+                    .header("content-length", "10")
+                    .header("content-type", "text/plain")
+                    .header("etag", "\"fixture\"")
+                    .body(HttpBody::new(
+                        futures::stream::iter([Ok(Buffer::from("0123456789"))]),
+                        Some(10),
+                    ))
+            } else {
+                response.body(HttpBody::new(futures::stream::empty(), Some(0)))
+            };
+            Ok(response.expect("response must build"))
         }
     }
 
@@ -123,8 +149,8 @@ mod tests {
             .token("test-token")
             .build()
             .expect("github service must build");
-        let ctx =
-            OperationContext::new().with_http_transport(HttpTransporter::new(FullBodyTransport));
+        let ctx = OperationContext::new()
+            .with_http_transport(HttpTransporter::new(ReadTransport::default()));
         let reader = service
             .read(&ctx, "file.txt", OpRead::default())
             .expect("reader must be created");
@@ -143,6 +169,79 @@ mod tests {
                 expected
             );
             assert!(stream.read().await.expect("EOF must read").is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_if_none_match_request_header() {
+        let op = Operator::new(GithubBuilder::default().owner("owner").repo("repo"))
+            .expect("github service must build");
+
+        for (condition, expected_header) in [
+            (
+                "0123456789abcdef0123456789abcdef01234567",
+                r#""0123456789abcdef0123456789abcdef01234567""#,
+            ),
+            (r#""tag""#, r#""tag""#),
+            (r#"W/"tag""#, r#""tag""#),
+            (r#"W/"tag,é""#, r#""tag,é""#),
+            (" \tW/\"\"\t ", r#""""#),
+            (r#"W/"invalid tag""#, r#"W/"invalid tag""#),
+            ("*", "*"),
+            (r#"W/"tag", "other""#, r#"W/"tag", "other""#),
+            (r#""tag", W/"other""#, r#""tag", W/"other""#),
+            ("invalid_etag", "invalid_etag"),
+        ] {
+            let ctx = op
+                .context()
+                .with_http_transport(HttpTransporter::new(ReadTransport {
+                    if_none_match: Some(expected_header),
+                    ..Default::default()
+                }));
+            let op = op.clone().with_context(ctx);
+            op.read_with("file.txt")
+                .if_none_match(condition)
+                .await
+                .expect("read must succeed");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_read_condition_errors() {
+        let op = Operator::new(GithubBuilder::default().owner("owner").repo("repo"))
+            .expect("github service must build");
+        let condition = Some(r#""tag""#);
+
+        for (status, if_none_match, kind) in [
+            (StatusCode::NOT_MODIFIED, None, ErrorKind::Unexpected),
+            (
+                StatusCode::NOT_MODIFIED,
+                condition,
+                ErrorKind::ConditionNotMatch,
+            ),
+            (StatusCode::PRECONDITION_FAILED, None, ErrorKind::Unexpected),
+            (
+                StatusCode::PRECONDITION_FAILED,
+                condition,
+                ErrorKind::Unexpected,
+            ),
+            (StatusCode::NOT_FOUND, None, ErrorKind::NotFound),
+            (StatusCode::NOT_FOUND, condition, ErrorKind::NotFound),
+        ] {
+            let ctx = op
+                .context()
+                .with_http_transport(HttpTransporter::new(ReadTransport {
+                    status,
+                    if_none_match,
+                }));
+            let op = op.clone().with_context(ctx);
+            let mut read = op.read_with("file.txt");
+            if let Some(etag) = if_none_match {
+                read = read.if_none_match(etag);
+            }
+            let err = read.await.expect_err("read must fail");
+            assert_eq!(err.kind(), kind, "{status} with {if_none_match:?}");
+            assert!(!err.is_temporary());
         }
     }
 }

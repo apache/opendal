@@ -98,4 +98,8 @@ where
             self.inner.next_page(&mut self.ctx).await?;
         }
     }
+
+    fn next_buffered(&mut self, _: oio::BufferedEntries) -> Option<oio::Entry> {
+        self.ctx.entries.pop_front()
+    }
 }

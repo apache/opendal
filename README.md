@@ -160,6 +160,7 @@ Layers wrap an operator to add cross-cutting behavior: [RetryLayer], [TimeoutLay
 
 - Website: <https://opendal.apache.org>
 - Vision: <https://opendal.apache.org/vision>
+- Design: [DESIGN.md](DESIGN.md)
 - Rust release docs: <https://docs.rs/opendal>
 - Rust dev docs: <https://opendal.apache.org/docs/rust/opendal/>
 

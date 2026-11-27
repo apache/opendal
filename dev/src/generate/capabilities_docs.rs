@@ -351,20 +351,13 @@ fn parse_capability_literal(
                     "read_with_checksum" | "write_with_checksum"
                 )
             {
-                let condition = match (name, field_name.as_str()) {
-                    ("minio", "write_with_checksum") => Some(
-                        "Requires `enable_write_checksum=true` for signed, non-append writes. Verified with signed path-style requests to MinIO RELEASE.2025-01-20T14-49-07Z. Keep the option disabled on RELEASE.2024-09-22T00-33-43Z because it accepted an incorrect CRC.",
-                    ),
-                    ("seaweedfs", "write_with_checksum") => Some(
-                        "Requires `enable_write_checksum=true` for non-append writes. Verified with signed path-style requests to SeaweedFS 4.52.",
-                    ),
-                    _ => None,
-                };
-                if let Some(condition) = condition {
-                    native.insert(
-                        field_name,
-                        NativeBoolDoc::Conditional(condition.to_string()),
-                    );
+                if field_name == "write_with_checksum"
+                    && matches!(
+                        name,
+                        "ceph-rgw" | "garage" | "minio" | "rustfs" | "seaweedfs" | "swift-s3api"
+                    )
+                {
+                    native.insert(field_name, NativeBoolDoc::Supported(true));
                 }
                 continue;
             }
@@ -701,6 +694,12 @@ fn describe_bool_condition(expr: &Expr, rel_path: &str) -> Result<String> {
         }
         Expr::Path(ExprPath { path, .. }) => {
             if let Some(ident) = path.get_ident().map(ToString::to_string) {
+                if ident == "oss_can_checksum" {
+                    return Ok(
+                        "Standard OSS regional HTTPS endpoints for signed, non-append Any and Fast writes"
+                            .to_string(),
+                    );
+                }
                 if ident == "azblob_can_checksum" {
                     return Ok(
                         "Standard Azure Blob endpoints (`https://<account>.blob.core.windows.net`)"
@@ -1177,23 +1176,25 @@ mod tests {
                 "Standard S3 buckets (not S3 Express One Zone)".to_string()
             ))
         );
-        let minio = out.services.iter().find(|s| s.scheme == "minio").unwrap();
-        assert!(!minio.native.contains_key("read_with_checksum"));
-        assert!(matches!(
-            minio.native.get("write_with_checksum"),
-            Some(NativeBoolDoc::Conditional(condition))
-                if condition.contains("enable_write_checksum") && condition.contains("signed")
-        ));
-        let seaweedfs = out
-            .services
-            .iter()
-            .find(|s| s.scheme == "seaweedfs")
-            .unwrap();
-        assert!(!seaweedfs.native.contains_key("read_with_checksum"));
-        assert!(matches!(
-            seaweedfs.native.get("write_with_checksum"),
-            Some(NativeBoolDoc::Conditional(condition)) if condition.contains("enable_write_checksum")
-        ));
+        for scheme in [
+            "ceph-rgw",
+            "garage",
+            "minio",
+            "rustfs",
+            "seaweedfs",
+            "swift-s3api",
+        ] {
+            let preset = out.services.iter().find(|s| s.scheme == scheme).unwrap();
+            assert!(
+                !preset.native.contains_key("read_with_checksum"),
+                "{scheme}"
+            );
+            assert_eq!(
+                preset.native.get("write_with_checksum"),
+                Some(&NativeBoolDoc::Supported(true)),
+                "{scheme}"
+            );
+        }
         assert!(!s3.native.contains_key("create_dir"));
         assert_eq!(
             s3.limits.get("write_multi_min_size"),

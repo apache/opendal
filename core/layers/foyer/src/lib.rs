@@ -19,6 +19,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
+#![allow(deprecated)]
 mod copier;
 mod deleter;
 mod error;
@@ -53,6 +54,9 @@ use writer::Writer;
 /// - If a version is given, the object is cached under that versioned key.
 /// - If version is not supplied, the object is cached exactly as returned by the backend,
 ///   We do NOT interpret `None` as "latest" and we do not promote it to any other version.
+#[deprecated(
+    note = "use `CacheLayer` (`layers-cache`) with `services::Foyer` (`services-foyer`) instead"
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FoyerKey {
     /// Object path used as the cache key.
@@ -114,6 +118,9 @@ fn read_string(reader: &mut impl std::io::Read) -> FoyerResult<String> {
 }
 
 /// [`FoyerValue`] stores buffered object data in Foyer.
+#[deprecated(
+    note = "use `CacheLayer` (`layers-cache`) with `services::Foyer` (`services-foyer`) instead"
+)]
 #[derive(Debug)]
 pub struct FoyerValue(
     /// Buffered object data.
@@ -811,6 +818,9 @@ impl DeletedKeys {
 ///
 /// When object versioning is enabled, `FoyerLayer` treats objects with the same
 /// path but different versions as different objects.
+#[deprecated(
+    note = "use `CacheLayer` (`layers-cache`) with `services::Foyer` (`services-foyer`) instead"
+)]
 #[derive(Debug)]
 pub struct FoyerLayer {
     cache: HybridCache<FoyerKey, FoyerValue>,

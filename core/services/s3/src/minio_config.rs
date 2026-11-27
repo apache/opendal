@@ -63,15 +63,6 @@ pub struct MinioConfig {
     /// <!-- @group General -->
     /// <!-- @default auto -->
     pub region: Option<String>,
-    /// Allow per-write checksum intents for signed, non-append writes. Defaults to false.
-    /// Supply a checksum intent on each write that needs verification.
-    /// Verified with signed path-style requests to MinIO RELEASE.2025-01-20T14-49-07Z.
-    /// Keep the option disabled on RELEASE.2024-09-22T00-33-43Z because it accepted an incorrect CRC.
-    ///
-    /// <!-- @group Write -->
-    /// <!-- @default false -->
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enable_write_checksum: Option<bool>,
     /// Access key ID.
     ///
     /// Set this field together with `secret_access_key`.
@@ -157,23 +148,6 @@ mod tests {
         let err =
             MinioConfig::from_iter([("role_arn".to_string(), "role".to_string())]).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-    }
-
-    #[test]
-    fn write_checksum_config_round_trip() {
-        for enabled in [None, Some(false), Some(true)] {
-            let config = MinioConfig {
-                enable_write_checksum: enabled,
-                ..Default::default()
-            };
-            let serialized = serde_json::to_value(&config).unwrap();
-            assert_eq!(
-                serialized.get("enable_write_checksum"),
-                enabled.map(serde_json::Value::Bool).as_ref()
-            );
-            let decoded: MinioConfig = serde_json::from_value(serialized).unwrap();
-            assert_eq!(decoded, config);
-        }
     }
 
     #[test]

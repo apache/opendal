@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+mod c;
 mod capabilities_docs;
 mod capability;
 mod core_options;
@@ -23,9 +24,12 @@ mod dotnet;
 mod gcs_grpc;
 mod java;
 mod metadata;
+mod nodejs;
+mod ocaml;
 mod options;
 mod parser;
 mod python;
+mod ruby;
 
 use crate::workspace_dir;
 use anyhow::Result;
@@ -35,6 +39,18 @@ pub fn run(language: &str) -> Result<()> {
 
     if language == "gcs-grpc" {
         return gcs_grpc::generate(workspace_dir);
+    }
+    if language == "ruby" || language == "rb" {
+        return ruby::generate(&workspace_dir);
+    }
+    if language == "c" || language == "go" {
+        return c::generate(&workspace_dir);
+    }
+    if language == "nodejs" || language == "node" {
+        return nodejs::generate(&workspace_dir);
+    }
+    if language == "ocaml" {
+        return ocaml::generate(&workspace_dir);
     }
 
     let mut services = parser::Services::new();

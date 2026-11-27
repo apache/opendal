@@ -55,3 +55,12 @@ jobs:
       - name: Cargo test
         working-directory: integrations/unftp-sbe
         run: cargo test
+
+      - name: Cargo doc
+        working-directory: integrations/unftp-sbe
+        env:
+          RUSTDOCFLAGS: >-
+            -D rustdoc::broken_intra_doc_links
+            -D rustdoc::invalid_rust_codeblocks
+            -D rustdoc::bare_urls
+        run: cargo doc --lib --no-deps --all-features

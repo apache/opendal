@@ -29,13 +29,17 @@ use opendal::Metadata;
 
 pub(crate) fn make_metadata<'a>(env: &mut Env<'a>, metadata: Metadata) -> Result<JObject<'a>> {
     let mode = convert::entry_mode_to_jint(metadata.mode());
+    let is_current = convert::option_bool_to_jboolean_object(env, metadata.is_current())?;
+    let is_deleted = metadata.is_deleted();
+    let cache_control = convert::string_to_jstring(env, metadata.cache_control())?;
     let content_length = metadata.content_length() as jlong;
-    let content_disposition = convert::string_to_jstring(env, metadata.content_disposition())?;
     let content_md5 = convert::string_to_jstring(env, metadata.content_md5())?;
     let content_type = convert::string_to_jstring(env, metadata.content_type())?;
-    let cache_control = convert::string_to_jstring(env, metadata.cache_control())?;
-    let etag = convert::string_to_jstring(env, metadata.etag())?;
+    let content_encoding = convert::string_to_jstring(env, metadata.content_encoding())?;
+    let content_language = convert::string_to_jstring(env, metadata.content_language())?;
     let last_modified = convert::timestamp_to_jinstant(env, metadata.last_modified())?;
+    let etag = convert::string_to_jstring(env, metadata.etag())?;
+    let content_disposition = convert::string_to_jstring(env, metadata.content_disposition())?;
     let version = convert::string_to_jstring(env, metadata.version())?;
     let user_metadata =
         convert::hashmap_to_jmap(env, metadata.user_metadata().into_iter().flatten())?;
@@ -43,17 +47,21 @@ pub(crate) fn make_metadata<'a>(env: &mut Env<'a>, metadata: Metadata) -> Result
     let result = env.new_object(
         jni_str!("org/apache/opendal/Metadata"),
         jni_sig!(
-            "(IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Ljava/lang/String;Ljava/util/Map;)V"
+            "(ILjava/lang/Boolean;ZLjava/lang/String;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V"
         ),
         &[
             JValue::Int(mode),
+            JValue::Object(&is_current),
+            JValue::Bool(is_deleted),
+            JValue::Object(&cache_control),
             JValue::Long(content_length),
-            JValue::Object(&content_disposition),
             JValue::Object(&content_md5),
             JValue::Object(&content_type),
-            JValue::Object(&cache_control),
-            JValue::Object(&etag),
+            JValue::Object(&content_encoding),
+            JValue::Object(&content_language),
             JValue::Object(&last_modified),
+            JValue::Object(&etag),
+            JValue::Object(&content_disposition),
             JValue::Object(&version),
             JValue::Object(&user_metadata),
         ],

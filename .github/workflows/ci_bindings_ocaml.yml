@@ -25,6 +25,8 @@ on:
     branches:
       - main
     paths:
+      - "core/core/src/types/capability.rs"
+      - "dev/src/generate/**"
       - "bindings/ocaml/**"
       - ".github/actions/setup-ocaml/**"
       - ".github/workflows/ci_bindings_ocaml.yml"
@@ -73,11 +75,19 @@ jobs:
       - name: Checks
         run: |
           # make sure tests pass
-          opam install -y dune ounit2 ocamlformat
+          opam install -y dune ounit2 ocamlformat odoc
           eval $(opam env)
           cd bindings/ocaml
           dune build @fmt
           dune runtest
+          dune build @doc
+
+      - name: Check generated code is up to date
+        run: |
+          cargo run --manifest-path=dev/Cargo.toml -- generate -l ocaml
+          cargo fmt --manifest-path bindings/ocaml/Cargo.toml --all
+          # `dune build` above also regenerates src/operator.ml{,i} via ocaml-build.
+          git diff --exit-code
 
       - name: Run getting-started example
         run: |

@@ -41,6 +41,16 @@ has been permanently deleted, belongs to a different path, or is a hide marker
 returns `NotFound`. Ordinary `stat` and `list` expose current file IDs through
 `Metadata::version()`.
 
+## File version listing
+
+`list_with(path).versions(true)` and `lister_with(path).versions(true)` return
+current and historical data versions with their B2 file IDs in
+`Metadata::version()`. The application key needs `listFiles` permission. A
+hidden file can have readable historical versions. `Metadata::is_current()`
+is `Some(false)` for those versions when a hide marker is current. The list
+omits hide markers and unfinished uploads. Non-recursive listings include
+virtual directories without version metadata.
+
 ## File reads by version
 
 `read_with(path).version(file_id)` and `reader_with(path).version(file_id)`

@@ -25,6 +25,9 @@ use crate::*;
 /// Lister is the type-erased [`List`].
 pub type Lister = Box<dyn ListDyn>;
 
+// Only core can request a buffered entry through these traits.
+pub struct BufferedEntries;
+
 /// List is returned by [`Service`] to stream entries for a `list` operation.
 pub trait List: Unpin + Send + Sync {
     /// Fetch the next [`Entry`].
@@ -33,6 +36,12 @@ pub trait List: Unpin + Send + Sync {
     /// `Ok(None)` means the list operation has completed. Further calls must
     /// keep returning `Ok(None)`.
     fn next(&mut self) -> impl Future<Output = Result<Option<Entry>>> + MaybeSend;
+
+    /// Take the next entry if it is buffered. This must never start I/O.
+    #[doc(hidden)]
+    fn next_buffered(&mut self, _: BufferedEntries) -> Option<Entry> {
+        None
+    }
 }
 
 impl List for () {
@@ -54,16 +63,29 @@ impl<P: List> List for Option<P> {
 pub trait ListDyn: Unpin + Send + Sync {
     /// The dyn version of [`List::next`].
     fn next_dyn(&mut self) -> BoxedFuture<'_, Result<Option<Entry>>>;
+
+    #[doc(hidden)]
+    fn next_buffered_dyn(&mut self, _: BufferedEntries) -> Option<Entry> {
+        None
+    }
 }
 
 impl<T: List + ?Sized> ListDyn for T {
     fn next_dyn(&mut self) -> BoxedFuture<'_, Result<Option<Entry>>> {
         Box::pin(self.next())
     }
+
+    fn next_buffered_dyn(&mut self, buffered: BufferedEntries) -> Option<Entry> {
+        self.next_buffered(buffered)
+    }
 }
 
 impl<T: ListDyn + ?Sized> List for Box<T> {
     async fn next(&mut self) -> Result<Option<Entry>> {
         self.deref_mut().next_dyn().await
+    }
+
+    fn next_buffered(&mut self, buffered: BufferedEntries) -> Option<Entry> {
+        self.deref_mut().next_buffered_dyn(buffered)
     }
 }

@@ -81,7 +81,7 @@ const LEGACY_46_CAPABILITY_FIELDS: &[&str] = &[
 ];
 
 /// Order and types of the fields in the existing Java Metadata constructors.
-const EXISTING_METADATA_FIELDS: &[(&str, MetadataKind)] = &[
+const LEGACY_10_METADATA_FIELDS: &[(&str, MetadataKind)] = &[
     ("mode", MetadataKind::Mode),
     ("content_length", MetadataKind::U64),
     ("content_disposition", MetadataKind::OptionStr),
@@ -111,11 +111,14 @@ struct CapabilityField {
 
 #[derive(Debug, Serialize)]
 struct MetadataField {
+    #[serde(skip)]
+    rust_name: String,
     camel: String,
     doc: String,
     java_type: &'static str,
     constructor_type: &'static str,
     constructor_value: String,
+    legacy_expr: String,
     jni_type: &'static str,
     rust_binding: String,
     jni_argument: String,
@@ -261,8 +264,8 @@ fn enabled_service(srv: &str) -> bool {
 pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     generate_service_config(&workspace_dir, services)?;
     generate_capability(&workspace_dir)?;
-    generate_metadata(&workspace_dir)?;
-    generate_options(&workspace_dir)
+    let metadata_fields = generate_metadata(&workspace_dir)?;
+    generate_options(&workspace_dir, &metadata_fields)
 }
 
 fn generate_service_config(workspace_dir: &Path, services: Services) -> Result<()> {
@@ -318,49 +321,72 @@ fn generate_capability(workspace_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-fn select_metadata_fields(mut parsed: Vec<metadata::MetadataField>) -> Result<Vec<MetadataField>> {
-    EXISTING_METADATA_FIELDS
-        .iter()
-        .map(|&(name, expected)| {
-            let mut matches = parsed.extract_if(.., |field| field.name == name);
-            let Some(field) = matches.next() else {
-                bail!("core Metadata is missing Java field `{name}`");
-            };
-            if matches.next().is_some() {
-                bail!("core Metadata contains duplicate Java field `{name}`");
-            }
-            if field.kind != expected {
-                bail!(
-                    "core Metadata field `{name}` has kind {:?}; Java requires {expected:?}",
-                    field.kind
-                );
-            }
+fn build_metadata_fields(parsed: Vec<metadata::MetadataField>) -> Result<Vec<MetadataField>> {
+    let mut kinds = HashMap::new();
+    for field in &parsed {
+        if kinds.insert(field.name.as_str(), field.kind).is_some() {
+            bail!(
+                "core Metadata contains duplicate Java field `{}`",
+                field.name
+            );
+        }
+    }
+    for &(name, expected) in LEGACY_10_METADATA_FIELDS {
+        let Some(&kind) = kinds.get(name) else {
+            bail!("core Metadata is missing Java field `{name}`");
+        };
+        if kind != expected {
+            bail!("core Metadata field `{name}` has kind {kind:?}; Java requires {expected:?}");
+        }
+    }
 
+    Ok(parsed
+        .into_iter()
+        .map(|field| {
+            let name = field.name.as_str();
             let accessor = format!("metadata.{name}()");
-            let (java_type, jni_type, rust_binding, jni_argument) = match field.kind {
+            let (java_type, jni_type, rust_binding, jni_argument, default_expr) = match field.kind {
                 MetadataKind::Mode => (
-                    "EntryMode",
+                    "@NonNull EntryMode",
                     "I",
                     format!("let {name} = convert::entry_mode_to_jint({accessor});"),
                     format!("JValue::Int({name})"),
+                    "EntryMode.UNKNOWN",
+                ),
+                MetadataKind::Bool => (
+                    "boolean",
+                    "Z",
+                    format!("let {name} = {accessor};"),
+                    format!("JValue::Bool({name})"),
+                    "false",
                 ),
                 MetadataKind::U64 => (
                     "long",
                     "J",
                     format!("let {name} = {accessor} as jlong;"),
                     format!("JValue::Long({name})"),
+                    "0L",
+                ),
+                MetadataKind::OptionBool => (
+                    "Boolean",
+                    "Ljava/lang/Boolean;",
+                    format!("let {name} = convert::option_bool_to_jboolean_object(env, {accessor})?;"),
+                    format!("JValue::Object(&{name})"),
+                    "null",
                 ),
                 MetadataKind::OptionStr => (
                     "String",
                     "Ljava/lang/String;",
                     format!("let {name} = convert::string_to_jstring(env, {accessor})?;"),
                     format!("JValue::Object(&{name})"),
+                    "null",
                 ),
                 MetadataKind::OptionTimestamp => (
                     "Instant",
                     "Ljava/time/Instant;",
                     format!("let {name} = convert::timestamp_to_jinstant(env, {accessor})?;"),
                     format!("JValue::Object(&{name})"),
+                    "null",
                 ),
                 MetadataKind::OptionUserMetadata => (
                     "Map<String, String>",
@@ -369,44 +395,58 @@ fn select_metadata_fields(mut parsed: Vec<metadata::MetadataField>) -> Result<Ve
                         "let {name} =\n        convert::hashmap_to_jmap(env, {accessor}.into_iter().flatten())?;"
                     ),
                     format!("JValue::Object(&{name})"),
+                    "Collections.emptyMap()",
                 ),
-                _ => bail!("unsupported Java Metadata kind {expected:?} for `{name}`"),
             };
-            let camel = case_java_field_name(name);
+            let camel = match name {
+                "is_current" => "current".to_owned(),
+                "is_deleted" => "deleted".to_owned(),
+                _ => case_java_field_name(name),
+            };
             let (constructor_type, constructor_value) = if field.kind == MetadataKind::Mode {
                 ("int", format!("EntryMode.of({camel})"))
             } else {
                 (java_type, camel.clone())
             };
-            let doc = if name == "user_metadata" {
-                "User-defined metadata of this entry. Empty when the service returns no user metadata."
+            let legacy_expr = if LEGACY_10_METADATA_FIELDS.contains(&(name, field.kind)) {
+                constructor_value.clone()
             } else {
-                &field.doc
+                default_expr.to_owned()
             };
-            let doc = markdown::to_html(doc);
-            let doc = doc
-                .strip_prefix("<p>")
-                .and_then(|doc| doc.strip_suffix("</p>"))
-                .unwrap_or(&doc)
-                .to_owned();
+            let doc = match name {
+                "is_current" => "Return whether this metadata describes the current object version. \
+                    Returns {@code null} when the service did not report whether the version is current."
+                    .to_owned(),
+                "user_metadata" => "User-defined metadata of this entry. Empty when the service returns no user metadata."
+                    .to_owned(),
+                _ => {
+                    let doc = markdown::to_html(&field.doc);
+                    doc.strip_prefix("<p>")
+                        .and_then(|doc| doc.strip_suffix("</p>"))
+                        .unwrap_or(&doc)
+                        .to_owned()
+                }
+            };
 
-            Ok(MetadataField {
+            MetadataField {
+                rust_name: field.name,
                 camel,
                 doc,
                 java_type,
                 constructor_type,
                 constructor_value,
+                legacy_expr,
                 jni_type,
                 rust_binding,
                 jni_argument,
-            })
+            }
         })
-        .collect()
+        .collect())
 }
 
-fn generate_metadata(workspace_dir: &Path) -> Result<()> {
+fn generate_metadata(workspace_dir: &Path) -> Result<Vec<MetadataField>> {
     let source = workspace_dir.join("core/core/src/types/metadata.rs");
-    let fields = select_metadata_fields(metadata::parse(&source)?)?;
+    let fields = build_metadata_fields(metadata::parse(&source)?)?;
 
     let mut env = Environment::new();
     env.add_template("metadata_java", include_str!("java/metadata_java.j2"))?;
@@ -425,17 +465,17 @@ fn generate_metadata(workspace_dir: &Path) -> Result<()> {
         fs::write(workspace_dir.join(relative), format!("{rendered}\n"))?;
     }
 
-    Ok(())
+    Ok(fields)
 }
 
-fn generate_options(workspace_dir: &Path) -> Result<()> {
+fn generate_options(workspace_dir: &Path, metadata_fields: &[MetadataField]) -> Result<()> {
     let source = workspace_dir.join("core/core/src/types/options.rs");
     let parsed = core_options::parse(&source)?;
     let env = Environment::new();
     let template = env.template_from_str(include_str!("java/options_java.j2"))?;
     let java_dir = workspace_dir.join("bindings/java/src/main/java/org/apache/opendal");
 
-    let classes = options_classes(&parsed)?;
+    let classes = options_classes(&parsed, metadata_fields)?;
     for class in &classes {
         let rendered = template.render(context! { class => class })?;
         fs::write(
@@ -455,14 +495,17 @@ fn generate_options(workspace_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-fn options_classes(parsed: &[OptionsStruct]) -> Result<Vec<OptionsClass<'_>>> {
+fn options_classes<'a>(
+    parsed: &'a [OptionsStruct],
+    metadata_fields: &[MetadataField],
+) -> Result<Vec<OptionsClass<'a>>> {
     let mut classes = Vec::new();
     for spec in EXISTING_OPTIONS_FIELDS {
         let Some(options) = parsed.iter().find(|options| options.name == spec.name) else {
             bail!("core options are missing Java struct `{}`", spec.name);
         };
         let fields = select_options_fields(options, spec)?;
-        classes.push(options_class(options, spec, &fields)?);
+        classes.push(options_class(options, spec, &fields, metadata_fields)?);
     }
     Ok(classes)
 }
@@ -582,6 +625,7 @@ fn options_class<'a>(
     options: &'a OptionsStruct,
     spec: &OptionsSpec,
     fields: &[&OptionField],
+    metadata_fields: &[MetadataField],
 ) -> Result<OptionsClass<'a>> {
     let mut imports = BTreeSet::new();
     let mut properties = Vec::new();
@@ -643,7 +687,7 @@ fn options_class<'a>(
             }
             OptionKind::OptionDuration => bail!("unsupported Java option {}::{name}", options.name),
         };
-        let (summary, details) = option_field_javadoc(spec, field);
+        let (summary, details) = option_field_javadoc(spec, field, metadata_fields);
         properties.push(OptionProperty {
             camel: case_java_field_name(name),
             java_type,
@@ -659,7 +703,7 @@ fn options_class<'a>(
         summary: match spec.name {
             "ReadOptions" => "Options for a single read or a compatibility {@link OperatorInputStream}.".to_owned(),
             "ReaderOptions" => "Configures version selection, read conditions, and execution options for an {@link OperatorReader}.".to_owned(),
-            _ => option_javadoc(&options.doc, spec, None),
+            _ => option_javadoc(&options.doc, spec, None, metadata_fields),
         },
         details: option_class_details(spec.name),
         imports,
@@ -696,9 +740,14 @@ fn options_class<'a>(
     })
 }
 
-fn option_field_javadoc(spec: &OptionsSpec, field: &OptionField) -> (String, Vec<String>) {
+fn option_field_javadoc(
+    spec: &OptionsSpec,
+    field: &OptionField,
+    metadata_fields: &[MetadataField],
+) -> (String, Vec<String>) {
     let name = field.name.as_str();
-    let mut summary = option_javadoc(&field.doc, spec, Some(name));
+    let render = |lines: &[String]| option_javadoc(lines, spec, Some(name), metadata_fields);
+    let mut summary = render(&field.doc);
     let mut details = Vec::new();
     match (spec.name, name) {
         ("DeleteOptions", "if_not_changed") => details.extend(field
@@ -706,13 +755,13 @@ fn option_field_javadoc(spec: &OptionsSpec, field: &OptionField) -> (String, Vec
             .split(|line| line.is_empty())
             .skip(1)
             .filter(|paragraph| !paragraph.is_empty())
-            .map(|paragraph| option_javadoc(paragraph, spec, Some(name)))),
+            .map(render)),
         ("DeleteOptions", "recursive")
         | (_, "version" | "if_match" | "if_none_match" | "if_version_match" | "if_version_not_match"
             | "if_modified_since" | "if_unmodified_since" | "if_not_exists"
             | "override_content_type" | "override_cache_control" | "override_content_disposition") => {
             if let Some(paragraph) = field.doc.split(|line| line.is_empty()).nth(1) {
-                details.push(option_javadoc(paragraph, spec, Some(name)));
+                details.push(render(paragraph));
             }
         }
         ("ReadOptions" | "ReaderOptions", "chunk") => {
@@ -832,7 +881,12 @@ fn option_rs_expr(options: &str, field: &OptionField) -> Result<String> {
 }
 
 /// Translate inline Rustdoc links and code spans in the first paragraph.
-fn option_javadoc(lines: &[String], spec: &OptionsSpec, current: Option<&str>) -> String {
+fn option_javadoc(
+    lines: &[String],
+    spec: &OptionsSpec,
+    current: Option<&str>,
+    metadata_fields: &[MetadataField],
+) -> String {
     static INLINE: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"\[(?P<label>[^\]]+)\](?:\((?P<url>[^)]+)\)|\[(?P<reference>[^\]]+)\])|\[`(?P<path>[^`]+)`\]|`(?P<code>[^`]+)`")
             .expect("valid inline Rustdoc regex")
@@ -848,7 +902,12 @@ fn option_javadoc(lines: &[String], spec: &OptionsSpec, current: Option<&str>) -
     for captures in INLINE.captures_iter(&paragraph) {
         let token = captures.get(0).expect("matched inline token");
         summary.push_str(&escape_javadoc(&paragraph[end..token.start()]));
-        summary.push_str(&option_javadoc_token(&captures, spec, current));
+        summary.push_str(&option_javadoc_token(
+            &captures,
+            spec,
+            current,
+            metadata_fields,
+        ));
         end = token.end();
     }
     summary.push_str(&escape_javadoc(&paragraph[end..]));
@@ -859,6 +918,7 @@ fn option_javadoc_token(
     captures: &Captures<'_>,
     spec: &OptionsSpec,
     current: Option<&str>,
+    metadata_fields: &[MetadataField],
 ) -> String {
     let group = |name| captures.name(name).map(|value| value.as_str());
     if let Some(url) = group("url")
@@ -892,13 +952,13 @@ fn option_javadoc_token(
     match (ty, member) {
         ("Capability" | "Metadata", "") => format!("{{@link {ty}}}"),
         ("Capability", field) => format!("{{@link Capability#{}}}", case_java_field_name(field)),
-        ("Metadata", field)
-            if EXISTING_METADATA_FIELDS
-                .iter()
-                .any(|&(name, _)| name == field) =>
-        {
-            format!("{{@link Metadata#{}}}", case_java_field_name(field))
-        }
+        ("Metadata", field) => metadata_fields
+            .iter()
+            .find(|metadata_field| metadata_field.rust_name == field)
+            .map_or_else(
+                || format!("{{@code {path}}}"),
+                |metadata_field| format!("{{@link Metadata#{}}}", metadata_field.camel),
+            ),
         ("ErrorKind", "") => "{@link OpenDALException.Code}".to_owned(),
         ("ErrorKind", variant) => format!("{{@link OpenDALException.Code#{variant}}}"),
         (ty, "") if EXISTING_OPTIONS_FIELDS.iter().any(|spec| spec.name == ty) => {
@@ -1090,6 +1150,7 @@ mod tests {
             ),
         ];
         let mut structs = core_options_structs();
+        let metadata_fields = build_metadata_fields(core_metadata_fields()).unwrap();
         assert_eq!(EXISTING_OPTIONS_FIELDS.len(), expected.len());
         let env = Environment::new();
         let template = env
@@ -1104,7 +1165,7 @@ mod tests {
                 .unwrap();
             options.fields.reverse();
             let fields = select_options_fields(options, spec).unwrap();
-            let class = options_class(options, spec, &fields).unwrap();
+            let class = options_class(options, spec, &fields, &metadata_fields).unwrap();
             let names: Vec<_> = names.split_whitespace().collect();
             assert_eq!(
                 class
@@ -1135,12 +1196,13 @@ mod tests {
     #[test]
     fn test_options_javadoc_contracts() {
         let structs = core_options_structs();
+        let metadata_fields = build_metadata_fields(core_metadata_fields()).unwrap();
         let env = Environment::new();
         let template = env
             .template_from_str(include_str!("java/options_java.j2"))
             .unwrap();
 
-        for class in options_classes(&structs).unwrap() {
+        for class in options_classes(&structs, &metadata_fields).unwrap() {
             let rendered = template.render(context! { class => class }).unwrap();
             let class_doc = rendered
                 .split_once("/**")
@@ -1526,6 +1588,7 @@ mod tests {
 
     #[test]
     fn test_option_javadoc_translates_inline_links() {
+        let metadata_fields = build_metadata_fields(core_metadata_fields()).unwrap();
         let spec = EXISTING_OPTIONS_FIELDS
             .iter()
             .find(|spec| spec.name == "ListOptions")
@@ -1540,7 +1603,7 @@ mod tests {
         ]
         .map(str::to_owned);
         assert_eq!(
-            option_javadoc(&lines, spec, None),
+            option_javadoc(&lines, spec, None, &metadata_fields),
             concat!(
                 "Use {@link #startAfter} &amp; {@link Capability#listWithLimit} ",
                 "or <a href=\"https://example.com/list?a=b&amp;c=d\">the guide</a>. ",
@@ -1552,12 +1615,24 @@ mod tests {
             option_capability_refs(&lines),
             ["Capability#listWithLimit", "Capability#listWithVersions"]
         );
+        for field in &metadata_fields {
+            assert_eq!(
+                option_javadoc(
+                    &[format!("[`Metadata::{}`]", field.rust_name)],
+                    spec,
+                    None,
+                    &metadata_fields,
+                ),
+                format!("{{@link Metadata#{}}}", field.camel)
+            );
+        }
     }
 
     #[test]
     fn test_options_jni_defaults_for_unexposed_fields() {
         let parsed = core_options_structs();
-        let classes = options_classes(&parsed).unwrap();
+        let metadata_fields = build_metadata_fields(core_metadata_fields()).unwrap();
+        let classes = options_classes(&parsed, &metadata_fields).unwrap();
         let rendered = Environment::new()
             .render_str(
                 include_str!("java/options_rs.j2"),
@@ -1602,22 +1677,24 @@ mod tests {
     }
 
     #[test]
-    fn test_metadata_fields_follow_existing_java_order() {
-        let mut parsed = core_metadata_fields();
-        parsed.reverse();
-        let fields = select_metadata_fields(parsed).unwrap();
+    fn test_metadata_fields_follow_core_order() {
+        let fields = build_metadata_fields(core_metadata_fields()).unwrap();
         let names: Vec<_> = fields.iter().map(|field| field.camel.as_str()).collect();
         assert_eq!(
             names,
             [
                 "mode",
+                "current",
+                "deleted",
+                "cacheControl",
                 "contentLength",
-                "contentDisposition",
                 "contentMd5",
                 "contentType",
-                "cacheControl",
-                "etag",
+                "contentEncoding",
+                "contentLanguage",
                 "lastModified",
+                "etag",
+                "contentDisposition",
                 "version",
                 "userMetadata",
             ]
@@ -1628,7 +1705,7 @@ mod tests {
     fn test_metadata_fields_reject_missing_field() {
         let mut parsed = core_metadata_fields();
         parsed.retain(|field| field.name != "content_type");
-        let err = select_metadata_fields(parsed).unwrap_err();
+        let err = build_metadata_fields(parsed).unwrap_err();
         assert_eq!(
             err.to_string(),
             "core Metadata is missing Java field `content_type`"
@@ -1639,14 +1716,14 @@ mod tests {
     fn test_metadata_fields_reject_duplicate_field() {
         let mut parsed = core_metadata_fields();
         parsed.push(metadata::MetadataField {
-            name: "etag".to_owned(),
-            kind: MetadataKind::OptionStr,
+            name: "is_deleted".to_owned(),
+            kind: MetadataKind::Bool,
             doc: String::new(),
         });
-        let err = select_metadata_fields(parsed).unwrap_err();
+        let err = build_metadata_fields(parsed).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "core Metadata contains duplicate Java field `etag`"
+            "core Metadata contains duplicate Java field `is_deleted`"
         );
     }
 
@@ -1658,7 +1735,7 @@ mod tests {
             .find(|field| field.name == "mode")
             .unwrap()
             .kind = MetadataKind::U64;
-        let err = select_metadata_fields(parsed).unwrap_err();
+        let err = build_metadata_fields(parsed).unwrap_err();
         assert_eq!(
             err.to_string(),
             "core Metadata field `mode` has kind U64; Java requires Mode"
@@ -1667,7 +1744,7 @@ mod tests {
 
     #[test]
     fn test_metadata_jni_constructor_descriptor() {
-        let fields = select_metadata_fields(core_metadata_fields()).unwrap();
+        let fields = build_metadata_fields(core_metadata_fields()).unwrap();
         let rendered = Environment::new()
             .render_str(
                 include_str!("java/metadata_rs.j2"),
@@ -1675,7 +1752,7 @@ mod tests {
             )
             .unwrap();
         assert!(rendered.contains(
-            "\"(IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Ljava/lang/String;Ljava/util/Map;)V\""
+            "\"(ILjava/lang/Boolean;ZLjava/lang/String;JLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/Map;)V\""
         ));
     }
 }

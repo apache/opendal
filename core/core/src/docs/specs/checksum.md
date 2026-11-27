@@ -31,20 +31,25 @@ unsupported explicit intent, including `Algo` or `Expected` on append, with
 
 ## Write failures and visibility
 
-- A checksum rejection before commit returns `ChecksumMismatch`. A rejected
-  replacement leaves the previous object intact. A rejected creation leaves
-  the key absent. A rejection of a computed digest can be temporary when
-  OpenDAL can safely replay the request with the original bytes. A final
-  mismatch against the caller's `Expected` digest or a deterministic
-  completion rejection is non-temporary.
+- A checksum rejection before commit leaves the previous object intact for a
+  replacement and the key absent for a creation. OpenDAL returns
+  `ChecksumMismatch` when it recognizes a pre-commit checksum rejection. An
+  HTTP success status can carry such a rejection in the response body. A
+  rejection of a computed digest can be temporary when OpenDAL can safely
+  replay the request with the original bytes. A final mismatch against the
+  caller's `Expected` digest or a deterministic completion rejection is
+  non-temporary.
+- OpenDAL propagates a service failure it cannot identify as a checksum
+  rejection. The resulting error may be a non-temporary `Unexpected`.
 - A missing, invalid, or mismatched receipt can prevent OpenDAL from confirming
   required verification after commit. This returns a non-temporary `Unexpected`.
-  The new or replacement data may already be visible. An HTTP success status can
-  also carry a pre-commit rejection in the response body.
+  The new or replacement data may already be visible.
 - When an append commits each block independently, a pre-commit rejection
   prevents that block from being appended. Earlier successful blocks stay
   committed after a later failure or an abort. A block with an unconfirmed
   post-commit receipt may also be visible.
+
+An `Unexpected` error alone leaves the commit status unknown.
 
 ## Retrieving checksum metadata
 

@@ -11,6 +11,8 @@ by default.
 
 **User guide**: https://opendal.apache.org/docs/bindings/c
 
+See the [upgrade guide](upgrade.md) for migration instructions.
+
 ## Building
 
 Requirements: C11/C++14 compiler, CMake 3.24 or later, Rust toolchain.

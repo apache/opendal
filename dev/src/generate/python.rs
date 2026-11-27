@@ -15,12 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::generate::capability;
+use crate::generate::metadata::{self, MetadataKind};
 use crate::generate::options;
 use crate::generate::parser::{Config, ConfigType, Services, service_feature, sorted_services};
 use anyhow::{Context, Result, bail};
 use minijinja::value::ViaDeserialize;
 use minijinja::{Environment, context};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
@@ -203,6 +205,121 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     // Generate the typed operator options TypedDicts (Python).
     generate_options_py(&workspace_dir)?;
 
+    // Generate the `Capability` pyclass (Rust) from core.
+    generate_capability(&workspace_dir)?;
+
+    // Generate the `Metadata` pyclass (Rust) from core.
+    generate_metadata(&workspace_dir)?;
+
+    Ok(())
+}
+
+/// Render `bindings/python/src/capability.rs` from
+/// `core/core/src/types/capability.rs`, so that every core capability field is
+/// exposed with its core doc comment and nothing is maintained by hand.
+///
+/// The `.pyi` stub is derived from this pyclass by `just stub-gen`.
+fn generate_capability(workspace_dir: &Path) -> Result<()> {
+    let source = workspace_dir.join("core/core/src/types/capability.rs");
+    let fields = capability::parse(&source)?;
+
+    let mut env = Environment::new();
+    env.add_template("capability_rs", include_str!("python/capability_rs.j2"))?;
+    let rendered = env
+        .get_template("capability_rs")?
+        .render(context! { fields => fields })?;
+
+    let output = workspace_dir.join("bindings/python/src/capability.rs");
+    fs::write(output, format!("{rendered}\n"))?;
+    Ok(())
+}
+
+/// Render model handed to the `Metadata` template. Every per-kind decision is
+/// precomputed in `metadata_field` so the template stays purely structural.
+#[derive(Debug, Serialize)]
+struct MetadataField {
+    /// Accessor name in snake_case, exactly as written in core.
+    name: String,
+    /// First paragraph of the core accessor doc.
+    doc: String,
+    /// Rust return type of the getter, as converted to Python by PyO3.
+    py_type: &'static str,
+    /// Expression that produces the getter value from the core metadata.
+    py_value: String,
+    /// `format!` placeholder used for this accessor in `__repr__`.
+    repr_fmt: &'static str,
+}
+
+/// Map one core accessor to its Python getter.
+///
+/// A new return type in core fails parsing in `metadata::parse`, and a new
+/// `MetadataKind` fails this exhaustive match, so an unsupported accessor
+/// never renders silently.
+fn metadata_field(f: metadata::MetadataField) -> MetadataField {
+    let name = &f.name;
+    let mut doc = f.doc;
+    let (py_type, py_value, repr_fmt) = match f.kind {
+        MetadataKind::Mode => (
+            "EntryMode",
+            format!("EntryMode::new(self.0.{name}())"),
+            "{}",
+        ),
+        MetadataKind::Bool => ("bool", format!("self.0.{name}()"), "{}"),
+        MetadataKind::U64 => ("u64", format!("self.0.{name}()"), "{}"),
+        MetadataKind::OptionBool => ("Option<bool>", format!("self.0.{name}()"), "{:?}"),
+        MetadataKind::OptionStr => ("Option<&str>", format!("self.0.{name}()"), "{:?}"),
+        MetadataKind::OptionTimestamp => (
+            "Option<jiff::Timestamp>",
+            format!("self.0.{name}().map(utils::timestamp_to_jiff)"),
+            "{:?}",
+        ),
+        MetadataKind::OptionUserMetadata => {
+            // Core returns a borrowed view, while Python receives an owned copy,
+            // so the core doc would be misleading here.
+            doc = format!(
+                "Return a copy of this entry's {} as a dict.",
+                name.replace('_', " ")
+            );
+            (
+                "Option<std::collections::HashMap<String, String>>",
+                format!(
+                    "self.0.{name}().map(|metadata| {{ metadata.into_iter().map(|(key, value)| (key.to_string(), value.to_string())).collect() }})"
+                ),
+                "{:?}",
+            )
+        }
+    };
+
+    MetadataField {
+        name: f.name,
+        doc,
+        py_type,
+        py_value,
+        repr_fmt,
+    }
+}
+
+/// Render `bindings/python/src/metadata.rs` from
+/// `core/core/src/types/metadata.rs`, so that every core metadata accessor is
+/// exposed as a getter with its core doc comment.
+///
+/// The derived `is_file` and `is_dir` getters are part of the template, and
+/// the `.pyi` stub is derived from this pyclass by `just stub-gen`.
+fn generate_metadata(workspace_dir: &Path) -> Result<()> {
+    let source = workspace_dir.join("core/core/src/types/metadata.rs");
+    let fields: Vec<MetadataField> = metadata::parse(&source)?
+        .into_iter()
+        .map(metadata_field)
+        .collect();
+
+    let mut env = Environment::new();
+    env.add_template("metadata_rs", include_str!("python/metadata_rs.j2"))?;
+    let rendered = env
+        .get_template("metadata_rs")?
+        .render(context! { fields => fields })?;
+
+    let output = workspace_dir.join("bindings/python/src/metadata.rs");
+    fs::write(output, format!("{rendered}\n"))?;
     Ok(())
 }
 
@@ -539,7 +656,7 @@ fn generate_options_py(workspace_dir: &Path) -> Result<()> {
         "\nfrom __future__ import annotations\n\nfrom datetime import datetime\nfrom typing import Literal, TypeAlias, TypedDict\n",
     );
     out.push_str(
-        "\nChecksumAlgorithm: TypeAlias = Literal[\"crc32c\", \"crc64nvme\", \"md5\", \"sha1\", \"sha256\"]\n\"\"\"Full-object checksum algorithms. Each service defines the algorithms it supports.\"\"\"\n",
+        "\nChecksumAlgorithm: TypeAlias = Literal[\n    \"crc32c\", \"crc64nvme\", \"crc64ecma\", \"md5\", \"sha1\", \"sha256\"\n]\n\"\"\"Full-object checksum algorithms. Each service defines the algorithms it supports.\"\"\"\n",
     );
 
     let mut exports = vec!["ChecksumAlgorithm".to_string()];
@@ -632,5 +749,39 @@ fn push_field_doc(out: &mut String, doc: &str) {
             }
         }
         out.push_str("\n    \"\"\"\n");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `Metadata` getters exposed by the Python binding before it was
+    /// generated. Each must still come from core so the generated pyclass
+    /// never silently drops a user-facing attribute.
+    const LEGACY_METADATA_GETTERS: &[&str] = &[
+        "content_disposition",
+        "content_length",
+        "content_md5",
+        "content_type",
+        "content_encoding",
+        "etag",
+        "mode",
+        "last_modified",
+        "version",
+        "user_metadata",
+    ];
+
+    #[test]
+    fn test_legacy_metadata_getters_exist_in_core() {
+        let path = crate::workspace_dir().join("core/core/src/types/metadata.rs");
+        let fields = metadata::parse(&path).expect("core metadata must parse");
+
+        for &legacy in LEGACY_METADATA_GETTERS {
+            assert!(
+                fields.iter().any(|f| f.name == legacy),
+                "legacy Python metadata getter `{legacy}` is missing from core Metadata"
+            );
+        }
     }
 }

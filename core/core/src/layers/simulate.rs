@@ -99,7 +99,11 @@ impl SimulateLayer {
     /// Services that advertise native [`Capability::list_with_glob`] receive
     /// glob requests unchanged. Otherwise this simulation evaluates
     /// [`options::ListOptions::glob`] client-side by pruning unrelated
-    /// directories or filtering an underlying listing.
+    /// directories or filtering an underlying listing. When an executor is
+    /// available, the guided walk can prefetch sibling directories already
+    /// buffered in a listing page. Each walk runs at most eight concurrent
+    /// listing reads, including the foreground read, and yields entries in
+    /// traversal order.
     pub fn with_list_glob(mut self, enabled: bool) -> Self {
         self.list_glob = enabled;
         self

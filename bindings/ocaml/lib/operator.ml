@@ -80,25 +80,5 @@ module OperatorInfo = struct
   let capability = Opendal_core.Operator.operator_info_capability
 end
 
+module Capability = Capability
 (** Capability module for checking supported operations *)
-module Capability = struct
-  let stat = Opendal_core.Operator.capability_stat
-  let read = Opendal_core.Operator.capability_read
-  let write = Opendal_core.Operator.capability_write
-  let create_dir = Opendal_core.Operator.capability_create_dir
-  let delete = Opendal_core.Operator.capability_delete
-  let copy = Opendal_core.Operator.capability_copy
-  let rename = Opendal_core.Operator.capability_rename
-  let list = Opendal_core.Operator.capability_list
-  let list_with_limit = Opendal_core.Operator.capability_list_with_limit
-
-  let list_with_start_after =
-    Opendal_core.Operator.capability_list_with_start_after
-
-  let list_with_recursive = Opendal_core.Operator.capability_list_with_recursive
-  let presign = Opendal_core.Operator.capability_presign
-  let presign_read = Opendal_core.Operator.capability_presign_read
-  let presign_stat = Opendal_core.Operator.capability_presign_stat
-  let presign_write = Opendal_core.Operator.capability_presign_write
-  let shared = Opendal_core.Operator.capability_shared
-end

@@ -48,7 +48,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build valgrind doxygen
+          sudo apt-get install -y ninja-build valgrind doxygen graphviz
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -109,6 +109,14 @@ jobs:
       - name: Run getting-started example
         working-directory: "examples/cpp/build"
         run: ./getting-started
+
+      - name: Build Cpp docs
+        working-directory: "bindings/cpp"
+        run: |
+          mkdir -p build-docs
+          cd build-docs
+          cmake -GNinja -DOPENDAL_DOCS_ONLY=ON ..
+          ninja docs
 
   test-windows:
     runs-on: windows-latest

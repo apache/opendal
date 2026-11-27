@@ -18,9 +18,13 @@
 use std::collections::VecDeque;
 use std::sync::Mutex;
 
+use futures::TryStreamExt;
+
 use super::*;
 use crate::layers::SimulateLayer;
 use crate::services::Memory;
+
+mod paging;
 
 #[tokio::test]
 async fn glob_simulation_can_be_disabled_and_reenabled() -> Result<()> {
@@ -128,6 +132,152 @@ async fn guided_listing_skips_unreadable_discovered_directories() -> Result<()> 
     let err = op.list_with("locked/").glob("*.jpg").await.unwrap_err();
     assert_eq!(err.kind(), ErrorKind::PermissionDenied);
     Ok(())
+}
+
+struct EagerExecutor;
+
+impl Execute for EagerExecutor {
+    fn execute(&self, f: BoxedStaticFuture<()>) {
+        assert!(f.now_or_never().is_some());
+    }
+}
+
+/// Accepts tasks but never runs them, like a current-thread runtime that no
+/// thread drives.
+struct IdleExecutor(Mutex<Vec<BoxedStaticFuture<()>>>);
+
+impl Execute for IdleExecutor {
+    fn execute(&self, f: BoxedStaticFuture<()>) {
+        self.0.lock().unwrap().push(f);
+    }
+}
+
+/// List `pattern` without an executor, with an eager one, and with an idle one.
+/// Return the listed paths, or the error kind, and the listed directories.
+async fn list_with_executors(
+    fixture: impl Fn() -> ListFixture,
+    pattern: &str,
+) -> [(Result<Vec<String>, ErrorKind>, Vec<String>); 3] {
+    let executors = [
+        Executor::with(()),
+        Executor::with(EagerExecutor),
+        Executor::with(IdleExecutor(Mutex::default())),
+    ];
+    let mut results = Vec::new();
+    for executor in executors {
+        let inner = Arc::new(fixture());
+        let ctx = OperationContext::default().with_executor(executor);
+        let op = Operator::from_parts(ctx, inner.clone()).layer(SimulateLayer::default());
+        let paths = match op.list_with("/").glob(pattern).await {
+            Ok(entries) => Ok(entries.iter().map(|e| e.path().to_owned()).collect()),
+            Err(err) => Err(err.kind()),
+        };
+        let requests = inner.requests.lock().unwrap();
+        results.push((paths, requests.iter().map(|(p, _)| p.clone()).collect()));
+    }
+    results.try_into().unwrap()
+}
+
+#[tokio::test]
+async fn background_listing_keeps_entries_order_and_requests() {
+    let fixture = || {
+        ListFixture::tree(&[
+            "b/",
+            "b/2/",
+            "b/2/x.jpg",
+            "b/1/",
+            "b/1/x.jpg",
+            "a/",
+            "a/x.png",
+            "a/3/",
+            "a/3/x.jpg",
+            "a/1/",
+            "a/1/x.jpg",
+            "c.jpg",
+        ])
+    };
+    let [sequential, eager, idle] = list_with_executors(fixture, "*/*/*.jpg").await;
+    let paths = ["b/2/x.jpg", "b/1/x.jpg", "a/3/x.jpg", "a/1/x.jpg"];
+    assert_eq!(sequential.0, Ok(paths.map(String::from).to_vec()));
+    assert_eq!(
+        sequential.1,
+        ["/", "b/", "b/2/", "b/1/", "a/", "a/3/", "a/1/"]
+    );
+    assert_eq!(eager.0, sequential.0);
+    let mut eager_requests = eager.1.clone();
+    let mut sequential_requests = sequential.1.clone();
+    eager_requests.sort_unstable();
+    sequential_requests.sort_unstable();
+    assert_eq!(eager_requests, sequential_requests);
+    // The walk lists each directory itself if a background listing does not start.
+    assert_eq!(idle, sequential);
+
+    // Below each top directory, a recursive service filters one recursive listing.
+    let recursive = || ListFixture {
+        recursive: true,
+        ..fixture()
+    };
+    let [sequential, eager, idle] = list_with_executors(recursive, "?/**/*.jpg").await;
+    assert_eq!(sequential.0, Ok(paths.map(String::from).to_vec()));
+    assert_eq!(sequential.1, ["/", "b/", "a/"]);
+    assert_eq!(eager.0, sequential.0);
+    assert_eq!(eager.1, ["/", "a/", "b/"]);
+    assert_eq!(idle, sequential);
+}
+
+#[tokio::test]
+async fn background_listing_returns_entries_before_an_error() -> Result<()> {
+    let fixture = || ListFixture {
+        fail_after: Some(("b/", 1)),
+        ..ListFixture::tree(&["a/", "a/1.jpg", "b/", "b/1.jpg", "b/2.jpg"])
+    };
+    for (paths, _) in list_with_executors(fixture, "*/*.jpg").await {
+        assert_eq!(paths, Err(ErrorKind::Unexpected));
+    }
+    let ctx = OperationContext::default().with_executor(Executor::with(EagerExecutor));
+    let op = Operator::from_parts(ctx, Arc::new(fixture())).layer(SimulateLayer::default());
+    let mut lister = op.lister_with("/").glob("*/*.jpg").await?;
+    assert_eq!(lister.try_next().await?.unwrap().path(), "a/1.jpg");
+    assert_eq!(lister.try_next().await?.unwrap().path(), "b/1.jpg");
+    assert!(lister.try_next().await.is_err());
+    Ok(())
+}
+
+#[tokio::test]
+async fn background_listing_skips_unreadable_discovered_directories() {
+    let fixture = || ListFixture {
+        denied: Some("b/"),
+        ..ListFixture::tree(&["a/", "a/1.jpg", "b/"])
+    };
+    for (paths, _) in list_with_executors(fixture, "*/*.jpg").await {
+        assert_eq!(paths, Ok(vec!["a/1.jpg".to_owned()]));
+    }
+}
+
+#[tokio::test]
+async fn background_listing_uses_the_executor_timeout() {
+    /// Runs each task at submit and times it out at once.
+    struct TimeoutExecutor;
+
+    impl Execute for TimeoutExecutor {
+        fn execute(&self, f: BoxedStaticFuture<()>) {
+            assert!(f.now_or_never().is_some());
+        }
+
+        fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
+            Some(Box::pin(std::future::ready(())))
+        }
+    }
+
+    let inner = Arc::new(ListFixture {
+        stalled: Some("b/"),
+        ..ListFixture::tree(&["a/", "a/1.jpg", "b/", "b/1.jpg"])
+    });
+    let ctx = OperationContext::default().with_executor(Executor::with(TimeoutExecutor));
+    let op = Operator::from_parts(ctx, inner).layer(SimulateLayer::default());
+    let err = op.list_with("/").glob("*/*.jpg").await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Unexpected);
+    assert!(err.is_temporary());
 }
 
 #[tokio::test]
@@ -595,6 +745,10 @@ struct ListFixture {
     native_glob: bool,
     denied: Option<&'static str>,
     recursive: bool,
+    tree: bool,
+    fail_after: Option<(&'static str, usize)>,
+    stalled: Option<&'static str>,
+    pages: Option<paging::FixturePages>,
 }
 
 impl ListFixture {
@@ -608,6 +762,29 @@ impl ListFixture {
             native_glob: false,
             denied: None,
             recursive: false,
+            tree: false,
+            fail_after: None,
+            stalled: None,
+            pages: None,
+        }
+    }
+
+    fn tree(paths: &[&str]) -> Self {
+        let entries = paths
+            .iter()
+            .map(|path| {
+                let metadata = if path.ends_with('/') {
+                    MetadataBuilder::dir()
+                } else {
+                    MetadataBuilder::file(0)
+                };
+                oio::Entry::new(path, metadata.build())
+            })
+            .collect();
+        Self {
+            entries,
+            tree: true,
+            ..Self::new(&[])
         }
     }
 }
@@ -615,7 +792,7 @@ impl ListFixture {
 impl Service for ListFixture {
     type Reader = ();
     type Writer = ();
-    type Lister = TestLister;
+    type Lister = oio::Lister;
     type Deleter = ();
     type Copier = ();
     type Composer = ();
@@ -643,19 +820,23 @@ impl Service for ListFixture {
         if self.denied == Some(path) {
             return Err(Error::new(ErrorKind::PermissionDenied, "denied"));
         }
-        let entries = if recursive {
-            self.entries.clone()
-        } else {
-            self.entries
-                .iter()
-                .filter(|entry| {
-                    relative_child(entry.path(), path)
-                        .is_some_and(|rel| !rel.trim_end_matches('/').contains('/'))
-                })
-                .cloned()
-                .collect()
-        };
-        Ok(TestLister(entries.into()))
+        let entries = self.entries.iter().filter(|entry| {
+            (recursive && !self.tree)
+                || relative_child(entry.path(), path)
+                    .is_some_and(|rel| recursive || !rel.trim_end_matches('/').contains('/'))
+        });
+        if let Some(pages) = &self.pages {
+            return Ok(pages.lister(path, entries.cloned().collect()));
+        }
+        let failure = self
+            .fail_after
+            .filter(|(directory, _)| *directory == path)
+            .map(|(_, count)| count);
+        Ok(Box::new(TestLister {
+            entries: entries.cloned().collect(),
+            fail_after: failure,
+            stalled: self.stalled == Some(path),
+        }))
     }
 
     async fn create_dir(
@@ -702,10 +883,31 @@ impl Service for ListFixture {
     }
 }
 
-struct TestLister(VecDeque<oio::Entry>);
+struct TestLister {
+    entries: VecDeque<oio::Entry>,
+    fail_after: Option<usize>,
+    stalled: bool,
+}
 
 impl List for TestLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        Ok(self.0.pop_front())
+        if self.stalled {
+            return std::future::pending().await;
+        }
+        if self.fail_after == Some(0) {
+            return Err(Error::new(ErrorKind::Unexpected, "list failed"));
+        }
+        Ok(self.next_buffered(oio::BufferedEntries))
+    }
+
+    fn next_buffered(&mut self, _: oio::BufferedEntries) -> Option<oio::Entry> {
+        if self.stalled || self.fail_after == Some(0) {
+            return None;
+        }
+        let entry = self.entries.pop_front()?;
+        if let Some(remaining) = &mut self.fail_after {
+            *remaining -= 1;
+        }
+        Some(entry)
     }
 }

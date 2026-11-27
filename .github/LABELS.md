@@ -32,9 +32,12 @@ remove them when subsequent edits change the scope. Maintainers can correct
 these labels. Size labels are recalculated on PR events and replace prior size
 labels.
 
-Maintainers control `lgtm`, `release-blocker`, `good first issue`,
-`good first vibe`, and `help wanted`. Nightly workflows manage `ci/nightly`
-and `ci/live-service`. The model cannot select them. Language labels,
+Maintainers control `lgtm`, `release-blocker`, `ci/deploy-docs`,
+`good first issue`, `good first vibe`, and `help wanted`. Nightly workflows
+manage `ci/nightly` and `ci/live-service`. The model cannot select them.
+Adding `ci/deploy-docs` to a PR triggers `Docs` immediately after the PR merges
+to `main` so urgent documentation or website updates publish without waiting
+for the daily schedule. Language labels,
 `dependencies`, and `github_actions` remain under the existing
 Dependabot/manual workflow and are preserved.
 

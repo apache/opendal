@@ -78,8 +78,6 @@ impl futures::Sink<Bytes> for FuturesBytesSink {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use super::*;
     use crate::raw::MaybeSend;
 
@@ -89,14 +87,14 @@ mod tests {
 
         let ctx = op.context().clone();
         let srv = op.service().clone();
-        let ctx = Arc::new(WriteContext::new(
+        let ctx = WriteContext::new(
             ctx,
             srv,
             "test".to_string(),
             OpWrite::new(),
             OpWriter::new().with_chunk(1),
-        ));
-        let write_state = WriteState::create(ctx).unwrap();
+        );
+        let write_state = WriteState::create(&ctx).unwrap();
 
         let v = FuturesBytesSink::new(write_state);
 

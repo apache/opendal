@@ -107,6 +107,9 @@ jobs:
           path: |
             ~/.cabal/store
             bindings/haskell/dist-newstyle
+      - name: Build docs
+        working-directory: "bindings/haskell"
+        run: cabal haddock --haddock-html --haddock-quickjump --haddock-hyperlink-source -j
 
   test-windows-metadata:
     runs-on: windows-2025

@@ -259,23 +259,7 @@ fn format_crc64nvme_iter(body: Buffer) -> String {
     BASE64_STANDARD.encode(digest.finalize().to_be_bytes())
 }
 
-/// Map an algorithm supported for full-object verification on both PutObject
-/// and multipart uploads.
-///
-/// S3 supports full-object multipart checksums only for CRC algorithms, so
-/// other algorithms are rejected even though PutObject alone would accept them.
-pub fn s3_full_object_checksum_algorithm(algo: ChecksumAlgo) -> Result<ChecksumAlgorithm> {
-    match algo {
-        ChecksumAlgo::Crc32c => Ok(ChecksumAlgorithm::Crc32c),
-        ChecksumAlgo::Crc64Nvme => Ok(ChecksumAlgorithm::Crc64Nvme),
-        algo => Err(Error::new(
-            ErrorKind::Unsupported,
-            format!("S3 does not support a full-object {algo:?} checksum"),
-        )),
-    }
-}
-
-/// Parse the full-object checksum S3 reports for `algo` from a base64 value.
+/// Parse a checksum S3 reports for `algo` from a base64 value.
 pub fn parse_s3_checksum(algo: ChecksumAlgo, value: &str) -> Option<Checksum> {
     let value = BASE64_STANDARD.decode(value).ok()?;
     (value.len() == algo.digest_len()).then(|| Checksum::new(algo, value))
@@ -292,6 +276,29 @@ impl Debug for S3Core {
 }
 
 impl S3Core {
+    /// Select an algorithm that verifies the full object before PutObject and
+    /// multipart uploads commit. With no requested algorithm, use the service default.
+    pub fn write_checksum_algorithm(
+        &self,
+        requested: Option<ChecksumAlgo>,
+    ) -> Result<ChecksumAlgorithm> {
+        match (self.info.scheme(), requested) {
+            (_, Some(ChecksumAlgo::Crc32c)) | (crate::CEPH_RGW_SCHEME, None) => {
+                Ok(ChecksumAlgorithm::Crc32c)
+            }
+            // RGW can commit a multipart upload with an incorrect CRC64NVME.
+            (crate::CEPH_RGW_SCHEME, Some(ChecksumAlgo::Crc64Nvme)) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "Ceph RGW does not support full-object CRC64NVME verification",
+            )),
+            (_, None | Some(ChecksumAlgo::Crc64Nvme)) => Ok(ChecksumAlgorithm::Crc64Nvme),
+            (_, Some(algo)) => Err(Error::new(
+                ErrorKind::Unsupported,
+                format!("S3 does not support a full-object {algo:?} checksum"),
+            )),
+        }
+    }
+
     pub(crate) fn signers(&self, ctx: &OperationContext) -> S3Signers {
         self.signers.get_or_init(ctx.http_transport(), |transport| {
             self.signer_spec
@@ -789,6 +796,10 @@ impl S3Core {
         // A per-write checksum takes precedence over the configured one.
         if let Some((algorithm, value)) = checksum {
             req = req.header(algorithm.to_header_name(), value);
+            if self.info.scheme() == crate::CEPH_RGW_SCHEME {
+                // RGW 20.2.5 ignores a checksum on PutObject without an algorithm header.
+                req = req.header("x-amz-sdk-checksum-algorithm", algorithm.to_string());
+            }
         } else if size.is_some()
             // Calculate checksum only when we have an actual payload (`size.is_some()`).
             // Presigned PUT requests pass `size = None` with a placeholder empty buffer
@@ -1978,7 +1989,7 @@ mod tests {
             .bucket("example")
             .region("us-east-1")
             .skip_signature()
-            .build_with_scheme(crate::S3_SCHEME, false)
+            .build_with_scheme(crate::S3_SCHEME)
             .unwrap();
         let cases = [
             (Some((StatusCode::NO_CONTENT, "")), None),

@@ -375,7 +375,21 @@ impl CachedReader {
         else {
             return Ok(None);
         };
-        let Some(discovery) = result? else {
+        let Some(discovery) = (match result {
+            Ok(discovery) => discovery,
+            // A full read was rewritten into a bounded range probe; if the
+            // source permanently rejects or ignores the synthetic range (for
+            // example, an HTTP endpoint returning 200 OK instead of 206), fall
+            // back to the caller's original full read before yielding bytes.
+            Err(FillError::Origin(error))
+                if range.is_full()
+                    && !error.is_temporary()
+                    && matches!(error.kind(), ErrorKind::Unexpected | ErrorKind::Unsupported) =>
+            {
+                return Ok(None);
+            }
+            Err(error) => return Err(error),
+        }) else {
             return Ok(None);
         };
         if discovery.published {

@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt;
-use std::sync::Arc;
 
 use bytes::Buf;
 
@@ -99,8 +98,7 @@ use crate::*;
 /// - Services that doesn't support append will return [`ErrorKind::Unsupported`] error when
 ///   creating writer with `append` enabled.
 pub struct Writer {
-    /// Keep a reference to write context in writer.
-    ctx: Arc<WriteContext>,
+    ctx: WriteContext,
     inner: WriteState,
 }
 
@@ -116,8 +114,7 @@ impl fmt::Debug for Writer {
 impl Writer {
     /// Create a new writer from an `oio::Writer`.
     pub(crate) fn new(ctx: WriteContext) -> Result<Self> {
-        let ctx = Arc::new(ctx);
-        let inner = WriteState::create(ctx.clone())?;
+        let inner = WriteState::create(&ctx)?;
 
         Ok(Self { ctx, inner })
     }
@@ -294,7 +291,7 @@ impl Writer {
             OpRead::from_options(&self.ctx.service().capability(), options)
                 .map_err(|err| err.with_context("service", self.ctx.service().info().scheme()))?;
         self.inner
-            .copy_from(&path, args, options, range, limit)
+            .copy_from(&self.ctx, &path, args, options, range, limit)
             .await
     }
 
@@ -509,9 +506,12 @@ mod tests {
     use bytes::{Buf, Bytes};
     use rand::{Rng, RngExt};
 
+    use crate::Buffer;
     use crate::BytesRange;
     use crate::Capability;
+    use crate::Error;
     use crate::ErrorKind;
+    use crate::Metadata;
     use crate::OperationContext;
     use crate::Operator;
     use crate::Result;
@@ -944,6 +944,474 @@ mod tests {
         assert_eq!(err.kind(), ErrorKind::Unsupported);
         assert!(err.to_string().contains("version"));
         writer.abort().await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_writer_terminal_state_rejects_writes_across_chunking_and_adapters() -> Result<()>
+    {
+        use futures::{AsyncWriteExt, SinkExt};
+
+        let op = Operator::new(services::Memory::default())?;
+
+        // 1. Default writer: close() is terminal for non-empty writes and keeps empty direct writes no-ops.
+        let mut w = op.writer("default-closed").await?;
+        w.write("old").await?;
+        w.close().await?;
+        w.write("").await?;
+        w.write_from(Bytes::new()).await?;
+        let err = w.write("x").await.expect_err("write after close must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        let err = w.close().await.expect_err("second close must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(op.read("default-closed").await?.to_bytes(), "old");
+
+        // 2. Chunked writer: write("x") after close() fails, while empty direct writes remain no-ops.
+        let mut w = op.writer_with("chunked-closed").chunk(8).await?;
+        w.write("old").await?;
+        w.close().await?;
+        w.write("").await?;
+        w.write_from(Bytes::new()).await?;
+        let err = w
+            .write("x")
+            .await
+            .expect_err("chunked write after close must fail immediately");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        let err = w.close().await.expect_err("second close must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(op.read("chunked-closed").await?.to_bytes(), "old");
+
+        // 3. Writers reject all direct writes (including empty ones) after abort().
+        let mut w = op.writer("default-aborted").await?;
+        w.write("old").await?;
+        w.abort().await?;
+        let err = w
+            .write("")
+            .await
+            .expect_err("empty write after abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        let err = w
+            .write_from(Bytes::new())
+            .await
+            .expect_err("empty write_from after abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        let mut w = op.writer_with("chunked-aborted").chunk(8).await?;
+        w.write("old").await?;
+        w.abort().await?;
+        let err = w
+            .write("")
+            .await
+            .expect_err("chunked empty write after abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        let err = w
+            .write("x")
+            .await
+            .expect_err("chunked write after abort must fail immediately");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        // 4. Adapter conversions after close() and abort() must reject at submission (feed, not flush).
+        let mut w = op.writer("closed-async").await?;
+        w.write("old").await?;
+        w.close().await?;
+        let mut async_w = w.into_futures_async_write();
+        let err = async_w
+            .write_all(b"x")
+            .await
+            .expect_err("FuturesAsyncWriter::write after close must fail");
+        assert_eq!(err.kind(), std::io::ErrorKind::Other);
+        assert_eq!(op.read("closed-async").await?.to_bytes(), "old");
+
+        let mut w = op.writer("closed-sink").await?;
+        w.write("old").await?;
+        w.close().await?;
+        let mut sink = w.into_sink();
+        let err = sink
+            .feed(Buffer::from("x"))
+            .await
+            .expect_err("BufferSink::feed after close must reject immediately");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(op.read("closed-sink").await?.to_bytes(), "old");
+
+        let mut w = op.writer("closed-bytes-sink").await?;
+        w.write("old").await?;
+        w.close().await?;
+        let mut bytes_sink = w.into_bytes_sink();
+        let err = bytes_sink
+            .feed(Bytes::from_static(b"x"))
+            .await
+            .expect_err("FuturesBytesSink::feed after close must reject immediately");
+        assert_eq!(err.kind(), std::io::ErrorKind::Other);
+        assert_eq!(op.read("closed-bytes-sink").await?.to_bytes(), "old");
+
+        // 5. Adapter conversion after abort() must reject at submission too.
+        let mut w = op.writer("aborted-async").await?;
+        w.write("old").await?;
+        w.abort().await?;
+        let mut async_w = w.into_futures_async_write();
+        let err = async_w
+            .write_all(b"x")
+            .await
+            .expect_err("FuturesAsyncWriter::write after abort must fail");
+        assert_eq!(err.kind(), std::io::ErrorKind::Other);
+
+        let mut w = op.writer("aborted-sink").await?;
+        w.write("old").await?;
+        w.abort().await?;
+        let mut sink = w.into_sink();
+        let err = sink
+            .feed(Buffer::from("x"))
+            .await
+            .expect_err("BufferSink::feed after abort must reject immediately");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        let mut w = op.writer("aborted-bytes-sink").await?;
+        w.write("old").await?;
+        w.abort().await?;
+        let mut bytes_sink = w.into_bytes_sink();
+        let err = bytes_sink
+            .feed(Bytes::from_static(b"x"))
+            .await
+            .expect_err("FuturesBytesSink::feed after abort must reject immediately");
+        assert_eq!(err.kind(), std::io::ErrorKind::Other);
+
+        Ok(())
+    }
+
+    #[cfg(feature = "blocking")]
+    #[test]
+    fn test_blocking_into_std_write_terminal_drops_in_tokio_runtime() -> Result<()> {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        #[derive(Debug)]
+        struct DropCheckService {
+            inner: Servicer,
+            fail_abort: bool,
+            dropped: Arc<AtomicBool>,
+            dropped_in_runtime: Arc<AtomicBool>,
+        }
+
+        impl Service for DropCheckService {
+            type Reader = oio::Reader;
+            type Writer = oio::Writer;
+            type Lister = ();
+            type Deleter = ();
+            type Copier = ();
+            type Composer = ();
+
+            fn info(&self) -> ServiceInfo {
+                self.inner.info()
+            }
+
+            fn capability(&self) -> Capability {
+                self.inner.capability()
+            }
+
+            async fn create_dir(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpCreateDir,
+            ) -> Result<RpCreateDir> {
+                unreachable!()
+            }
+
+            async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+                unreachable!()
+            }
+
+            fn read(
+                &self,
+                ctx: &OperationContext,
+                path: &str,
+                args: OpRead,
+            ) -> Result<Self::Reader> {
+                self.inner.read(ctx, path, args)
+            }
+
+            fn write(
+                &self,
+                ctx: &OperationContext,
+                path: &str,
+                args: OpWrite,
+            ) -> Result<Self::Writer> {
+                let inner = self.inner.write(ctx, path, args)?;
+                Ok(Box::new(DropCheckWriter {
+                    inner,
+                    fail_abort: self.fail_abort,
+                    dropped: self.dropped.clone(),
+                    dropped_in_runtime: self.dropped_in_runtime.clone(),
+                }))
+            }
+
+            fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+                unreachable!()
+            }
+
+            fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+                unreachable!()
+            }
+
+            fn copy(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpCopy,
+            ) -> Result<Self::Copier> {
+                unreachable!()
+            }
+
+            async fn rename(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpRename,
+            ) -> Result<RpRename> {
+                unreachable!()
+            }
+
+            async fn presign(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpPresign,
+            ) -> Result<RpPresign> {
+                unreachable!()
+            }
+        }
+
+        struct DropCheckWriter {
+            inner: oio::Writer,
+            fail_abort: bool,
+            dropped: Arc<AtomicBool>,
+            dropped_in_runtime: Arc<AtomicBool>,
+        }
+
+        impl oio::Write for DropCheckWriter {
+            async fn write(&mut self, bs: Buffer) -> Result<()> {
+                self.inner.write(bs).await
+            }
+
+            async fn close(&mut self) -> Result<Metadata> {
+                self.inner.close().await
+            }
+
+            async fn abort(&mut self) -> Result<()> {
+                if self.fail_abort {
+                    return Err(Error::new(ErrorKind::Unexpected, "abort failed"));
+                }
+                self.inner.abort().await
+            }
+        }
+
+        impl Drop for DropCheckWriter {
+            fn drop(&mut self) {
+                self.dropped.store(true, Ordering::SeqCst);
+                self.dropped_in_runtime.store(
+                    tokio::runtime::Handle::try_current().is_ok(),
+                    Ordering::SeqCst,
+                );
+            }
+        }
+
+        for case in ["close", "abort_ok", "abort_err"] {
+            let dropped = Arc::new(AtomicBool::new(false));
+            let dropped_in_runtime = Arc::new(AtomicBool::new(false));
+
+            let op = Operator::new(services::Memory::default())?;
+            let (ctx, inner) = op.into_parts();
+            let op = Operator::from_parts(
+                ctx,
+                Arc::new(DropCheckService {
+                    inner,
+                    fail_abort: case == "abort_err",
+                    dropped: dropped.clone(),
+                    dropped_in_runtime: dropped_in_runtime.clone(),
+                }),
+            );
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let blocking_op = {
+                let _guard = rt.enter();
+                crate::blocking::Operator::new(op)?
+            };
+
+            let mut w = blocking_op.writer(&format!("std-drop-{case}"))?;
+            w.write("old")?;
+            match case {
+                "close" => {
+                    w.close()?;
+                }
+                "abort_ok" => {
+                    w.abort()?;
+                }
+                "abort_err" => {
+                    assert!(w.abort().is_err());
+                }
+                _ => unreachable!(),
+            }
+
+            // Converting a terminal writer on a non-runtime thread must not drop it there;
+            // StdWriter::drop handles the final drop inside self.handle.block_on(...).
+            let std_w = w.into_std_write();
+            assert!(!dropped.load(Ordering::SeqCst), "case={case}");
+            drop(std_w);
+            assert!(dropped.load(Ordering::SeqCst), "case={case}");
+            assert!(dropped_in_runtime.load(Ordering::SeqCst), "case={case}");
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_chunked_writer_temporary_close_failure_remains_retryable() -> Result<()> {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        #[derive(Debug)]
+        struct FailOnceCloseService {
+            inner: Servicer,
+            fail_close: Arc<AtomicBool>,
+        }
+
+        impl Service for FailOnceCloseService {
+            type Reader = oio::Reader;
+            type Writer = oio::Writer;
+            type Lister = ();
+            type Deleter = ();
+            type Copier = ();
+            type Composer = ();
+
+            fn info(&self) -> ServiceInfo {
+                self.inner.info()
+            }
+
+            fn capability(&self) -> Capability {
+                self.inner.capability()
+            }
+
+            async fn create_dir(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpCreateDir,
+            ) -> Result<RpCreateDir> {
+                unreachable!()
+            }
+
+            async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+                unreachable!()
+            }
+
+            fn read(
+                &self,
+                ctx: &OperationContext,
+                path: &str,
+                args: OpRead,
+            ) -> Result<Self::Reader> {
+                self.inner.read(ctx, path, args)
+            }
+
+            fn write(
+                &self,
+                ctx: &OperationContext,
+                path: &str,
+                args: OpWrite,
+            ) -> Result<Self::Writer> {
+                let w = self.inner.write(ctx, path, args)?;
+                Ok(Box::new(FailOnceCloseWriter {
+                    inner: w,
+                    fail_close: self.fail_close.clone(),
+                }))
+            }
+
+            fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+                unreachable!()
+            }
+
+            fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+                unreachable!()
+            }
+
+            fn copy(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpCopy,
+            ) -> Result<Self::Copier> {
+                unreachable!()
+            }
+
+            async fn rename(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpRename,
+            ) -> Result<RpRename> {
+                unreachable!()
+            }
+
+            async fn presign(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpPresign,
+            ) -> Result<RpPresign> {
+                unreachable!()
+            }
+        }
+
+        struct FailOnceCloseWriter {
+            inner: oio::Writer,
+            fail_close: Arc<AtomicBool>,
+        }
+
+        impl oio::Write for FailOnceCloseWriter {
+            async fn write(&mut self, bs: Buffer) -> Result<()> {
+                self.inner.write(bs).await
+            }
+
+            async fn close(&mut self) -> Result<Metadata> {
+                if self.fail_close.swap(false, Ordering::SeqCst) {
+                    return Err(Error::new(ErrorKind::Unexpected, "temporary close failure")
+                        .set_temporary());
+                }
+                self.inner.close().await
+            }
+
+            async fn abort(&mut self) -> Result<()> {
+                self.inner.abort().await
+            }
+        }
+
+        let op = Operator::new(services::Memory::default())?;
+        let (ctx, inner) = op.into_parts();
+        let op = Operator::from_parts(
+            ctx,
+            Arc::new(FailOnceCloseService {
+                inner,
+                fail_close: Arc::new(AtomicBool::new(true)),
+            }),
+        );
+
+        let mut w = op.writer_with("retry-close").chunk(8).await?;
+        w.write("old").await?;
+
+        let err = w.close().await.expect_err("first close must fail");
+        assert!(err.to_string().contains("temporary close failure"));
+
+        // Retry after temporary close failure must still commit and then transition to terminal closed.
+        w.close().await?;
+        assert_eq!(op.read("retry-close").await?.to_bytes(), "old");
+
+        let err = w
+            .write("x")
+            .await
+            .expect_err("write after retried close succeeds must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
 
         Ok(())
     }

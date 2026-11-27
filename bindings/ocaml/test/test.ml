@@ -480,6 +480,25 @@ let test_config_duplicate_key_last_wins _ =
   let info = Operator.info bo in
   assert_equal "/second/" (Operator.OperatorInfo.root info)
 
+(* Compile-time check: wrappers that re-include [Capability] must still match
+   the signature of [Opendal.Operator]. This fails to type-check if
+   [operator.mli] exposes [Capability] as a module alias. *)
+module Wrapped_operator : module type of Opendal.Operator = struct
+  include Opendal.Operator
+
+  module Capability = struct
+    include Opendal.Operator.Capability
+  end
+end
+
+(** Test that a structurally re-exported Capability module still works *)
+let test_capability_wrapper _ =
+  let bo = new_test_memory_operator () in
+  let cap = Operator.OperatorInfo.capability (Operator.info bo) in
+  assert_equal
+    (Operator.Capability.read cap)
+    (Wrapped_operator.Capability.read cap)
+
 let suite =
   "OCaml OpenDAL Test Suite"
   >::: [
@@ -508,6 +527,7 @@ let suite =
          "test_invalid_utf8_rejected" >:: test_invalid_utf8_rejected;
          "test_config_duplicate_key_last_wins"
          >:: test_config_duplicate_key_last_wins;
+         "test_capability_wrapper" >:: test_capability_wrapper;
        ]
 
 let () = run_test_tt_main suite

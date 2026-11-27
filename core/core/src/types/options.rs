@@ -829,11 +829,17 @@ pub struct WriteOptions {
     /// `Algo` and `Expected`. An expected digest of the wrong length returns
     /// [`crate::ErrorKind::ConfigInvalid`].
     ///
-    /// A checksum rejection before commit returns
-    /// [`crate::ErrorKind::ChecksumMismatch`] and leaves previously committed
-    /// data intact, including any earlier successful append blocks. Failure
-    /// to confirm a required checksum after commit returns
-    /// [`crate::ErrorKind::Unexpected`] and new data may already be visible.
+    /// A checksum rejection before commit leaves previously committed data
+    /// intact, including earlier successful append blocks. A rejected
+    /// whole-file creation leaves the key absent. OpenDAL returns
+    /// [`crate::ErrorKind::ChecksumMismatch`] for a recognized pre-commit
+    /// checksum rejection. If OpenDAL cannot identify the rejection in the
+    /// service response, it propagates the service error, which may be
+    /// a non-temporary [`crate::ErrorKind::Unexpected`].
+    ///
+    /// Failure to confirm a required checksum after commit returns a
+    /// non-temporary [`crate::ErrorKind::Unexpected`] and new data may already
+    /// be visible. `Unexpected` alone leaves the commit status unknown.
     ///
     /// See the [checksum specification][crate::docs::specs::checksum].
     pub checksum: Option<WriteChecksum>,

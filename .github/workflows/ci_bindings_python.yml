@@ -30,6 +30,7 @@ on:
       - "!core/core/src/docs/**"
       - "core/http-transports/**"
       - "core/layers/mime-guess/**"
+      - "dev/src/generate/**"
       - "bindings/python/**"
       - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_python.yml"
@@ -134,16 +135,22 @@ jobs:
         working-directory: "bindings/python"
         run: |
           uv venv --python=python3.11
-          uv sync --locked --all-extras --group cookbook
-          uv run -- maturin develop
+          uv sync --locked --all-extras --group cookbook --group docs
+          uv run --no-sync -- maturin develop
 
       # Examples back the snippets shown in the website guide. Running them keeps
       # the docs honest: a broken example fails CI instead of shipping bad docs.
       - name: Run guide examples
         shell: bash
         working-directory: "bindings/python"
-        run: uv run -- python examples/getting_started.py
+        run: uv run --no-sync -- python examples/getting_started.py
 
       - name: Run cookbook notebooks
         working-directory: bindings/python
         run: just test-notebooks
+
+      - name: Build docs
+        working-directory: bindings/python
+        run: |
+          uv run --no-sync jupyter nbconvert --to markdown docs/examples/*.ipynb
+          uv run --no-sync sphinx-build -W --keep-going -n -b dirhtml docs docs/_build/html

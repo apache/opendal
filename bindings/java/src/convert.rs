@@ -111,6 +111,23 @@ pub(crate) fn string_to_jstring<'a>(env: &mut Env<'a>, s: Option<&str>) -> Resul
     s.map_or_else(|| Ok(JObject::null()), |v| Ok(env.new_string(v)?.into()))
 }
 
+pub(crate) fn option_bool_to_jboolean_object<'a>(
+    env: &mut Env<'a>,
+    value: Option<bool>,
+) -> Result<JObject<'a>> {
+    let Some(value) = value else {
+        return Ok(JObject::null());
+    };
+    Ok(env
+        .call_static_method(
+            jni_str!("java/lang/Boolean"),
+            jni_str!("valueOf"),
+            jni_sig!("(Z)Ljava/lang/Boolean;"),
+            &[JValue::Bool(value)],
+        )?
+        .l()?)
+}
+
 pub(crate) fn entry_mode_to_jint(mode: EntryMode) -> jint {
     match mode {
         EntryMode::FILE => 0,

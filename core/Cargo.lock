@@ -7374,9 +7374,11 @@ version = "0.59.5"
 dependencies = [
  "bytes",
  "futures",
+ "http 1.5.0",
  "opendal-core",
  "opendal-executor-tokio",
  "opendal-service-fs",
+ "opendal-service-http",
  "sha2 0.11.0",
  "tempfile",
  "tokio",
@@ -7841,6 +7843,8 @@ name = "opendal-service-cos"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "crc-fast",
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",
@@ -8365,6 +8369,7 @@ name = "opendal-service-oss"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "crc-fast",
  "futures",
  "http 1.5.0",
  "log",
@@ -8571,6 +8576,8 @@ name = "opendal-service-tos"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "crc-fast",
+ "futures",
  "http 1.5.0",
  "opendal-core",
  "quick-xml",
@@ -8579,6 +8586,7 @@ dependencies = [
  "reqsign-volcengine-tos",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

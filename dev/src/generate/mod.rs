@@ -19,6 +19,7 @@ mod c;
 mod capabilities_docs;
 mod capability;
 mod core_options;
+mod cpp;
 mod docs;
 mod dotnet;
 mod gcs_grpc;
@@ -51,6 +52,9 @@ pub fn run(language: &str) -> Result<()> {
     }
     if language == "ocaml" {
         return ocaml::generate(&workspace_dir);
+    }
+    if language == "cpp" {
+        return cpp::generate(&workspace_dir);
     }
 
     let mut services = parser::Services::new();

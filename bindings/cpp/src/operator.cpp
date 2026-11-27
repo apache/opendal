@@ -23,6 +23,7 @@
 
 #include "lib.rs.h"
 #include "opendal.hpp"
+#include "utils/capability_converter.hpp"
 #include "utils/ffi_converter.hpp"
 #include "utils/rust_converter.hpp"
 
@@ -441,45 +442,7 @@ Writer Operator::GetWriter(std::string_view path, const WriteOptions &options) {
 }
 
 Capability Operator::Info() {
-  const auto op_info = CheckedOperator(operator_).info();
-  Capability capability{};
-  capability.stat = op_info.stat;
-  capability.stat_with_if_match = op_info.stat_with_if_match;
-  capability.stat_with_if_none_match = op_info.stat_with_if_none_match;
-  capability.read = op_info.read;
-  capability.read_with_if_match = op_info.read_with_if_match;
-  capability.read_with_if_none_match = op_info.read_with_if_none_match;
-  capability.read_with_override_cache_control =
-      op_info.read_with_override_cache_control;
-  capability.read_with_override_content_disposition =
-      op_info.read_with_override_content_disposition;
-  capability.read_with_override_content_type =
-      op_info.read_with_override_content_type;
-  capability.write = op_info.write;
-  capability.write_can_multi = op_info.write_can_multi;
-  capability.write_can_empty = op_info.write_can_empty;
-  capability.write_can_append = op_info.write_can_append;
-  capability.write_with_content_type = op_info.write_with_content_type;
-  capability.write_with_content_disposition =
-      op_info.write_with_content_disposition;
-  capability.write_with_cache_control = op_info.write_with_cache_control;
-  capability.write_multi_max_size = op_info.write_multi_max_size;
-  capability.write_multi_min_size = op_info.write_multi_min_size;
-  capability.write_total_max_size = op_info.write_total_max_size;
-  capability.create_dir = op_info.create_dir;
-  capability.delete_feature = op_info.delete_feature;
-  capability.copy = op_info.copy;
-  capability.rename = op_info.rename;
-  capability.list = op_info.list;
-  capability.list_with_limit = op_info.list_with_limit;
-  capability.list_with_start_after = op_info.list_with_start_after;
-  capability.list_with_recursive = op_info.list_with_recursive;
-  capability.presign = op_info.presign;
-  capability.presign_read = op_info.presign_read;
-  capability.presign_stat = op_info.presign_stat;
-  capability.presign_write = op_info.presign_write;
-  capability.shared = op_info.shared;
-  return capability;
+  return utils::parse_capability(CheckedOperator(operator_).info());
 }
 
 }  // namespace opendal

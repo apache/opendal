@@ -17,6 +17,7 @@
 
 #[cfg(feature = "async")]
 mod r#async;
+mod capability;
 mod layer;
 mod lister;
 mod reader;
@@ -183,41 +184,6 @@ mod ffi {
         value: Entry,
     }
 
-    struct Capability {
-        stat: bool,
-        stat_with_if_match: bool,
-        stat_with_if_none_match: bool,
-        read: bool,
-        read_with_if_match: bool,
-        read_with_if_none_match: bool,
-        read_with_override_cache_control: bool,
-        read_with_override_content_disposition: bool,
-        read_with_override_content_type: bool,
-        write: bool,
-        write_can_multi: bool,
-        write_can_empty: bool,
-        write_can_append: bool,
-        write_with_content_type: bool,
-        write_with_content_disposition: bool,
-        write_with_cache_control: bool,
-        write_multi_max_size: usize,
-        write_multi_min_size: usize,
-        write_total_max_size: usize,
-        create_dir: bool,
-        delete_feature: bool,
-        copy: bool,
-        rename: bool,
-        list: bool,
-        list_with_limit: bool,
-        list_with_start_after: bool,
-        list_with_recursive: bool,
-        presign: bool,
-        presign_read: bool,
-        presign_stat: bool,
-        presign_write: bool,
-        shared: bool,
-    }
-
     struct Metadata {
         mode: EntryMode,
         content_length: u64,
@@ -236,6 +202,12 @@ mod ffi {
 
     struct Entry {
         path: String,
+    }
+
+    // Generated from core by `dev/src/generate/cpp.rs`; see src/capability.rs.
+    unsafe extern "C++" {
+        include!("opendal-cpp/src/capability.rs.h");
+        type Capability = crate::capability::ffi::Capability;
     }
 
     extern "Rust" {
@@ -692,43 +664,7 @@ impl Operator {
         Ok(writer)
     }
 
-    fn info(&self) -> Result<ffi::Capability> {
-        let info = self.0.info();
-        let cap = info.capability();
-
-        Ok(ffi::Capability {
-            stat: cap.stat,
-            stat_with_if_match: cap.stat_with_if_match,
-            stat_with_if_none_match: cap.stat_with_if_none_match,
-            read: cap.read,
-            read_with_if_match: cap.read_with_if_match,
-            read_with_if_none_match: cap.read_with_if_none_match,
-            read_with_override_cache_control: cap.read_with_override_cache_control,
-            read_with_override_content_disposition: cap.read_with_override_content_disposition,
-            read_with_override_content_type: cap.read_with_override_content_type,
-            write: cap.write,
-            write_can_multi: cap.write_can_multi,
-            write_can_empty: cap.write_can_empty,
-            write_can_append: cap.write_can_append,
-            write_with_content_type: cap.write_with_content_type,
-            write_with_content_disposition: cap.write_with_content_disposition,
-            write_with_cache_control: cap.write_with_cache_control,
-            write_multi_max_size: cap.write_multi_max_size.unwrap_or(0),
-            write_multi_min_size: cap.write_multi_min_size.unwrap_or(0),
-            write_total_max_size: cap.write_total_max_size.unwrap_or(0),
-            create_dir: cap.create_dir,
-            delete_feature: cap.delete,
-            copy: cap.copy,
-            rename: cap.rename,
-            list: cap.list,
-            list_with_limit: cap.list_with_limit,
-            list_with_start_after: cap.list_with_start_after,
-            list_with_recursive: cap.list_with_recursive,
-            presign: cap.presign,
-            presign_read: cap.presign_read,
-            presign_stat: cap.presign_stat,
-            presign_write: cap.presign_write,
-            shared: cap.shared,
-        })
+    fn info(&self) -> Result<capability::ffi::Capability> {
+        Ok(self.0.info().capability().into())
     }
 }

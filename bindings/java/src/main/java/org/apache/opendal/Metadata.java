@@ -24,28 +24,44 @@ package org.apache.opendal;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NonNull;
 
 /**
  * Metadata carries all metadata associated with a path.
  */
 @Data
+@Builder(toBuilder = true)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Metadata {
 
     /**
      * Return this entry's mode.
      */
-    public final EntryMode mode;
+    public final @NonNull EntryMode mode;
+
+    /**
+     * Return whether this metadata describes the current object version. Returns {@code null} when the service did not report whether the version is current.
+     */
+    public final Boolean current;
+
+    /**
+     * Return whether this metadata describes a deleted object or delete marker.
+     */
+    public final boolean deleted;
+
+    /**
+     * Return this entry's Cache-Control value.
+     */
+    public final String cacheControl;
 
     /**
      * Return the full content length of this entry.
      */
     public final long contentLength;
-
-    /**
-     * Return this entry's Content-Disposition value.
-     */
-    public final String contentDisposition;
 
     /**
      * Return this entry's Content-MD5 value.
@@ -58,9 +74,19 @@ public class Metadata {
     public final String contentType;
 
     /**
-     * Return this entry's Cache-Control value.
+     * Return this entry's Content-Encoding value.
      */
-    public final String cacheControl;
+    public final String contentEncoding;
+
+    /**
+     * Return this entry's Content-Language value, if available.
+     */
+    public final String contentLanguage;
+
+    /**
+     * Return this entry's Last-Modified timestamp.
+     */
+    public final Instant lastModified;
 
     /**
      * Return this entry's service-provided ETag as-is.
@@ -68,9 +94,9 @@ public class Metadata {
     public final String etag;
 
     /**
-     * Return this entry's Last-Modified timestamp.
+     * Return this entry's Content-Disposition value.
      */
-    public final Instant lastModified;
+    public final String contentDisposition;
 
     /**
      * Return this entry's service-specific version identifier.
@@ -82,6 +108,50 @@ public class Metadata {
      */
     public final Map<String, String> userMetadata;
 
+    /** Builder for {@link Metadata}. */
+    public static class MetadataBuilder {
+        private EntryMode mode = EntryMode.UNKNOWN;
+        private Map<String, String> userMetadata = Collections.emptyMap();
+    }
+
+    private Metadata(
+            int mode,
+            Boolean current,
+            boolean deleted,
+            String cacheControl,
+            long contentLength,
+            String contentMd5,
+            String contentType,
+            String contentEncoding,
+            String contentLanguage,
+            Instant lastModified,
+            String etag,
+            String contentDisposition,
+            String version,
+            Map<String, String> userMetadata) {
+        this(
+                EntryMode.of(mode),
+                current,
+                deleted,
+                cacheControl,
+                contentLength,
+                contentMd5,
+                contentType,
+                contentEncoding,
+                contentLanguage,
+                lastModified,
+                etag,
+                contentDisposition,
+                version,
+                userMetadata);
+    }
+
+    /**
+     * Creates metadata with an empty user metadata map.
+     *
+     * @deprecated Use {@code Metadata.builder()} instead.
+     */
+    @Deprecated
     public Metadata(
             int mode,
             long contentLength,
@@ -105,6 +175,12 @@ public class Metadata {
                 Collections.emptyMap());
     }
 
+    /**
+     * Creates metadata with the supplied user metadata map.
+     *
+     * @deprecated Use {@code Metadata.builder()} instead.
+     */
+    @Deprecated
     public Metadata(
             int mode,
             long contentLength,
@@ -117,13 +193,17 @@ public class Metadata {
             String version,
             Map<String, String> userMetadata) {
         this.mode = EntryMode.of(mode);
+        this.current = null;
+        this.deleted = false;
+        this.cacheControl = cacheControl;
         this.contentLength = contentLength;
-        this.contentDisposition = contentDisposition;
         this.contentMd5 = contentMd5;
         this.contentType = contentType;
-        this.cacheControl = cacheControl;
-        this.etag = etag;
+        this.contentEncoding = null;
+        this.contentLanguage = null;
         this.lastModified = lastModified;
+        this.etag = etag;
+        this.contentDisposition = contentDisposition;
         this.version = version;
         this.userMetadata = userMetadata;
     }

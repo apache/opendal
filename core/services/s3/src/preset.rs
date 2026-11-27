@@ -154,7 +154,12 @@ pub(crate) struct Connection {
 }
 
 impl Connection {
-    pub(crate) fn build(self, mut config: S3Config, scheme: &'static str) -> Result<S3Backend> {
+    pub(crate) fn build(
+        self,
+        mut config: S3Config,
+        scheme: &'static str,
+        write_checksum: bool,
+    ) -> Result<S3Backend> {
         validate_required(&config.bucket, scheme, "bucket must not be empty")?;
         validate_required(&self.region, scheme, "region must not be empty")?;
         let credential_providers = credential_chain(&config, scheme)?;
@@ -211,6 +216,7 @@ impl Connection {
         S3Builder::from_provider_config(config, credential_providers).build_with_resolved_endpoint(
             scheme,
             endpoint.as_str().trim_end_matches('/').to_owned(),
+            write_checksum,
         )
     }
 }
@@ -224,6 +230,7 @@ macro_rules! provider_preset {
         optional { $( $optional:ident : $optional_doc:literal ),+ $(,)? }
         flags { $( $flag:ident : $flag_doc:literal ),* $(,)? }
         $( token: $session_token:ident; )?
+        $( write_checksum: $write_checksum:ident; )?
     ) => {
         #[doc = concat!("URI scheme for the `", $name, "` preset.")]
         pub const $scheme: &str = $name;
@@ -285,7 +292,8 @@ macro_rules! provider_preset {
                     disable_config_load: self.config.disable_config_load,
                     ..Default::default()
                 };
-                connection.build(config, $scheme)
+                let write_checksum = None$(.or(self.config.$write_checksum))?.unwrap_or_default();
+                connection.build(config, $scheme, write_checksum)
             }
         }
 

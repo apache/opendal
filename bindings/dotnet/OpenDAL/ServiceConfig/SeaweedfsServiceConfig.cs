@@ -45,6 +45,10 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public bool? EnableVirtualHostStyle { get; init; }
         /// <summary>
+        /// Opt in to native checksum verification for non-append writes. Defaults to false. Verified with signed path-style requests to SeaweedFS 4.52.
+        /// </summary>
+        public bool? EnableWriteChecksum { get; init; }
+        /// <summary>
         /// HTTP(S) base URL of the deployment’s S3 gateway.
         /// </summary>
         public string? Endpoint { get; init; }
@@ -81,6 +85,10 @@ namespace OpenDAL.ServiceConfig
             if (EnableVirtualHostStyle is not null)
             {
                 map["enable_virtual_host_style"] = Utilities.ToOptionString(EnableVirtualHostStyle);
+            }
+            if (EnableWriteChecksum is not null)
+            {
+                map["enable_write_checksum"] = Utilities.ToOptionString(EnableWriteChecksum);
             }
             if (Endpoint is not null)
             {

@@ -993,18 +993,20 @@ impl S3Builder {
         self,
         scheme: &'static str,
         endpoint: String,
+        preset_write_checksum: bool,
     ) -> Result<S3Backend> {
-        self.build_backend(scheme, Some(endpoint))
+        self.build_backend(scheme, Some(endpoint), preset_write_checksum)
     }
 
     fn build_inner(self, scheme: &'static str) -> Result<S3Backend> {
-        self.build_backend(scheme, None)
+        self.build_backend(scheme, None, false)
     }
 
     fn build_backend(
         self,
         scheme: &'static str,
         resolved_endpoint: Option<String>,
+        preset_write_checksum: bool,
     ) -> Result<S3Backend> {
         debug!("backend build started: {:?}", self);
 
@@ -1237,10 +1239,10 @@ impl S3Builder {
         // only single-shot PutObject supports Content-MD5.
         let s3_write_can_multi = !matches!(checksum_algorithm, Some(ChecksumAlgorithm::Md5));
         // General-purpose S3 verifies full-object CRCs on PutObject and multipart uploads.
-        // Provider presets may accept checksum headers without verifying them.
+        // Presets require an explicit opt-in because checksum support depends on the gateway.
         //
         // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity-upload.html>
-        let s3_can_checksum = scheme == S3_SCHEME && !is_s3_express;
+        let s3_can_checksum = !is_s3_express && (scheme == S3_SCHEME || preset_write_checksum);
 
         let mut capability = Capability {
             stat: true,
@@ -4122,7 +4124,7 @@ mod tests {
     }
 
     #[test]
-    fn test_checksum_capability_only_for_s3_scheme() {
+    fn test_s3_checksum_capability_defaults() {
         let builder = || {
             S3Builder::default()
                 .bucket("test")
@@ -4138,6 +4140,21 @@ mod tests {
             .unwrap()
             .capability();
         assert!(!cap.write_with_checksum);
+
+        let seaweedfs = || {
+            crate::Seaweedfs::default()
+                .bucket("test")
+                .endpoint("http://127.0.0.1:8333")
+        };
+        let defaults = seaweedfs().build().unwrap().capability();
+        assert!(!defaults.write_with_checksum);
+        let cap = seaweedfs()
+            .enable_write_checksum(true)
+            .build()
+            .unwrap()
+            .capability();
+        assert!(cap.write_with_checksum);
+        assert!(!cap.read_with_checksum);
     }
 
     #[test]

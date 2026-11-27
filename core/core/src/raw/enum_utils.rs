@@ -120,6 +120,13 @@ impl<ONE: oio::List, TWO: oio::List> oio::List for TwoWays<ONE, TWO> {
             Self::Two(v) => v.next().await,
         }
     }
+
+    fn next_buffered(&mut self, buffered: oio::BufferedEntries) -> Option<oio::Entry> {
+        match self {
+            Self::One(v) => v.next_buffered(buffered),
+            Self::Two(v) => v.next_buffered(buffered),
+        }
+    }
 }
 
 /// ThreeWays is used to implement traits that based on three ways.
@@ -180,6 +187,14 @@ impl<ONE: oio::List, TWO: oio::List, THREE: oio::List> oio::List for ThreeWays<O
             Self::One(v) => v.next().await,
             Self::Two(v) => v.next().await,
             Self::Three(v) => v.next().await,
+        }
+    }
+
+    fn next_buffered(&mut self, buffered: oio::BufferedEntries) -> Option<oio::Entry> {
+        match self {
+            Self::One(v) => v.next_buffered(buffered),
+            Self::Two(v) => v.next_buffered(buffered),
+            Self::Three(v) => v.next_buffered(buffered),
         }
     }
 }

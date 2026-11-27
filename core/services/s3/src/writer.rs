@@ -135,10 +135,12 @@ impl S3Writer {
                 ));
             }
             let (algorithm, expected) = match intent {
-                WriteChecksum::Any | WriteChecksum::Fast => (ChecksumAlgorithm::Crc64Nvme, None),
-                WriteChecksum::Algo(algo) => (s3_full_object_checksum_algorithm(algo)?, None),
+                WriteChecksum::Any | WriteChecksum::Fast => {
+                    (core.write_checksum_algorithm(None)?, None)
+                }
+                WriteChecksum::Algo(algo) => (core.write_checksum_algorithm(Some(algo))?, None),
                 WriteChecksum::Expected(checksum) => (
-                    s3_full_object_checksum_algorithm(checksum.algo)?,
+                    core.write_checksum_algorithm(Some(checksum.algo))?,
                     Some(BASE64_STANDARD.encode(checksum.value)),
                 ),
                 _ => {

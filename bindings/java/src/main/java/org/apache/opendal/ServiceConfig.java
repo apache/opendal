@@ -770,6 +770,11 @@ public interface ServiceConfig {
          */
         public final Boolean enableVirtualHostStyle;
         /**
+         * <p>Opt in to native CRC32C verification for non-append writes. Defaults to false.
+         * Verified with signed path-style requests to Ceph RGW 20.2.5 and 21.2.0.</p>
+         */
+        public final Boolean enableWriteChecksum;
+        /**
          * <p>HTTP(S) base URL of the RADOS Gateway S3 API.</p>
          */
         public final @NonNull String endpoint;
@@ -803,6 +808,9 @@ public interface ServiceConfig {
             }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (enableWriteChecksum != null) {
+                map.put("enable_write_checksum", String.valueOf(enableWriteChecksum));
             }
             map.put("endpoint", endpoint);
             if (region != null) {

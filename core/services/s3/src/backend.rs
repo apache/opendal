@@ -1650,7 +1650,7 @@ impl Service for S3Backend {
                 let checksum = match v.checksum() {
                     None => None,
                     Some(WriteChecksum::Expected(checksum)) => Some((
-                        s3_full_object_checksum_algorithm(checksum.algo)?,
+                        self.core.write_checksum_algorithm(Some(checksum.algo))?,
                         BASE64_STANDARD.encode(checksum.value),
                     )),
                     Some(_) => {
@@ -4155,6 +4155,28 @@ mod tests {
         let defaults = seaweedfs().build().unwrap().capability();
         assert!(!defaults.write_with_checksum);
         let cap = seaweedfs()
+            .enable_write_checksum(true)
+            .build()
+            .unwrap()
+            .capability();
+        assert!(cap.write_with_checksum);
+        assert!(!cap.read_with_checksum);
+
+        let ceph_rgw = || {
+            crate::CephRgw::default()
+                .bucket("test")
+                .endpoint("http://127.0.0.1:8080")
+        };
+        assert!(!ceph_rgw().build().unwrap().capability().write_with_checksum);
+        assert!(
+            !ceph_rgw()
+                .enable_write_checksum(false)
+                .build()
+                .unwrap()
+                .capability()
+                .write_with_checksum
+        );
+        let cap = ceph_rgw()
             .enable_write_checksum(true)
             .build()
             .unwrap()

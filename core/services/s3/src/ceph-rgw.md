@@ -17,6 +17,20 @@ through the AWS credential environment variables or shared credentials file.
 The [RGW authentication guide](https://docs.ceph.com/en/latest/radosgw/s3/authentication/#presigned-urls)
 describes a deployment option that disables presigned URL authentication.
 
+## Write checksums
+
+Set `enable_write_checksum=true` on a compatible signed RGW endpoint to opt in
+to CRC32C verification for non-append writes. OpenDAL verified signed
+path-style requests on RGW 20.2.5 and 21.2.0. Keep the option disabled on Reef
+18.2.8 and Squid 19.2.7, which accepted incorrect CRC32C values.
+
+`WriteChecksum::Any` and `Fast` select CRC32C. `Algo` and `Expected` accept
+only CRC32C because RGW can commit a multipart upload with an incorrect
+full-object CRC64NVME. A successful checksum write returns the confirmed
+full-object CRC32C in `Metadata::checksum()`. Supply an `Expected` CRC32C for a
+checksum-enabled presigned PUT and send both signed checksum headers with the
+request. Pass a checksum intent on each write that needs verification.
+
 ## Source ETag conditions in writer copies
 
 On Ceph RGW 20.2.5, a bounded native `UploadPartCopy` can accept a stale

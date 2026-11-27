@@ -25,6 +25,7 @@ First, thank you for contributing to OpenDAL! The goal of this document is to pr
 ## Your First Contribution
 
 1. Ensure your change has an issue! Find an [existing issue](https://github.com/apache/opendal/issues) or [open a new issue](https://github.com/apache/opendal/issues/new).
+1. Read [DESIGN.md](DESIGN.md) to align with OpenDAL's architectural boundaries and API design principles.
 1. [Fork the OpenDAL repository](https://github.com/apache/opendal/fork) in your own GitHub account.
 1. [Create a new Git branch](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/creating-and-deleting-branches-within-your-repository).
 1. Make your changes.

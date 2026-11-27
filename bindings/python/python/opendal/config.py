@@ -359,6 +359,8 @@ class CephRgwConfig(TypedDict):
     """Disable loading credentials from AWS environment variables and shared profile files.  Set both `access_key_id` and `secret_access_key` when enabled."""
     enable_virtual_host_style: NotRequired[bool]
     """Use virtual-hosted-style addressing when the gateway has a matching `rgw_dns_name` or zonegroup hostname."""
+    enable_write_checksum: NotRequired[bool]
+    """Opt in to native CRC32C verification for non-append writes. Defaults to false. Verified with signed path-style requests to Ceph RGW 20.2.5 and 21.2.0."""
     endpoint: Required[str]
     """HTTP(S) base URL of the RADOS Gateway S3 API."""
     region: NotRequired[str]

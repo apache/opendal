@@ -50,6 +50,13 @@ pub struct CephRgwConfig {
     /// <!-- @group General -->
     /// <!-- @default false -->
     pub enable_virtual_host_style: Option<bool>,
+    /// Opt in to native CRC32C verification for non-append writes. Defaults to false.
+    /// Verified with signed path-style requests to Ceph RGW 20.2.5 and 21.2.0.
+    ///
+    /// <!-- @group Write -->
+    /// <!-- @default false -->
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_write_checksum: Option<bool>,
     /// Access key ID. Set this field together with `secret_access_key`.
     ///
     /// <!-- @group Credentials -->
@@ -94,5 +101,91 @@ preset::provider_preset! {
     }
     flags {
         enable_virtual_host_style: "Set whether to use virtual-hosted-style addressing.",
+        enable_write_checksum: "Opt in to native CRC32C verification for non-append writes.",
+    }
+    write_checksum: enable_write_checksum;
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use opendal_core::{
+        Checksum, ChecksumAlgo, ErrorKind, Operator, Result, WriteChecksum, options,
+    };
+
+    use super::{CephRgw, CephRgwConfig};
+
+    #[test]
+    fn write_checksum_config_round_trip() {
+        for enabled in [None, Some(false), Some(true)] {
+            let config = CephRgwConfig {
+                enable_write_checksum: enabled,
+                ..Default::default()
+            };
+            let serialized = serde_json::to_value(&config).unwrap();
+            assert_eq!(
+                serialized.get("enable_write_checksum"),
+                enabled.map(serde_json::Value::Bool).as_ref()
+            );
+            let decoded: CephRgwConfig = serde_json::from_value(serialized).unwrap();
+            assert_eq!(decoded, config);
+        }
+    }
+
+    #[tokio::test]
+    async fn checksum_intents_require_crc32c() -> Result<()> {
+        let op = Operator::new(
+            CephRgw::default()
+                .bucket("test")
+                .endpoint("http://127.0.0.1:8080")
+                .access_key_id("test-access-key")
+                .secret_access_key("test-secret-key")
+                .disable_config_load()
+                .enable_write_checksum(true),
+        )?;
+
+        let crc64nvme = Checksum::new(ChecksumAlgo::Crc64Nvme, [0; 8]);
+        for intent in [
+            WriteChecksum::Algo(ChecksumAlgo::Crc64Nvme),
+            WriteChecksum::Expected(crc64nvme.clone()),
+        ] {
+            let result = op.writer_with("test").checksum(intent).await;
+            assert!(matches!(result, Err(error) if error.kind() == ErrorKind::Unsupported));
+        }
+        let result = op
+            .presign_write_options(
+                "test",
+                Duration::from_secs(60),
+                options::WriteOptions {
+                    checksum: Some(crc64nvme.into()),
+                    ..Default::default()
+                },
+            )
+            .await;
+        assert!(matches!(result, Err(error) if error.kind() == ErrorKind::Unsupported));
+
+        let crc32c = Checksum::new(ChecksumAlgo::Crc32c, [0xe3, 0x06, 0x92, 0x83]);
+        let presigned = op
+            .presign_write_options(
+                "test",
+                Duration::from_secs(60),
+                options::WriteOptions {
+                    checksum: Some(crc32c.into()),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        assert_eq!(presigned.header()["x-amz-checksum-crc32c"], "4waSgw==");
+        assert_eq!(presigned.header()["x-amz-sdk-checksum-algorithm"], "CRC32C");
+        let uri = url::Url::parse(&presigned.uri().to_string()).unwrap();
+        let signed_headers = uri
+            .query_pairs()
+            .find_map(|(name, value)| (name == "X-Amz-SignedHeaders").then_some(value))
+            .expect("presigned URL contains its signed header names");
+        for header in ["x-amz-checksum-crc32c", "x-amz-sdk-checksum-algorithm"] {
+            assert!(signed_headers.split(';').any(|name| name == header));
+        }
+        Ok(())
     }
 }

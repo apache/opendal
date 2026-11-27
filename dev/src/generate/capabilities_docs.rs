@@ -352,6 +352,9 @@ fn parse_capability_literal(
                 )
             {
                 let condition = match (name, field_name.as_str()) {
+                    ("ceph-rgw", "write_with_checksum") => Some(
+                        "Requires `enable_write_checksum=true` for non-append CRC32C writes. Verified with signed path-style requests to Ceph RGW 20.2.5 and 21.2.0.",
+                    ),
                     ("minio", "write_with_checksum") => Some(
                         "Requires `enable_write_checksum=true` for signed, non-append writes. Verified with signed path-style requests to MinIO RELEASE.2025-01-20T14-49-07Z. Keep the option disabled on RELEASE.2024-09-22T00-33-43Z because it accepted an incorrect CRC.",
                     ),
@@ -1177,6 +1180,17 @@ mod tests {
                 "Standard S3 buckets (not S3 Express One Zone)".to_string()
             ))
         );
+        let ceph_rgw = out
+            .services
+            .iter()
+            .find(|s| s.scheme == "ceph-rgw")
+            .unwrap();
+        assert!(!ceph_rgw.native.contains_key("read_with_checksum"));
+        assert!(matches!(
+            ceph_rgw.native.get("write_with_checksum"),
+            Some(NativeBoolDoc::Conditional(condition))
+                if condition.contains("enable_write_checksum") && condition.contains("CRC32C")
+        ));
         let minio = out.services.iter().find(|s| s.scheme == "minio").unwrap();
         assert!(!minio.native.contains_key("read_with_checksum"));
         assert!(matches!(

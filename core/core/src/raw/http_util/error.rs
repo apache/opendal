@@ -41,7 +41,19 @@ pub fn new_request_credential_error(err: anyhow::Error) -> Error {
 }
 
 /// Wrap a signing failure, preserving reqsign's retryability when available.
+///
+/// A failure caused by a missing reqsign `CryptoProvider` returns
+/// [`ErrorKind::ConfigInvalid`], as described by
+/// [`new_crypto_provider_missing_error`].
 pub fn new_request_sign_error(err: anyhow::Error) -> Error {
+    #[cfg(feature = "reqsign")]
+    if let Some(error) = err
+        .downcast_ref::<reqsign_core::Error>()
+        .and_then(new_crypto_provider_missing_error)
+    {
+        return error.with_operation("reqsign::Sign").set_source(err);
+    }
+
     let error = Error::new(ErrorKind::Unexpected, "signing http request");
     #[cfg(feature = "reqsign")]
     let error = error.with_temporary(
@@ -49,6 +61,30 @@ pub fn new_request_sign_error(err: anyhow::Error) -> Error {
             .is_some_and(reqsign_core::Error::is_retryable),
     );
     error.with_operation("reqsign::Sign").set_source(err)
+}
+
+/// Return a [`ErrorKind::ConfigInvalid`] error when a reqsign failure is caused
+/// by a missing `CryptoProvider`.
+///
+/// reqsign reports a missing provider as `ConfigInvalid`. This function returns
+/// `Some` only for such an error while no provider is reachable: the
+/// `reqsign-rustcrypto` feature is disabled and no process-wide provider is
+/// installed. The error message names both remedies. It returns `None` for
+/// every other error.
+#[cfg(feature = "reqsign")]
+pub fn new_crypto_provider_missing_error(err: &reqsign_core::Error) -> Option<Error> {
+    let provider_reachable =
+        cfg!(feature = "reqsign-rustcrypto") || reqsign_core::crypto::get_default().is_some();
+    if provider_reachable || err.kind() != reqsign_core::ErrorKind::ConfigInvalid {
+        return None;
+    }
+
+    Some(Error::new(
+        ErrorKind::ConfigInvalid,
+        "no reqsign CryptoProvider is available to sign requests; enable the `reqsign-rustcrypto` \
+         feature, or call `opendal::reqsign_core::crypto::install_default` before building the \
+         operator",
+    ))
 }
 
 /// Add response context to error.

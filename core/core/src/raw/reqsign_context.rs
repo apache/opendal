@@ -23,7 +23,7 @@ use reqsign_core::Context;
 /// [`reqsign_core::crypto::install_default`] before the operator is built is
 /// used for every signature. Otherwise, with the `reqsign-rustcrypto` feature
 /// enabled, the context is bound to the RustCrypto provider. Without either,
-/// signing fails with [`reqsign_core::ErrorKind::ConfigInvalid`].
+/// signing fails with [`crate::ErrorKind::ConfigInvalid`].
 pub fn reqsign_context() -> Context {
     let ctx = Context::new();
     #[cfg(feature = "reqsign-rustcrypto")]

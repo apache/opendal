@@ -127,14 +127,23 @@ external lister_next: lister -> (entry option, string) Result.t  = "lister_next"
 
 (* file: metadata.rs *)
 
+type entry_mode = File | Dir | Unknown
+external metadata_mode: metadata -> entry_mode  = "metadata_mode"
 external metadata_is_file: metadata -> bool  = "metadata_is_file"
 external metadata_is_dir: metadata -> bool  = "metadata_is_dir"
+external metadata_is_current: metadata -> bool option  = "metadata_is_current"
+external metadata_is_deleted: metadata -> bool  = "metadata_is_deleted"
+external metadata_cache_control: metadata -> string option  = "metadata_cache_control"
 external metadata_content_length: metadata -> int64  = "metadata_content_length"
 external metadata_content_md5: metadata -> string option  = "metadata_content_md5"
 external metadata_content_type: metadata -> string option  = "metadata_content_type"
-external metadata_content_disposition: metadata -> string option  = "metadata_content_disposition"
-external metadata_etag: metadata -> string option  = "metadata_etag"
+external metadata_content_encoding: metadata -> string option  = "metadata_content_encoding"
+external metadata_content_language: metadata -> string option  = "metadata_content_language"
 external metadata_last_modified: metadata -> int64 option  = "metadata_last_modified"
+external metadata_etag: metadata -> string option  = "metadata_etag"
+external metadata_content_disposition: metadata -> string option  = "metadata_content_disposition"
+external metadata_version: metadata -> string option  = "metadata_version"
+external metadata_user_metadata: metadata -> (string * string) list option  = "metadata_user_metadata"
 
 (* file: mod.rs *)
 

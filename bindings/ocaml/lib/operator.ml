@@ -53,17 +53,8 @@ module Lister = struct
   let next = Opendal_core.Operator.lister_next
 end
 
+module Metadata = Metadata
 (** Metadata module for file/directory information *)
-module Metadata = struct
-  let is_file = Opendal_core.Operator.metadata_is_file
-  let is_dir = Opendal_core.Operator.metadata_is_dir
-  let content_length = Opendal_core.Operator.metadata_content_length
-  let content_md5 = Opendal_core.Operator.metadata_content_md5
-  let content_type = Opendal_core.Operator.metadata_content_type
-  let content_disposition = Opendal_core.Operator.metadata_content_disposition
-  let etag = Opendal_core.Operator.metadata_etag
-  let last_modified = Opendal_core.Operator.metadata_last_modified
-end
 
 (** Entry module for directory entry information *)
 module Entry = struct

@@ -178,6 +178,11 @@ let test_operator_stat test_ctxt =
   assert_equal false (Operator.Metadata.is_dir metadata);
   assert_equal true (Operator.Metadata.is_file metadata);
   assert_equal 10L (Operator.Metadata.content_length metadata);
+  assert_equal Operator.Metadata.File (Operator.Metadata.mode metadata);
+  assert_equal false (Operator.Metadata.is_deleted metadata);
+  ignore (test_check_result (Operator.create_dir bo "tempdir/"));
+  let dir_metadata = Operator.stat bo "tempdir/" |> test_check_result in
+  assert_equal Operator.Metadata.Dir (Operator.Metadata.mode dir_metadata);
   ()
 
 (** Test list functionality *)
@@ -480,14 +485,18 @@ let test_config_duplicate_key_last_wins _ =
   let info = Operator.info bo in
   assert_equal "/second/" (Operator.OperatorInfo.root info)
 
-(* Compile-time check: wrappers that re-include [Capability] must still match
-   the signature of [Opendal.Operator]. This fails to type-check if
-   [operator.mli] exposes [Capability] as a module alias. *)
+(* Compile-time check: wrappers that re-include [Capability] or [Metadata]
+   must still match the signature of [Opendal.Operator]. This fails to
+   type-check if [operator.mli] exposes either module as a module alias. *)
 module Wrapped_operator : module type of Opendal.Operator = struct
   include Opendal.Operator
 
   module Capability = struct
     include Opendal.Operator.Capability
+  end
+
+  module Metadata = struct
+    include Opendal.Operator.Metadata
   end
 end
 
@@ -498,6 +507,13 @@ let test_capability_wrapper _ =
   assert_equal
     (Operator.Capability.read cap)
     (Wrapped_operator.Capability.read cap)
+
+(** Test that a structurally re-exported Metadata module still works *)
+let test_metadata_wrapper _ =
+  let bo = new_test_memory_operator () in
+  ignore (Operator.write bo "wrapped" (Bytes.of_string "x") |> test_check_result);
+  let metadata = Operator.stat bo "wrapped" |> test_check_result in
+  assert_equal Operator.Metadata.File (Wrapped_operator.Metadata.mode metadata)
 
 let suite =
   "OCaml OpenDAL Test Suite"
@@ -528,6 +544,7 @@ let suite =
          "test_config_duplicate_key_last_wins"
          >:: test_config_duplicate_key_last_wins;
          "test_capability_wrapper" >:: test_capability_wrapper;
+         "test_metadata_wrapper" >:: test_metadata_wrapper;
        ]
 
 let () = run_test_tt_main suite

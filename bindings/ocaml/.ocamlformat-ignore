@@ -1,3 +1,5 @@
 src/**
 lib/capability.ml
 lib/capability.mli
+lib/metadata.ml
+lib/metadata.mli

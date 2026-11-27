@@ -177,6 +177,8 @@ data ErrorCode
     ConditionNotMatch
   | -- | The requested content range cannot be satisfied.
     RangeNotSatisfied
+  | -- | The object checksum differs from the expected checksum.
+    ChecksumMismatch
   deriving (Eq, Show)
 
 -- | Represents an error that can occur when using OpenDAL.
@@ -327,6 +329,7 @@ parseErrorCode 11 = IsSameFile
 parseErrorCode 12 = Conflict
 parseErrorCode 13 = ConditionNotMatch
 parseErrorCode 14 = RangeNotSatisfied
+parseErrorCode 15 = ChecksumMismatch
 parseErrorCode _ = FFIError
 
 parseEntryMode :: Int -> EntryMode

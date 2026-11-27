@@ -64,6 +64,7 @@ pub enum FFIErrorCode {
     Conflict = 12,
     ConditionNotMatch = 13,
     RangeNotSatisfied = 14,
+    ChecksumMismatch = 15,
 }
 
 impl<T> Default for FFIResult<T> {
@@ -146,6 +147,7 @@ impl From<od::ErrorKind> for FFIErrorCode {
             od::ErrorKind::Conflict => FFIErrorCode::Conflict,
             od::ErrorKind::ConditionNotMatch => FFIErrorCode::ConditionNotMatch,
             od::ErrorKind::RangeNotSatisfied => FFIErrorCode::RangeNotSatisfied,
+            od::ErrorKind::ChecksumMismatch => FFIErrorCode::ChecksumMismatch,
             _ => FFIErrorCode::Unexpected,
         }
     }
@@ -171,6 +173,10 @@ mod tests {
             FFIErrorCode::from(od::ErrorKind::Conflict),
             FFIErrorCode::Conflict
         ));
+        assert_eq!(
+            FFIErrorCode::from(od::ErrorKind::ChecksumMismatch) as u32,
+            15
+        );
     }
 
     #[test]

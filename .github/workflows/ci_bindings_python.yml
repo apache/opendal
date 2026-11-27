@@ -30,6 +30,7 @@ on:
       - "!core/core/src/docs/**"
       - "core/http-transports/**"
       - "core/layers/mime-guess/**"
+      - "dev/src/generate/**"
       - "bindings/python/**"
       - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_python.yml"

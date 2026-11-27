@@ -85,6 +85,14 @@ where
 pub type FutureStat<F> = OperatorFuture<options::StatOptions, Metadata, F>;
 
 impl<F: Future<Output = Result<Metadata>>> FutureStat<F> {
+    /// Set the hint to request full-file checksum metadata.
+    ///
+    /// See [`options::StatOptions::checksum`] for the hint semantics.
+    pub fn checksum(mut self, checksum: bool) -> Self {
+        self.args.checksum = checksum;
+        self
+    }
+
     /// Stat only when the file has this exact ETag.
     ///
     /// Refer to [`options::StatOptions::if_match`] for the full contract.
@@ -272,6 +280,14 @@ impl<F: Future<Output = Result<PresignedRequest>>> FuturePresignWrite<F> {
 pub type FutureRead<F> = OperatorFuture<options::ReadOptions, Buffer, F>;
 
 impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
+    /// Set the hint to request full-file checksum metadata.
+    ///
+    /// See [`options::ReadOptions::checksum`] for the hint semantics.
+    pub fn checksum(mut self, checksum: bool) -> Self {
+        self.args.checksum = checksum;
+        self
+    }
+
     /// Set `range` for this `read` request.
     ///
     /// If we have a file with size `n`.
@@ -472,6 +488,14 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
 pub type FutureReader<F> = OperatorFuture<options::ReaderOptions, Reader, F>;
 
 impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
+    /// Set the hint to request full-file checksum metadata.
+    ///
+    /// See [`options::ReaderOptions::checksum`] for the hint semantics.
+    pub fn checksum(mut self, checksum: bool) -> Self {
+        self.args.checksum = checksum;
+        self
+    }
+
     /// Read the given version of the file instead of the current one.
     ///
     /// Refer to [`options::ReaderOptions::version`] for the full contract.
@@ -970,9 +994,11 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
         self
     }
 
-    /// Sets the expected full-file checksum of the written content.
+    /// Request native checksum verification for this write.
     ///
-    /// Refer to [`options::WriteOptions::checksum`] for the full contract.
+    /// Pass a [`WriteChecksum`], a [`crate::ChecksumAlgo`] to compute, or a
+    /// caller-supplied [`crate::Checksum`] to verify. Refer to
+    /// [`options::WriteOptions::checksum`] for the full contract.
     ///
     /// ### Example
     ///
@@ -991,8 +1017,8 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn checksum(mut self, checksum: Checksum) -> Self {
-        self.args.0.checksum = Some(checksum);
+    pub fn checksum(mut self, checksum: impl Into<WriteChecksum>) -> Self {
+        self.args.0.checksum = Some(checksum.into());
         self
     }
 
@@ -1367,13 +1393,13 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
         self
     }
 
-    /// Sets the expected full-file checksum of everything written through
-    /// this writer.
+    /// Request native checksum verification for this writer.
     ///
-    /// The service verifies the checksum when the writer closes. Refer to
+    /// Pass a [`WriteChecksum`], a [`crate::ChecksumAlgo`] to compute, or a
+    /// caller-supplied [`crate::Checksum`] to verify. Refer to
     /// [`options::WriteOptions::checksum`] for the full contract.
-    pub fn checksum(mut self, checksum: Checksum) -> Self {
-        self.args.checksum = Some(checksum);
+    pub fn checksum(mut self, checksum: impl Into<WriteChecksum>) -> Self {
+        self.args.checksum = Some(checksum.into());
         self
     }
 
@@ -1484,16 +1510,14 @@ impl<F: Future<Output = Result<()>>> FutureDelete<F> {
 }
 
 /// [`Operator::deleter_with`] returns this future.
-pub type FutureDeleter<F> = OperatorFuture<usize, Deleter, F>;
+pub type FutureDeleter<F> = OperatorFuture<options::DeleterOptions, Deleter, F>;
 
 impl<F: Future<Output = Result<Deleter>>> FutureDeleter<F> {
     /// Set the maximum number of in-flight backend tasks.
     ///
-    /// Defaults to 1. A value of 0 is treated as 1. Each task handles an
-    /// individual deletion or one batch when the service supports batching.
-    /// A service can use multiple requests to process a single task.
+    /// Refer to [`options::DeleterOptions::concurrent`] for more details.
     pub fn concurrent(mut self, concurrent: usize) -> Self {
-        self.args = concurrent.max(1);
+        self.args.concurrent = concurrent.max(1);
         self
     }
 }

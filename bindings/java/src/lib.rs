@@ -210,6 +210,7 @@ fn make_stat_options(env: &mut Env, options: &JObject) -> Result<opendal::option
             options,
             "overrideContentDisposition",
         )?,
+        ..Default::default()
     })
 }
 
@@ -291,6 +292,7 @@ fn make_read_options<'a>(
             options,
             "overrideContentDisposition",
         )?,
+        ..Default::default()
     })
 }
 

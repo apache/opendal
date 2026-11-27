@@ -3155,6 +3155,13 @@ public interface ServiceConfig {
          */
         public final Boolean disableConfigLoad;
         /**
+         * <p>Allow per-write checksum intents for signed, non-append writes. Defaults to false.
+         * Supply a checksum intent on each write that needs verification.
+         * Verified with signed path-style requests to MinIO RELEASE.2025-01-20T14-49-07Z.
+         * Keep the option disabled on RELEASE.2024-09-22T00-33-43Z because it accepted an incorrect CRC.</p>
+         */
+        public final Boolean enableWriteChecksum;
+        /**
          * <p>MinIO endpoint.</p>
          * <p>This field is required because MinIO deployments do not share a
          * universal endpoint.</p>
@@ -3201,6 +3208,9 @@ public interface ServiceConfig {
             map.put("bucket", bucket);
             if (disableConfigLoad != null) {
                 map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
+            if (enableWriteChecksum != null) {
+                map.put("enable_write_checksum", String.valueOf(enableWriteChecksum));
             }
             map.put("endpoint", endpoint);
             if (region != null) {
@@ -5316,6 +5326,11 @@ public interface ServiceConfig {
          */
         public final Boolean enableVirtualHostStyle;
         /**
+         * <p>Opt in to native checksum verification for non-append writes. Defaults to false.
+         * Verified with signed path-style requests to SeaweedFS 4.52.</p>
+         */
+        public final Boolean enableWriteChecksum;
+        /**
          * <p>HTTP(S) base URL of the deployment’s S3 gateway.</p>
          */
         public final @NonNull String endpoint;
@@ -5349,6 +5364,9 @@ public interface ServiceConfig {
             }
             if (enableVirtualHostStyle != null) {
                 map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
+            }
+            if (enableWriteChecksum != null) {
+                map.put("enable_write_checksum", String.valueOf(enableWriteChecksum));
             }
             map.put("endpoint", endpoint);
             if (region != null) {

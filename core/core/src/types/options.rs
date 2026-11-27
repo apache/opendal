@@ -17,8 +17,8 @@
 
 //! Options module provides options definitions for operations.
 
-use crate::Checksum;
 use crate::Metadata;
+use crate::WriteChecksum;
 use crate::raw::{Duration, Timestamp};
 use crate::types::BytesRange;
 use std::collections::HashMap;
@@ -123,6 +123,21 @@ pub struct DeleteOptions {
     pub if_not_changed: Option<Metadata>,
 }
 
+/// Options for creating a [`crate::Deleter`].
+///
+/// # Groups
+/// - Execution: `concurrent`.
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+pub struct DeleterOptions {
+    /// Maximum number of in-flight backend tasks.
+    ///
+    /// Defaults to `0`. Both `0` and `1` run one backend task at a time. Each
+    /// task handles an individual deletion or one batch when the service
+    /// supports batching. A service can use multiple requests to process a
+    /// single task.
+    pub concurrent: usize,
+}
+
 /// Options for list operations.
 ///
 /// # Groups
@@ -141,6 +156,10 @@ pub struct ListOptions {
     /// Setting this requires [`Capability::list_with_start_after`](crate::Capability::list_with_start_after).
     pub start_after: Option<String>,
     /// Whether to list recursively under the prefix; default `false`.
+    ///
+    /// Requires [`Capability::list_with_recursive`](crate::Capability::list_with_recursive).
+    /// Services without native recursive listing rely on [`crate::layers::SimulateLayer`]
+    /// (installed automatically by the default `auto-simulate` feature).
     pub recursive: bool,
     /// Include object versions; default `false`.
     ///
@@ -168,7 +187,9 @@ pub struct ListOptions {
     /// Requires [`Capability::list_with_glob`](crate::Capability::list_with_glob). Services with native glob
     /// support handle patterns directly; otherwise [`crate::layers::SimulateLayer`]
     /// (installed automatically by the default `auto-simulate` feature) evaluates
-    /// patterns client-side.
+    /// patterns client-side. Combining a multi-directory pattern with
+    /// `start_after`, `versions`, or `deleted` during client-side simulation
+    /// also requires [`Capability::list_with_recursive`](crate::Capability::list_with_recursive).
     /// Empty or malformed patterns fail with [`crate::ErrorKind::ConfigInvalid`].
     pub glob: Option<String>,
 }
@@ -351,6 +372,15 @@ pub struct ReadOptions {
     ///
     /// This option is only meaningful when used along with presign.
     pub override_content_disposition: Option<String>,
+
+    /// Request full-file checksum metadata when the service can provide it.
+    ///
+    /// This hint defaults to `false`. Services can ignore it or return checksum
+    /// metadata by default. It does not require a checksum or verify the read.
+    /// Use [`crate::Reader::metadata`] to inspect metadata from a reader.
+    ///
+    /// See the [checksum specification][crate::docs::specs::checksum].
+    pub checksum: bool,
 }
 
 /// Options for reader operations.
@@ -505,6 +535,12 @@ pub struct ReaderOptions {
     /// This option helps prevent memory exhaustion when reading large files with high
     /// concurrency settings.
     pub prefetch: usize,
+
+    /// Request full-file checksum metadata for reads through this reader.
+    ///
+    /// This hint defaults to `false` and follows the same rules as
+    /// [`ReadOptions::checksum`].
+    pub checksum: bool,
 }
 
 /// Options for stat operations.
@@ -612,6 +648,14 @@ pub struct StatOptions {
     ///
     /// This option is only meaningful when used along with presign.
     pub override_content_disposition: Option<String>,
+
+    /// Request full-file checksum metadata when the service can provide it.
+    ///
+    /// This hint defaults to `false`. Services can ignore it or return checksum
+    /// metadata by default. OpenDAL does not read object data to obtain it.
+    ///
+    /// See the [checksum specification][crate::docs::specs::checksum].
+    pub checksum: bool,
 }
 
 /// Options for write operations.
@@ -767,35 +811,32 @@ pub struct WriteOptions {
     /// advertise [`crate::Capability::write_with_expires`]. A zero or
     /// unrepresentable duration returns [`crate::ErrorKind::ConfigInvalid`].
     pub expires: Option<Duration>,
-    /// Sets the expected full-file checksum of the written content.
+    /// Request native checksum verification for this write.
     ///
-    /// The service verifies the stored content against this checksum before
-    /// the write commits. A mismatch fails the write with
-    /// [`crate::ErrorKind::ChecksumMismatch`] and leaves the previously
-    /// visible file unchanged. On success, the returned [`Metadata`] carries
-    /// the checksum the service verified, available through
-    /// [`Metadata::checksum`].
+    /// [`WriteChecksum::Any`] and [`WriteChecksum::Fast`] allow verification
+    /// at the part or block level. [`WriteChecksum::Algo`] and
+    /// [`WriteChecksum::Expected`] require full-file verification before
+    /// commit. The write result's [`Metadata::checksum`] carries a verified
+    /// full-file checksum when the service produces one.
     ///
-    /// The checksum covers the whole file, regardless of how the content is
-    /// split into chunks or parts.
+    /// A writer with a checksum reads every copied range from the source and
+    /// uploads it again when using [`crate::Writer::copy_from`]. Each copied
+    /// byte costs download and upload bandwidth.
     ///
-    /// A writer with a checksum never uses native copies for
-    /// [`crate::Writer::copy_from`], even when the service advertises
-    /// [`crate::Capability::write_can_copy_from`]. It reads every copied
-    /// range from the source and uploads it again, so each copied byte costs
-    /// download and upload bandwidth.
-    ///
-    /// If the service completes the write but does not confirm the
-    /// checksum, the write returns [`crate::ErrorKind::Unexpected`]. In that
-    /// case the content may already be stored without verification.
-    ///
-    /// Returns [`crate::ErrorKind::Unsupported`] when the service does not
-    /// advertise the capability flag for the checksum's algorithm, for
-    /// example [`crate::Capability::checksum_crc32c`] for
-    /// [`crate::ChecksumAlgo::Crc32c`], and when combined with `append`.
-    /// A digest whose length does not match the algorithm returns
+    /// Returns [`crate::ErrorKind::Unsupported`] before I/O if the service
+    /// lacks [`crate::Capability::write_with_checksum`] or cannot fulfill the
+    /// requested intent, algorithm, or write mode. Append always rejects
+    /// `Algo` and `Expected`. An expected digest of the wrong length returns
     /// [`crate::ErrorKind::ConfigInvalid`].
-    pub checksum: Option<Checksum>,
+    ///
+    /// A checksum rejection before commit returns
+    /// [`crate::ErrorKind::ChecksumMismatch`] and leaves previously committed
+    /// data intact, including any earlier successful append blocks. Failure
+    /// to confirm a required checksum after commit returns
+    /// [`crate::ErrorKind::Unexpected`] and new data may already be visible.
+    ///
+    /// See the [checksum specification][crate::docs::specs::checksum].
+    pub checksum: Option<WriteChecksum>,
 
     /// Write only when the file at the write path has this exact ETag.
     ///

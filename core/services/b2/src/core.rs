@@ -311,10 +311,11 @@ impl B2Core {
         &self,
         ctx: &OperationContext,
         path: &str,
-        size: Option<u64>,
+        size: u64,
         args: &OpWrite,
+        checksum: Option<&str>,
         body: Buffer,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Response<HttpBody>> {
         let resp = self.get_upload_url(ctx).await?;
 
         let p = build_absolute_path(&self.root, path);
@@ -325,11 +326,8 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, resp.authorization_token);
 
-        req = req.header(X_BZ_CONTENT_SHA1, "do_not_verify");
-
-        if let Some(size) = size {
-            req = req.header(header::CONTENT_LENGTH, size.to_string())
-        }
+        req = req.header(X_BZ_CONTENT_SHA1, checksum.unwrap_or("do_not_verify"));
+        req = req.header(header::CONTENT_LENGTH, size.to_string());
 
         if let Some(mime) = args.content_type() {
             req = req.header(header::CONTENT_TYPE, mime)
@@ -359,7 +357,7 @@ impl B2Core {
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        ctx.http_transport().fetch(req).await
     }
 
     pub async fn start_large_file(
@@ -460,6 +458,7 @@ impl B2Core {
         file_id: &str,
         part_number: usize,
         size: u64,
+        checksum: Option<&str>,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
         let resp = self.get_upload_part_url(ctx, file_id).await?;
@@ -472,7 +471,7 @@ impl B2Core {
 
         req = req.header(header::AUTHORIZATION, resp.authorization_token);
 
-        req = req.header(X_BZ_CONTENT_SHA1, "do_not_verify");
+        req = req.header(X_BZ_CONTENT_SHA1, checksum.unwrap_or("do_not_verify"));
 
         let req = req
             .extension(Operation::Write)
@@ -981,11 +980,12 @@ pub enum FileVersionAction {
     Start,
 }
 
-/// Response of [b2-finish-large-file](https://www.backblaze.com/apidocs/b2-finish-large-file).
+/// Response of `b2_upload_file` or `b2_finish_large_file`.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadResponse {
     pub content_length: u64,
+    pub content_sha1: Option<String>,
     pub content_md5: Option<String>,
     pub content_type: Option<String>,
 }
@@ -1090,11 +1090,20 @@ struct B2Error {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ErrorContext {
     service_operation: ServiceOperation,
+    verify_checksum: bool,
 }
 
 impl ErrorContext {
     pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
-        Self { service_operation }
+        Self {
+            service_operation,
+            verify_checksum: false,
+        }
+    }
+
+    pub(crate) const fn with_checksum(mut self, verify_checksum: bool) -> Self {
+        self.verify_checksum = verify_checksum;
+        self
     }
 }
 
@@ -1120,7 +1129,9 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
     if let Some(b2_err) = b2_err {
-        (kind, retryable) = parse_b2_error_code(b2_err.code.as_str()).unwrap_or((kind, retryable));
+        (kind, retryable) = parse_b2_error_code(b2_err.code.as_str())
+            .or_else(|| parse_b2_checksum_error(ctx, parts.status, &b2_err))
+            .unwrap_or((kind, retryable));
     };
 
     let mut err = Error::new(kind, message);
@@ -1142,6 +1153,49 @@ pub(crate) fn parse_b2_error_code(code: &str) -> Option<(ErrorKind, bool)> {
         "no_such_file" | "file_not_present" => Some((ErrorKind::NotFound, false)),
         _ => None,
     }
+}
+
+fn parse_b2_checksum_error(
+    ctx: ErrorContext,
+    status: StatusCode,
+    error: &B2Error,
+) -> Option<(ErrorKind, bool)> {
+    if !ctx.verify_checksum || status != StatusCode::BAD_REQUEST || error.code != "bad_request" {
+        return None;
+    }
+    let retryable = match ctx.service_operation.0 {
+        // The upload was rejected and MultipartWriter retains its body.
+        "UploadFile" | "UploadPart"
+            if error
+                .message
+                .eq_ignore_ascii_case("Checksum did not match data received") =>
+        {
+            true
+        }
+        // Retrying completion would send the same rejected digest list.
+        "FinishLargeFile" if is_finish_sha1_mismatch(&error.message) => false,
+        _ => return None,
+    };
+    Some((ErrorKind::ChecksumMismatch, retryable))
+}
+
+fn is_finish_sha1_mismatch(message: &str) -> bool {
+    let message = message.to_ascii_lowercase();
+    let Some((number, digests)) = message
+        .strip_prefix("part ")
+        .and_then(|message| message.split_once(": expected sha1 "))
+    else {
+        return false;
+    };
+    number.parse::<usize>().is_ok()
+        && digests
+            .split_once(" but found ")
+            .is_some_and(|(expected, actual)| {
+                [expected, actual].into_iter().all(|digest| {
+                    digest.len() == 2 * ChecksumAlgo::Sha1.digest_len()
+                        && digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+                })
+            })
 }
 
 #[cfg(test)]
@@ -1180,6 +1234,40 @@ pub(crate) mod tests {
 
         let code = "not_found";
         assert_eq!(parse_b2_error_code(code), None);
+    }
+
+    #[test]
+    fn unrelated_bad_requests_are_not_checksum_mismatches() {
+        let upload_message = "checksum did not match data received";
+        let finish_message = concat!(
+            "Part 1: expected sha1 61b8d6600ac94d912874f569a9341120f680c9f8 ",
+            "but found fbf5f2a2875b3bb65b8e3b23e6cc01d58ca30447",
+        );
+        for (operation, verify_checksum, code, message) in [
+            ("UploadFile", false, "bad_request", upload_message),
+            ("UploadFile", true, "bad_request", "invalid content length"),
+            ("UploadFile", true, "bad_request", finish_message),
+            ("UploadPart", true, "invalid_parameter", upload_message),
+            ("FinishLargeFile", true, "bad_request", upload_message),
+            ("StartLargeFile", true, "bad_request", upload_message),
+        ] {
+            let response = Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .body(Buffer::from(
+                    serde_json::json!({"status": 400, "code": code, "message": message})
+                        .to_string(),
+                ))
+                .unwrap();
+            let context =
+                ErrorContext::new(ServiceOperation(operation)).with_checksum(verify_checksum);
+            let error = parse_error(context, response);
+            assert_eq!(
+                error.kind(),
+                ErrorKind::Unexpected,
+                "{operation}: {message}"
+            );
+            assert!(!error.is_temporary());
+        }
     }
 
     #[test]

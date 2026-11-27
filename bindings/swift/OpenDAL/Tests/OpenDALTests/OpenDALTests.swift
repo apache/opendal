@@ -66,6 +66,77 @@ final class OpenDALTests: XCTestCase {
         }
     }
 
+    func testBlockingStatReturnsFileAndDirectoryMetadata() throws {
+        let op = try Operator(scheme: "memory")
+        let path = "文档/café-🦀"
+        var data = Data([1, 2, 3, 4])
+        try op.blockingWrite(&data, to: path)
+
+        let file = try op.blockingStat(path)
+        XCTAssertTrue(file.isFile)
+        XCTAssertFalse(file.isDirectory)
+        XCTAssertEqual(file.contentLength, 4)
+
+        let root = try op.blockingStat("/")
+        XCTAssertTrue(root.isDirectory)
+        XCTAssertFalse(root.isFile)
+        XCTAssertEqual(root.contentLength, 0)
+        XCTAssertNil(root.lastModified)
+    }
+
+    func testBlockingStatErrors() throws {
+        let op = try Operator(scheme: "memory")
+        let path = "file"
+        var data = Data([1])
+        try op.blockingWrite(&data, to: path)
+
+        XCTAssertThrowsError(try op.blockingStat("missing")) { error in
+            XCTAssertEqual((error as? OperatorError)?.code, OPENDAL_NOT_FOUND.rawValue)
+        }
+        XCTAssertThrowsError(try op.blockingStat(path + "\0suffix")) { error in
+            XCTAssertEqual((error as? OperatorError)?.code, OPENDAL_UNEXPECTED.rawValue)
+        }
+    }
+
+    func testBlockingListerReturnsStandaloneEntriesWithoutRecursing() throws {
+        let filePath = "文档/café-🦀"
+        let entries: [Entry]
+        do {
+            let op = try Operator(scheme: "memory")
+            var data = Data([1, 2, 3])
+            try op.blockingCreateDirectory("文档/")
+            try op.blockingWrite(&data, to: filePath)
+            try op.blockingWrite(&data, to: "文档/sub/deep")
+
+            let lister = try op.blockingLister("文档/")
+            var listed: [Entry] = []
+            while let entry = try lister.next() {
+                listed.append(entry)
+            }
+            XCTAssertNil(try lister.next())
+            entries = listed
+        }
+
+        XCTAssertEqual(entries.map(\.path).sorted(), ["文档/", filePath, "文档/sub/"])
+        let file = try XCTUnwrap(entries.first { $0.path == filePath })
+        XCTAssertEqual(file.name, "café-🦀")
+        XCTAssertTrue(file.metadata.isFile)
+        XCTAssertEqual(file.metadata.contentLength, 3)
+        XCTAssertNil(file.metadata.lastModified)
+        let directory = try XCTUnwrap(entries.first { $0.path == "文档/sub/" })
+        XCTAssertEqual(directory.name, "sub/")
+        XCTAssertTrue(directory.metadata.isDirectory)
+    }
+
+    func testBlockingListerRejectsNulPath() throws {
+        let op = try Operator(scheme: "memory")
+        try op.blockingCreateDirectory("文档/")
+
+        XCTAssertThrowsError(try op.blockingLister("文档/\0suffix")) { error in
+            XCTAssertEqual((error as? OperatorError)?.code, OPENDAL_UNEXPECTED.rawValue)
+        }
+    }
+
     func testBlockingExistsAndDelete() throws {
         let op = try Operator(scheme: "memory")
         let path = "文档/café-🦀"

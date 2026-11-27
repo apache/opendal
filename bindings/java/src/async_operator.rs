@@ -73,7 +73,7 @@ fn intern_constructor(
     let op = Operator::via_iter(scheme, map)?;
     let executor = executor_or_default(env, executor)?;
     let ctx = op
-        .context()
+        .base_context()
         .with_executor(opendal::Executor::with(executor));
     Ok(Box::into_raw(Box::new(op.with_context(ctx))) as jlong)
 }

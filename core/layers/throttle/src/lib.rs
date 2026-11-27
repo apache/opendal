@@ -31,6 +31,38 @@ use governor::state::NotKeyed;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+/// Register the `throttle` layer with an operator registry.
+///
+/// Requires positive `u32` values for `bandwidth` in bytes per second and
+/// `burst` in bytes. Operators loaded separately have independent quotas.
+pub fn register_throttle_layer(registry: &OperatorRegistry) {
+    registry.register_layer("throttle", |options| {
+        let parse_limit = |option: &'static str| -> Result<u32> {
+            let value = options.get(option).ok_or_else(|| {
+                Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "required throttle option is missing",
+                )
+                .with_context("option", option)
+            })?;
+            value
+                .parse::<NonZeroU32>()
+                .map(NonZeroU32::get)
+                .map_err(|_| {
+                    Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "expected a positive 32-bit integer",
+                    )
+                    .with_context("option", option)
+                })
+        };
+
+        let bandwidth = parse_limit("bandwidth")?;
+        let burst = parse_limit("burst")?;
+        Ok(ThrottleLayer::new(bandwidth, burst))
+    });
+}
+
 /// `ThrottleLayer` limits bandwidth for storage services.
 ///
 /// # Throttle

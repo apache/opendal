@@ -79,6 +79,8 @@ extern "C" void rejected_log(int32_t level, const char* file, uint32_t line, con
 TEST(OpendalLogging, NativeEventsAndRegistrationFailure)
 {
     using Error = std::unique_ptr<opendal_error, decltype(&opendal_error_free)>;
+    using Operator = std::unique_ptr<const opendal_operator, decltype(&opendal_operator_free)>;
+    using Options = std::unique_ptr<opendal_operator_options, decltype(&opendal_operator_options_free)>;
     Error missing_callback(opendal_logging_init(nullptr), opendal_error_free);
     ASSERT_NE(missing_callback, nullptr);
     EXPECT_EQ(missing_callback->code, OPENDAL_CONFIG_INVALID);
@@ -88,7 +90,7 @@ TEST(OpendalLogging, NativeEventsAndRegistrationFailure)
     opendal_operator* raw_op = nullptr;
     Error construction_error(opendal_operator_new("memory", nullptr, &raw_op), opendal_error_free);
     ASSERT_EQ(construction_error, nullptr);
-    std::unique_ptr<const opendal_operator, decltype(&opendal_operator_free)> op(raw_op, opendal_operator_free);
+    Operator op(raw_op, opendal_operator_free);
     ASSERT_NE(op, nullptr);
     std::string content = "native logging";
     opendal_bytes data { reinterpret_cast<uint8_t*>(&content[0]), content.size() };
@@ -132,10 +134,37 @@ TEST(OpendalLogging, NativeEventsAndRegistrationFailure)
     }
     Error second_write(opendal_operator_write(op.get(), "second-logging-value", &data), opendal_error_free);
     ASSERT_EQ(second_write, nullptr);
+    size_t after_default_write;
     {
         std::lock_guard<std::mutex> lock(state.mutex);
         EXPECT_GT(state.events, before_write);
         EXPECT_FALSE(state.message.empty());
+        after_default_write = state.events;
     }
     EXPECT_EQ(rejected_events.load(), 0u);
+
+    Error explicit_construction(opendal_operator_new_with_layers("memory", nullptr, nullptr, &raw_op), opendal_error_free);
+    ASSERT_EQ(explicit_construction, nullptr);
+    Operator explicit_op(raw_op, opendal_operator_free);
+    ASSERT_NE(explicit_op, nullptr);
+    Error explicit_write(opendal_operator_write(explicit_op.get(), "explicit-write", &data), opendal_error_free);
+    ASSERT_EQ(explicit_write, nullptr);
+    {
+        std::lock_guard<std::mutex> lock(state.mutex);
+        EXPECT_EQ(state.events, after_default_write);
+    }
+
+    // A NULL C layer handle still preserves layers configured in the options.
+    Options options(opendal_operator_options_new(), opendal_operator_options_free);
+    opendal_operator_options_set(options.get(), "layers", "logging");
+    Error configured_construction(opendal_operator_new_with_layers("memory", options.get(), nullptr, &raw_op), opendal_error_free);
+    ASSERT_EQ(configured_construction, nullptr);
+    Operator configured_op(raw_op, opendal_operator_free);
+    ASSERT_NE(configured_op, nullptr);
+    Error configured_write(opendal_operator_write(configured_op.get(), "configured-write", &data), opendal_error_free);
+    ASSERT_EQ(configured_write, nullptr);
+    {
+        std::lock_guard<std::mutex> lock(state.mutex);
+        EXPECT_GT(state.events, after_default_write);
+    }
 }

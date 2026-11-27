@@ -38,6 +38,13 @@ use tracing::span;
 #[cfg(test)]
 mod tests;
 
+/// Register the `tracing` layer with an operator registry.
+///
+/// The layer uses [`TracingLayer::new`] and ignores all scoped options.
+pub fn register_tracing_layer(registry: &OperatorRegistry) {
+    registry.register_layer("tracing", |_| Ok(TracingLayer::new()));
+}
+
 /// `TracingLayer` traces every operation with
 /// [tracing](https://docs.rs/tracing/).
 ///

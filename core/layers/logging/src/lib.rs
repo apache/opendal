@@ -35,6 +35,13 @@ mod tests;
 static LOGGING_TARGET: &str = "opendal::services";
 static HTTP_LOGGING_TARGET: &str = "opendal::services::http";
 
+/// Register the `logging` layer with an operator registry.
+///
+/// The layer uses [`LoggingLayer::default`] and ignores all scoped options.
+pub fn register_logging_layer(registry: &OperatorRegistry) {
+    registry.register_layer("logging", |_| Ok(LoggingLayer::default()));
+}
+
 /// `LoggingLayer` records OpenDAL operations and outbound HTTP requests with
 /// [log](https://docs.rs/log/).
 ///

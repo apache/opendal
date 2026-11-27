@@ -20,7 +20,7 @@ use std::sync::{Arc, RwLock};
 use opendal_core::raw::*;
 use opendal_core::{Capability, ErrorKind, OperationContext, Result};
 
-use crate::key::subject;
+use crate::key::{is_immutable_version, subject};
 use crate::mutation::{CacheDeleter, Mutation};
 use crate::reader::CachedReader;
 use crate::{CacheDecision, CacheLayer, CacheReadRequest};
@@ -57,6 +57,9 @@ impl Service for CacheService {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        if args.version().is_some_and(|v| !is_immutable_version(v)) {
+            return self.inner.stat(ctx, path, args).await;
+        }
         let subject = subject(&self.info(), path, args.version());
         let state = &self.layer.state;
         let epoch = state.epoch(&subject);
@@ -88,6 +91,7 @@ impl Service for CacheService {
         let capability = self.inner.capability();
         if !capability.read
             || (args.version().is_some() && !capability.read_with_version)
+            || args.version().is_some_and(|v| !is_immutable_version(v))
             || args.is_conditional()
             || args.override_content_type().is_some()
             || args.override_cache_control().is_some()

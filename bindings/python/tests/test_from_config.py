@@ -24,8 +24,15 @@ from types import MappingProxyType
 import pytest
 
 import opendal
-from opendal.config import FsConfig, MiniMokaConfig, MokaConfig, S3Config
-from opendal.exceptions import Unsupported
+from opendal.config import (
+    ConcurrentLimitLayerConfig,
+    FsConfig,
+    MiniMokaConfig,
+    MokaConfig,
+    RetryLayerConfig,
+    S3Config,
+)
+from opendal.exceptions import ConfigInvalid, Unsupported
 
 
 @pytest.mark.need_capability("shared")
@@ -181,3 +188,32 @@ def test_from_config_rejects_bytes_root_for_fs():
         opendal.Operator.from_config(
             {"scheme": "fs", "root": b"/tmp/foo"}  # type: ignore[arg-type]
         )
+
+
+@pytest.mark.parametrize("operator_type", [opendal.Operator, opendal.AsyncOperator])
+@pytest.mark.parametrize("factor", [float("nan"), float("inf"), float("-inf")])
+def test_from_config_rejects_nonfinite_floats(operator_type, factor):
+    with pytest.raises(ConfigInvalid, match="config floats must be finite"):
+        operator_type.from_config(
+            {"scheme": "memory"}, layers=[RetryLayerConfig(name="retry", factor=factor)]
+        )
+
+
+@pytest.mark.parametrize("operator_type", [opendal.Operator, opendal.AsyncOperator])
+def test_from_config_context_and_layers_are_keyword_only(operator_type):
+    with pytest.raises(TypeError, match="positional"):
+        operator_type.from_config({"scheme": "memory"}, {})
+    with pytest.raises(TypeError, match="positional"):
+        operator_type.from_config({"scheme": "memory"}, {}, [])
+
+
+def test_from_config_validates_layer_options():
+    with pytest.raises(ConfigInvalid, match="positive number of permits"):
+        opendal.Operator.from_config(
+            {"scheme": "memory"},
+            layers=[ConcurrentLimitLayerConfig(name="concurrent_limit", permits=0)],
+        )
+
+    retry = RetryLayerConfig(name="retry")
+    with pytest.raises(ConfigInvalid, match="duplicate name in layers list"):
+        opendal.Operator.from_config({"scheme": "memory"}, layers=[retry, retry])

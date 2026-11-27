@@ -100,6 +100,48 @@ public class Operator {
         return Data(openDALBytes: data)
     }
 
+    /// Returns metadata for an existing path.
+    /// Use a trailing slash for a named directory. The service must support stat.
+    /// Throws `OperatorError` on failure, including a missing path or a path
+    /// containing a NUL character (U+0000).
+    public func blockingStat(_ path: String) throws -> Metadata {
+        try Self.validatePath(path)
+
+        var result: UnsafeMutablePointer<opendal_metadata>? = nil
+        if let err = opendal_operator_stat(nativeOp, path, &result) {
+            throw OperatorError(consuming: err)
+        }
+        guard let metadata = result else {
+            throw OperatorError(code: OPENDAL_UNEXPECTED, message: "Stat returned no metadata.")
+        }
+        return Metadata(consuming: metadata)
+    }
+
+    /// Opens a cursor for a nonrecursive listing at the given path.
+    /// Use a trailing slash to list a named directory. Some services also
+    /// return an entry for the directory itself. The service must support list.
+    /// Throws `OperatorError` if opening the cursor fails or the path contains
+    /// a NUL character (U+0000). Advancing the cursor can also throw.
+    ///
+    /// ```swift
+    /// let lister = try op.blockingLister("logs/")
+    /// while let entry = try lister.next() {
+    ///     print(entry.path)
+    /// }
+    /// ```
+    public func blockingLister(_ path: String) throws -> BlockingLister {
+        try Self.validatePath(path)
+
+        var result: UnsafeMutablePointer<opendal_lister>? = nil
+        if let err = opendal_operator_list(nativeOp, path, &result) {
+            throw OperatorError(consuming: err)
+        }
+        guard let lister = result else {
+            throw OperatorError(code: OPENDAL_UNEXPECTED, message: "List returned no lister.")
+        }
+        return BlockingLister(consuming: lister)
+    }
+
     /// Returns `true` if the path exists or `false` if it is missing.
     /// The service must support stat. Throws `OperatorError` on failure or
     /// if the path contains a NUL character (U+0000).

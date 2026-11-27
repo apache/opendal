@@ -25,7 +25,9 @@ use pyo3::exceptions::PyValueError;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDelta;
 use pyo3::types::PyDict;
+use pyo3::types::PyFloat;
 use pyo3::types::PyList;
+use pyo3::types::PySequence;
 use pyo3::types::PyString;
 use pyo3::types::PyTuple;
 use pyo3::types::PyType;
@@ -155,6 +157,12 @@ fn config_scalar_to_string(value: &Bound<PyAny>) -> PyResult<String> {
         Ok(if b { "true" } else { "false" }.to_string())
     } else if let Ok(i) = value.extract::<i128>() {
         Ok(i.to_string())
+    } else if let Ok(float) = value.cast::<PyFloat>() {
+        let float = float.value();
+        if !float.is_finite() {
+            return Err(ConfigInvalid::new_err("config floats must be finite"));
+        }
+        Ok(float.to_string())
     } else if let Ok(delta) = value.cast::<PyDelta>() {
         // Use the base descriptors so the stable ABI reads the stored components
         // even if a timedelta subclass overrides the attributes.
@@ -182,12 +190,12 @@ fn config_scalar_to_string(value: &Bound<PyAny>) -> PyResult<String> {
             Ok(path)
         } else {
             Err(Unsupported::new_err(
-                "unsupported config value type; pass a str, bool, int, datetime.timedelta, os.PathLike, or list of those",
+                "unsupported config value type; pass a str, bool, int, finite float, datetime.timedelta, os.PathLike, or list of those",
             ))
         }
     } else {
         Err(Unsupported::new_err(
-            "unsupported config value type; pass a str, bool, int, datetime.timedelta, os.PathLike, or list of those",
+            "unsupported config value type; pass a str, bool, int, finite float, datetime.timedelta, os.PathLike, or list of those",
         ))
     }
 }
@@ -196,8 +204,8 @@ fn config_scalar_to_string(value: &Bound<PyAny>) -> PyResult<String> {
 /// consumes.
 ///
 /// Accepts the native types the `opendal.config` TypedDicts declare: `str`,
-/// `bool`, `int`, `datetime.timedelta`, `os.PathLike[str]`, and flat
-/// `list`/`tuple` of those (`,`-joined, as core parses `Vec`). Nested
+/// `bool`, `int`, finite `float`, `datetime.timedelta`, `os.PathLike[str]`,
+/// and flat `list`/`tuple` of those (`,`-joined, as core parses `Vec`). Nested
 /// collections and mappings have no flat-map form and are rejected.
 fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
     if let Ok(list) = value.cast::<PyList>() {
@@ -217,12 +225,13 @@ fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
     config_scalar_to_string(value)
 }
 
-/// Extract `(scheme, config_map)` from a typed service config dict.
-///
-/// A config is a plain `dict` (an `opendal.config.ServiceConfig`, e.g.
-/// `S3Config`) whose `scheme` key selects the service; every other pair becomes
-/// a config option, converted via [`config_value_to_string`].
-fn extract_typed_config(config: &Bound<PyAny>) -> PyResult<(String, HashMap<String, String>)> {
+/// Lower the service dict, context providers, and ordered layer configs to the
+/// same flat map used for registry loading and pickle reconstruction.
+fn extract_typed_config(
+    config: &Bound<PyAny>,
+    context: Option<&Bound<PyDict>>,
+    layers: Option<&Bound<PySequence>>,
+) -> PyResult<(String, HashMap<String, String>)> {
     let dict = config.cast::<PyDict>().map_err(|_| {
         Unsupported::new_err(
             "from_config expects an opendal.config.ServiceConfig \
@@ -242,6 +251,51 @@ fn extract_typed_config(config: &Bound<PyAny>) -> PyResult<(String, HashMap<Stri
             let value = config_value_to_string(&v)?;
             map.insert(key, value);
         }
+    }
+
+    if let Some(context) = context {
+        for (name, options) in context.iter() {
+            let name = name.extract::<String>()?;
+            for (key, value) in options.cast::<PyDict>()?.iter() {
+                let key = key.extract::<String>()?;
+                map.insert(
+                    format!("context.{name}.{key}"),
+                    config_value_to_string(&value)?,
+                );
+            }
+        }
+    }
+
+    if let Some(layers) = layers {
+        if layers.is_instance_of::<PyString>() || layers.is_instance_of::<PyBytes>() {
+            return Err(PyTypeError::new_err(
+                "layers must be a sequence of config dicts",
+            ));
+        }
+        let mut names = Vec::new();
+        for layer in layers.try_iter()? {
+            let layer = layer?;
+            let options = layer.cast::<PyDict>()?;
+            let name = options
+                .get_item("name")?
+                .ok_or_else(|| ConfigInvalid::new_err("layer config requires a 'name' key"))?
+                .extract::<String>()?;
+            let name = name.trim_ascii();
+            if name.is_empty() || name.contains(',') {
+                return Err(ConfigInvalid::new_err("expected one name per layer config"));
+            }
+            for (key, value) in options.iter() {
+                let key = key.extract::<String>()?;
+                if key != "name" {
+                    map.insert(
+                        format!("layer.{name}.{key}"),
+                        config_value_to_string(&value)?,
+                    );
+                }
+            }
+            names.push(name.to_owned());
+        }
+        map.insert("layers".to_string(), names.join(","));
     }
 
     Ok((scheme, map))
@@ -365,14 +419,14 @@ impl Operator {
     ///
     /// Examples
     /// --------
-    /// ```python
-    /// from urllib.parse import urlencode
-    /// import opendal
+    /// .. code-block:: python
     ///
-    /// op = opendal.Operator.from_uri("memory://")
-    /// query = urlencode({"region": "us-east-1"})
-    /// op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
-    /// ```
+    ///     from urllib.parse import urlencode
+    ///     import opendal
+    ///
+    ///     op = opendal.Operator.from_uri("memory://")
+    ///     query = urlencode({"region": "us-east-1"})
+    ///     op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
     #[classmethod]
     #[pyo3(signature = (uri, **kwargs: "str"))]
     pub fn from_uri(
@@ -389,21 +443,26 @@ impl Operator {
         })
     }
 
-    /// Create a new blocking `Operator` from a typed service config.
+    /// Create a new blocking `Operator` from typed configuration.
     ///
-    /// The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
-    /// ``scheme`` key selects the service, so a static type checker rejects a
-    /// wrong scheme, a missing required key, an unknown key, and a wrong value
-    /// type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
-    /// ``os.PathLike[str]``, and flat ``list`` or ``tuple`` of those) are
-    /// converted to the string form core consumes. ``bytes``-like objects,
-    /// non-dict ``Mapping``s, nested sequences, and other iterables raise
-    /// ``Unsupported``.
+    /// A static type checker validates the service scheme and the options for
+    /// the service, context, and layers. The binding converts non-string values
+    /// such as booleans, integers, finite floats, durations, paths, and flat
+    /// lists or tuples to the strings the registry consumes.
+    /// Service config values such as bytes, mappings, and nested sequences
+    /// raise ``Unsupported``.
+    ///
+    /// Construction options are stored when pickling the operator and may
+    /// include credentials. Reapply layers added via ``.layer()`` after unpickling.
     ///
     /// Parameters
     /// ----------
     /// config : ServiceConfig
     ///     A service configuration such as ``opendal.config.S3Config``.
+    /// context : ContextConfig | None
+    ///     Optional per-operator runtime settings, such as an HTTP proxy.
+    /// layers : Sequence[LayerConfig] | None
+    ///     Optional declarative layers, applied in sequence order.
     ///
     /// Returns
     /// -------
@@ -412,16 +471,23 @@ impl Operator {
     ///
     /// Examples
     /// --------
-    /// ```python
-    /// import opendal
-    /// from opendal.config import S3Config
+    /// .. code-block:: python
     ///
-    /// op = opendal.Operator.from_config(S3Config(scheme="s3", bucket="my-bucket"))
-    /// ```
+    ///     import opendal
+    ///     from opendal.config import S3Config
+    ///
+    ///     op = opendal.Operator.from_config(
+    ///         S3Config(scheme="s3", bucket="my-bucket")
+    ///     )
     #[classmethod]
-    #[pyo3(signature = (config: "ServiceConfig"))]
-    pub fn from_config(_cls: &Bound<PyType>, config: &Bound<PyAny>) -> PyResult<Self> {
-        let (scheme, map) = extract_typed_config(config)?;
+    #[pyo3(signature = (config: "ServiceConfig", *, context: "ContextConfig | None" = None, layers: "collections.abc.Sequence[LayerConfig] | None" = None))]
+    pub fn from_config(
+        _cls: &Bound<PyType>,
+        config: &Bound<PyAny>,
+        context: Option<&Bound<PyDict>>,
+        layers: Option<&Bound<PySequence>>,
+    ) -> PyResult<Self> {
+        let (scheme, map) = extract_typed_config(config, context, layers)?;
         let scheme = normalize_scheme(&scheme);
 
         Ok(Operator {
@@ -1058,9 +1124,9 @@ impl Operator {
 
     /// Recursively list entries in the given directory.
     ///
-    /// Deprecated
-    /// ----------
-    ///     Use `list()` with `recursive=True` instead.
+    /// Notes
+    /// -----
+    /// This method is deprecated. Use `list()` with `recursive=True` instead.
     ///
     /// Parameters
     /// ----------
@@ -1244,14 +1310,14 @@ impl AsyncOperator {
     ///
     /// Examples
     /// --------
-    /// ```python
-    /// from urllib.parse import urlencode
-    /// import opendal
+    /// .. code-block:: python
     ///
-    /// op = opendal.AsyncOperator.from_uri("memory://")
-    /// query = urlencode({"region": "us-east-1"})
-    /// op = opendal.AsyncOperator.from_uri(f"s3://bucket/path?{query}")
-    /// ```
+    ///     from urllib.parse import urlencode
+    ///     import opendal
+    ///
+    ///     op = opendal.AsyncOperator.from_uri("memory://")
+    ///     query = urlencode({"region": "us-east-1"})
+    ///     op = opendal.AsyncOperator.from_uri(f"s3://bucket/path?{query}")
     #[classmethod]
     #[pyo3(signature = (uri, **kwargs: "str"))]
     pub fn from_uri(
@@ -1268,21 +1334,26 @@ impl AsyncOperator {
         })
     }
 
-    /// Create a new `AsyncOperator` from a typed service config.
+    /// Create a new `AsyncOperator` from typed configuration.
     ///
-    /// The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
-    /// ``scheme`` key selects the service, so a static type checker rejects a
-    /// wrong scheme, a missing required key, an unknown key, and a wrong value
-    /// type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
-    /// ``os.PathLike[str]``, and flat ``list`` or ``tuple`` of those) are
-    /// converted to the string form core consumes. ``bytes``-like objects,
-    /// non-dict ``Mapping``s, nested sequences, and other iterables raise
-    /// ``Unsupported``.
+    /// A static type checker validates the service scheme and the options for
+    /// the service, context, and layers. The binding converts non-string values
+    /// such as booleans, integers, finite floats, durations, paths, and flat
+    /// lists or tuples to the strings the registry consumes.
+    /// Service config values such as bytes, mappings, and nested sequences
+    /// raise ``Unsupported``.
+    ///
+    /// Construction options are stored when pickling the operator and may
+    /// include credentials. Reapply layers added via ``.layer()`` after unpickling.
     ///
     /// Parameters
     /// ----------
     /// config : ServiceConfig
     ///     A service configuration such as ``opendal.config.S3Config``.
+    /// context : ContextConfig | None
+    ///     Optional per-operator runtime settings, such as an HTTP proxy.
+    /// layers : Sequence[LayerConfig] | None
+    ///     Optional declarative layers, applied in sequence order.
     ///
     /// Returns
     /// -------
@@ -1291,16 +1362,23 @@ impl AsyncOperator {
     ///
     /// Examples
     /// --------
-    /// ```python
-    /// import opendal
-    /// from opendal.config import S3Config
+    /// .. code-block:: python
     ///
-    /// op = opendal.AsyncOperator.from_config(S3Config(scheme="s3", bucket="my-bucket"))
-    /// ```
+    ///     import opendal
+    ///     from opendal.config import S3Config
+    ///
+    ///     op = opendal.AsyncOperator.from_config(
+    ///         S3Config(scheme="s3", bucket="my-bucket")
+    ///     )
     #[classmethod]
-    #[pyo3(signature = (config: "ServiceConfig"))]
-    pub fn from_config(_cls: &Bound<PyType>, config: &Bound<PyAny>) -> PyResult<Self> {
-        let (scheme, map) = extract_typed_config(config)?;
+    #[pyo3(signature = (config: "ServiceConfig", *, context: "ContextConfig | None" = None, layers: "collections.abc.Sequence[LayerConfig] | None" = None))]
+    pub fn from_config(
+        _cls: &Bound<PyType>,
+        config: &Bound<PyAny>,
+        context: Option<&Bound<PyDict>>,
+        layers: Option<&Bound<PySequence>>,
+    ) -> PyResult<Self> {
+        let (scheme, map) = extract_typed_config(config, context, layers)?;
         let scheme = normalize_scheme(&scheme);
 
         Ok(AsyncOperator {
@@ -2005,9 +2083,9 @@ impl AsyncOperator {
 
     /// Recursively list entries in the given directory.
     ///
-    /// Deprecated
-    /// ----------
-    ///     Use `list()` with `recursive=True` instead.
+    /// Notes
+    /// -----
+    /// This method is deprecated. Use `list()` with `recursive=True` instead.
     ///
     /// Parameters
     /// ----------

@@ -1,4 +1,42 @@
+<!-- Preserve the heading fragment used by the published Zensical reference. -->
+<div id="apache-opendaltm-python-binding"></div>
+
 # Apache OpenDAL™ Python binding
+
+The Python binding exposes Apache OpenDAL's unified storage API to Python
+applications. Use the guides on the main OpenDAL website for task-oriented
+documentation, and use this site for Python examples and API details.
+
+::::{grid} 1 2 2 2
+:gutter: 3
+
+:::{grid-item-card} Basic example
+:link: examples/basic
+:link-type: doc
+
+Install the package and complete a local read and write workflow.
+:::
+
+:::{grid-item-card} API reference
+:link: api/operator
+:link-type: doc
+
+Look up operators, files, layers, exceptions, and supporting types.
+:::
+
+:::{grid-item-card} User guide
+:link: https://opendal.apache.org/docs/bindings/python/
+
+Learn how to connect storage services and prepare an application for production.
+:::
+
+:::{grid-item-card} Service configuration
+:link: api/config
+:link-type: doc
+
+Review the typed configuration accepted by each storage service.
+:::
+::::
 
 ## Installation
 
@@ -187,3 +225,11 @@ asyncio.run(main())
 ```
 
 `AsyncFile` reads and writes bytes. Encode text with `str.encode()` and decode reads with `bytes.decode()`; `io.TextIOWrapper` only works with the blocking `File`.
+
+```{toctree}
+:hidden:
+:maxdepth: 2
+
+examples/index
+api/index
+```

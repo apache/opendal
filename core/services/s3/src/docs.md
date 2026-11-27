@@ -16,6 +16,22 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+## Read and stat checksums
+
+For signed requests to standard AWS S3 endpoints, use
+[`opendal_core::Operator::stat_with`] or [`opendal_core::Operator::reader_with`]
+with `.checksum(true)` to request stored full-object checksums. Stat returns the
+metadata directly. A reader that observes a full-object response first exposes
+its metadata through [`opendal_core::Reader::metadata`].
+[`opendal_core::Operator::read_with`] returns the bytes.
+
+OpenDAL exposes full-object CRC-64/NVME, CRC-32C, and SHA-256 checksums when S3
+returns them. A ranged read can expose a checksum when the response covers the
+whole object. Composite checksums and responses that cover only part of the
+object leave [`opendal_core::Metadata::checksum`] empty. OpenDAL omits checksum mode by default
+and for presigned requests, anonymous access, directory buckets, and
+S3-compatible endpoints and presets.
+
 ## Object restoration
 
 S3 restoration requires bucket versioning. [`opendal_core::Operator::restore`]
@@ -39,6 +55,47 @@ op.restore_with("path/to/file")
 Add `.if_not_exists(true)` when a selected version must not overwrite an
 object recreated by another writer. This condition requires an explicit
 version.
+
+## Write verification
+
+On general-purpose AWS S3 buckets, use [`opendal_core::WriteChecksum::Any`] or
+[`opendal_core::WriteChecksum::Fast`] to compute and verify a full-object
+CRC-64/NVME checksum. Explicit algorithm and expected checksum requests
+support CRC-32C and CRC-64/NVME. The write returns the confirmed checksum in
+[`opendal_core::Metadata::checksum`] for both a single PUT and multipart upload.
+Append and S3 Express One Zone reject per-write checksum intents. The
+[`crate::Minio`] and [`crate::Seaweedfs`] presets support opt-in write checksum
+verification on compatible endpoints. Other S3-compatible presets reject
+per-write checksum intents.
+
+A per-write intent takes precedence over [`crate::S3Config::checksum_algorithm`]
+for HTTP checksum headers. The configured algorithm still disables native writer
+copy, and configuring `md5` still limits writes to a single PUT.
+
+To apply a checksum policy to an entire operator, enable the `services-s3` and
+`layers-checksum` features on `opendal` and attach
+[`ChecksumLayer`](https://docs.rs/opendal/latest/opendal/layers/struct.ChecksumLayer.html).
+The default policy requests a fast native checksum for writes without an
+explicit checksum intent and verifies available whole-object checksums on reads.
+
+<!-- This example uses the facade, which depends on this service crate. -->
+
+```rust,ignore
+use opendal::layers::ChecksumLayer;
+use opendal::services::S3;
+use opendal::{Operator, Result};
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let op = Operator::new(S3::default().bucket("example-bucket").region("us-west-2"))?
+        .layer(ChecksumLayer::new());
+
+    op.write("example.txt", "hello").await?;
+    let data = op.read("example.txt").await?;
+    assert_eq!(data.to_vec(), b"hello");
+    Ok(())
+}
+```
 
 ## Configuration
 

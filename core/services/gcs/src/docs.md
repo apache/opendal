@@ -22,6 +22,17 @@ Use [`crate::GcsConfig`] for serializable configuration and this builder's
 methods for direct construction. The field and method documentation defines
 accepted values, defaults, and environment interaction.
 
+## CRC32C checksums
+
+The authenticated default JSON endpoint verifies CRC32C before committing writes.
+`WriteChecksum::Any` and `WriteChecksum::Fast` select CRC32C. `Algo` and `Expected`
+accept CRC32C. Successful checksum writes return the verified digest in their
+metadata. A mismatched expected digest returns `ChecksumMismatch`. Presigned
+writes reject checksum intents.
+
+Object stat metadata describes the stored bytes. Read metadata includes CRC32C
+when the response covers the entire stored representation.
+
 ## Listing deleted objects
 
 `deleted(true)` includes retained soft-deleted generations alongside live

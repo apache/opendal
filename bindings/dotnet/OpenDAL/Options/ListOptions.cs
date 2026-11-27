@@ -43,6 +43,7 @@ public sealed class ListOptions : IOptions<OpenDALListOptions>
     /// <summary>
     /// Whether to list recursively under the prefix; default <see langword="false"/>.
     /// </summary>
+    /// <seealso cref="Capability.ListWithRecursive"/>
     public bool Recursive { get; init; }
 
     /// <summary>
@@ -61,6 +62,7 @@ public sealed class ListOptions : IOptions<OpenDALListOptions>
     /// Filter entries with a case-sensitive Unix shell style glob pattern.
     /// </summary>
     /// <seealso cref="Capability.ListWithGlob"/>
+    /// <seealso cref="Capability.ListWithRecursive"/>
     public string? Glob { get; init; }
 
     void IOptions<OpenDALListOptions>.Validate()

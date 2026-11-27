@@ -133,4 +133,9 @@ public enum ErrorCode
     /// The operation conflicts with the current or transitional state of the resource.
     /// </summary>
     Conflict = 12,
+
+    /// <summary>
+    /// The content does not match the checksum for the operation.
+    /// </summary>
+    ChecksumMismatch = 13,
 }

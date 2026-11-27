@@ -1436,6 +1436,7 @@ dependencies = [
  "http",
  "opendal-core",
  "reqwest",
+ "serde",
 ]
 
 [[package]]
@@ -1502,6 +1503,7 @@ version = "0.59.5"
 dependencies = [
  "base64 0.23.0",
  "bytes",
+ "crc-fast",
  "http",
  "log",
  "opendal-core",
@@ -1595,7 +1597,9 @@ name = "opendal-service-gcs"
 version = "0.59.5"
 dependencies = [
  "async-trait",
+ "base64 0.23.0",
  "bytes",
+ "crc-fast",
  "http",
  "log",
  "opendal-core",

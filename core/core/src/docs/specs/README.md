@@ -27,8 +27,12 @@ behavior tests, API documentation, and specification change land together.
 
 ## Active specifications
 
+- [Checksums](https://opendal.apache.org/docs/specifications/checksum/) define
+  portable write intents, checksum metadata, and read verification.
 - [Conditional operations](https://opendal.apache.org/docs/specifications/conditional-operations/)
   define portable predicate, error, and atomicity semantics, including the
   behavior when the file does not exist.
 - [Metadata](https://opendal.apache.org/docs/specifications/metadata/) defines
   owned metadata, compact construction limits, and result completion semantics.
+- [Operator configuration](https://opendal.apache.org/docs/specifications/operator-configuration/)
+  defines how URI and map options select and compose services, context providers, and layers.

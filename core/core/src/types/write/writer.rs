@@ -211,10 +211,21 @@ impl Writer {
     /// Each call accepts at most 5 GiB. Applications must split larger source
     /// ranges into multiple ordered calls.
     ///
-    /// If a call fails after the underlying writer accepts part of the range,
-    /// retrying the same path, range, and read options resumes after the
-    /// accepted prefix instead of copying it again. Until that retry succeeds
-    /// or [`Writer::abort`] runs, other writes and [`Writer::close`] fail.
+    /// If the streaming source returns [`ErrorKind::ChecksumMismatch`], the
+    /// call returns the source error. If the writer accepted any bytes from
+    /// that logical copy, including bytes queued in the writer's buffer or
+    /// accepted on an earlier attempt, further copies, writes, and
+    /// [`Writer::close`] fail. The writer requires [`Writer::abort`].
+    ///
+    /// If the copy accepted no bytes, the writer can still copy from another
+    /// source or continue writing. If you ignore the source error and close
+    /// without appending anything else, a successful [`Writer::close`] commits
+    /// only the previously accepted prefix.
+    ///
+    /// For other failures after accepting bytes from the copy, retrying the
+    /// same path, range, and read options resumes after the accepted prefix.
+    /// Until that retry succeeds or [`Writer::abort`] runs, other writes and
+    /// [`Writer::close`] fail.
     pub async fn copy_from(&mut self, path: &str, range: impl Into<BytesRange>) -> Result<()> {
         self.copy_from_options(
             path,
@@ -241,10 +252,11 @@ impl Writer {
     /// restore. Copying the current object onto itself returns
     /// [`ErrorKind::IsSameFile`].
     ///
-    /// A retry with the same path, range, and read options resumes a partially
-    /// accepted copy instead of replaying its accepted prefix. Any other write
-    /// or [`Writer::close`] fails until the retry succeeds or [`Writer::abort`]
-    /// runs.
+    /// The retry and abort rules in [`Writer::copy_from`] apply. After a source
+    /// [`ErrorKind::ChecksumMismatch`], abort if this logical copy accepted any
+    /// bytes across its attempts. If it accepted none and you ignore the error
+    /// and close without appending anything else, a successful [`Writer::close`]
+    /// commits only the previously accepted prefix.
     pub async fn copy_from_options(
         &mut self,
         path: &str,

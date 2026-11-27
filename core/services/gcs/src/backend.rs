@@ -47,7 +47,7 @@ use super::core::*;
 use super::deleter::GcsDeleter;
 use super::lister::GcsLister;
 use super::reader::*;
-use super::writer::GcsConditionalWriter;
+use super::writer::GcsResumableWriter;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
 use opendal_core::raw::*;
@@ -337,6 +337,7 @@ impl GcsBuilder {
         let request_signer = Arc::new(RequestSigner::new("storage").with_scope(&scope));
 
         let authenticated_default_endpoint = endpoint == DEFAULT_GCS_ENDPOINT && !skip_signature;
+        let gcs_can_checksum = authenticated_default_endpoint;
         let gcs_can_restore = authenticated_default_endpoint;
         let gcs_can_list_deleted = authenticated_default_endpoint;
         let info = ServiceInfo::new(GCS_SCHEME, &root, bucket);
@@ -357,6 +358,7 @@ impl GcsBuilder {
             read_with_if_version_match: true,
             read_with_if_version_not_match: true,
             read_with_override_content_disposition: true,
+            read_with_override_content_type: true,
 
             write: true,
             write_can_empty: true,
@@ -368,6 +370,7 @@ impl GcsBuilder {
             write_with_if_not_exists: true,
             write_with_if_version_match: true,
             write_with_if_version_not_match: true,
+            write_with_checksum: gcs_can_checksum,
 
             // The min multipart size of Gcs is 5 MiB.
             //
@@ -536,13 +539,13 @@ impl Service for GcsBackend {
         let conditional = args.if_not_exists()
             || args.if_version_match().is_some()
             || args.if_version_not_match().is_some();
-        let output: GcsWriters = if conditional {
-            TwoWays::Two(GcsConditionalWriter::new(
+        let output: GcsWriters = if conditional || args.checksum().is_some() {
+            TwoWays::Two(GcsResumableWriter::new(
                 self.core.clone(),
                 ctx.clone(),
                 path,
                 args,
-            ))
+            )?)
         } else {
             let concurrent = args.concurrent();
             let w = GcsWriter::new(self.core.clone(), ctx.clone(), path, args);
@@ -623,6 +626,10 @@ impl Service for GcsBackend {
             PresignOperation::Read(range, v) => {
                 self.core.gcs_get_object_xml_request(path, *range, v)
             }
+            PresignOperation::Write(v) if v.checksum().is_some() => Err(Error::new(
+                ErrorKind::Unsupported,
+                "GCS presigned writes do not support checksum intents",
+            )),
             PresignOperation::Write(v) => {
                 self.core
                     .gcs_insert_object_xml_request(path, v, Buffer::new())

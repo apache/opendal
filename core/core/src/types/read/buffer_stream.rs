@@ -50,6 +50,8 @@ pub struct StreamingReader {
     pending: PendingRange,
     /// The suffix range after revalidation, reported to `BufferStream`.
     revalidated_range: Option<Range<u64>>,
+    /// Object length reported by this stream's open of an unresolved suffix.
+    suffix_object_length: Option<u64>,
     reader: Option<Box<dyn oio::ReadStreamDyn>>,
 }
 
@@ -61,6 +63,7 @@ impl StreamingReader {
             ctx,
             pending: PendingRange::Range(range),
             revalidated_range: None,
+            suffix_object_length: None,
             reader: None,
         }
     }
@@ -71,6 +74,7 @@ impl StreamingReader {
             ctx,
             pending: PendingRange::Suffix(reval),
             revalidated_range: None,
+            suffix_object_length: None,
             reader: None,
         }
     }
@@ -93,6 +97,12 @@ impl StreamingReader {
             PendingRange::Range(range) => {
                 let (rp, reader) = self.ctx.reader().open(range).await?;
                 self.pending = PendingRange::Opened;
+                if range.is_suffix() {
+                    self.suffix_object_length = rp
+                        .metadata()
+                        .filter(|meta| meta.is_file())
+                        .map(Metadata::content_length);
+                }
                 self.ctx.observe_read_response(rp);
                 Ok(Some(reader))
             }
@@ -679,35 +689,25 @@ impl Stream for BufferStream {
                     let (mut reader, buf) = ready!(fut.poll(cx));
                     this.sync_revalidated_suffix(&mut reader);
                     return match buf {
-                        Ok(buf) if buf.is_empty() => {
-                            this.state = State::Done;
+                        Ok(mut buf) => {
                             let expected = if this.exact {
                                 this.size
+                            } else if let Some(suffix_size) = this.suffix_size
+                                && let TwoWays::One(reader) = &reader
+                            {
+                                // Shared reader metadata may describe an earlier response.
+                                reader
+                                    .suffix_object_length
+                                    .map(|length| suffix_size.min(length))
                             } else {
-                                this.suffix_size.and_then(|suffix_size| {
-                                    this.ctx
-                                        .metadata()
-                                        .filter(|meta| meta.is_file())
-                                        .map(|meta| suffix_size.min(meta.content_length()))
-                                })
+                                None
                             };
-                            let error = check_complete(expected, this.read).err();
-                            Poll::Ready(error.map(Err))
-                        }
-                        Ok(mut buf) => {
-                            let max_size = if this.exact {
-                                this.size
-                            } else {
-                                this.suffix_size.map(|suffix_size| {
-                                    this.ctx
-                                        .metadata()
-                                        .filter(|meta| meta.is_file())
-                                        .map_or(suffix_size, |meta| {
-                                            suffix_size.min(meta.content_length())
-                                        })
-                                })
-                            };
-                            if let Some(max_size) = max_size {
+                            if buf.is_empty() {
+                                this.state = State::Done;
+                                let error = check_complete(expected, this.read).err();
+                                return Poll::Ready(error.map(Err));
+                            }
+                            if let Some(max_size) = expected.or(this.suffix_size) {
                                 let chunk_len = buf.len() as u64;
                                 if chunk_len > max_size.saturating_sub(this.read) {
                                     this.state = State::Done;

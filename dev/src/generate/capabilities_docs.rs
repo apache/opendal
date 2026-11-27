@@ -343,6 +343,31 @@ fn parse_capability_literal(
                     loc(rel_path, fv.span())
                 );
             }
+            // S3 presets share the S3 capability literal but have separate checksum support.
+            if rel_path == "core/services/s3/src/backend.rs"
+                && name != "s3"
+                && matches!(
+                    field_name.as_str(),
+                    "read_with_checksum" | "write_with_checksum"
+                )
+            {
+                let condition = match (name, field_name.as_str()) {
+                    ("minio", "write_with_checksum") => Some(
+                        "Requires `enable_write_checksum=true` for signed, non-append writes. Verified with signed path-style requests to MinIO RELEASE.2025-01-20T14-49-07Z. Keep the option disabled on RELEASE.2024-09-22T00-33-43Z because it accepted an incorrect CRC.",
+                    ),
+                    ("seaweedfs", "write_with_checksum") => Some(
+                        "Requires `enable_write_checksum=true` for non-append writes. Verified with signed path-style requests to SeaweedFS 4.52.",
+                    ),
+                    _ => None,
+                };
+                if let Some(condition) = condition {
+                    native.insert(
+                        field_name,
+                        NativeBoolDoc::Conditional(condition.to_string()),
+                    );
+                }
+                continue;
+            }
             if let Some(doc) = eval_bool_field(&fv.expr, platform_cond, rel_path)? {
                 native.insert(field_name, doc);
             }
@@ -676,13 +701,19 @@ fn describe_bool_condition(expr: &Expr, rel_path: &str) -> Result<String> {
         }
         Expr::Path(ExprPath { path, .. }) => {
             if let Some(ident) = path.get_ident().map(ToString::to_string) {
+                if ident == "azblob_can_checksum" {
+                    return Ok(
+                        "Standard Azure Blob endpoints (`https://<account>.blob.core.windows.net`)"
+                            .to_string(),
+                    );
+                }
                 if ident == "azblob_can_presign" {
                     return Ok(
                         "Requires `sas_token` or a host-style endpoint with `account_key` (and `account_name`), with `skip_signature` disabled"
                             .to_string(),
                     );
                 }
-                if ident == "gcs_can_restore" {
+                if ident == "gcs_can_restore" || ident == "gcs_can_checksum" {
                     return Ok(
                         "Requires the default endpoint (`https://storage.googleapis.com`) with `skip_signature` and `allow_anonymous` disabled"
                             .to_string(),
@@ -697,11 +728,14 @@ fn describe_bool_condition(expr: &Expr, rel_path: &str) -> Result<String> {
                 if ident == "s3_write_can_multi" {
                     return Ok("When `checksum_algorithm` is not `md5`".to_string());
                 }
-                if ident == "s3_can_checksum" {
+                if ident == "read_checksum_mode" {
                     return Ok(
-                        "Standard S3 buckets (not S3 Express One Zone or provider presets)"
+                        "Signed requests to standard AWS S3 endpoints for general-purpose buckets"
                             .to_string(),
                     );
+                }
+                if ident == "s3_can_checksum" {
+                    return Ok("Standard S3 buckets (not S3 Express One Zone)".to_string());
                 }
                 if let Some(rest) = ident.strip_prefix("has_") {
                     return Ok(format!("Requires `{rest}`"));
@@ -1121,6 +1155,10 @@ mod tests {
 
         let s3 = out.services.iter().find(|s| s.scheme == "s3").unwrap();
         assert_eq!(s3.native.get("read"), Some(&NativeBoolDoc::Supported(true)));
+        assert!(matches!(
+            s3.native.get("read_with_checksum"),
+            Some(NativeBoolDoc::Conditional(_))
+        ));
         assert_eq!(
             s3.native.get("stat_with_version"),
             Some(&NativeBoolDoc::Conditional(
@@ -1133,6 +1171,29 @@ mod tests {
                 "When `checksum_algorithm` is not set".to_string()
             ))
         );
+        assert_eq!(
+            s3.native.get("write_with_checksum"),
+            Some(&NativeBoolDoc::Conditional(
+                "Standard S3 buckets (not S3 Express One Zone)".to_string()
+            ))
+        );
+        let minio = out.services.iter().find(|s| s.scheme == "minio").unwrap();
+        assert!(!minio.native.contains_key("read_with_checksum"));
+        assert!(matches!(
+            minio.native.get("write_with_checksum"),
+            Some(NativeBoolDoc::Conditional(condition))
+                if condition.contains("enable_write_checksum") && condition.contains("signed")
+        ));
+        let seaweedfs = out
+            .services
+            .iter()
+            .find(|s| s.scheme == "seaweedfs")
+            .unwrap();
+        assert!(!seaweedfs.native.contains_key("read_with_checksum"));
+        assert!(matches!(
+            seaweedfs.native.get("write_with_checksum"),
+            Some(NativeBoolDoc::Conditional(condition)) if condition.contains("enable_write_checksum")
+        ));
         assert!(!s3.native.contains_key("create_dir"));
         assert_eq!(
             s3.limits.get("write_multi_min_size"),

@@ -16,6 +16,23 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+## Verified writes
+
+`write_with(path, data).checksum(WriteChecksum::Any)` and
+`writer_with(path).checksum(WriteChecksum::Any)` ask B2 to verify SHA-1.
+An ordinary upload returns the verified `ChecksumAlgo::Sha1` digest in
+`Metadata::checksum()`. A large-file upload verifies each part and returns
+`None` from `Metadata::checksum()` because B2 only verifies the part digests.
+
+B2 rejects `Fast`, `Algo`, `Expected`, and all presigned writes with an
+explicit checksum intent before sending a request. Writes without a checksum
+intent use B2's `do_not_verify` mode.
+
+B2 digest rejections return `ChecksumMismatch`. An upload rejected for a
+body mismatch can be retried with its buffered data. A rejected part digest
+list on completion is a non-temporary error. If B2 accepts an ordinary upload
+but the response fails to confirm the digest, the object may already be visible.
+
 ## File metadata by version
 
 `stat_with(path).version(file_id)` returns metadata for a B2 data version of

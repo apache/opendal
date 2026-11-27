@@ -2727,8 +2727,11 @@ name = "edge_test_memory_behavior_on_wasm"
 version = "0.59.5"
 dependencies = [
  "anyhow",
+ "bytes",
+ "crc-fast",
  "futures",
  "getrandom 0.4.2",
+ "gloo-timers 0.4.1",
  "http 1.5.0",
  "opendal",
  "rand 0.10.1",
@@ -7080,6 +7083,7 @@ dependencies = [
  "opendal-layer-cache",
  "opendal-layer-capability-check",
  "opendal-layer-chaos",
+ "opendal-layer-checksum",
  "opendal-layer-concurrent-limit",
  "opendal-layer-dtrace",
  "opendal-layer-fastmetrics",
@@ -7176,6 +7180,8 @@ dependencies = [
  "sha2 0.11.0",
  "size",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
  "uuid",
 ]
 
@@ -7327,6 +7333,7 @@ dependencies = [
  "http 1.5.0",
  "opendal-core",
  "reqwest",
+ "serde",
  "tokio",
 ]
 
@@ -7373,7 +7380,6 @@ dependencies = [
  "sha2 0.11.0",
  "tempfile",
  "tokio",
- "uuid",
 ]
 
 [[package]]
@@ -7390,6 +7396,22 @@ version = "0.59.5"
 dependencies = [
  "opendal-core",
  "rand 0.10.1",
+]
+
+[[package]]
+name = "opendal-layer-checksum"
+version = "0.59.5"
+dependencies = [
+ "crc-fast",
+ "futures",
+ "md-5 0.11.0",
+ "opendal-core",
+ "opendal-executor-tokio",
+ "opendal-layer-capability-check",
+ "opendal-layer-retry",
+ "opendal-layer-route",
+ "sha2 0.11.0",
+ "tokio",
 ]
 
 [[package]]
@@ -7690,10 +7712,13 @@ version = "0.59.5"
 dependencies = [
  "base64 0.23.1",
  "bytes",
+ "crc-fast",
  "futures",
  "http 1.5.0",
  "log",
  "opendal-core",
+ "opendal-executor-tokio",
+ "opendal-layer-retry",
  "opendal-service-azure-common",
  "pretty_assertions",
  "quick-xml",
@@ -7766,8 +7791,10 @@ dependencies = [
  "http 1.5.0",
  "log",
  "opendal-core",
+ "opendal-layer-retry",
  "serde",
  "serde_json",
+ "sha1 0.11.0",
  "tokio",
 ]
 
@@ -7951,7 +7978,9 @@ version = "0.59.5"
 dependencies = [
  "async-trait",
  "asyncband",
+ "base64 0.23.1",
  "bytes",
+ "crc-fast",
  "futures",
  "http 1.5.0",
  "log",

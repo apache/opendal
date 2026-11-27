@@ -51,8 +51,10 @@ const sidebars = {
       link: { type: 'doc', id: 'specifications/overview' },
       collapsed: true,
       items: [
+        'specifications/checksum',
         'specifications/conditional-operations',
         'specifications/metadata',
+        'specifications/operator-configuration',
       ],
     },
     // Divider between the concept docs and the per-language guides.

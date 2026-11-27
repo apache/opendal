@@ -663,6 +663,47 @@ impl S3Builder {
         endpoint
     }
 
+    fn is_standard_aws_s3_endpoint(config: &S3Config, region: &str, endpoint: &str) -> bool {
+        let Ok(endpoint) = Url::parse(endpoint) else {
+            return false;
+        };
+        if endpoint.scheme() != "https"
+            || endpoint.port().is_some()
+            || !endpoint.username().is_empty()
+            || endpoint.password().is_some()
+            || endpoint.query().is_some()
+            || endpoint.fragment().is_some()
+        {
+            return false;
+        }
+
+        let Some(host) = endpoint.host_str() else {
+            return false;
+        };
+        let host = if config.enable_virtual_host_style {
+            if endpoint.path() != "/" {
+                return false;
+            }
+            let Some(host) = host
+                .strip_prefix(config.bucket.as_str())
+                .and_then(|host| host.strip_prefix('.'))
+            else {
+                return false;
+            };
+            host
+        } else {
+            if endpoint.path().strip_prefix('/') != Some(config.bucket.as_str()) {
+                return false;
+            }
+            host
+        };
+
+        host.strip_suffix(".amazonaws.com").and_then(|host| {
+            host.strip_prefix("s3.")
+                .or_else(|| host.strip_prefix("s3-"))
+        }) == Some(region)
+    }
+
     fn invalid_s3_express_config(message: &'static str) -> Error {
         Error::new(ErrorKind::ConfigInvalid, message)
             .with_operation("Builder::build")
@@ -944,26 +985,32 @@ impl S3Builder {
         }
     }
 
-    pub(crate) fn build_with_scheme(self, scheme: &'static str) -> Result<S3Backend> {
-        self.build_inner(scheme)
+    pub(crate) fn build_with_scheme(
+        self,
+        scheme: &'static str,
+        preset_write_checksum: bool,
+    ) -> Result<S3Backend> {
+        self.build_backend(scheme, None, preset_write_checksum)
     }
 
     pub(crate) fn build_with_resolved_endpoint(
         self,
         scheme: &'static str,
         endpoint: String,
+        preset_write_checksum: bool,
     ) -> Result<S3Backend> {
-        self.build_backend(scheme, Some(endpoint))
+        self.build_backend(scheme, Some(endpoint), preset_write_checksum)
     }
 
     fn build_inner(self, scheme: &'static str) -> Result<S3Backend> {
-        self.build_backend(scheme, None)
+        self.build_backend(scheme, None, false)
     }
 
     fn build_backend(
         self,
         scheme: &'static str,
         resolved_endpoint: Option<String>,
+        preset_write_checksum: bool,
     ) -> Result<S3Backend> {
         debug!("backend build started: {:?}", self);
 
@@ -1091,6 +1138,10 @@ impl S3Builder {
             (endpoint, s3_express_config)
         };
         let is_s3_express = s3_express_config.is_some();
+        let read_checksum_mode = scheme == S3_SCHEME
+            && !config.skip_signature
+            && !is_s3_express
+            && Self::is_standard_aws_s3_endpoint(&config, &region, &endpoint);
         debug!("backend use endpoint: {endpoint}");
 
         // The base signer context carries local config readers and command
@@ -1191,13 +1242,11 @@ impl S3Builder {
         // S3 CreateMultipartUpload does not support MD5 checksum_algorithm;
         // only single-shot PutObject supports Content-MD5.
         let s3_write_can_multi = !matches!(checksum_algorithm, Some(ChecksumAlgorithm::Md5));
-        // S3 verifies a caller-supplied full-object checksum on both PutObject
-        // and multipart uploads only for CRC algorithms. Provider presets keep
-        // checksum capabilities disabled because some S3-compatible services
-        // accept checksum headers without verifying them.
+        // General-purpose S3 verifies full-object CRCs on PutObject and multipart uploads.
+        // Presets require an explicit opt-in because checksum support depends on the gateway.
         //
         // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity-upload.html>
-        let s3_can_checksum = scheme == S3_SCHEME && !is_s3_express;
+        let s3_can_checksum = !is_s3_express && (scheme == S3_SCHEME || preset_write_checksum);
 
         let mut capability = Capability {
             stat: true,
@@ -1220,6 +1269,7 @@ impl S3Builder {
             read_with_override_content_type: true,
             read_with_version: !is_s3_express,
             read_with_suffix: true,
+            read_with_checksum: read_checksum_mode,
 
             write: true,
             write_can_empty: true,
@@ -1236,8 +1286,7 @@ impl S3Builder {
             write_with_if_not_exists: true,
             write_with_user_metadata: true,
 
-            checksum_crc32c: s3_can_checksum,
-            checksum_crc64_nvme: s3_can_checksum,
+            write_with_checksum: s3_can_checksum,
 
             // The min multipart size of S3 is 5 MiB.
             //
@@ -1384,12 +1433,17 @@ impl Service for S3Backend {
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let error_ctx = ErrorContext::new(ServiceOperation("HeadObject"))
             .with_caller_condition(args.is_conditional());
+        let checksum = args.checksum() && self.core.capability.read_with_checksum;
         let resp = self.core.s3_head_object(ctx, path, args).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(RpStat::new(parse_into_s3_metadata(path, resp.headers())?)),
+            StatusCode::OK => Ok(RpStat::new(parse_into_s3_metadata(
+                path,
+                resp.headers(),
+                checksum,
+            )?)),
             _ => Err(parse_error(error_ctx, resp)),
         }
     }
@@ -1407,25 +1461,18 @@ impl Service for S3Backend {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        let output: S3Writers = {
-            let writer = S3Writer::new(self.core.clone(), ctx.clone(), path, args.clone());
-
-            let w = if args.append() {
-                S3Writers::Two(oio::AppendWriter::new(writer))
-            } else {
-                // Multipart uploads schedule work through the operation
-                // executor supplied by the caller.
-                S3Writers::One(oio::MultipartWriter::new(
-                    ctx.executor().clone(),
-                    writer,
-                    args.concurrent(),
-                ))
-            };
-
-            Ok(w)
-        }?;
-
-        Ok(output)
+        let append = args.append();
+        let concurrent = args.concurrent();
+        let writer = S3Writer::new(self.core.clone(), ctx.clone(), path, args)?;
+        if append {
+            Ok(S3Writers::Two(oio::AppendWriter::new(writer)))
+        } else {
+            Ok(S3Writers::One(oio::MultipartWriter::new(
+                ctx.executor().clone(),
+                writer,
+                concurrent,
+            )))
+        }
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -1600,8 +1647,28 @@ impl Service for S3Backend {
                 "S3 presigned writes do not support append",
             )),
             PresignOperation::Write(v) => {
-                self.core
-                    .s3_put_object_request(path, None, &v, Buffer::new())
+                let checksum = match v.checksum() {
+                    None => None,
+                    Some(WriteChecksum::Expected(checksum)) => Some((
+                        s3_full_object_checksum_algorithm(checksum.algo)?,
+                        BASE64_STANDARD.encode(checksum.value),
+                    )),
+                    Some(_) => {
+                        return Err(Error::new(
+                            ErrorKind::Unsupported,
+                            "S3 presigned writes require a precomputed checksum when specifying a checksum",
+                        ));
+                    }
+                };
+                self.core.s3_put_object_request(
+                    path,
+                    None,
+                    &v,
+                    checksum
+                        .as_ref()
+                        .map(|(algorithm, value)| (*algorithm, value.as_str())),
+                    Buffer::new(),
+                )
             }
             PresignOperation::Delete(v) => self.core.s3_delete_object_request(path, &v),
             _ => Err(Error::new(
@@ -1640,6 +1707,228 @@ mod tests {
     use reqsign_core::ProvideCredential;
 
     use super::*;
+
+    struct ReadChecksumTransport {
+        requests: Arc<Mutex<Vec<(Method, bool)>>>,
+    }
+
+    impl HttpTransport for ReadChecksumTransport {
+        async fn fetch(&self, request: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let mode = request.headers().get(constants::X_AMZ_CHECKSUM_MODE);
+            assert!(mode.is_none_or(|value| value == "ENABLED"));
+            self.requests
+                .lock()
+                .unwrap()
+                .push((request.method().clone(), mode.is_some()));
+            let mut response = Response::builder()
+                .header(constants::X_AMZ_CHECKSUM_TYPE, "FULL_OBJECT")
+                .header("x-amz-checksum-crc32c", "4waSgw==");
+            let range = request
+                .headers()
+                .get(http::header::RANGE)
+                .map(|v| v.to_str().unwrap());
+            let (payload, length, content_range): (&'static [u8], _, _) =
+                match (request.method(), range) {
+                    (&Method::HEAD, None) => (b"", 9, None),
+                    (&Method::GET, None) => (b"123456789", 9, None),
+                    (&Method::GET, Some("bytes=2-4")) => (b"345", 3, Some("bytes 2-4/9")),
+                    (&Method::GET, Some("bytes=0-8")) => (b"123456789", 9, Some("bytes 0-8/9")),
+                    _ => panic!("unexpected request"),
+                };
+            if let Some(content_range) = content_range {
+                response = response
+                    .status(StatusCode::PARTIAL_CONTENT)
+                    .header(http::header::CONTENT_RANGE, content_range);
+            }
+            let body = Buffer::from(Bytes::from_static(payload));
+            Ok(response
+                .header(http::header::CONTENT_LENGTH, length)
+                .body(HttpBody::new(
+                    futures::stream::iter([Ok(body)]),
+                    Some(payload.len() as u64),
+                ))
+                .unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_read_checksum_mode_and_metadata() -> Result<()> {
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let transport = HttpTransporter::new(ReadChecksumTransport {
+            requests: requests.clone(),
+        });
+        let op = Operator::new(
+            S3Builder::default()
+                .bucket("example")
+                .region("us-west-2")
+                .access_key_id("test-access-key")
+                .secret_access_key("test-secret-key")
+                .disable_config_load()
+                .disable_ec2_metadata(),
+        )?
+        .with_context(OperationContext::new().with_http_transport(transport.clone()));
+        let full_checksum = Checksum::new(ChecksumAlgo::Crc32c, [0xe3, 0x06, 0x92, 0x83]);
+        for hint in [false, true] {
+            let expected = hint.then_some(full_checksum.clone());
+            assert_eq!(
+                op.stat_with("object").checksum(hint).await?.checksum(),
+                expected
+            );
+            let reader = op.reader_with("object").checksum(hint).await?;
+            assert_eq!(reader.read(..).await?.to_bytes(), "123456789");
+            assert_eq!(reader.metadata().unwrap().checksum(), expected);
+        }
+
+        for (range, bytes, checksum) in [
+            (2..5, "345", None),
+            (0..9, "123456789", Some(full_checksum)),
+        ] {
+            let reader = op.reader_with("object").checksum(true).await?;
+            assert_eq!(reader.read(range).await?.to_bytes(), bytes);
+            let metadata = reader.metadata().unwrap();
+            assert_eq!(metadata.content_length(), 9);
+            assert_eq!(metadata.checksum(), checksum);
+        }
+        assert_eq!(
+            op.read_with("object").checksum(true).await?.to_bytes(),
+            "123456789"
+        );
+        assert!(op.info().capability().read_with_checksum);
+
+        let (ctx, service) = op.into_parts();
+        let reader = service.read(
+            &ctx,
+            "object",
+            OpRead::new().with_checksum_for_zero_offset(),
+        )?;
+        for (range, expected, has_checksum) in [(0..9, "123456789", true), (2..5, "345", false)] {
+            let (response, buffer) = reader.read_dyn(range.into()).await?;
+            assert_eq!(buffer.to_bytes(), expected);
+            assert_eq!(
+                response.metadata().unwrap().checksum().is_some(),
+                has_checksum
+            );
+        }
+
+        let preset = Operator::new(
+            crate::Minio::default()
+                .endpoint("https://s3.us-west-2.amazonaws.com")
+                .bucket("example")
+                .region("us-west-2")
+                .access_key_id("test-access-key")
+                .secret_access_key("test-secret-key")
+                .disable_config_load(),
+        )?
+        .with_context(OperationContext::new().with_http_transport(transport));
+        assert!(!preset.info().capability().read_with_checksum);
+        assert_eq!(
+            preset.stat_with("object").checksum(true).await?.checksum(),
+            None
+        );
+        assert_eq!(
+            *requests.lock().unwrap(),
+            [
+                (Method::HEAD, false),
+                (Method::GET, false),
+                (Method::HEAD, true),
+                (Method::GET, true),
+                (Method::GET, true),
+                (Method::GET, true),
+                (Method::GET, true),
+                (Method::GET, true),
+                (Method::GET, false),
+                (Method::HEAD, false),
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_read_checksum_mode_endpoint_scope() -> Result<()> {
+        let builder = || {
+            S3Builder::default()
+                .bucket("example")
+                .region("us-west-2")
+                .disable_config_load()
+                .disable_ec2_metadata()
+        };
+        assert!(
+            builder()
+                .build_inner(S3_SCHEME)?
+                .capability()
+                .read_with_checksum
+        );
+        for endpoint in [
+            "s3.amazonaws.com",
+            "https://s3.us-west-2.amazonaws.com",
+            "https://s3-us-west-2.amazonaws.com",
+        ] {
+            let path_style = builder().endpoint(endpoint).build_inner(S3_SCHEME)?;
+            let virtual_style = builder()
+                .endpoint(endpoint)
+                .enable_virtual_host_style()
+                .build_inner(S3_SCHEME)?;
+            assert!(path_style.capability().read_with_checksum);
+            assert!(virtual_style.capability().read_with_checksum);
+        }
+        for endpoint in [
+            "https://s3.us-west-2.amazonaws.com.example.test",
+            "https://other.us-west-2.amazonaws.com",
+            "https://s3.us-west-2.amazonaws.com/base-path",
+            "https://s3.us-west-2.amazonaws.com:8443",
+            "http://s3.us-west-2.amazonaws.com",
+        ] {
+            let backend = builder().endpoint(endpoint).build_inner(S3_SCHEME)?;
+            assert!(!backend.capability().read_with_checksum);
+        }
+        let anonymous = builder().skip_signature().build_inner(S3_SCHEME)?;
+        let express = builder()
+            .bucket("example--usw2-az1--x-s3")
+            .build_inner(S3_SCHEME)?;
+        assert!(!anonymous.capability().read_with_checksum);
+        assert!(!express.capability().read_with_checksum);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_presign_ignores_read_checksum_hint() -> Result<()> {
+        let backend = S3Builder::default()
+            .bucket("example")
+            .region("us-west-2")
+            .access_key_id("test-access-key")
+            .secret_access_key("test-secret-key")
+            .disable_config_load()
+            .disable_ec2_metadata()
+            .build()?;
+        let stat = options::StatOptions {
+            checksum: true,
+            ..Default::default()
+        };
+        let stat = OpStat::from_options(&backend.capability(), stat)?;
+        let read = OpRead::new().with_checksum(true);
+        for operation in [
+            PresignOperation::Stat(stat),
+            PresignOperation::Read(BytesRange::default(), read),
+        ] {
+            let request = backend
+                .presign(
+                    &OperationContext::new(),
+                    "object",
+                    OpPresign::new(operation, Duration::from_secs(60)),
+                )
+                .await?
+                .into_presigned_request();
+            assert!(
+                !request
+                    .header()
+                    .contains_key(constants::X_AMZ_CHECKSUM_MODE)
+            );
+            let query = request.uri().query().unwrap();
+            assert!(query.contains("X-Amz-Signature="));
+            assert!(!query.contains(constants::X_AMZ_CHECKSUM_MODE));
+        }
+        Ok(())
+    }
 
     #[tokio::test]
     async fn test_bucket_key_presign_headers() {
@@ -3839,7 +4128,7 @@ mod tests {
     }
 
     #[test]
-    fn test_checksum_capability_only_for_s3_scheme() {
+    fn test_s3_checksum_capability_defaults() {
         let builder = || {
             S3Builder::default()
                 .bucket("test")
@@ -3848,14 +4137,65 @@ mod tests {
         };
 
         let cap = builder().build().unwrap().capability();
-        assert!(cap.checksum_crc32c && cap.checksum_crc64_nvme);
-        assert!(!cap.checksum_md5 && !cap.checksum_sha256);
+        assert!(cap.write_with_checksum);
 
-        let cap = builder()
-            .build_with_scheme(crate::MINIO_SCHEME)
+        let cap = crate::Minio::default()
+            .bucket("test")
+            .endpoint("http://127.0.0.1:9000")
+            .build()
             .unwrap()
             .capability();
-        assert!(!cap.checksum_crc32c && !cap.checksum_crc64_nvme);
+        assert!(!cap.write_with_checksum);
+
+        let seaweedfs = || {
+            crate::Seaweedfs::default()
+                .bucket("test")
+                .endpoint("http://127.0.0.1:8333")
+        };
+        let defaults = seaweedfs().build().unwrap().capability();
+        assert!(!defaults.write_with_checksum);
+        let cap = seaweedfs()
+            .enable_write_checksum(true)
+            .build()
+            .unwrap()
+            .capability();
+        assert!(cap.write_with_checksum);
+        assert!(!cap.read_with_checksum);
+    }
+
+    #[test]
+    fn test_s3_write_rejects_unsupported_checksum_intents_synchronously() {
+        let backend = S3Builder::default()
+            .bucket("test")
+            .region("us-west-2")
+            .build()
+            .unwrap();
+        let capability = backend.capability();
+        for (append, intent) in [
+            (true, WriteChecksum::Any),
+            (true, WriteChecksum::Fast),
+            (false, WriteChecksum::Algo(ChecksumAlgo::Sha256)),
+            (
+                false,
+                WriteChecksum::Expected(Checksum::new(ChecksumAlgo::Sha256, [0; 32])),
+            ),
+            (
+                false,
+                WriteChecksum::Expected(Checksum::new(ChecksumAlgo::Md5, [0; 16])),
+            ),
+        ] {
+            let (args, _) = OpWrite::from_options(
+                &capability,
+                options::WriteOptions {
+                    append,
+                    checksum: Some(intent),
+                    ..Default::default()
+                },
+            )
+            .expect("core leaves these intents for the service to validate");
+            let result = backend.write(&OperationContext::new(), "file", args);
+            assert!(matches!(result, Err(error) if error.kind() == ErrorKind::Unsupported));
+        }
     }
 
     #[test]

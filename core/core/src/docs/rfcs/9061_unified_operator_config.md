@@ -1,7 +1,7 @@
 - Proposal Name: `unified_operator_config`
 - Start Date: 2026-11-25
 - RFC PR: [apache/opendal#9061](https://github.com/apache/opendal/pull/9061)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- Tracking Issue: [apache/opendal#9163](https://github.com/apache/opendal/issues/9163)
 
 > Status note: One design decision remains open before acceptance (see [Unresolved questions](#unresolved-questions)): whether `Operator::from_iter::<B>` stays service-only.
 

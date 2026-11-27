@@ -17,10 +17,8 @@
 
 /// An algorithm that computes a full-file [`Checksum`].
 ///
-/// Each algorithm has a matching capability flag, for example
-/// [`crate::Capability::checksum_crc32c`]. A service that sets the flag
-/// accepts a checksum of that algorithm on write, verifies it against the
-/// stored content, and returns it in the write result.
+/// A service can advertise [`crate::Capability::write_with_checksum`] and
+/// still reject an individual algorithm with [`crate::ErrorKind::Unsupported`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ChecksumAlgo {
@@ -32,6 +30,8 @@ pub enum ChecksumAlgo {
     Md5,
     /// SHA-256, a 32-byte digest.
     Sha256,
+    /// SHA-1, a 20-byte digest.
+    Sha1,
 }
 
 impl ChecksumAlgo {
@@ -42,6 +42,7 @@ impl ChecksumAlgo {
             ChecksumAlgo::Crc32c => 4,
             ChecksumAlgo::Md5 => 16,
             ChecksumAlgo::Sha256 => 32,
+            ChecksumAlgo::Sha1 => 20,
         }
     }
 
@@ -51,6 +52,7 @@ impl ChecksumAlgo {
             ChecksumAlgo::Crc32c => 1,
             ChecksumAlgo::Md5 => 2,
             ChecksumAlgo::Sha256 => 3,
+            ChecksumAlgo::Sha1 => 4,
         }
     }
 
@@ -60,6 +62,7 @@ impl ChecksumAlgo {
             1 => ChecksumAlgo::Crc32c,
             2 => ChecksumAlgo::Md5,
             3 => ChecksumAlgo::Sha256,
+            4 => ChecksumAlgo::Sha1,
             _ => unreachable!("compact values only store tags written by to_tag"),
         }
     }
@@ -97,8 +100,7 @@ impl Checksum {
         }
     }
 
-    /// Encode as a one-byte algorithm tag followed by the digest, the layout
-    /// compact operation arguments and metadata store.
+    /// Encode as a one-byte algorithm tag followed by the digest.
     pub(crate) fn encode(&self) -> Vec<u8> {
         let mut encoded = Vec::with_capacity(1 + self.value.len());
         encoded.push(self.algo.to_tag());
@@ -111,5 +113,119 @@ impl Checksum {
             .split_first()
             .expect("encoded checksum contains a tag");
         Self::new(ChecksumAlgo::from_tag(*tag), value)
+    }
+}
+
+/// The checksum verification requested for an individual write.
+///
+/// A service that cannot fulfill the request returns
+/// [`crate::ErrorKind::Unsupported`] before I/O. A successful write returns
+/// the full-file digest in [`crate::Metadata::checksum`] when the service
+/// verifies one. [`Self::Any`] and [`Self::Fast`] also allow success with
+/// verification of individual upload requests.
+///
+/// See the [checksum specification][crate::docs::specs::checksum].
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum WriteChecksum {
+    /// Use any native write checksum, preferring CRC-family algorithms.
+    ///
+    /// The service may verify individual parts or blocks without producing a
+    /// full-file checksum.
+    Any,
+    /// Use a native CRC-family checksum.
+    ///
+    /// Like [`Self::Any`], this allows verification of individual parts or blocks.
+    Fast,
+    /// Compute and verify a full-file checksum with this algorithm before commit.
+    ///
+    /// This request requires a non-append write.
+    Algo(ChecksumAlgo),
+    /// Verify the caller-supplied full-file checksum before commit.
+    ///
+    /// This request requires a non-append write.
+    Expected(Checksum),
+}
+
+impl WriteChecksum {
+    pub(crate) fn encode(&self) -> Vec<u8> {
+        match self {
+            Self::Any => vec![0],
+            Self::Fast => vec![1],
+            Self::Algo(algo) => vec![2, algo.to_tag()],
+            Self::Expected(checksum) => {
+                let mut encoded = Vec::with_capacity(2 + checksum.value.len());
+                encoded.extend_from_slice(&[3, checksum.algo.to_tag()]);
+                encoded.extend_from_slice(&checksum.value);
+                encoded
+            }
+        }
+    }
+
+    pub(crate) fn decode(encoded: &[u8]) -> Self {
+        match encoded {
+            [0] => Self::Any,
+            [1] => Self::Fast,
+            [2, algo] => Self::Algo(ChecksumAlgo::from_tag(*algo)),
+            [3, checksum @ ..] => Self::Expected(Checksum::decode(checksum)),
+            _ => unreachable!("compact write arguments only store encoded checksum intents"),
+        }
+    }
+}
+
+/// A checksum requirement that a layer can apply to writes across an operator.
+///
+/// Convert a policy to [`WriteChecksum`] to apply it to an individual write.
+/// A caller-supplied digest applies to one write through [`WriteChecksum::Expected`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum WriteChecksumPolicy {
+    /// Apply [`WriteChecksum::Any`] to writes.
+    Any,
+    /// Apply [`WriteChecksum::Fast`] to writes.
+    Fast,
+    /// Apply [`WriteChecksum::Algo`] with this algorithm to writes.
+    Algo(ChecksumAlgo),
+}
+
+impl From<Checksum> for WriteChecksum {
+    fn from(checksum: Checksum) -> Self {
+        Self::Expected(checksum)
+    }
+}
+
+impl From<ChecksumAlgo> for WriteChecksum {
+    fn from(algo: ChecksumAlgo) -> Self {
+        Self::Algo(algo)
+    }
+}
+
+impl From<WriteChecksumPolicy> for WriteChecksum {
+    fn from(policy: WriteChecksumPolicy) -> Self {
+        match policy {
+            WriteChecksumPolicy::Any => Self::Any,
+            WriteChecksumPolicy::Fast => Self::Fast,
+            WriteChecksumPolicy::Algo(algo) => Self::Algo(algo),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn checksum_algorithm_tags_and_digest_lengths() {
+        for (algo, tag, len) in [
+            (ChecksumAlgo::Crc64Nvme, 0, 8),
+            (ChecksumAlgo::Crc32c, 1, 4),
+            (ChecksumAlgo::Md5, 2, 16),
+            (ChecksumAlgo::Sha256, 3, 32),
+            (ChecksumAlgo::Sha1, 4, 20),
+        ] {
+            assert_eq!(algo.to_tag(), tag);
+            assert_eq!(ChecksumAlgo::from_tag(tag), algo);
+            assert_eq!(algo.digest_len(), len);
+        }
     }
 }

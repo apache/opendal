@@ -14,6 +14,20 @@ Operation paths and service roots remove components equal to `.`. For example,
 `./data/./file` addresses `data/file`. Operation paths still use a trailing `/`
 to mark directories.
 
+## Write checksum intents
+
+Check `Capability::write_with_checksum` to discover native write checksum
+support. It replaces the four unreleased per-algorithm checksum flags. A service
+with this capability accepts `WriteChecksum::Any` on non-append writes and
+checks support for a requested algorithm before starting I/O.
+
+Existing `.write_with(...).checksum(checksum)` and
+`.writer_with(...).checksum(checksum)` calls continue to accept a `Checksum`.
+Convert a checksum with `.into()` when assigning it directly to
+`WriteOptions::checksum`, and match `WriteChecksum::Expected` when reading a
+caller-supplied digest from `OpWrite::checksum()`. `Metadata::checksum()` still
+returns a verified full-file `Checksum` when available.
+
 ## Per-write expiration
 
 `WriteOptions` and `Capability` now have `expires` and `write_with_expires`
@@ -27,6 +41,13 @@ Use `..Default::default()` in `ReadOptions` struct literals, or set
 `limit: None` to keep requiring the complete length of a bounded range.
 Set `limit: Some(n)` to read up to the first `n` bytes of the selected range
 and accept EOF after a valid starting byte.
+
+## Read and stat checksum hints
+
+`ReadOptions`, `ReaderOptions`, and `StatOptions` now have a `checksum` field
+that defaults to `false`. In exhaustive struct literals, set `checksum: false`
+or use `..Default::default()` to preserve the previous behavior. In exhaustive
+patterns, include `checksum` or ignore the new field with `..`.
 
 ## Automatic capability simulation
 
@@ -144,6 +165,19 @@ available bytes. Keep using `oio::Read::read` for an exact bounded range.
 ### `raw::oio::FlatLister` removed
 
 `raw::oio::FlatLister` has been removed. Recursive listing simulation for services without native recursive listing is provided by [`SimulateLayer`][crate::layers::SimulateLayer] (enabled automatically with the default `auto-simulate` feature). Use `SimulateLayer` instead of constructing `oio::FlatLister` directly.
+
+### `raw::OpDeleter` removed
+
+Remove imports and construction of `raw::OpDeleter` when the value is unused.
+If you used the type as a marker, define your own type, such as
+`struct DeleteMarker;`. If the marker was part of your crate's public API,
+make your type public and update your signatures or re-exports to use it.
+
+To set deleter options, pass
+[`options::DeleterOptions`][crate::options::DeleterOptions]
+to [`Operator::deleter_options`][crate::Operator::deleter_options] or use
+[`Operator::deleter_with`][crate::Operator::deleter_with], for example
+`op.deleter_with().concurrent(4).await?`.
 
 ### Explicit executor and capability in `oio::MultipartCopier::new`
 

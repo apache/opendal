@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use crate::layers::*;
 use crate::raw::*;
 use crate::types::IntoOperatorUri;
 use crate::*;
@@ -27,8 +26,8 @@ impl Operator {
     ///
     /// OpenDAL calls [`Builder::build`] internally and returns a ready-to-use
     /// [`Operator`]. The default `auto-simulate` Cargo feature installs
-    /// [`SimulateLayer`] automatically. With that feature disabled, use
-    /// [`Operator::layer`] to apply `SimulateLayer` explicitly.
+    /// [`SimulateLayer`](crate::layers::SimulateLayer) automatically. With that
+    /// feature disabled, use [`Operator::layer`] to apply it explicitly.
     ///
     /// # Examples
     ///
@@ -44,13 +43,11 @@ impl Operator {
     /// ```
     pub fn new<B: Builder>(ab: B) -> Result<Operator> {
         let service = Arc::new(ab.build()?) as Servicer;
-        let op =
-            Operator::from_parts(OperationContext::default(), service).layer(ErrorContextLayer);
-        // Install simulation before metadata completion so simulated directory
-        // traversal sees the service's raw entries before symlinks are resolved.
-        #[cfg(feature = "auto-simulate")]
-        let op = op.layer(SimulateLayer::default());
-        Ok(op.layer(CompleteLayer))
+        Ok(Operator::assemble(
+            service,
+            OperationContext::default(),
+            Vec::new(),
+        ))
     }
 
     /// Create a new operator from given config.
@@ -78,7 +75,8 @@ impl Operator {
     /// Create a new operator from given iterator.
     ///
     /// The service builder type is selected statically by `B`, while config
-    /// values are parsed from the provided key-value iterator.
+    /// values are parsed from the provided key-value iterator. To configure
+    /// context and layers alongside service options, use [`Operator::via_iter`].
     ///
     /// # Examples
     ///
@@ -103,44 +101,73 @@ impl Operator {
         Operator::new(builder)
     }
 
-    /// Create a new operator by parsing configuration from a URI.
+    /// Create an operator from a URI and optional extra key-value options.
     ///
-    /// The URI scheme is resolved through [`OperatorRegistry`], so this only
-    /// works for services registered in the current build.
+    /// The URI scheme selects a service in the global [`OperatorRegistry`]. The
+    /// registry passes service options and URI components to the service,
+    /// applies `context.<name>.<field>` options to the base context in name
+    /// order, and adds the comma-separated `layers` from inner to outer. Use
+    /// `layer.<name>.<field>` to configure a listed layer.
+    ///
+    /// Pass `(uri, extra_options)` to override query options. OpenDAL decodes
+    /// query keys and values and lowercases ASCII letters in all option keys.
+    /// The last query occurrence of each normalized key wins, then the last
+    /// matching extra option overrides it, even with an empty value. Services
+    /// decide how their options interact with URI components such as the host
+    /// and path.
+    ///
+    /// Pass only trusted URIs and options. Query options without a matching
+    /// override still apply and can select runtime resources and layers. To
+    /// accept external object URLs, build the configuration from validated
+    /// URL components and application-controlled options.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::ConfigInvalid`] for a URI parse failure, malformed
+    /// scoped keys, or an invalid layer list. Returns [`ErrorKind::Unsupported`]
+    /// if the scheme, a configured context, or a listed layer is unregistered.
+    /// Errors from the selected factories propagate to the caller. See
+    /// [`OperatorRegistry::load`] for the assembly and validation rules.
     ///
     /// # Examples
     ///
     /// ```
-    /// use opendal_core::{Operator, Result};
+    /// use opendal_core::Operator;
     ///
-    /// # fn example() -> Result<()> {
-    /// let op = Operator::from_uri("memory://localhost/")?;
-    /// # let _ = op;
-    /// # Ok(())
-    /// # }
+    /// let op = Operator::from_uri(("memory:///?root=query", [("ROOT", "extra")]))?;
+    /// assert_eq!(op.info().root(), "/extra/");
+    /// # Ok::<(), opendal_core::Error>(())
     /// ```
     pub fn from_uri(uri: impl IntoOperatorUri) -> Result<Operator> {
         OperatorRegistry::get().load(uri)
     }
 
-    /// Create a new operator via given scheme and iterator of config value.
+    /// Create an operator from a service scheme and an iterator of string options.
     ///
-    /// This is the scheme-driven variant of [`Operator::from_iter`]. It
-    /// delegates to the registry, allowing callers to construct an operator
-    /// without naming the builder type at compile time.
+    /// Like [`Operator::from_uri`], this method uses the global
+    /// [`OperatorRegistry`]. The iterator can supply service options,
+    /// `context.<name>.<field>` options for the base context, an inner-to-outer
+    /// `layers` list, and `layer.<name>.<field>` options for listed layers.
+    /// OpenDAL uses the strings as supplied, with ASCII letters in keys
+    /// lowercased. For each normalized key, the last iterator entry wins.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::ConfigInvalid`] for malformed scoped keys or an
+    /// invalid layer list, and [`ErrorKind::Unsupported`] if the scheme, a
+    /// configured context, or a listed layer is unregistered. The selected
+    /// factories validate their own options and can return other errors. See
+    /// [`OperatorRegistry::load`] for the assembly and validation rules.
     ///
     /// # Examples
     ///
     /// ```
-    /// use opendal_core::services;
-    /// use opendal_core::{Operator, Result};
+    /// use opendal_core::{services, Operator};
     ///
-    /// # fn example() -> Result<()> {
-    /// let cfg = Vec::<(String, String)>::new();
-    /// let op = Operator::via_iter(services::MEMORY_SCHEME, cfg)?;
-    /// # let _ = op;
-    /// # Ok(())
-    /// # }
+    /// let options = [("root".to_string(), "data".to_string())];
+    /// let op = Operator::via_iter(services::MEMORY_SCHEME, options)?;
+    /// assert_eq!(op.info().root(), "/data/");
+    /// # Ok::<(), opendal_core::Error>(())
     /// ```
     pub fn via_iter(
         scheme: impl AsRef<str>,
@@ -153,6 +180,8 @@ impl Operator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(not(feature = "auto-simulate"))]
+    use crate::layers::SimulateLayer;
     use crate::services;
 
     #[test]
@@ -174,6 +203,10 @@ mod tests {
 
         assert_eq!(
             op.info().capability().create_dir,
+            cfg!(feature = "auto-simulate")
+        );
+        assert_eq!(
+            op.info().capability().list_with_recursive,
             cfg!(feature = "auto-simulate")
         );
         assert_eq!(

@@ -22,6 +22,9 @@ use futures::Stream;
 use futures::StreamExt;
 use futures::TryStreamExt;
 
+#[cfg(feature = "auto-simulate")]
+use crate::layers::SimulateLayer;
+use crate::layers::{CompleteLayer, ErrorContextLayer};
 use crate::operator_futures::*;
 use crate::raw::*;
 use crate::types::delete::Deleter;
@@ -250,6 +253,32 @@ impl Operator {
     /// and starts with an empty layer list.
     pub fn into_parts(self) -> (OperationContext, Servicer) {
         (self.ctx, self.srv)
+    }
+
+    pub(crate) fn assemble(
+        base_srv: Servicer,
+        base_ctx: OperationContext,
+        user_layers: Vec<Arc<dyn Layer>>,
+    ) -> Self {
+        let mut layers: Vec<Arc<dyn Layer>> = Vec::with_capacity(
+            2 + usize::from(cfg!(feature = "auto-simulate")) + user_layers.len(),
+        );
+        layers.push(Arc::new(ErrorContextLayer));
+        // Simulated directory traversal needs the service's raw entries before
+        // metadata completion resolves symlinks.
+        #[cfg(feature = "auto-simulate")]
+        layers.push(Arc::new(SimulateLayer::default()));
+        layers.push(Arc::new(CompleteLayer));
+        layers.extend(user_layers);
+
+        let (srv, ctx) = Self::apply_layers(&base_srv, &base_ctx, &layers);
+        Self {
+            base_srv,
+            base_ctx,
+            layers: Arc::new(layers),
+            srv,
+            ctx,
+        }
     }
 
     /// Replay layers over the base providers to compute composed dispatch state.
@@ -2042,7 +2071,24 @@ impl Operator {
     // Keep this async to preserve the public API.
     #[allow(clippy::unused_async)]
     pub async fn deleter(&self) -> Result<Deleter> {
-        Deleter::create(self.context().clone(), self.service().clone())
+        self.deleter_options(options::DeleterOptions::default())
+            .await
+    }
+
+    /// Create a [`Deleter`] with extra options.
+    ///
+    /// Refer to [`Self::deleter_with`] and [`options::DeleterOptions`] for
+    /// details on each option.
+    // Keep this async to match the other `*_options` methods.
+    #[allow(clippy::unused_async)]
+    pub async fn deleter_options(&self, opts: options::DeleterOptions) -> Result<Deleter> {
+        Self::deleter_inner(
+            self.context().clone(),
+            self.service().clone(),
+            String::new(),
+            opts,
+        )
+        .await
     }
 
     /// Create a [`Deleter`] with a configurable concurrency limit.
@@ -2073,7 +2119,7 @@ impl Operator {
             self.context().clone(),
             self.service().clone(),
             String::new(),
-            1,
+            options::DeleterOptions::default(),
             Self::deleter_inner,
         )
     }
@@ -2084,9 +2130,9 @@ impl Operator {
         ctx: OperationContext,
         srv: Servicer,
         _path: String,
-        concurrent: usize,
+        opts: options::DeleterOptions,
     ) -> Result<Deleter> {
-        Deleter::create_with(ctx, srv, concurrent)
+        Deleter::create_with(ctx, srv, opts.concurrent.max(1))
     }
 
     /// Recursively delete entries at the given path.

@@ -20,7 +20,9 @@
 use std::future::Future;
 
 use futures::future::LocalBoxFuture;
+use gloo_timers::future::sleep;
 use opendal::raw::BoxedStaticFuture;
+use opendal::raw::Instant;
 use opendal::*;
 use wasm_bindgen_test::{console_log, wasm_bindgen_test, wasm_bindgen_test_configure};
 
@@ -31,26 +33,27 @@ use utils::*;
 
 #[path = "../../../tests/behavior/async_create_dir.rs"]
 mod async_create_dir;
+#[path = "../../../tests/behavior/async_delete.rs"]
+mod async_delete;
 #[path = "../../../tests/behavior/async_read.rs"]
 mod async_read;
 #[path = "../../../tests/behavior/async_stat.rs"]
 mod async_stat;
 
+#[path = "../../../tests/behavior/async_write.rs"]
+mod async_write;
+
 wasm_bindgen_test_configure!(run_in_browser);
 
 static TEST_FIXTURE: Fixture = Fixture::new();
 
-type Trial = (&'static str, LocalBoxFuture<'static, anyhow::Result<()>>);
+type Trial = (String, LocalBoxFuture<'static, anyhow::Result<()>>);
 
-fn build_async_trial<F>(
-    name: &'static str,
-    op: &Operator,
-    test: impl FnOnce(Operator) -> F,
-) -> Trial
+fn build_async_trial<F>(name: &str, op: &Operator, test: impl FnOnce(Operator) -> F) -> Trial
 where
     F: Future<Output = anyhow::Result<()>> + 'static,
 {
-    (name, Box::pin(test(op.clone())))
+    (name.to_owned(), Box::pin(test(op.clone())))
 }
 
 struct BrowserExecutor;
@@ -71,6 +74,8 @@ async fn memory_behavior() {
     async_read::tests(&op, &mut tests);
     async_stat::tests(&op, &mut tests);
     async_create_dir::tests(&op, &mut tests);
+    async_write::tests(&op, &mut tests);
+    async_delete::tests(&op, &mut tests);
 
     assert!(!tests.is_empty(), "Memory should register behavior tests");
     for (name, test) in tests {

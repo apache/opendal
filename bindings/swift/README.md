@@ -96,6 +96,23 @@ See the [user guide](https://opendal.apache.org/docs/bindings/swift) for more
 examples, and [Services](https://opendal.apache.org/services) for the full list
 of backends and their configuration keys.
 
+## List entries
+
+Use `blockingLister` to open a nonrecursive listing. Use a trailing slash
+for a named directory.
+
+```swift
+let lister = try op.blockingLister("logs/")
+while let entry = try lister.next() {
+    print(entry.path)
+}
+```
+
+Opening the cursor and reading its next entry can both throw `OperatorError`.
+After `next()` returns `nil` or throws, later calls return `nil`. You can break
+out of the loop early. Releasing the cursor closes the listing, and entries
+remain usable after releasing the cursor and operator.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up the development

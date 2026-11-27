@@ -235,6 +235,7 @@ impl MokaBackend {
             delete: true,
             stat: true,
             list: true,
+            list_with_recursive: true,
             ..Default::default()
         };
 

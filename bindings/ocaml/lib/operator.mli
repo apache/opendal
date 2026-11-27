@@ -591,59 +591,7 @@ module OperatorInfo : sig
       ]} *)
 end
 
+module Capability : module type of Capability
 (** {2 Capability Checking}
 
     Module for checking what operations are supported by the storage backend. *)
-module Capability : sig
-  val stat : Opendal_core.Operator.capability -> bool
-  (** [stat cap] checks if stat operations are supported. *)
-
-  val read : Opendal_core.Operator.capability -> bool
-  (** [read cap] checks if read operations are supported. *)
-
-  val write : Opendal_core.Operator.capability -> bool
-  (** [write cap] checks if write operations are supported. *)
-
-  val create_dir : Opendal_core.Operator.capability -> bool
-  (** [create_dir cap] checks if directory creation is supported. *)
-
-  val delete : Opendal_core.Operator.capability -> bool
-  (** [delete cap] checks if delete operations are supported. *)
-
-  val copy : Opendal_core.Operator.capability -> bool
-  (** [copy cap] checks if copy operations are supported. *)
-
-  val rename : Opendal_core.Operator.capability -> bool
-  (** [rename cap] checks if rename operations are supported. *)
-
-  val list : Opendal_core.Operator.capability -> bool
-  (** [list cap] checks if list operations are supported. *)
-
-  val list_with_limit : Opendal_core.Operator.capability -> bool
-  (** [list_with_limit cap] checks if list operations with limit are supported.
-  *)
-
-  val list_with_start_after : Opendal_core.Operator.capability -> bool
-  (** [list_with_start_after cap] checks if list operations with start_after are
-      supported. *)
-
-  val list_with_recursive : Opendal_core.Operator.capability -> bool
-  (** [list_with_recursive cap] checks if recursive list operations are
-      supported. *)
-
-  val presign : Opendal_core.Operator.capability -> bool
-  (** [presign cap] checks if presigned URL generation is supported. *)
-
-  val presign_read : Opendal_core.Operator.capability -> bool
-  (** [presign_read cap] checks if presigned read URLs are supported. *)
-
-  val presign_stat : Opendal_core.Operator.capability -> bool
-  (** [presign_stat cap] checks if presigned stat URLs are supported. *)
-
-  val presign_write : Opendal_core.Operator.capability -> bool
-  (** [presign_write cap] checks if presigned write URLs are supported. *)
-
-  val shared : Opendal_core.Operator.capability -> bool
-  (** [shared cap] checks if the operator can be safely shared between threads.
-  *)
-end

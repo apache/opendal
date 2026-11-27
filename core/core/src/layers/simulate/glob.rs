@@ -400,7 +400,10 @@ impl List for GuidedLister {
             };
             if let Some(child) = self.next_directory.take() {
                 #[cfg(not(target_arch = "wasm32"))]
-                if let Some(slots) = &self.prefetch_slots
+                // Refill alongside a foreground request. A child with a
+                // prefetch task is already part of an earlier group.
+                if matches!(child.listing, Listing::Unopened)
+                    && let Some(slots) = &self.prefetch_slots
                     && directory
                         .prefetch_siblings(&self.walk, &self.prefix, slots)
                         .is_err()

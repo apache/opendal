@@ -990,6 +990,7 @@
         "list_with_limit": true,
         "list_with_recursive": true,
         "list_with_start_after": true,
+        "list_with_versions": true,
         "presign": true,
         "presign_read": true,
         "presign_stat": true,

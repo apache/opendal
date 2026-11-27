@@ -30,9 +30,12 @@ use super::core::B2Signer;
 use super::core::constants;
 use super::core::parse_error;
 use super::core::parse_file_info;
-use super::core::{B2Core, DownloadResponseOverrides, ErrorContext, FileVersionAction};
+use super::core::{
+    B2Core, DownloadResponseOverrides, ErrorContext, FileVersion, FileVersionAction,
+    ListFileVersionsRequest, ListFileVersionsResponse,
+};
 use super::deleter::B2Deleter;
-use super::lister::B2Lister;
+use super::lister::{B2Lister, B2Listers, B2VersionLister};
 use super::reader::*;
 use super::writer::B2Writer;
 use super::writer::B2Writers;
@@ -204,6 +207,7 @@ impl Builder for B2Builder {
                     list_with_limit: true,
                     list_with_start_after: true,
                     list_with_recursive: true,
+                    list_with_versions: true,
 
                     presign: true,
                     presign_read: true,
@@ -233,7 +237,7 @@ pub struct B2Backend {
 impl Service for B2Backend {
     type Reader = oio::StreamReader<B2Reader>;
     type Writer = B2Writers;
-    type Lister = oio::PageLister<B2Lister>;
+    type Lister = B2Listers;
     type Deleter = oio::OneShotDeleter<B2Deleter>;
     type Copier = oio::OneShotCopier;
     type Composer = ();
@@ -280,7 +284,7 @@ impl Service for B2Backend {
                 .await?;
             let file =
                 serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
-            return Ok(RpStat::new(parse_file_info(&file)));
+            return Ok(RpStat::new(parse_file_info(&file).build()));
         }
 
         if path == "/" {
@@ -292,7 +296,7 @@ impl Service for B2Backend {
         let delimiter = if path.ends_with('/') { Some("/") } else { None };
 
         let file_info = self.core.get_file_info(ctx, path, delimiter).await?;
-        let meta = parse_file_info(&file_info);
+        let meta = parse_file_info(&file_info).build();
         Ok(RpStat::new(meta))
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -347,18 +351,23 @@ impl Service for B2Backend {
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        let output: oio::PageLister<B2Lister> = {
-            Ok(oio::PageLister::new(B2Lister::new(
+        if args.versions() {
+            Ok(TwoWays::Two(B2VersionLister::new(
+                self.core.clone(),
+                ctx.clone(),
+                path,
+                &args,
+            )))
+        } else {
+            Ok(TwoWays::One(oio::PageLister::new(B2Lister::new(
                 self.core.clone(),
                 ctx.clone(),
                 path,
                 args.recursive(),
                 args.limit(),
                 args.start_after(),
-            )))
-        }?;
-
-        Ok(output)
+            ))))
+        }
     }
 
     fn copy(
@@ -448,9 +457,17 @@ impl Service for B2Backend {
         let mut start_file_id = None;
         let mut current_marker = None;
         let marker = 'history: loop {
-            let page = self
+            let request = ListFileVersionsRequest {
+                bucket_id: &self.core.bucket_id,
+                prefix: &key,
+                max_file_count: Some(2),
+                start_file_name: start_file_id.as_ref().map(|_| key.as_str()),
+                start_file_id: start_file_id.as_deref(),
+                delimiter: None,
+            };
+            let page: ListFileVersionsResponse<FileVersion> = self
                 .core
-                .list_file_versions(ctx, &key, start_file_id.as_deref())
+                .list_file_versions(ctx, request, Operation::Restore)
                 .await?;
             for file in page.files {
                 if file.file_name != key {

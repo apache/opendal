@@ -770,6 +770,15 @@ impl AzblobCore {
     }
 
     pub fn azblob_head_blob_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
+        // Azure succeeds when either condition holds. OpenDAL requires both to hold.
+        if args.if_none_match().is_some() && args.if_modified_since().is_some() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "azblob does not support stat with both if_none_match and if_modified_since",
+            )
+            .with_operation(Operation::Stat));
+        }
+
         let mut url = self.build_path_url(path);
         if let Some(version) = args.version() {
             url = QueryPairsWriter::new(&url)
@@ -788,6 +797,14 @@ impl AzblobCore {
 
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
+        }
+
+        if let Some(if_modified_since) = args.if_modified_since() {
+            req = req.header(IF_MODIFIED_SINCE, if_modified_since.format_http_date());
+        }
+
+        if let Some(if_unmodified_since) = args.if_unmodified_since() {
+            req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
         }
 
         let req = req

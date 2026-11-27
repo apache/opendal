@@ -38,11 +38,11 @@ TEST(CapabilityTest, PositionalInitializerKeepsHistoricalOrder) {
   EXPECT_FALSE(caps.stat_with_if_version_match);
 }
 
-constexpr std::size_t kHistoricalMembers = 32;
+constexpr std::size_t kFrozenMembers = 98;
 
-// Reads the members `opendal::Capability` declared before it was generated, in
-// their original declaration order.
-std::vector<std::size_t> HistoricalMembers(const opendal::Capability& c) {
+// Reads every public member of `opendal::Capability` in its released
+// declaration order. New members are only appended after these.
+std::vector<std::size_t> FrozenMembers(const opendal::Capability& c) {
   return {c.stat,
           c.stat_with_if_match,
           c.stat_with_if_none_match,
@@ -74,7 +74,73 @@ std::vector<std::size_t> HistoricalMembers(const opendal::Capability& c) {
           c.presign_read,
           c.presign_stat,
           c.presign_write,
-          c.shared};
+          c.shared,
+          c.stat_with_if_version_match,
+          c.stat_with_if_version_not_match,
+          c.stat_with_if_modified_since,
+          c.stat_with_if_unmodified_since,
+          c.stat_with_override_cache_control,
+          c.stat_with_override_content_disposition,
+          c.stat_with_override_content_type,
+          c.stat_with_version,
+          c.read_with_if_version_match,
+          c.read_with_if_version_not_match,
+          c.read_with_if_modified_since,
+          c.read_with_if_unmodified_since,
+          c.read_with_version,
+          c.read_with_suffix,
+          c.read_with_checksum,
+          c.write_can_copy_from,
+          c.write_with_content_encoding,
+          c.write_with_content_language,
+          c.write_with_if_match,
+          c.write_with_if_none_match,
+          c.write_with_if_version_match,
+          c.write_with_if_version_not_match,
+          c.write_with_if_not_exists,
+          c.write_with_user_metadata,
+          c.write_with_expires,
+          c.write_with_checksum,
+          c.delete_with_version,
+          c.delete_with_recursive,
+          c.delete_with_if_match,
+          c.delete_with_if_none_match,
+          c.delete_with_if_version_match,
+          c.delete_with_if_version_not_match,
+          c.delete_max_size,
+          c.copy_with_if_not_exists,
+          c.copy_with_if_match,
+          c.copy_with_if_none_match,
+          c.copy_with_if_version_match,
+          c.copy_with_if_version_not_match,
+          c.copy_with_source_version,
+          c.copy_with_user_metadata,
+          c.copy_with_content_type,
+          c.copy_with_content_language,
+          c.copy_can_multi,
+          c.copy_multi_max_size,
+          c.copy_multi_min_size,
+          c.compose,
+          c.compose_with_content_type,
+          c.compose_with_content_disposition,
+          c.compose_with_content_encoding,
+          c.compose_with_cache_control,
+          c.compose_with_user_metadata,
+          c.compose_with_if_match,
+          c.compose_with_if_none_match,
+          c.compose_with_if_version_match,
+          c.compose_with_if_version_not_match,
+          c.compose_with_if_not_exists,
+          c.compose_with_source_version,
+          c.compose_with_source_if_match,
+          c.restore,
+          c.restore_with_version,
+          c.restore_with_if_not_exists,
+          c.rename_with_if_not_exists,
+          c.list_with_versions,
+          c.list_with_deleted,
+          c.list_with_glob,
+          c.presign_delete};
 }
 
 // Positionally initializes the first `sizeof...(I)` members; only the one at
@@ -84,12 +150,12 @@ opendal::Capability OnlyTrueAt(std::size_t pos, std::index_sequence<I...>) {
   return opendal::Capability{(I == pos)...};
 }
 
-TEST(CapabilityTest, PositionalInitializerSetsEachHistoricalMember) {
-  for (std::size_t pos = 0; pos < kHistoricalMembers; ++pos) {
-    std::vector<std::size_t> expected(kHistoricalMembers, 0);
+TEST(CapabilityTest, PositionalInitializerSetsEachFrozenMember) {
+  for (std::size_t pos = 0; pos < kFrozenMembers; ++pos) {
+    std::vector<std::size_t> expected(kFrozenMembers, 0);
     expected[pos] = 1;
-    EXPECT_EQ(HistoricalMembers(OnlyTrueAt(
-                  pos, std::make_index_sequence<kHistoricalMembers>())),
+    EXPECT_EQ(FrozenMembers(
+                  OnlyTrueAt(pos, std::make_index_sequence<kFrozenMembers>())),
               expected)
         << "only positional initializer " << pos << " is true";
   }

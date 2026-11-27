@@ -70,13 +70,14 @@ fn wrap_doc(text: &str, prefix: &str, limit: usize) -> Vec<String> {
     lines
 }
 
-/// Core names of the members `opendal::Capability` exposed before it was
-/// generated, in their historical declaration order.
+/// Core names of the public `opendal::Capability` members, in their released
+/// declaration order.
 ///
 /// The public class is an aggregate, so callers may brace-initialize it by
-/// position. These members stay first, in this order, so such code keeps its
-/// meaning when recompiled. Fields added later are appended in core order.
-const HISTORICAL_PUBLIC_ORDER: &[&str] = &[
+/// position. This order is append-only: core fields missing from this list are
+/// appended after it in core order, so adding a core field never moves an
+/// existing member. Add released fields to the end of this list.
+const FROZEN_PUBLIC_ORDER: &[&str] = &[
     "stat",
     "stat_with_if_match",
     "stat_with_if_none_match",
@@ -109,30 +110,96 @@ const HISTORICAL_PUBLIC_ORDER: &[&str] = &[
     "presign_stat",
     "presign_write",
     "shared",
+    "stat_with_if_version_match",
+    "stat_with_if_version_not_match",
+    "stat_with_if_modified_since",
+    "stat_with_if_unmodified_since",
+    "stat_with_override_cache_control",
+    "stat_with_override_content_disposition",
+    "stat_with_override_content_type",
+    "stat_with_version",
+    "read_with_if_version_match",
+    "read_with_if_version_not_match",
+    "read_with_if_modified_since",
+    "read_with_if_unmodified_since",
+    "read_with_version",
+    "read_with_suffix",
+    "read_with_checksum",
+    "write_can_copy_from",
+    "write_with_content_encoding",
+    "write_with_content_language",
+    "write_with_if_match",
+    "write_with_if_none_match",
+    "write_with_if_version_match",
+    "write_with_if_version_not_match",
+    "write_with_if_not_exists",
+    "write_with_user_metadata",
+    "write_with_expires",
+    "write_with_checksum",
+    "delete_with_version",
+    "delete_with_recursive",
+    "delete_with_if_match",
+    "delete_with_if_none_match",
+    "delete_with_if_version_match",
+    "delete_with_if_version_not_match",
+    "delete_max_size",
+    "copy_with_if_not_exists",
+    "copy_with_if_match",
+    "copy_with_if_none_match",
+    "copy_with_if_version_match",
+    "copy_with_if_version_not_match",
+    "copy_with_source_version",
+    "copy_with_user_metadata",
+    "copy_with_content_type",
+    "copy_with_content_language",
+    "copy_can_multi",
+    "copy_multi_max_size",
+    "copy_multi_min_size",
+    "compose",
+    "compose_with_content_type",
+    "compose_with_content_disposition",
+    "compose_with_content_encoding",
+    "compose_with_cache_control",
+    "compose_with_user_metadata",
+    "compose_with_if_match",
+    "compose_with_if_none_match",
+    "compose_with_if_version_match",
+    "compose_with_if_version_not_match",
+    "compose_with_if_not_exists",
+    "compose_with_source_version",
+    "compose_with_source_if_match",
+    "restore",
+    "restore_with_version",
+    "restore_with_if_not_exists",
+    "rename_with_if_not_exists",
+    "list_with_versions",
+    "list_with_deleted",
+    "list_with_glob",
+    "presign_delete",
 ];
 
 pub fn generate(workspace_dir: &Path) -> Result<()> {
     generate_capability(workspace_dir)
 }
 
-/// Order core fields for the public C++ class: historical members first, in
-/// their historical order, then every other core field in core order.
+/// Order core fields for the public C++ class: frozen members first, in their
+/// frozen order, then every other core field in core order.
 ///
-/// Fails if a historical member no longer exists in core, because dropping it
+/// Fails if a frozen member no longer exists in core, because dropping it
 /// would silently break source compatibility.
 fn public_order<T>(fields: &[T], name_of: impl Fn(&T) -> &str) -> Result<Vec<usize>> {
     let mut order = Vec::with_capacity(fields.len());
-    for historical in HISTORICAL_PUBLIC_ORDER {
+    for frozen in FROZEN_PUBLIC_ORDER {
         let index = fields
             .iter()
-            .position(|f| name_of(f) == *historical)
+            .position(|f| name_of(f) == *frozen)
             .with_context(|| {
-                format!("historical C++ capability member `{historical}` is missing from core")
+                format!("frozen C++ capability member `{frozen}` is missing from core")
             })?;
         order.push(index);
     }
     for (index, field) in fields.iter().enumerate() {
-        if !HISTORICAL_PUBLIC_ORDER.contains(&name_of(field)) {
+        if !FROZEN_PUBLIC_ORDER.contains(&name_of(field)) {
             order.push(index);
         }
     }
@@ -262,14 +329,18 @@ mod tests {
     }
 
     #[test]
-    fn test_public_order_appends_rest_in_core_order() {
-        let fields = core_fields();
-        let order = public_order(&fields, |f| f.name.as_str()).unwrap();
-        let appended = &order[HISTORICAL_PUBLIC_ORDER.len()..];
-        assert!(appended.windows(2).all(|w| w[0] < w[1]));
-        for &i in appended {
-            assert!(!HISTORICAL_PUBLIC_ORDER.contains(&fields[i].name.as_str()));
-        }
+    fn test_public_order_appends_new_fields_after_frozen_order() {
+        let mut fields = FROZEN_PUBLIC_ORDER.to_vec();
+        fields.insert(fields.len() / 2, "new_mid");
+        fields.insert(0, "new_first");
+        let order: Vec<&str> = public_order(&fields, |f| f)
+            .unwrap()
+            .into_iter()
+            .map(|i| fields[i])
+            .collect();
+        let (frozen, appended) = order.split_at(FROZEN_PUBLIC_ORDER.len());
+        assert_eq!(frozen, FROZEN_PUBLIC_ORDER);
+        assert_eq!(appended, ["new_first", "new_mid"]);
     }
 
     #[test]
@@ -281,7 +352,7 @@ mod tests {
     }
 
     #[test]
-    fn test_public_order_rejects_missing_historical_member() {
+    fn test_public_order_rejects_missing_frozen_member() {
         let fields = ["stat", "read"];
         assert!(public_order(&fields, |f| f).is_err());
     }

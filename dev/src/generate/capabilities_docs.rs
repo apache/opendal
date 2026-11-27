@@ -353,7 +353,7 @@ fn parse_capability_literal(
             {
                 let condition = match (name, field_name.as_str()) {
                     ("minio", "write_with_checksum") => Some(
-                        "Requires `enable_write_checksum=true` for signed, non-append writes. Verified with signed path-style requests to MinIO RELEASE.2025-01-20T14-49-07Z.",
+                        "Requires `enable_write_checksum=true` for signed, non-append writes. Verified with signed path-style requests to MinIO RELEASE.2025-01-20T14-49-07Z. Keep the option disabled on RELEASE.2024-09-22T00-33-43Z because it accepted an incorrect CRC.",
                     ),
                     ("seaweedfs", "write_with_checksum") => Some(
                         "Requires `enable_write_checksum=true` for non-append writes. Verified with signed path-style requests to SeaweedFS 4.52.",

@@ -957,7 +957,7 @@ class MinioConfig(TypedDict):
     disable_config_load: NotRequired[bool]
     """Disable loading credentials from AWS environment variables and shared profile files.  When enabled, signing requires both `access_key_id` and `secret_access_key`."""
     enable_write_checksum: NotRequired[bool]
-    """Allow per-write checksum intents for signed, non-append writes. Defaults to false. Supply a checksum intent on each write that needs verification. Verified with signed path-style requests to MinIO RELEASE.2025-01-20T14-49-07Z."""
+    """Allow per-write checksum intents for signed, non-append writes. Defaults to false. Supply a checksum intent on each write that needs verification. Verified with signed path-style requests to MinIO RELEASE.2025-01-20T14-49-07Z. Keep the option disabled on RELEASE.2024-09-22T00-33-43Z because it accepted an incorrect CRC."""
     endpoint: Required[str]
     """MinIO endpoint.  This field is required because MinIO deployments do not share a universal endpoint."""
     region: NotRequired[str]

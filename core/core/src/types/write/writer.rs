@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt;
-use std::sync::Arc;
 
 use bytes::Buf;
 
@@ -99,8 +98,7 @@ use crate::*;
 /// - Services that doesn't support append will return [`ErrorKind::Unsupported`] error when
 ///   creating writer with `append` enabled.
 pub struct Writer {
-    /// Keep a reference to write context in writer.
-    ctx: Arc<WriteContext>,
+    ctx: WriteContext,
     inner: WriteState,
 }
 
@@ -116,8 +114,7 @@ impl fmt::Debug for Writer {
 impl Writer {
     /// Create a new writer from an `oio::Writer`.
     pub(crate) fn new(ctx: WriteContext) -> Result<Self> {
-        let ctx = Arc::new(ctx);
-        let inner = WriteState::create(ctx.clone())?;
+        let inner = WriteState::create(&ctx)?;
 
         Ok(Self { ctx, inner })
     }
@@ -294,7 +291,7 @@ impl Writer {
             OpRead::from_options(&self.ctx.service().capability(), options)
                 .map_err(|err| err.with_context("service", self.ctx.service().info().scheme()))?;
         self.inner
-            .copy_from(&path, args, options, range, limit)
+            .copy_from(&self.ctx, &path, args, options, range, limit)
             .await
     }
 

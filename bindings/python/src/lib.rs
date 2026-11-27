@@ -109,6 +109,7 @@ mod _opendal {
                 AlreadyExists, ChecksumMismatch, ConditionNotMatch, ConfigInvalid, Conflict, Error,
                 IsADirectory, IsSameFile, NotADirectory, NotFound, PermissionDenied,
                 RangeNotSatisfied, RateLimited, Unexpected, Unsupported, add_exceptions,
+                errors::add_file_checksum_mismatch,
             };
 
             add_exceptions!(
@@ -130,7 +131,8 @@ mod _opendal {
                     Conflict,
                     ChecksumMismatch,
                 ]
-            )
+            )?;
+            add_file_checksum_mismatch(m)
         }
     }
 

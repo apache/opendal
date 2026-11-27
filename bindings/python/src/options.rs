@@ -131,6 +131,7 @@ const WRITE_OPTION_KEYS: &[&str] = &[
     "if_none_match",
     "if_not_exists",
     "user_metadata",
+    "checksum",
 ];
 
 fn reject_unknown_kwargs(
@@ -230,6 +231,19 @@ impl ReadOptions {
     }
 }
 
+pub(crate) fn parse_checksum_algorithm(name: &str) -> PyResult<ocore::ChecksumAlgo> {
+    match name {
+        "crc32c" => Ok(ocore::ChecksumAlgo::Crc32c),
+        "crc64nvme" => Ok(ocore::ChecksumAlgo::Crc64Nvme),
+        "md5" => Ok(ocore::ChecksumAlgo::Md5),
+        "sha1" => Ok(ocore::ChecksumAlgo::Sha1),
+        "sha256" => Ok(ocore::ChecksumAlgo::Sha256),
+        _ => Err(PyValueError::new_err(format!(
+            "unknown checksum algorithm {name:?}"
+        ))),
+    }
+}
+
 /// Options for `write` operations.
 #[pyclass(module = "opendal")]
 #[derive(Default)]
@@ -256,6 +270,9 @@ pub struct WriteOptions {
     pub if_not_exists: Option<bool>,
     /// The user metadata to set on the file.
     pub user_metadata: Option<HashMap<String, String>>,
+    /// The algorithm the service uses to verify the full object before committing.
+    /// `None` preserves the service default.
+    pub checksum: Option<ocore::ChecksumAlgo>,
 }
 
 impl<'a, 'py> FromPyObject<'a, 'py> for WriteOptions {
@@ -277,6 +294,10 @@ impl<'a, 'py> FromPyObject<'a, 'py> for WriteOptions {
             if_none_match: extract_optional(&dict, "if_none_match")?,
             if_not_exists: extract_optional(&dict, "if_not_exists")?,
             user_metadata: extract_optional(&dict, "user_metadata")?,
+            checksum: extract_optional::<String>(&dict, "checksum")?
+                .as_deref()
+                .map(parse_checksum_algorithm)
+                .transpose()?,
         })
     }
 }
@@ -342,6 +363,7 @@ impl From<WriteOptions> for ocore::options::WriteOptions {
             if_match: opts.if_match,
             if_none_match: opts.if_none_match,
             if_not_exists: opts.if_not_exists.unwrap_or(false),
+            checksum: opts.checksum.map(ocore::WriteChecksum::Algo),
             ..Default::default()
         }
     }

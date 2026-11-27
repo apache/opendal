@@ -26,7 +26,7 @@ from .capability import Capability
 from .config import ContextConfig, LayerConfig, ServiceConfig
 from .file import AsyncFile, File
 from .layers import Layer
-from .options import OpenKwargs
+from .options import ChecksumAlgorithm, OpenKwargs
 from .services import Scheme
 from .types import Entry, Metadata, PresignedRequest
 
@@ -357,7 +357,10 @@ class AsyncOperator:
             `"rt"` raise `ValueError`. `AsyncFile` writes bytes, so encode text
             with `str.encode()` and decode reads with `bytes.decode()`.
         **kwargs : dict
-            Additional options for the underlying reader or writer.
+            Additional options for the underlying reader or writer. In write and
+            create modes, `checksum` selects the `ChecksumAlgorithm` the service
+            uses to verify the full object before committing. Omit `checksum` or
+            pass `None` to use the service default.
 
         Raises
         ------
@@ -368,12 +371,16 @@ class AsyncOperator:
         ValueError
             If the mode is invalid or unsupported, including text (`"t"`) and
             update (`"+"`) modes, or if the mode conflicts with `append` or
-            `if_not_exists` in `**kwargs`.
+            `if_not_exists` in `**kwargs`, or if the checksum name is unrecognized.
         ConditionNotMatch
             If create mode (`"x"`) targets an existing file. The failure can
             surface from `write()` or `close()`.
         Unsupported
-            If the service does not support append or `if_not_exists` writes.
+            If the service does not support the requested write options, including
+            the selected checksum algorithm. Append writes cannot request a checksum.
+        ChecksumMismatch
+            If the checksum fails verification. The failure can surface from
+            `write()` or `close()`.
 
         Returns
         -------
@@ -755,6 +762,7 @@ class AsyncOperator:
         if_none_match: str | None = None,
         if_not_exists: bool | None = None,
         user_metadata: dict[str, str] | None = None,
+        checksum: ChecksumAlgorithm | None = None,
     ) -> collections.abc.Awaitable[None]:
         """
         Write bytes to a file at the given path.
@@ -790,6 +798,19 @@ class AsyncOperator:
             Whether to fail if the file already exists.
         user_metadata : dict, optional
             The user metadata to set on the file.
+        checksum : ChecksumAlgorithm | None, optional
+            The algorithm the service uses to verify the full object before
+            committing. Omit it or pass `None` to use the service default.
+
+        Raises
+        ------
+        ValueError
+            If the checksum name is unrecognized.
+        Unsupported
+            If the service cannot verify the write with the selected algorithm,
+            including when appending.
+        ChecksumMismatch
+            If the checksum fails verification.
 
         Returns
         -------
@@ -1093,7 +1114,10 @@ class Operator:
             `"rt"` raise `ValueError`. Wrap the returned file with
             `io.TextIOWrapper` to read or write text.
         **kwargs
-            Additional options for the underlying reader or writer.
+            Additional options for the underlying reader or writer. In write and
+            create modes, `checksum` selects the `ChecksumAlgorithm` the service
+            uses to verify the full object before committing. Omit `checksum` or
+            pass `None` to use the service default.
 
         Raises
         ------
@@ -1104,12 +1128,16 @@ class Operator:
         ValueError
             If the mode is invalid or unsupported, including text (`"t"`) and
             update (`"+"`) modes, or if the mode conflicts with `append` or
-            `if_not_exists` in `**kwargs`.
+            `if_not_exists` in `**kwargs`, or if the checksum name is unrecognized.
         ConditionNotMatch
             If create mode (`"x"`) targets an existing file. The failure can
             surface from `write()`, `flush()`, or `close()`.
         Unsupported
-            If the service does not support append or `if_not_exists` writes.
+            If the service does not support the requested write options, including
+            the selected checksum algorithm. Append writes cannot request a checksum.
+        ChecksumMismatch
+            If the checksum fails verification. The failure can surface from
+            `write()`, `flush()`, or `close()`.
 
         Returns
         -------
@@ -1316,6 +1344,7 @@ class Operator:
         if_none_match: str | None = None,
         if_not_exists: bool | None = None,
         user_metadata: dict[str, str] | None = None,
+        checksum: ChecksumAlgorithm | None = None,
     ) -> None:
         """
         Write bytes to a file at the given path.
@@ -1351,4 +1380,17 @@ class Operator:
             Whether to fail if the file already exists.
         user_metadata : dict, optional
             The user metadata to set on the file.
+        checksum : ChecksumAlgorithm | None, optional
+            The algorithm the service uses to verify the full object before
+            committing. Omit it or pass `None` to use the service default.
+
+        Raises
+        ------
+        ValueError
+            If the checksum name is unrecognized.
+        Unsupported
+            If the service cannot verify the write with the selected algorithm,
+            including when appending.
+        ChecksumMismatch
+            If the checksum fails verification.
         """

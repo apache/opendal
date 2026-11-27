@@ -23,5 +23,7 @@ This page documents all types in OpenDAL.
 
       The mode of the entry is unknown.
 
+.. autodata:: opendal.options.ChecksumAlgorithm
+
 .. autoclass:: opendal.options.OpenKwargs
 ```

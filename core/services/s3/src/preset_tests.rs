@@ -73,8 +73,8 @@ async fn presign(uri: &str, options: &[(&str, &str)]) -> (Url, String) {
         ("access_key_id", "test-access"),
         ("secret_access_key", "test-secret"),
     ];
-    let op = registry()
-        .load((uri, options.iter().copied().chain(credentials)))
+    registry();
+    let op = Operator::from_uri((uri, options.iter().copied().chain(credentials)))
         .unwrap_or_else(|error| panic!("{uri}: {error}"));
     let provider_uri = Url::parse(uri).unwrap();
     assert_eq!(op.info().scheme(), provider_uri.scheme());
@@ -155,6 +155,13 @@ async fn provider_uris_use_documented_endpoints_and_signing_regions() {
             "br-example.storage.c-6.us-east-2.aws.neon.tech",
             "/bucket/root/file",
             "us-east-2",
+        ),
+        (
+            "r2://bucket/root?account_id=example-account&jurisdiction=us&disable_config_load=true",
+            &[],
+            "example-account.us.r2.cloudflarestorage.com",
+            "/bucket/root/file",
+            "auto",
         ),
         (
             "rustfs://bucket/root",

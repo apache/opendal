@@ -5,6 +5,7 @@ Depending on its configuration and the backing system, this service can expose:
 - [x] create_dir
 - [x] stat
 - [x] read
+- [x] read_with_version
 - [x] write
 - [x] delete
 - [x] list
@@ -22,6 +23,14 @@ When multiple entries match the same path, OpenDAL resolves the most recently
 modified match, falling back to the newer creation time if needed.
 
 Concurrent directory creation through an operator and its clones reuses work for shared ancestors and allows independent paths to progress concurrently.
+
+### Binary file revisions
+
+For binary files, `stat` exposes the `headRevisionId` when Drive provides it.
+Pass that ID to the `version` option of a read to select that revision. Drive
+can purge older revisions and may require a revision to be marked Keep Forever
+before allowing its download. A missing revision returns `NotFound`. A download
+that Drive denies with HTTP 403 returns `PermissionDenied`.
 
 ### Resumable uploads and retries
 

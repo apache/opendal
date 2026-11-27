@@ -140,6 +140,7 @@ impl Builder for GdriveBuilder {
             stat: true,
 
             read: true,
+            read_with_version: true,
             read_with_suffix: true,
 
             list: true,
@@ -318,16 +319,20 @@ impl Service for GdriveBackend {
         Ok(RpStat::new(metadata_from_gdrive_file(&gdrive_file)?))
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
-        let output: oio::StreamReader<GdriveReader> = {
-            Ok(oio::StreamReader::new(GdriveReader::new(
-                self.clone(),
-                ctx.clone(),
-                path,
-                args,
-            )))
-        }?;
+        // These values cannot address a revision as a URL path segment.
+        if matches!(args.version(), Some("" | "." | "..")) {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "invalid Google Drive revision ID",
+            ));
+        }
 
-        Ok(output)
+        Ok(oio::StreamReader::new(GdriveReader::new(
+            self.clone(),
+            ctx.clone(),
+            path,
+            args,
+        )))
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {

@@ -253,12 +253,11 @@ async def test_read_forwards_response_overrides(request_server, prefetch):
     ] == [(expected_query, "bytes=2-6")] * 2
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("operator_cls", [opendal.Operator, opendal.AsyncOperator])
-async def test_operator_write_preserves_checksum_mismatch(request_server, operator_cls):
+@pytest.fixture
+def crc32c_operator(request_server):
     endpoint, state = request_server
     state._reset()
-    operator = operator_cls(
+    return opendal.Operator(
         "s3",
         endpoint=endpoint,
         bucket="checksum-test",
@@ -266,17 +265,50 @@ async def test_operator_write_preserves_checksum_mismatch(request_server, operat
         disable_config_load="true",
         skip_signature="true",
         checksum_algorithm="crc32c",
-    )
+    ), state
 
-    if isinstance(operator, opendal.AsyncOperator):
-        with pytest.raises(opendal.exceptions.Unexpected, match="BadDigest") as error:
-            await operator.write("checksum-mismatch", CONTENT)
+
+LEGACY_CHECKSUM_OPTIONS = [
+    pytest.param({}, id="omitted"),
+    pytest.param({"checksum": None}, id="none"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("asynchronous", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize("options", LEGACY_CHECKSUM_OPTIONS)
+async def test_operator_write_and_file_close_preserve_checksum_mismatch(
+    crc32c_operator, asynchronous, options
+):
+    operator, state = crc32c_operator
+    if asynchronous:
+        async_operator = operator.to_async_operator()
+        with pytest.raises(
+            opendal.exceptions.Unexpected, match="BadDigest"
+        ) as write_error:
+            await async_operator.write("checksum-mismatch", CONTENT, **options)
+        file = await async_operator.open("checksum-mismatch", "wb", **options)
+        assert await file.write(CONTENT) == len(CONTENT)
+        with pytest.raises(
+            opendal.exceptions.Unexpected, match="BadDigest"
+        ) as close_error:
+            await file.close()
     else:
-        with pytest.raises(opendal.exceptions.Unexpected, match="BadDigest") as error:
-            operator.write("checksum-mismatch", CONTENT)
+        with pytest.raises(
+            opendal.exceptions.Unexpected, match="BadDigest"
+        ) as write_error:
+            operator.write("checksum-mismatch", CONTENT, **options)
+        file = operator.open("checksum-mismatch", "wb", **options)
+        assert file.write(CONTENT) == len(CONTENT)
+        with pytest.raises(
+            opendal.exceptions.Unexpected, match="BadDigest"
+        ) as close_error:
+            file.close()
 
-    assert state._uploads() == [CONTENT]
-    assert error.type is opendal.exceptions.ChecksumMismatch
+    assert state._uploads() == [CONTENT, CONTENT]
+    for error in (write_error, close_error):
+        assert error.type is opendal.exceptions.ChecksumMismatch
+        assert not isinstance(error.value, OSError)
 
 
 @pytest.fixture
@@ -373,37 +405,35 @@ async def test_write_and_open_reject_invalid_or_unsupported_checksum(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("asynchronous", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize("operation", ["sync-write", "async-write", "sync-flush"])
+@pytest.mark.parametrize("options", LEGACY_CHECKSUM_OPTIONS)
 async def test_file_write_and_flush_preserve_checksum_mismatch(
-    request_server, asynchronous
+    crc32c_operator, operation, options
 ):
-    endpoint, state = request_server
-    state._reset()
-    operator = opendal.Operator(
-        "s3",
-        endpoint=endpoint,
-        bucket="checksum-test",
-        region="us-west-2",
-        disable_config_load="true",
-        skip_signature="true",
-        checksum_algorithm="crc32c",
-    )
+    operator, state = crc32c_operator
     part = b"x" * (5 * 1024 * 1024)
-    if asynchronous:
+    if operation == "async-write":
         file = await operator.to_async_operator().open(
-            "checksum-mismatch", "wb", concurrent=1
+            "checksum-mismatch", "wb", concurrent=1, **options
         )
         assert await file.write(part) == len(part)
-        with pytest.raises(opendal.exceptions.ChecksumMismatch, match="BadDigest"):
+        with pytest.raises(OSError, match="BadDigest") as error:
             await file.write(part)
     else:
-        file = operator.open("checksum-mismatch", "wb", concurrent=1)
+        file = operator.open("checksum-mismatch", "wb", concurrent=1, **options)
         assert file.write(part) == len(part)
-        with pytest.raises(opendal.exceptions.ChecksumMismatch, match="BadDigest"):
-            file.write(part)
-        with pytest.raises(opendal.exceptions.ChecksumMismatch, match="BadDigest"):
-            file.flush()
+        if operation == "sync-flush":
+            with pytest.raises(
+                (OSError, opendal.exceptions.ChecksumMismatch), match="BadDigest"
+            ):
+                file.write(part)
+            with pytest.raises(OSError, match="BadDigest") as error:
+                file.flush()
+        else:
+            with pytest.raises(OSError, match="BadDigest") as error:
+                file.write(part)
 
+    assert isinstance(error.value, opendal.exceptions.ChecksumMismatch)
     assert state._uploads()[0] == part
 
 

@@ -17,9 +17,8 @@ Garage does not support object versioning or restore. See the
 [Garage S3 compatibility table](https://garagehq.deuxfleurs.fr/documentation/reference-manual/s3-compatibility/)
 for the available operations.
 
-This preset does not support write checksums because Garage returns a
-non-standard multipart receipt spelling (`ChecksumCR64NVME`) and ambiguous
-`InvalidDigest` errors on digest rejection; see
+This preset does not support write checksums because Garage returns
+`InvalidDigest` instead of `BadDigest` on CRC checksum mismatches; see
 [#9243](https://github.com/apache/opendal/issues/9243).
 
 ```rust

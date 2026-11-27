@@ -282,6 +282,15 @@ impl S3Core {
         &self,
         requested: Option<ChecksumAlgo>,
     ) -> Result<ChecksumAlgorithm> {
+        if self.signer_spec.is_express {
+            return match requested {
+                None | Some(ChecksumAlgo::Crc32c) => Ok(ChecksumAlgorithm::Crc32c),
+                Some(algo) => Err(Error::new(
+                    ErrorKind::Unsupported,
+                    format!("S3 Express does not support a full-object {algo:?} checksum"),
+                )),
+            };
+        }
         match (self.info.scheme(), requested) {
             (_, Some(ChecksumAlgo::Crc32c)) | (crate::CEPH_RGW_SCHEME, None) => {
                 Ok(ChecksumAlgorithm::Crc32c)

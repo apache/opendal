@@ -1236,9 +1236,10 @@ impl S3Builder {
         // S3 CreateMultipartUpload does not support MD5 checksum_algorithm;
         // only single-shot PutObject supports Content-MD5.
         let s3_write_can_multi = !matches!(checksum_algorithm, Some(ChecksumAlgorithm::Md5));
-        // RustFS and Swift s3api verify each upload request independently.
-        let s3_can_checksum = !is_s3_express
-            && matches!(
+        let s3_can_checksum = if is_s3_express {
+            scheme == S3_SCHEME && !config.skip_signature
+        } else {
+            matches!(
                 scheme,
                 S3_SCHEME
                     | crate::CEPH_RGW_SCHEME
@@ -1247,7 +1248,8 @@ impl S3Builder {
                     | crate::RUSTFS_SCHEME
                     | crate::SEAWEEDFS_SCHEME
                     | crate::SWIFT_S3API_SCHEME
-            );
+            )
+        };
 
         let mut capability = Capability {
             stat: true,
@@ -1659,6 +1661,12 @@ impl Service for S3Backend {
             PresignOperation::Write(v) => {
                 let checksum = match v.checksum() {
                     None => None,
+                    Some(_) if self.core.signer_spec.is_express => {
+                        return Err(Error::new(
+                            ErrorKind::Unsupported,
+                            "S3 Express presigned writes do not support checksum intents",
+                        ));
+                    }
                     Some(_) if self.core.info.scheme() == crate::RUSTFS_SCHEME => {
                         return Err(Error::new(
                             ErrorKind::Unsupported,
@@ -4407,6 +4415,8 @@ mod tests {
             .expect("S3 Express backend must build");
         let capability = backend.capability();
 
+        assert!(capability.write_with_checksum);
+        assert!(!capability.read_with_checksum);
         assert!(!capability.stat_with_version);
         assert!(!capability.read_with_version);
         assert!(!capability.write_with_content_encoding);
@@ -4419,6 +4429,38 @@ mod tests {
         assert!(!capability.list_with_recursive);
         assert!(!capability.list_with_versions);
         assert!(!capability.list_with_deleted);
+    }
+
+    #[tokio::test]
+    async fn test_s3_express_rejects_unverified_checksum_writes() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_express_operator(transport.clone());
+
+        for intent in [
+            WriteChecksum::Algo(ChecksumAlgo::Crc64Nvme),
+            WriteChecksum::Expected(Checksum::new(ChecksumAlgo::Crc64Nvme, [0; 8])),
+        ] {
+            let error = op
+                .writer_with("target")
+                .checksum(intent)
+                .await
+                .expect_err("directory bucket writers must reject CRC64NVME");
+            assert_eq!(error.kind(), ErrorKind::Unsupported);
+        }
+
+        let error = op
+            .presign_write_options(
+                "target",
+                Duration::from_secs(60),
+                options::WriteOptions {
+                    checksum: Some(Checksum::new(ChecksumAlgo::Crc32c, [0; 4]).into()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("directory bucket presigns must reject checksum intents");
+        assert_eq!(error.kind(), ErrorKind::Unsupported);
+        assert!(transport.requests().is_empty());
     }
 
     #[test]

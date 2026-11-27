@@ -3789,7 +3789,7 @@
         "write_can_empty": true,
         "write_can_multi": "When `checksum_algorithm` is not `md5`",
         "write_with_cache_control": true,
-        "write_with_checksum": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_checksum": "General-purpose S3 buckets, or signed non-append CRC32C writes to S3 Express One Zone directory buckets",
         "write_with_content_disposition": true,
         "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
         "write_with_content_language": true,

@@ -605,6 +605,14 @@ mod tests {
                 "multipart/mixed; boundary=batch_pK7JBAk73-E=_AA5eFwv4m2Q=",
                 Some("batch_pK7JBAk73-E=_AA5eFwv4m2Q="),
             ),
+            (
+                "multipart/mixed; boundary=gc0p4Jq0M2Yt08jU534c0p; charset=utf-8",
+                Some("gc0p4Jq0M2Yt08jU534c0p"),
+            ),
+            (
+                "multipart/mixed; boundary=\"gc0p4Jq0M2Yt08jU534c0p\"",
+                Some("gc0p4Jq0M2Yt08jU534c0p"),
+            ),
         ];
 
         for (input, expected) in cases {

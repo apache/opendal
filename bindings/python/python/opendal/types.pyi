@@ -103,23 +103,35 @@ class Metadata:
     """
 
     @property
+    def cache_control(self, /) -> str | None:
+        """Return this entry's Cache-Control value."""
+    @property
     def content_disposition(self, /) -> str | None:
-        """The content disposition of this entry."""
+        """Return this entry's Content-Disposition value."""
     @property
     def content_encoding(self, /) -> str | None:
-        """The content encoding of this entry."""
+        """Return this entry's Content-Encoding value."""
+    @property
+    def content_language(self, /) -> str | None:
+        """Return this entry's Content-Language value, if available."""
     @property
     def content_length(self, /) -> int:
-        """The content length of this entry."""
+        """Return the full content length of this entry."""
     @property
     def content_md5(self, /) -> str | None:
-        """The content MD5 of this entry."""
+        """Return this entry's Content-MD5 value."""
     @property
     def content_type(self, /) -> str | None:
-        """The content type of this entry."""
+        """Return this entry's Content-Type value."""
     @property
     def etag(self, /) -> str | None:
-        """The ETag of this entry."""
+        """Return this entry's service-provided ETag as-is."""
+    @property
+    def is_current(self, /) -> bool | None:
+        """Return whether this metadata describes the current object version."""
+    @property
+    def is_deleted(self, /) -> bool:
+        """Return whether this metadata describes a deleted object or delete marker."""
     @property
     def is_dir(self, /) -> bool:
         """Whether this entry is a directory."""
@@ -128,16 +140,16 @@ class Metadata:
         """Whether this entry is a file."""
     @property
     def last_modified(self, /) -> datetime | None:
-        """The last modified timestamp of this entry."""
+        """Return this entry's Last-Modified timestamp."""
     @property
     def mode(self, /) -> EntryMode:
-        """The mode of this entry."""
+        """Return this entry's mode."""
     @property
     def user_metadata(self, /) -> dict[str, str] | None:
-        """The user-defined metadata of this entry."""
+        """Return a copy of this entry's user metadata as a dict."""
     @property
     def version(self, /) -> str | None:
-        """The version of this entry."""
+        """Return this entry's service-specific version identifier."""
 
 @final
 class PresignedRequest:

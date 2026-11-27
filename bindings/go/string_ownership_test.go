@@ -165,6 +165,10 @@ func TestNewEntryCopiesAndFreesOwnedStrings(t *testing.T) {
 		assertMetadataPointer(t, metaInner, m)
 		return nil
 	})
+	ctx = context.WithValue(ctx, ffiMetaContentLanguage.sym, func(m *opendalMetadata) *string {
+		assertMetadataPointer(t, metaInner, m)
+		return nil
+	})
 	ctx = context.WithValue(ctx, ffiMetaContentLength.sym, func(m *opendalMetadata) uint64 {
 		assertMetadataPointer(t, metaInner, m)
 		return 4096
@@ -178,7 +182,7 @@ func TestNewEntryCopiesAndFreesOwnedStrings(t *testing.T) {
 		assertMetadataPointer(t, metaInner, m)
 		return &contentType
 	})
-	ctx = context.WithValue(ctx, ffiMetaEtag.sym, func(m *opendalMetadata) *string {
+	ctx = context.WithValue(ctx, ffiMetaETag.sym, func(m *opendalMetadata) *string {
 		assertMetadataPointer(t, metaInner, m)
 		return nil
 	})
@@ -267,6 +271,7 @@ func TestNewMetadataCopiesAllFieldsAndFreesOwnedValues(t *testing.T) {
 	cacheControlPtr := mustBytePtrFromString(t, "max-age=60")
 	contentDispositionPtr := mustBytePtrFromString(t, "attachment")
 	contentEncodingPtr := mustBytePtrFromString(t, "gzip")
+	contentLanguagePtr := mustBytePtrFromString(t, "en-US")
 	contentMD5Ptr := mustBytePtrFromString(t, "1B2M2Y8AsgTpgAmY7PhCfg==")
 	contentTypePtr := mustBytePtrFromString(t, "application/json")
 	etagPtr := mustBytePtrFromString(t, `"etag"`)
@@ -290,13 +295,14 @@ func TestNewMetadataCopiesAllFieldsAndFreesOwnedValues(t *testing.T) {
 	ctx = context.WithValue(ctx, ffiMetaCacheControl.sym, ffiMetaCacheControl.withFunc(ctx, metadataStringFunc(t, metadataInner, cacheControlPtr)))
 	ctx = context.WithValue(ctx, ffiMetaContentDisposition.sym, ffiMetaContentDisposition.withFunc(ctx, metadataStringFunc(t, metadataInner, contentDispositionPtr)))
 	ctx = context.WithValue(ctx, ffiMetaContentEncoding.sym, ffiMetaContentEncoding.withFunc(ctx, metadataStringFunc(t, metadataInner, contentEncodingPtr)))
+	ctx = context.WithValue(ctx, ffiMetaContentLanguage.sym, ffiMetaContentLanguage.withFunc(ctx, metadataStringFunc(t, metadataInner, contentLanguagePtr)))
 	ctx = context.WithValue(ctx, ffiMetaContentLength.sym, func(m *opendalMetadata) uint64 {
 		assertMetadataPointer(t, metadataInner, m)
 		return 4096
 	})
 	ctx = context.WithValue(ctx, ffiMetaContentMD5.sym, ffiMetaContentMD5.withFunc(ctx, metadataStringFunc(t, metadataInner, contentMD5Ptr)))
 	ctx = context.WithValue(ctx, ffiMetaContentType.sym, ffiMetaContentType.withFunc(ctx, metadataStringFunc(t, metadataInner, contentTypePtr)))
-	ctx = context.WithValue(ctx, ffiMetaEtag.sym, ffiMetaEtag.withFunc(ctx, metadataStringFunc(t, metadataInner, etagPtr)))
+	ctx = context.WithValue(ctx, ffiMetaETag.sym, ffiMetaETag.withFunc(ctx, metadataStringFunc(t, metadataInner, etagPtr)))
 	ctx = context.WithValue(ctx, ffiMetaIsCurrent.sym, func(m *opendalMetadata) uint8 {
 		assertMetadataPointer(t, metadataInner, m)
 		return 1
@@ -343,6 +349,7 @@ func TestNewMetadataCopiesAllFieldsAndFreesOwnedValues(t *testing.T) {
 	assertOptionalString(t, "CacheControl", meta.CacheControl, "max-age=60")
 	assertOptionalString(t, "ContentDisposition", meta.ContentDisposition, "attachment")
 	assertOptionalString(t, "ContentEncoding", meta.ContentEncoding, "gzip")
+	assertOptionalString(t, "ContentLanguage", meta.ContentLanguage, "en-US")
 	assertOptionalString(t, "ContentMD5", meta.ContentMD5, "1B2M2Y8AsgTpgAmY7PhCfg==")
 	assertOptionalString(t, "ContentType", meta.ContentType, "application/json")
 	assertOptionalString(t, "ETag", meta.ETag, `"etag"`)
@@ -384,7 +391,7 @@ func TestNewMetadataCopiesAllFieldsAndFreesOwnedValues(t *testing.T) {
 	if userMetadataFreed != 1 {
 		t.Fatalf("user metadata freed %d times, want 1", userMetadataFreed)
 	}
-	assertFreedPointers(t, freed, cacheControlPtr, contentDispositionPtr, contentEncodingPtr, contentMD5Ptr, contentTypePtr, etagPtr, versionPtr)
+	assertFreedPointers(t, freed, cacheControlPtr, contentMD5Ptr, contentTypePtr, contentEncodingPtr, contentLanguagePtr, etagPtr, contentDispositionPtr, versionPtr)
 }
 
 func TestNewMetadataOptionalValuesCanBeAbsent(t *testing.T) {
@@ -408,6 +415,10 @@ func TestNewMetadataOptionalValuesCanBeAbsent(t *testing.T) {
 		assertMetadataPointer(t, metadataInner, m)
 		return nil
 	})
+	ctx = context.WithValue(ctx, ffiMetaContentLanguage.sym, func(m *opendalMetadata) *string {
+		assertMetadataPointer(t, metadataInner, m)
+		return nil
+	})
 	ctx = context.WithValue(ctx, ffiMetaContentLength.sym, func(m *opendalMetadata) uint64 {
 		assertMetadataPointer(t, metadataInner, m)
 		return 0
@@ -420,7 +431,7 @@ func TestNewMetadataOptionalValuesCanBeAbsent(t *testing.T) {
 		assertMetadataPointer(t, metadataInner, m)
 		return nil
 	})
-	ctx = context.WithValue(ctx, ffiMetaEtag.sym, func(m *opendalMetadata) *string {
+	ctx = context.WithValue(ctx, ffiMetaETag.sym, func(m *opendalMetadata) *string {
 		assertMetadataPointer(t, metadataInner, m)
 		return nil
 	})
@@ -466,6 +477,9 @@ func TestNewMetadataOptionalValuesCanBeAbsent(t *testing.T) {
 	}
 	if _, ok := meta.ContentEncoding(); ok {
 		t.Fatal("ContentEncoding() ok = true, want false")
+	}
+	if _, ok := meta.ContentLanguage(); ok {
+		t.Fatal("ContentLanguage() ok = true, want false")
 	}
 	if _, ok := meta.ContentMD5(); ok {
 		t.Fatal("ContentMD5() ok = true, want false")

@@ -57,6 +57,8 @@ pub mod constants {
 
     pub const X_OSS_VERSION_ID: &str = "x-oss-version-id";
 
+    pub const X_OSS_HASH_CRC64_ECMA: &str = "x-oss-hash-crc64ecma";
+
     pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
 
@@ -893,30 +895,25 @@ impl OssCore {
         self.send(ctx, req).await
     }
 
-    pub async fn oss_complete_multipart_upload_request(
+    pub fn oss_complete_multipart_upload_request(
         &self,
-        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
-        is_presign: bool,
         parts: Vec<MultipartUploadPart>,
         args: &OpWrite,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path);
-        let endpoint = self.get_endpoint(is_presign);
         let url = format!(
             "{}/{}?uploadId={}",
-            endpoint,
+            self.endpoint,
             percent_encode_path(&p),
             percent_encode_path(upload_id)
         );
 
         let mut req = Request::post(&url);
 
-        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
-            part: parts.to_vec(),
-        })
-        .map_err(new_xml_serialize_error)?;
+        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
+            .map_err(new_xml_serialize_error)?;
         // Make sure content length has been set to avoid post with chunked encoding.
         req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.
@@ -933,11 +930,8 @@ impl OssCore {
             .extension(Operation::Write)
             .extension(ServiceOperation("CompleteMultipartUpload"));
 
-        let req = req
-            .body(Buffer::from(Bytes::from(content)))
-            .map_err(new_request_build_error)?;
-        let req = self.sign(ctx, req).await?;
-        self.send(ctx, req).await
+        req.body(Buffer::from(Bytes::from(content)))
+            .map_err(new_request_build_error)
     }
 
     /// Abort an ongoing multipart upload.

@@ -246,6 +246,7 @@ impl Builder for CosBuilder {
             write_can_empty: true,
             write_can_append: true,
             write_can_multi: true,
+            write_with_checksum: true,
             write_with_content_type: true,
             write_with_cache_control: true,
             write_with_content_disposition: true,
@@ -384,23 +385,18 @@ impl Service for CosBackend {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        let output: CosWriters = {
-            let writer = CosWriter::new(self.core.clone(), ctx.clone(), path, args.clone());
-
-            let w = if args.append() {
-                CosWriters::Two(oio::AppendWriter::new(writer))
-            } else {
-                CosWriters::One(oio::MultipartWriter::new(
-                    ctx.executor().clone(),
-                    writer,
-                    args.concurrent(),
-                ))
-            };
-
-            Ok(w)
-        }?;
-
-        Ok(output)
+        let append = args.append();
+        let concurrent = args.concurrent();
+        let writer = CosWriter::new(self.core.clone(), ctx.clone(), path, args)?;
+        Ok(if append {
+            CosWriters::Two(oio::AppendWriter::new(writer))
+        } else {
+            CosWriters::One(oio::MultipartWriter::new(
+                ctx.executor().clone(),
+                writer,
+                concurrent,
+            ))
+        })
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -561,6 +557,12 @@ impl Service for CosBackend {
             PresignOperation::Stat(v) => self.core.cos_head_object_request(path, v),
             PresignOperation::Read(range, v) => self.core.cos_get_object_request(path, *range, v),
             PresignOperation::Write(v) => {
+                if v.checksum().is_some() {
+                    return Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "COS cannot verify a checksum for a presigned write",
+                    ));
+                }
                 self.core
                     .cos_put_object_request(path, None, v, Buffer::new())
             }

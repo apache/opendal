@@ -24,6 +24,15 @@ on:
     paths:
       - "website/**"
       - "core/core/src/docs/specs/**"
+      - "core/Cargo.toml"
+      - "core/examples/**"
+      - "examples/**"
+      - "bindings/*/examples/**"
+      - "bindings/lua/example/**"
+      - "bindings/java/src/test/java/org/apache/opendal/examples/**"
+      - "bindings/swift/OpenDAL/Sources/GettingStarted/**"
+      - "bindings/nodejs/package.json"
+      - "bindings/ruby/Cargo.toml"
       - ".asf.yaml"
       - ".github/workflows/ci_website.yml"
   workflow_call:

@@ -683,6 +683,34 @@ jobs:
         if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, 'rc') }}
         run: rm -rf ./build
 
+      - name: Validate nightlies release target
+        id: nightlies_target
+        if: ${{ (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc')) || (github.event_name == 'workflow_dispatch' && inputs.deploy-nightlies) }}
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TARGET_REF: ${{ github.ref }}
+          TARGET_REF_NAME: ${{ github.ref_name }}
+          INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${TARGET_REF}" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Nightlies deployment requires a non-RC release tag ref (refs/tags/vX.Y.Z), got: ${TARGET_REF}" >&2
+            exit 1
+          fi
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+            if [ -z "${INPUT_RELEASE_VERSION}" ]; then
+              echo "release_version input is required when deploy-nightlies is true" >&2
+              exit 1
+            fi
+            if [ "${INPUT_RELEASE_VERSION}" != "${TARGET_REF_NAME}" ]; then
+              echo "release_version (${INPUT_RELEASE_VERSION}) must match checked-out release tag (${TARGET_REF_NAME})" >&2
+              exit 1
+            fi
+          fi
+          release_version="${INPUT_RELEASE_VERSION:-${TARGET_REF_NAME}}"
+          echo "release_version=${release_version}" >> "${GITHUB_OUTPUT}"
+
       - name: Build for nightlies with tagged version
         if: ${{ (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc')) || (github.event_name == 'workflow_dispatch' && inputs.deploy-nightlies) }}
         run: |
@@ -690,14 +718,14 @@ jobs:
           cp ${{ github.workspace }}/.asf.yaml ./build/.asf.yaml
         env:
           # Keep this same with the remote_path below
-          OPENDAL_WEBSITE_BASE_URL: /opendal/opendal-docs-release-${{ inputs.release_version || github.ref_name }}/
+          OPENDAL_WEBSITE_BASE_URL: /opendal/opendal-docs-release-${{ steps.nightlies_target.outputs.release_version }}/
           OPENDAL_WEBSITE_NOT_LATEST: true
 
       - name: Deploy to nightlies for tagged version
         if: ${{ (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc')) || (github.event_name == 'workflow_dispatch' && inputs.deploy-nightlies) }}
         shell: bash
         env:
-          RELEASE_VERSION: ${{ inputs.release_version || github.ref_name }}
+          RELEASE_VERSION: ${{ steps.nightlies_target.outputs.release_version }}
           NIGHTLIES_RSYNC_HOST: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
           NIGHTLIES_RSYNC_KEY: ${{ secrets.NIGHTLIES_RSYNC_KEY }}
           NIGHTLIES_RSYNC_PATH: ${{ secrets.NIGHTLIES_RSYNC_PATH }}

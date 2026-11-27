@@ -42,14 +42,19 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          matched=$(gh api "repos/${REPOSITORY}/commits/${SHA}/pulls" \
-            --jq '[.[] | select(.merged_at != null and ([.labels[].name] | index("ci/deploy-docs") != null))] | length')
-          echo "Matched merged PRs with ci/deploy-docs: ${matched}"
-          if [ "${matched}" -gt 0 ]; then
-            gh workflow run docs.yml \
-              --repo "${REPOSITORY}" \
-              --ref main \
-              -f deploy-gh-pages=true \
-              -f deploy-nightlies=false
-            echo "Dispatched docs.yml for ${SHA}."
-          fi
+          shas=$(jq -r '[.commits[]?.id] | if length > 0 then .[] else env.SHA end' "${GITHUB_EVENT_PATH}")
+          for sha in ${shas}; do
+            matched=$(gh api "repos/${REPOSITORY}/commits/${sha}/pulls" \
+              --jq '[.[] | select(.merged_at != null and ([.labels[].name] | index("ci/deploy-docs") != null))] | length')
+            echo "Commit ${sha}: matched merged PRs with ci/deploy-docs: ${matched}"
+            if [ "${matched}" -gt 0 ]; then
+              gh workflow run docs.yml \
+                --repo "${REPOSITORY}" \
+                --ref main \
+                -f deploy-gh-pages=true \
+                -f deploy-nightlies=false
+              echo "Dispatched docs.yml for ${sha} (head ${SHA})."
+              exit 0
+            fi
+          done
+          echo "No merged PR in this push carries ci/deploy-docs."

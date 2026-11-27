@@ -1162,7 +1162,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     err
 }
 
-fn parse_tos_error(bs: &bytes::Bytes) -> Option<TosError> {
+pub(super) fn parse_tos_error(bs: &bytes::Bytes) -> Option<TosError> {
     de::from_reader::<_, TosError>(bs.chunk().reader())
         .or_else(|_| serde_json::from_slice::<TosError>(bs))
         .ok()

@@ -47,7 +47,10 @@ and compare the CRC of the ordered parts with the completion receipt.
 
 If OpenDAL receives a successful write status and cannot confirm the receipt,
 it returns a non-temporary `Unexpected` error. The object may already be
-visible. `Algo`, `Expected`, and checksum verification for presigned writes are
+visible. After an unconfirmed multipart completion, `abort()` can clean up an
+unfinished upload and leaves any published version intact.
+
+`Algo`, `Expected`, and checksum verification for presigned writes are
 unsupported.
 
 ## Example

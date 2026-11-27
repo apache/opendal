@@ -31,6 +31,9 @@ use crate::core::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+#[cfg(test)]
+mod tests;
+
 pub struct TosWriter {
     core: Arc<TosCore>,
     ctx: OperationContext,
@@ -83,13 +86,14 @@ impl TosWriter {
         }
 
         let (parts, mut body) = self.core.fetch(&self.ctx, req).await?.into_parts();
-        if parts.status.is_success() {
+        let success_observed = parts.status.is_success();
+        if success_observed {
             // An explicit second close can reach the writer after a receipt failure.
             // Record success before reading the body, which can also fail or be cancelled.
             self.publication_observed.store(true, Ordering::Relaxed);
         }
         let body = body.to_buffer().await.map_err(|err| {
-            if parts.status.is_success() {
+            if success_observed {
                 Error::new(
                     ErrorKind::Unexpected,
                     "TOS accepted the write but its response could not be read. The object may already be visible",
@@ -302,35 +306,53 @@ impl oio::MultipartWrite for TosWriter {
             .core
             .tos_complete_multipart_upload_request(&self.path, upload_id, parts, &self.op)?;
         let resp = self.send_publication_request(req).await?;
-
-        match resp.status() {
-            StatusCode::OK => {
-                let mut meta = Self::parse_header_into_meta(&self.path, resp.headers())?;
-                if let Some(expected) = checksum {
-                    meta.checksum(verify_publication_checksum(resp.headers(), expected)?);
-                }
-                let ret: CompleteMultipartUploadResult =
-                    serde_json::from_reader(resp.into_body().reader())
-                        .map_err(new_json_deserialize_error)?;
-                if !ret.code.is_empty() {
-                    return Err(Error::new(ErrorKind::Unexpected, ret.message));
-                }
-                if !ret.etag.is_empty() {
-                    // CompleteMultipartUpload response wraps ETag in quotes:
-                    // https://www.volcengine.com/docs/6349/74868
-                    meta.etag(ret.etag.trim_matches('"'));
-                }
-                if !ret.version_id.is_empty() {
-                    meta.version(&ret.version_id);
-                }
-
-                Ok(meta.build())
-            }
-            _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
-                resp,
-            )),
+        let error_context = ErrorContext::new(ServiceOperation("CompleteMultipartUpload"));
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(error_context, resp));
         }
+
+        let ret: CompleteMultipartUploadResult =
+            serde_json::from_reader(resp.body().clone().reader()).map_err(|err| {
+                if self.verify_checksum {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "TOS returned invalid completion JSON. The object may already be visible",
+                    )
+                    .set_source(err)
+                } else {
+                    new_json_deserialize_error(err)
+                }
+            })?;
+        if !ret.code.trim().is_empty() {
+            if self.verify_checksum {
+                // TOS can explicitly reject completion in an HTTP 200 response.
+                self.publication_observed.store(false, Ordering::Relaxed);
+                return Err(parse_error(error_context, resp));
+            }
+            return Err(Error::new(ErrorKind::Unexpected, ret.message));
+        }
+
+        let etag = ret.etag.trim_matches('"');
+        if self.verify_checksum && ret.key.is_empty() && etag.is_empty() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "TOS completion JSON did not identify the object. The object may already be visible",
+            ));
+        }
+
+        let mut meta = Self::parse_header_into_meta(&self.path, resp.headers())?;
+        if !ret.etag.is_empty() {
+            // CompleteMultipartUpload response wraps ETag in quotes:
+            // https://www.volcengine.com/docs/6349/74868
+            meta.etag(etag);
+        }
+        if !ret.version_id.is_empty() {
+            meta.version(&ret.version_id);
+        }
+        if let Some(expected) = checksum {
+            meta.checksum(verify_publication_checksum(resp.headers(), expected)?);
+        }
+        Ok(meta.build())
     }
 
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
@@ -341,6 +363,14 @@ impl oio::MultipartWrite for TosWriter {
 
         match resp.status() {
             StatusCode::NO_CONTENT => Ok(()),
+            // Completion can consume the upload even if its receipt was unconfirmed.
+            StatusCode::NOT_FOUND
+                if self.publication_observed.load(Ordering::Relaxed)
+                    && parse_tos_error(&resp.body().to_bytes())
+                        .is_some_and(|error| error.code == "NoSuchUpload") =>
+            {
+                Ok(())
+            }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("AbortMultipartUpload")),
                 resp,

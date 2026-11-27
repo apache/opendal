@@ -8577,6 +8577,7 @@ version = "0.59.5"
 dependencies = [
  "bytes",
  "crc-fast",
+ "futures",
  "http 1.5.0",
  "opendal-core",
  "quick-xml",
@@ -8585,6 +8586,7 @@ dependencies = [
  "reqsign-volcengine-tos",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

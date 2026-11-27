@@ -628,7 +628,7 @@ mod tests {
     use futures::StreamExt;
     use futures::executor::block_on;
     use opendal_core::raw::oio::Write as _;
-    use reqsign_core::{Context, ProvideCredentialChain};
+    use reqsign_core::ProvideCredentialChain;
     use reqsign_google::RequestSigner;
     use tonic::transport::Endpoint;
 
@@ -636,7 +636,7 @@ mod tests {
     use crate::GCS_GRPC_SCHEME;
 
     fn test_writer() -> GcsGrpcWriter {
-        let sign_ctx = Context::new();
+        let sign_ctx = opendal_core::raw::reqsign_context();
         let core = Arc::new(GcsGrpcCore {
             info: ServiceInfo::new(GCS_GRPC_SCHEME, "/", "example-bucket"),
             capability: Capability::default(),

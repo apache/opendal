@@ -22,7 +22,6 @@ use bytes::Buf;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
-use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_file_read_tokio::TokioFileRead;
 use reqsign_tencent_cos::DefaultCredentialProvider;
@@ -197,7 +196,7 @@ impl Builder for CosBuilder {
         debug!("backend use endpoint {}", endpoint);
 
         let os_env = OsEnv;
-        let ctx = Context::new()
+        let ctx = opendal_core::raw::reqsign_context()
             .with_file_read(TokioFileRead)
             .with_env(os_env);
 

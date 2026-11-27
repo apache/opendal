@@ -29,7 +29,6 @@ use reqsign_aliyun_oss::DefaultCredentialProvider;
 use reqsign_aliyun_oss::EcsRamRoleCredentialProvider;
 use reqsign_aliyun_oss::RequestSigner;
 use reqsign_aliyun_oss::StaticCredentialProvider;
-use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
 use reqsign_file_read_tokio::TokioFileRead;
@@ -519,7 +518,9 @@ impl Builder for OssBuilder {
         // Alibaba Cloud files) and ambient environment variables through this
         // context. `OperationContext` supplies the HTTP sender for STS and
         // metadata requests when requests are signed.
-        let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
+        let ctx = opendal_core::raw::reqsign_context()
+            .with_file_read(TokioFileRead)
+            .with_env(OsEnv);
 
         let static_provider = if let (Some(ak), Some(sk)) =
             (&self.config.access_key_id, &self.config.access_key_secret)
@@ -1059,7 +1060,7 @@ mod tests {
 
         async fn provide_credential(
             &self,
-            _ctx: &Context,
+            _ctx: &reqsign_core::Context,
         ) -> reqsign_core::Result<Option<Credential>> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             Ok(Some(
@@ -1178,7 +1179,7 @@ mod tests {
                 ]);
             }
             let http = CredentialHttpSend::default();
-            let ctx = Context::new()
+            let ctx = opendal_core::raw::reqsign_context()
                 .with_env(StaticEnv {
                     home_dir: None,
                     envs,
@@ -1275,7 +1276,7 @@ mod tests {
             ),
         ]);
         let http = CredentialHttpSend::default();
-        let ctx = Context::new()
+        let ctx = opendal_core::raw::reqsign_context()
             .with_env(StaticEnv {
                 home_dir: None,
                 envs,
@@ -1502,7 +1503,7 @@ mod tests {
         // No `ALIBABA_CLOUD_OIDC_*` or `ALIBABA_CLOUD_ROLE_ARN` variables: the
         // STS request can only be built when every OIDC option comes from the
         // builder.
-        let ctx = Context::new()
+        let ctx = opendal_core::raw::reqsign_context()
             .with_env(StaticEnv {
                 home_dir: None,
                 envs: HashMap::from([(
@@ -1550,7 +1551,7 @@ mod tests {
             "/mock/oss-credentials",
             "[default]\naccess_key_id = profile-ak\naccess_key_secret = profile-secret\nsecurity_token = profile-token\n",
         )]);
-        let ctx = Context::new()
+        let ctx = opendal_core::raw::reqsign_context()
             .with_env(StaticEnv {
                 home_dir: None,
                 envs: HashMap::from([
@@ -1585,7 +1586,7 @@ mod tests {
 
         // Explicit access keys still take precedence over the profile file.
         let static_file_read = TestFileRead::new([]);
-        let ctx = Context::new()
+        let ctx = opendal_core::raw::reqsign_context()
             .with_env(StaticEnv {
                 home_dir: None,
                 envs: HashMap::from([
@@ -1628,7 +1629,7 @@ mod tests {
             "[default]\naccess_key_id = profile-ak\naccess_key_secret = profile-secret\n",
         )]);
         let http = CredentialHttpSend::default();
-        let ctx = Context::new()
+        let ctx = opendal_core::raw::reqsign_context()
             .with_env(StaticEnv {
                 home_dir: None,
                 envs: HashMap::from([

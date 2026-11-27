@@ -1059,7 +1059,7 @@ mod tests {
             encryption_key_sha256: None,
             encryption_algorithm: None,
             skip_signature: true,
-            sign_ctx: Context::new(),
+            sign_ctx: opendal_core::raw::reqsign_context(),
             credential_provider: Arc::new(StaticCredentialProvider::new_shared_key("acc", "a2V5")),
             request_signer: Arc::new(RequestSigner::new()),
             signers: HttpTransportCache::new(),

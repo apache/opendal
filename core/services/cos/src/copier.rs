@@ -356,7 +356,7 @@ mod tests {
             bucket: "test".to_owned(),
             root: "/".to_owned(),
             endpoint: "https://cos.example.com".to_owned(),
-            sign_ctx: reqsign_core::Context::new(),
+            sign_ctx: opendal_core::raw::reqsign_context(),
             credential_provider: Arc::new(reqsign_tencent_cos::StaticCredentialProvider::new(
                 "test", "test",
             )),

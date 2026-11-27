@@ -319,7 +319,6 @@ pub(crate) use provider_preset;
 mod tests {
     use std::collections::HashMap;
 
-    use reqsign_core::Context;
     use reqsign_core::ProvideCredential;
     use reqsign_core::StaticEnv;
 
@@ -341,7 +340,7 @@ mod tests {
 
     #[tokio::test]
     async fn direct_credentials_take_priority_over_environment() {
-        let context = Context::new().with_env(StaticEnv {
+        let context = opendal_core::raw::reqsign_context().with_env(StaticEnv {
             home_dir: None,
             envs: HashMap::from([
                 ("AWS_ACCESS_KEY_ID".to_string(), "env-access".to_string()),
@@ -365,7 +364,7 @@ mod tests {
 
     #[tokio::test]
     async fn loads_credentials_from_standard_environment() {
-        let context = Context::new().with_env(StaticEnv {
+        let context = opendal_core::raw::reqsign_context().with_env(StaticEnv {
             home_dir: None,
             envs: HashMap::from([
                 ("AWS_ACCESS_KEY_ID".to_string(), "env-access".to_string()),
@@ -415,7 +414,7 @@ mod tests {
                 envs.insert("AWS_ACCESS_KEY_ID".to_owned(), "env-access".to_owned());
                 envs.insert("AWS_SECRET_ACCESS_KEY".to_owned(), "env-secret".to_owned());
             }
-            let context = Context::new()
+            let context = opendal_core::raw::reqsign_context()
                 .with_env(StaticEnv {
                     home_dir: None,
                     envs,

@@ -27,7 +27,6 @@ use reqsign_azure_storage::RequestSigner;
 use reqsign_azure_storage::StaticCredentialProvider;
 #[cfg(not(target_arch = "wasm32"))]
 use reqsign_command_execute_tokio::TokioCommandExecute;
-use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
 use reqsign_file_read_tokio::TokioFileRead;
@@ -285,7 +284,9 @@ impl AzdlsBuilder {
             .clone()
             .or_else(|| azure_account_name_from_endpoint(endpoint.as_str()));
 
-        let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
+        let ctx = opendal_core::raw::reqsign_context()
+            .with_file_read(TokioFileRead)
+            .with_env(OsEnv);
         #[cfg(not(target_arch = "wasm32"))]
         let ctx = ctx.with_command_execute(TokioCommandExecute);
 
@@ -761,7 +762,7 @@ mod tests {
             .unwrap();
 
         let az_cli = MockAzCli::default();
-        let ctx = Context::new()
+        let ctx = opendal_core::raw::reqsign_context()
             .with_env(reqsign_core::StaticEnv::default())
             .with_command_execute(az_cli.clone());
         let signer = backend.core.signer_with_context(ctx);
@@ -793,7 +794,7 @@ mod tests {
 
         let http = MockTokenHttpSend::default();
         let az_cli = MockAzCli::default();
-        let ctx = Context::new()
+        let ctx = opendal_core::raw::reqsign_context()
             .with_env(reqsign_core::StaticEnv::default())
             .with_http_send(http.clone())
             .with_command_execute(az_cli.clone());

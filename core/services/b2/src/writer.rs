@@ -16,9 +16,11 @@
 // under the License.
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use bytes::Buf;
 use http::StatusCode;
+use sha1::{Digest, Sha1, digest::Output};
 
 use super::core::StartLargeFileResponse;
 use super::core::UploadPartResponse;
@@ -36,19 +38,43 @@ pub struct B2Writer {
 
     op: OpWrite,
     path: String,
+    verify_checksum: bool,
+    completed_single_upload: AtomicBool,
 }
 
 impl B2Writer {
-    pub fn new(core: Arc<B2Core>, ctx: OperationContext, path: &str, op: OpWrite) -> Self {
-        B2Writer {
+    pub fn new(core: Arc<B2Core>, ctx: OperationContext, path: &str, op: OpWrite) -> Result<Self> {
+        let verify_checksum = match op.checksum() {
+            None => false,
+            Some(WriteChecksum::Any) => true,
+            Some(_) => {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "B2 only supports the Any write checksum intent",
+                ));
+            }
+        };
+        Ok(Self {
             core,
             ctx,
             path: path.to_string(),
             op,
-        }
+            verify_checksum,
+            completed_single_upload: AtomicBool::new(false),
+        })
     }
 
-    pub fn parse_body_into_meta(path: &str, resp: UploadResponse) -> Metadata {
+    fn check_single_upload_open(&self) -> Result<()> {
+        if self.completed_single_upload.load(Ordering::Relaxed) {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "B2 already completed the ordinary upload",
+            ));
+        }
+        Ok(())
+    }
+
+    fn upload_metadata(path: &str, resp: UploadResponse) -> MetadataBuilder {
         let mut meta = if path.ends_with('/') {
             MetadataBuilder::dir()
         } else {
@@ -63,38 +89,83 @@ impl B2Writer {
             meta.content_type(&content_type);
         }
 
-        meta.build()
+        meta
     }
+}
+
+fn sha1(body: &Buffer) -> (Output<Sha1>, String) {
+    use std::fmt::Write;
+
+    let mut hasher = Sha1::new();
+    for chunk in body.clone() {
+        hasher.update(&chunk);
+    }
+    let digest = hasher.finalize();
+    let mut encoded = String::with_capacity(digest.len() * 2);
+    for byte in digest.iter() {
+        write!(&mut encoded, "{byte:02x}").expect("writing to String must succeed");
+    }
+    (digest, encoded)
 }
 
 impl oio::MultipartWrite for B2Writer {
     async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
-        let resp = self
+        self.check_single_upload_open()?;
+        let checksum = self.verify_checksum.then(|| sha1(&body));
+        let mut resp = self
             .core
-            .upload_file(&self.ctx, &self.path, Some(size), &self.op, body)
+            .upload_file(
+                &self.ctx,
+                &self.path,
+                size,
+                &self.op,
+                checksum.as_ref().map(|(_, encoded)| encoded.as_str()),
+                body,
+            )
             .await?;
 
         let status = resp.status();
+        let completed = status == StatusCode::OK && self.verify_checksum;
+        if completed {
+            // A lost or invalid receipt must not publish a second version on another close.
+            self.completed_single_upload.store(true, Ordering::Relaxed);
+        }
+        let body = resp
+            .body_mut()
+            .to_buffer()
+            .await
+            .map_err(|err| err.with_permanent(completed))?;
 
         match status {
             StatusCode::OK => {
-                let bs = resp.into_body();
-
                 let result: UploadResponse =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
-                let meta = Self::parse_body_into_meta(&self.path, result);
-
-                Ok(meta)
+                if let Some((_, sent)) = &checksum
+                    && result.content_sha1.as_deref() != Some(sent.as_str())
+                {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "B2 completed the upload without confirming the submitted SHA-1; \
+                         the object may already be visible",
+                    ));
+                }
+                let mut meta = Self::upload_metadata(&self.path, result);
+                if let Some((digest, _)) = checksum {
+                    meta.checksum(Checksum::new(ChecksumAlgo::Sha1, digest.as_slice()));
+                }
+                Ok(meta.build())
             }
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("UploadFile")),
-                resp,
+                ErrorContext::new(ServiceOperation("UploadFile"))
+                    .with_checksum(self.verify_checksum),
+                resp.map(|_| body),
             )),
         }
     }
 
     async fn initiate_part(&self) -> Result<String> {
+        self.check_single_upload_open()?;
         let resp = self
             .core
             .start_large_file(&self.ctx, &self.path, &self.op)
@@ -127,10 +198,18 @@ impl oio::MultipartWrite for B2Writer {
     ) -> Result<oio::MultipartPart> {
         // B2 requires part number must between [1..=10000]
         let part_number = part_number + 1;
+        let checksum = self.verify_checksum.then(|| sha1(&body).1);
 
         let resp = self
             .core
-            .upload_part(&self.ctx, upload_id, part_number, size, body)
+            .upload_part(
+                &self.ctx,
+                upload_id,
+                part_number,
+                size,
+                checksum.as_deref(),
+                body,
+            )
             .await?;
 
         let status = resp.status();
@@ -142,6 +221,18 @@ impl oio::MultipartWrite for B2Writer {
                 let result: UploadPartResponse =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
+                if let Some(sent) = checksum
+                    && result.content_sha1 != sent
+                {
+                    // An unconfirmed part can be replaced on the same upload and part number.
+                    return Err(Error::new(
+                        ErrorKind::ChecksumMismatch,
+                        "B2 part receipt does not confirm the submitted SHA-1",
+                    )
+                    .with_context("part_number", part_number.to_string())
+                    .set_temporary());
+                }
+
                 Ok(oio::MultipartPart {
                     etag: result.content_sha1,
                     part_number,
@@ -150,7 +241,8 @@ impl oio::MultipartWrite for B2Writer {
                 })
             }
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("UploadPart")),
+                ErrorContext::new(ServiceOperation("UploadPart"))
+                    .with_checksum(self.verify_checksum),
                 resp,
             )),
         }
@@ -161,15 +253,18 @@ impl oio::MultipartWrite for B2Writer {
         upload_id: &str,
         parts: &[oio::MultipartPart],
     ) -> Result<Metadata> {
+        // MultipartWriter collects receipts in part order even with concurrent uploads.
         let part_sha1_array = parts
             .iter()
-            .map(|p| {
-                let binding = p.etag.clone();
-                let sha1 = binding.strip_prefix("unverified:");
-                let Some(sha1) = sha1 else {
-                    return "".to_string();
-                };
-                sha1.to_string()
+            .map(|part| {
+                if self.verify_checksum {
+                    part.etag.clone()
+                } else {
+                    part.etag
+                        .strip_prefix("unverified:")
+                        .unwrap_or_default()
+                        .to_string()
+                }
             })
             .collect();
 
@@ -187,12 +282,11 @@ impl oio::MultipartWrite for B2Writer {
                 let result: UploadResponse =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
-                let meta = Self::parse_body_into_meta(&self.path, result);
-
-                Ok(meta)
+                Ok(Self::upload_metadata(&self.path, result).build())
             }
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("FinishLargeFile")),
+                ErrorContext::new(ServiceOperation("FinishLargeFile"))
+                    .with_checksum(self.verify_checksum),
                 resp,
             )),
         }

@@ -181,6 +181,7 @@ impl Builder for B2Builder {
                     write_can_multi: true,
                     write_with_content_type: true,
                     write_with_user_metadata: true,
+                    write_with_checksum: true,
                     // The min multipart size of b2 is 5 MiB.
                     //
                     // ref: <https://www.backblaze.com/docs/cloud-storage-large-files>
@@ -325,16 +326,13 @@ impl Service for B2Backend {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        let output: B2Writers = {
-            let concurrent = args.concurrent();
-            let writer = B2Writer::new(self.core.clone(), ctx.clone(), path, args);
-
-            let w = oio::MultipartWriter::new(ctx.executor().clone(), writer, concurrent);
-
-            Ok(w)
-        }?;
-
-        Ok(output)
+        let concurrent = args.concurrent();
+        let writer = B2Writer::new(self.core.clone(), ctx.clone(), path, args)?;
+        Ok(oio::MultipartWriter::new(
+            ctx.executor().clone(),
+            writer,
+            concurrent,
+        ))
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -580,6 +578,12 @@ impl Service for B2Backend {
                     .await
             }
             PresignOperation::Write(write) => {
+                if write.checksum().is_some() {
+                    return Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "B2 does not support presigning writes with a checksum intent",
+                    ));
+                }
                 let resp = self.core.get_upload_url(ctx).await?;
 
                 let mut req = Request::post(&resp.upload_url);

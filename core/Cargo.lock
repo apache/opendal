@@ -7791,8 +7791,10 @@ dependencies = [
  "http 1.5.0",
  "log",
  "opendal-core",
+ "opendal-layer-retry",
  "serde",
  "serde_json",
+ "sha1 0.11.0",
  "tokio",
 ]
 

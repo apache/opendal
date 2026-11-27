@@ -213,22 +213,56 @@ pub fn parse_multipart_boundary(headers: &HeaderMap) -> Result<Option<&str>> {
 }
 
 fn extract_multipart_boundary(content_type: &str) -> Option<&str> {
-    let mut rest = content_type;
-    while let Some((_, after_semi)) = rest.split_once(';') {
-        let param = after_semi.trim_start();
-        let Some((name, raw_val)) = param.split_once('=') else {
-            rest = param;
+    let (_, mut rest) = content_type.split_once(';')?;
+    while !rest.is_empty() {
+        rest = rest.trim_start();
+        if let Some(after) = rest.strip_prefix(';') {
+            rest = after;
             continue;
+        }
+        let delim = rest.find(['=', ';']);
+        let Some(pos) = delim else {
+            break;
         };
-        let val = raw_val.trim_start();
-        let is_boundary = name.trim_end().eq_ignore_ascii_case("boundary");
+        if rest.as_bytes()[pos] == b';' {
+            rest = &rest[pos + 1..];
+            continue;
+        }
+        let name = rest[..pos].trim_end();
+        let val = rest[pos + 1..].trim_start();
+        let is_boundary = name.eq_ignore_ascii_case("boundary");
         if let Some(after_quote) = val.strip_prefix('"') {
-            let end = after_quote.find('"')?;
+            let bytes = after_quote.as_bytes();
+            let mut i = 0;
+            let mut has_escape = false;
+            let mut close = None;
+            while i < bytes.len() {
+                match bytes[i] {
+                    b'\\' => {
+                        if i + 1 >= bytes.len() {
+                            return None;
+                        }
+                        has_escape = true;
+                        i += 2;
+                    }
+                    b'"' => {
+                        close = Some(i);
+                        break;
+                    }
+                    _ => i += 1,
+                }
+            }
+            let end = close?;
             if is_boundary {
+                if has_escape {
+                    return None;
+                }
                 let boundary = &after_quote[..end];
                 return (!boundary.is_empty()).then_some(boundary);
             }
-            rest = &after_quote[end + 1..];
+            rest = after_quote[end + 1..]
+                .split_once(';')
+                .map_or("", |(_, after)| after);
             continue;
         }
         let end = val.find(';').unwrap_or(val.len());
@@ -653,6 +687,26 @@ mod tests {
                 "multipart/mixed; boundary=batch_pK7JBAk73-E=_AA5eFwv4m2Q=",
                 Some("batch_pK7JBAk73-E=_AA5eFwv4m2Q="),
             ),
+            // Empty intervening parameters and valueless tokens must be skipped.
+            (
+                "multipart/mixed; ; boundary=gc0p4Jq0M2Yt08jU534c0p",
+                Some("gc0p4Jq0M2Yt08jU534c0p"),
+            ),
+            (
+                "multipart/mixed; flag; boundary=gc0p4Jq0M2Yt08jU534c0p",
+                Some("gc0p4Jq0M2Yt08jU534c0p"),
+            ),
+            // Earlier quoted parameters with backslash quoted-pairs must not cut scanning short.
+            (
+                "multipart/mixed; param=\"a\\\"; boundary=fake\"; boundary=real",
+                Some("real"),
+            ),
+            (
+                "multipart/mixed; param=\"a\\\\\"; boundary=real",
+                Some("real"),
+            ),
+            // Quoted boundary containing backslash escapes cannot be returned losslessly as &str.
+            ("multipart/mixed; boundary=\"a\\\"b\"", None),
         ];
 
         for (input, expected) in cases {

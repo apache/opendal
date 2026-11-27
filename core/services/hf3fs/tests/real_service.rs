@@ -42,6 +42,16 @@ fn fixture(block_size: usize) -> (tempfile::TempDir, Operator) {
     (dir, op.with_context(context))
 }
 
+/// List the sorted entry names of `dir`.
+fn entry_names(dir: &std::path::Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "requires a real 3FS mount and USRBIO library"]
 async fn read_write_ranges_and_metadata() {
@@ -248,4 +258,97 @@ async fn concurrent_writes_and_cancelled_callers() {
     })
     .await
     .unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "requires a real 3FS mount and USRBIO library"]
+async fn conditional_write_publishes_a_complete_file_at_close() {
+    let (dir, op) = fixture(4096);
+    let target = dir.path().join("staged/file");
+    let mut writer = op
+        .writer_with("staged/file")
+        .if_not_exists(true)
+        .await
+        .unwrap();
+    let expected: Vec<u8> = (0..32u8).flat_map(|byte| vec![byte; 4096]).collect();
+    for byte in 0..32u8 {
+        writer.write(vec![byte; 4096]).await.unwrap();
+    }
+
+    // Readers see only the staged file while the write is in progress.
+    assert!(!target.exists());
+    let names = entry_names(&dir.path().join("staged"));
+    assert_eq!(names.len(), 1);
+    assert!(names[0].starts_with("file."));
+
+    let meta = writer.close().await.unwrap();
+    assert_eq!(meta.content_length(), expected.len() as u64);
+    assert_eq!(std::fs::read(&target).unwrap(), expected);
+    assert_eq!(entry_names(&dir.path().join("staged")), ["file"]);
+    assert_eq!(op.read("staged/file").await.unwrap().to_vec(), expected);
+    assert_eq!(
+        op.stat("staged/file").await.unwrap().content_length(),
+        expected.len() as u64
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "requires a real 3FS mount and USRBIO library"]
+async fn aborted_conditional_write_leaves_nothing_behind() {
+    let (dir, op) = fixture(4096);
+    let target = dir.path().join("staged/file");
+    let mut writer = op
+        .writer_with("staged/file")
+        .if_not_exists(true)
+        .await
+        .unwrap();
+    for byte in 0..32u8 {
+        writer.write(vec![byte; 4096]).await.unwrap();
+    }
+    writer.abort().await.unwrap();
+    assert!(!target.exists());
+    assert!(entry_names(&dir.path().join("staged")).is_empty());
+
+    // The aborted write must not block a later conditional write.
+    let data: Vec<u8> = (0..65_537).map(|i| (i % 251) as u8).collect();
+    op.write_with("staged/file", data.clone())
+        .if_not_exists(true)
+        .await
+        .unwrap();
+    assert_eq!(std::fs::read(&target).unwrap(), data);
+    assert_eq!(entry_names(&dir.path().join("staged")), ["file"]);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "requires a real 3FS mount and USRBIO library"]
+async fn concurrent_conditional_writes_publish_exactly_one() {
+    let (dir, op) = fixture(4096);
+    let target = dir.path().join("staged/file");
+    let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(8));
+    let mut tasks = tokio::task::JoinSet::new();
+    for byte in 0..8u8 {
+        let op = op.clone();
+        let barrier = barrier.clone();
+        tasks.spawn(async move {
+            barrier.wait().await;
+            op.write_with("staged/file", vec![byte; 65_537])
+                .if_not_exists(true)
+                .await
+        });
+    }
+    let mut winners = 0;
+    while let Some(result) = tasks.join_next().await {
+        match result.unwrap() {
+            Ok(_) => winners += 1,
+            Err(error) => assert_eq!(error.kind(), ErrorKind::ConditionNotMatch),
+        }
+    }
+    assert_eq!(winners, 1);
+
+    // The target holds the complete content of the single winner, and the
+    // losers leave no staged files behind.
+    let content = std::fs::read(&target).unwrap();
+    assert_eq!(content.len(), 65_537);
+    assert!(content.iter().all(|byte| *byte == content[0]));
+    assert_eq!(entry_names(&dir.path().join("staged")), ["file"]);
 }

@@ -27,10 +27,14 @@ Use the client library distributed with your 3FS deployment.
 
 The service supports stat, range reads, streaming writes, create directory,
 list, delete, recursive delete, and rename. Writes create parent directories
-and replace existing files; `if_not_exists` rejects an existing file.
-Closing a writer waits for writes and synchronizes the file. Writes are not
-atomic, and failed or aborted writes can leave partial files. Append, native
-copy, presign, and rollback on abort are unsupported. Operations require a
+and replace existing files; `if_not_exists` rejects an existing file. An
+`if_not_exists` write stages data in a temporary file next to the target and
+publishes it when the writer closes; aborting it removes the temporary file,
+which is visible in listings while the write is in progress.
+Closing a writer waits for writes and synchronizes the file. Writes without
+`if_not_exists` are not atomic, and failed or aborted writes can leave partial
+files. Append, native copy, presign, and rollback on abort for writes without
+`if_not_exists` are unsupported. Operations require a
 Tokio runtime. The operation context supplies the executor for concurrent writes.
 
 ## Memory and concurrency

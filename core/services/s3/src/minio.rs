@@ -109,6 +109,14 @@ impl MinioBuilder {
         self
     }
 
+    /// Allow per-write checksum intents on compatible signed MinIO endpoints.
+    ///
+    /// Defaults to false. Supply a checksum intent on each write that needs verification.
+    pub fn enable_write_checksum(mut self, enable: bool) -> Self {
+        self.config.enable_write_checksum = Some(enable);
+        self
+    }
+
     fn into_s3_config(self) -> Result<(S3Config, ProvideCredentialChain<Credential>)> {
         let MinioConfig {
             root,
@@ -120,6 +128,7 @@ impl MinioBuilder {
             session_token,
             disable_config_load,
             skip_signature,
+            enable_write_checksum: _,
         } = self.config;
 
         preset::validate_required(&bucket, MINIO_SCHEME, "bucket must not be empty")?;
@@ -169,9 +178,11 @@ impl Builder for MinioBuilder {
     type Config = MinioConfig;
 
     fn build(self) -> Result<impl Service> {
+        let write_checksum =
+            self.config.enable_write_checksum.unwrap_or_default() && !self.config.skip_signature;
         let (config, credential_providers) = self.into_s3_config()?;
         S3Builder::from_provider_config(config, credential_providers)
-            .build_with_scheme(MINIO_SCHEME)
+            .build_with_scheme(MINIO_SCHEME, write_checksum)
     }
 }
 
@@ -238,6 +249,23 @@ mod tests {
             .into_s3_config()
             .unwrap_err();
         assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    }
+
+    #[test]
+    fn write_checksum_opt_in_requires_signing() {
+        let builder = || {
+            MinioBuilder::default()
+                .bucket("bucket")
+                .endpoint("http://127.0.0.1:9000")
+                .enable_write_checksum(true)
+        };
+
+        let signed = builder().build().unwrap().capability();
+        assert!(signed.write_with_checksum);
+        assert!(!signed.read_with_checksum);
+
+        let unsigned = builder().skip_signature().build().unwrap().capability();
+        assert!(!unsigned.write_with_checksum);
     }
 
     #[test]

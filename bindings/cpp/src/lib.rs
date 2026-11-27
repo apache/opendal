@@ -20,6 +20,7 @@ mod r#async;
 mod capability;
 mod layer;
 mod lister;
+mod metadata;
 mod reader;
 mod types;
 mod writer;
@@ -163,41 +164,14 @@ mod ffi {
         End = 2,
     }
 
-    enum EntryMode {
-        File = 1,
-        Dir = 2,
-        Unknown = 0,
-    }
-
     struct OptionalString {
         has_value: bool,
         value: String,
     }
 
-    struct OptionalBool {
-        has_value: bool,
-        value: bool,
-    }
-
     struct OptionalEntry {
         has_value: bool,
         value: Entry,
-    }
-
-    struct Metadata {
-        mode: EntryMode,
-        content_length: u64,
-        cache_control: OptionalString,
-        content_disposition: OptionalString,
-        content_md5: OptionalString,
-        content_type: OptionalString,
-        content_encoding: OptionalString,
-        etag: OptionalString,
-        last_modified: OptionalTimestamp,
-        version: OptionalString,
-        is_current: OptionalBool,
-        is_deleted: bool,
-        // Note: content_range and user_metadata are complex types that need special handling
     }
 
     struct Entry {
@@ -208,6 +182,13 @@ mod ffi {
     unsafe extern "C++" {
         include!("opendal-cpp/src/capability.rs.h");
         type Capability = crate::capability::ffi::Capability;
+    }
+
+    // Generated from core by `dev/src/generate/cpp.rs`; see src/metadata.rs.
+    unsafe extern "C++" {
+        include!("opendal-cpp/src/metadata.rs.h");
+        #[namespace = "opendal::ffi::metadata"]
+        type Metadata = crate::metadata::ffi::Metadata;
     }
 
     extern "Rust" {

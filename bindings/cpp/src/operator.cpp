@@ -25,6 +25,7 @@
 #include "opendal.hpp"
 #include "utils/capability_converter.hpp"
 #include "utils/ffi_converter.hpp"
+#include "utils/metadata_converter.hpp"
 #include "utils/rust_converter.hpp"
 
 namespace opendal {
@@ -197,63 +198,6 @@ const ffi::Operator &CheckedOperator(const ffi::Operator *op) {
 
 }  // namespace
 
-std::optional<std::string> parse_optional_string(ffi::OptionalString &&s) {
-  if (s.has_value) {
-    return std::string(std::move(s.value));
-  } else {
-    return std::nullopt;
-  }
-}
-
-std::optional<bool> parse_optional_bool(ffi::OptionalBool &&b) {
-  if (b.has_value) {
-    return b.value;
-  } else {
-    return std::nullopt;
-  }
-}
-
-std::optional<std::chrono::system_clock::time_point> parse_optional_timestamp(
-    ffi::OptionalTimestamp &&ts) {
-  if (!ts.has_value) {
-    return std::nullopt;
-  }
-
-  auto duration = std::chrono::seconds(ts.seconds) +
-                  std::chrono::nanoseconds(ts.nanoseconds);
-  return std::chrono::system_clock::time_point(
-      std::chrono::duration_cast<std::chrono::system_clock::duration>(
-          duration));
-}
-
-Metadata parse_meta_data(ffi::Metadata &&meta) {
-  Metadata metadata;
-
-  // Basic information
-  metadata.type = static_cast<EntryMode>(meta.mode);
-  metadata.content_length = meta.content_length;
-
-  // HTTP-style headers
-  metadata.cache_control = parse_optional_string(std::move(meta.cache_control));
-  metadata.content_disposition =
-      parse_optional_string(std::move(meta.content_disposition));
-  metadata.content_md5 = parse_optional_string(std::move(meta.content_md5));
-  metadata.content_type = parse_optional_string(std::move(meta.content_type));
-  metadata.content_encoding =
-      parse_optional_string(std::move(meta.content_encoding));
-  metadata.etag = parse_optional_string(std::move(meta.etag));
-
-  // Versioning information
-  metadata.version = parse_optional_string(std::move(meta.version));
-  metadata.is_current = parse_optional_bool(std::move(meta.is_current));
-  metadata.is_deleted = meta.is_deleted;
-
-  metadata.last_modified =
-      parse_optional_timestamp(std::move(meta.last_modified));
-
-  return metadata;
-}
-
 Operator::Operator() noexcept = default;
 
 void Operator::Destroy() noexcept {
@@ -378,12 +322,12 @@ void Operator::RemoveAll(const std::vector<std::string> &paths) {
 }
 
 Metadata Operator::Stat(std::string_view path) {
-  return parse_meta_data(
+  return utils::parse_metadata(
       CheckedOperator(operator_).stat(utils::rust_str(path)));
 }
 
 Metadata Operator::Stat(std::string_view path, const StatOptions &options) {
-  return parse_meta_data(CheckedOperator(operator_).stat_options(
+  return utils::parse_metadata(CheckedOperator(operator_).stat_options(
       utils::rust_str(path), ToFfiOptions(options)));
 }
 

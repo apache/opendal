@@ -228,6 +228,15 @@ struct OptionsClass<'a> {
     summary: String,
     imports: BTreeSet<&'static str>,
     properties: Vec<OptionProperty>,
+    rs_name: String,
+    rs_fields: Vec<OptionRsField<'a>>,
+    has_unmirrored_fields: bool,
+}
+
+#[derive(Serialize)]
+struct OptionRsField<'a> {
+    name: &'a str,
+    expr: String,
 }
 
 #[derive(Serialize)]
@@ -424,23 +433,36 @@ fn generate_options(workspace_dir: &Path) -> Result<()> {
     let template = env.template_from_str(include_str!("java/options_java.j2"))?;
     let java_dir = workspace_dir.join("bindings/java/src/main/java/org/apache/opendal");
 
-    for spec in EXISTING_OPTIONS_FIELDS {
-        let Some(options) = parsed.iter().find(|options| options.name == spec.name) else {
-            bail!(
-                "options struct {} not found in {}",
-                spec.name,
-                source.display()
-            );
-        };
-        let fields = select_options_fields(options, spec)?;
-        let class = options_class(options, spec, &fields)?;
+    let classes = options_classes(&parsed)?;
+    for class in &classes {
         let rendered = template.render(context! { class => class })?;
         fs::write(
             java_dir.join(format!("{}.java", class.name)),
             format!("{rendered}\n"),
         )?;
     }
+
+    let rendered = env.render_str(
+        include_str!("java/options_rs.j2"),
+        context! { classes => classes },
+    )?;
+    fs::write(
+        workspace_dir.join("bindings/java/src/options.rs"),
+        format!("{rendered}\n"),
+    )?;
     Ok(())
+}
+
+fn options_classes(parsed: &[OptionsStruct]) -> Result<Vec<OptionsClass<'_>>> {
+    let mut classes = Vec::new();
+    for spec in EXISTING_OPTIONS_FIELDS {
+        let Some(options) = parsed.iter().find(|options| options.name == spec.name) else {
+            bail!("core options are missing Java struct `{}`", spec.name);
+        };
+        let fields = select_options_fields(options, spec)?;
+        classes.push(options_class(options, spec, &fields)?);
+    }
+    Ok(classes)
 }
 
 fn select_options_fields<'a>(
@@ -535,7 +557,70 @@ fn options_class<'a>(
         summary: option_javadoc(&options.doc, spec, None),
         imports,
         properties,
+        rs_name: heck::AsSnakeCase(options.name.as_str()).to_string(),
+        rs_fields: options
+            .fields
+            .iter()
+            .map(|field| {
+                let expr = if fields.iter().any(|exposed| exposed.name == field.name) {
+                    option_rs_expr(&options.name, field)?
+                } else {
+                    match field.kind {
+                        OptionKind::Bool => "false",
+                        OptionKind::Usize => "0",
+                        OptionKind::BytesRange => "Default::default()",
+                        OptionKind::OptionUsize
+                        | OptionKind::OptionU64
+                        | OptionKind::OptionString
+                        | OptionKind::OptionTimestamp
+                        | OptionKind::OptionDuration
+                        | OptionKind::OptionStringMap
+                        | OptionKind::OptionMetadata => "None",
+                    }
+                    .to_owned()
+                };
+                Ok(OptionRsField {
+                    name: &field.name,
+                    expr,
+                })
+            })
+            .collect::<Result<_>>()?,
+        has_unmirrored_fields: options.has_unmirrored_fields,
     })
+}
+
+fn option_rs_expr(options: &str, field: &OptionField) -> Result<String> {
+    let name = field.name.as_str();
+    let camel = case_java_field_name(name);
+    let (converter, suffix) = match field.kind {
+        OptionKind::Bool if options != "DeleteOptions" => {
+            ("read_bool_field", ".unwrap_or_default()")
+        }
+        OptionKind::Bool => ("read_bool_field", "?"),
+        OptionKind::OptionUsize if matches!(options, "ListOptions" | "WriteOptions") => {
+            ("read_jlong_field_to_usize", "?")
+        }
+        OptionKind::Usize
+        | OptionKind::OptionUsize
+        | OptionKind::OptionU64
+        | OptionKind::OptionMetadata => {
+            // These fields are read before building the struct to keep validation precedence.
+            return Ok(name.to_owned());
+        }
+        OptionKind::OptionString => ("read_string_field", "?"),
+        OptionKind::OptionTimestamp => ("read_instant_field_to_timestamp", "?"),
+        OptionKind::OptionStringMap => ("read_map_field", "?"),
+        OptionKind::BytesRange => return Ok("convert::read_range_fields(env, options)?".to_owned()),
+        OptionKind::OptionDuration => bail!("unsupported Java option {options}::{name}"),
+    };
+
+    let expr = format!("convert::{converter}(env, options, \"{camel}\"){suffix}");
+    if 8 + name.len() + 2 + expr.len() + 1 > 100 {
+        return Ok(format!(
+            "convert::{converter}(\n            env,\n            options,\n            \"{camel}\",\n        ){suffix}"
+        ));
+    }
+    Ok(expr)
 }
 
 /// Translate inline Rustdoc links and code spans in the first paragraph.
@@ -939,6 +1024,48 @@ mod tests {
             option_capability_refs(&lines),
             ["Capability#listWithLimit", "Capability#listWithVersions"]
         );
+    }
+
+    #[test]
+    fn test_options_jni_defaults_for_unexposed_fields() {
+        let parsed = core_options_structs();
+        let classes = options_classes(&parsed).unwrap();
+        let rendered = Environment::new()
+            .render_str(
+                include_str!("java/options_rs.j2"),
+                context! { classes => classes },
+            )
+            .unwrap();
+
+        let expected: &[(&str, &[&str])] = &[
+            ("delete", &[]),
+            ("list", &["glob: None,"]),
+            ("read", &["limit: None,", "gap: None,", "checksum: false,"]),
+            ("reader", &["gap: None,", "checksum: false,"]),
+            ("stat", &["checksum: false,"]),
+            (
+                "write",
+                &[
+                    "content_language: None,",
+                    "expires: None,",
+                    "if_version_match: None,",
+                    "if_version_not_match: None,",
+                    "if_not_changed: None,",
+                ],
+            ),
+        ];
+        let converters: Vec<_> = rendered.split("pub(crate) fn make_").skip(1).collect();
+        assert_eq!(converters.len(), expected.len());
+        for (converter, &(name, defaults)) in converters.iter().zip(expected) {
+            assert!(converter.starts_with(&format!("{name}_options(")));
+            for default in defaults {
+                assert!(
+                    converter.lines().any(|line| line.trim() == *default),
+                    "{name} must initialize {default}"
+                );
+            }
+            assert_eq!(converter.contains("..Default::default()"), name == "write");
+        }
     }
 
     fn core_metadata_fields() -> Vec<metadata::MetadataField> {

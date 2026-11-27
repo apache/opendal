@@ -28,7 +28,7 @@ use jni::strings::JNIString;
 use jni::sys::jint;
 use jni::sys::jlong;
 use opendal::raw::Timestamp;
-use opendal::{EntryMode, Error, ErrorKind};
+use opendal::{BytesRange, EntryMode, Error, ErrorKind, Metadata, MetadataBuilder};
 use std::collections::HashMap;
 use std::ops::Bound;
 
@@ -196,13 +196,53 @@ pub(crate) fn read_jlong_field_to_usize(
 ) -> Result<Option<usize>> {
     match read_int64_field(env, options, field_name)? {
         -1 => Ok(None),
-        v if v > 0 => Ok(Some(v as usize)),
+        v if v > 0 => Ok(Some(usize::try_from(v).map_err(|_| {
+            Error::new(
+                ErrorKind::Unexpected,
+                format!("{field_name} is too large: {v}"),
+            )
+        })?)),
         v => Err(Error::new(
             ErrorKind::Unexpected,
             format!("{field_name} must be positive, instead got: {v}"),
         )
         .into()),
     }
+}
+
+pub(crate) fn validate_read_execution_options(
+    concurrent: i32,
+    chunk: i64,
+    content_length_hint: i64,
+) -> Result<(usize, Option<usize>, Option<u64>)> {
+    if concurrent <= 0 {
+        return Err(Error::new(ErrorKind::ConfigInvalid, "concurrent must be positive").into());
+    }
+    let concurrent = usize::try_from(concurrent)
+        .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "concurrent is too large"))?;
+    let chunk = match chunk {
+        -1 => None,
+        value if value > 0 => Some(
+            usize::try_from(value)
+                .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "chunk is too large"))?,
+        ),
+        _ => {
+            return Err(
+                Error::new(ErrorKind::ConfigInvalid, "chunk must be -1 or positive").into(),
+            );
+        }
+    };
+    let content_length_hint = match content_length_hint {
+        -1 => None,
+        value => Some(u64::try_from(value).map_err(|_| {
+            Error::new(
+                ErrorKind::ConfigInvalid,
+                "contentLengthHint must be -1 or non-negative",
+            )
+        })?),
+    };
+
+    Ok((concurrent, chunk, content_length_hint))
 }
 
 pub(crate) fn read_instant_field_to_timestamp(
@@ -232,6 +272,39 @@ pub(crate) fn read_instant_field_to_timestamp(
         .set_source(err)
         .into()),
     }
+}
+
+pub(crate) fn read_metadata_condition_field(
+    env: &mut Env<'_>,
+    options: &JObject,
+    field: &str,
+) -> Result<Option<Metadata>> {
+    let metadata = env
+        .get_field(
+            options,
+            JNIString::new(field),
+            jni_sig!("Lorg/apache/opendal/Metadata;"),
+        )?
+        .l()?;
+    if metadata.is_null() {
+        return Ok(None);
+    }
+
+    // Delete conditions use only the version and ETag from the snapshot.
+    let mut builder = MetadataBuilder::unknown();
+    if let Some(version) = read_string_field(env, &metadata, "version")? {
+        builder.version(version);
+    }
+    if let Some(etag) = read_string_field(env, &metadata, "etag")? {
+        builder.etag(etag);
+    }
+    Ok(Some(builder.build()))
+}
+
+pub(crate) fn read_range_fields(env: &mut Env<'_>, options: &JObject) -> Result<BytesRange> {
+    let offset = read_int64_field(env, options, "offset")?;
+    let length = read_int64_field(env, options, "length")?;
+    Ok(offset_length_to_range(offset, length)?.into())
 }
 
 pub(crate) fn offset_length_to_range(offset: i64, length: i64) -> Result<(Bound<u64>, Bound<u64>)> {

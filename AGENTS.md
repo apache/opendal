@@ -147,6 +147,11 @@ OpenDAL splits documentation by audience. The website carries only content
 that holds for OpenDAL across languages; Rust-specific documentation lives in
 rustdoc.
 
+- `DESIGN.md` defines OpenDAL's living architectural model, ownership
+  boundaries, public API invariants, and design principles across core,
+  services, layers, and bindings. Consult it before introducing public APIs,
+  new layers, fallbacks, or cross-boundary changes, and update it when
+  architectural invariants change.
 - `core/core/src/docs/specs/` contains the living portable contracts, the one
   set of documents published to both destinations. Rustdoc publishes them
   under `opendal::docs::specs`; the website reads the same Markdown at

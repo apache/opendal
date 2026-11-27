@@ -72,6 +72,19 @@ def serve_requests(port_queue, requests, slow_started, slow_release, stop):
         def do_PUT(self) -> None:
             body = self.rfile.read(int(self.headers["Content-Length"]))
             requests.append(("PUT", body))
+            if self.path == "/checksum-test/checksum-mismatch" and self.headers.get(
+                "x-amz-checksum-crc32c"
+            ):
+                error = (
+                    b"<Error><Code>BadDigest</Code>"
+                    b"<Message>Checksum rejected</Message></Error>"
+                )
+                self.send_response(400)
+                self.send_header("Content-Type", "application/xml")
+                self.send_header("Content-Length", str(len(error)))
+                self.end_headers()
+                self.wfile.write(error)
+                return
             if self.path == "/slow":
                 slow_started.set()
                 slow_release.wait(timeout=5)
@@ -203,6 +216,32 @@ async def test_read_forwards_response_overrides(request_server, prefetch):
         (parse_qs(urlsplit(target).query), byte_range)
         for target, byte_range in state._reads()
     ] == [(expected_query, "bytes=2-6")] * 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operator_cls", [opendal.Operator, opendal.AsyncOperator])
+async def test_operator_write_preserves_checksum_mismatch(request_server, operator_cls):
+    endpoint, state = request_server
+    state._reset()
+    operator = operator_cls(
+        "s3",
+        endpoint=endpoint,
+        bucket="checksum-test",
+        region="us-east-1",
+        disable_config_load="true",
+        skip_signature="true",
+        checksum_algorithm="crc32c",
+    )
+
+    if isinstance(operator, opendal.AsyncOperator):
+        with pytest.raises(opendal.exceptions.Unexpected, match="BadDigest") as error:
+            await operator.write("checksum-mismatch", CONTENT)
+    else:
+        with pytest.raises(opendal.exceptions.Unexpected, match="BadDigest") as error:
+            operator.write("checksum-mismatch", CONTENT)
+
+    assert state._uploads() == [CONTENT]
+    assert error.type is opendal.exceptions.ChecksumMismatch
 
 
 @pytest.mark.asyncio

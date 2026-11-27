@@ -46,6 +46,7 @@ def test_all_expected_exceptions_present():
         "RateLimited",
         "RangeNotSatisfied",
         "Conflict",
+        "ChecksumMismatch",
     ]
     for name in expected:
         assert hasattr(exceptions, name), f"exceptions.{name} is missing"

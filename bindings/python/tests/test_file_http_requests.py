@@ -380,7 +380,7 @@ async def test_write_and_open_forward_checksum(
     [
         ("sha512", ValueError, "unknown checksum algorithm"),
         (("crc32c", b"wrong"), TypeError, "checksum"),
-        ("crc64xz", opendal.exceptions.Unsupported, "full-object Crc64Xz"),
+        ("crc64ecma", opendal.exceptions.Unsupported, "full-object Crc64Ecma"),
         ("md5", opendal.exceptions.Unsupported, "full-object Md5"),
         ("sha1", opendal.exceptions.Unsupported, "full-object Sha1"),
         ("sha256", opendal.exceptions.Unsupported, "full-object Sha256"),

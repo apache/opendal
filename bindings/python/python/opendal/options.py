@@ -46,7 +46,7 @@ from datetime import datetime
 from typing import Literal, TypeAlias, TypedDict
 
 ChecksumAlgorithm: TypeAlias = Literal[
-    "crc32c", "crc64nvme", "crc64xz", "md5", "sha1", "sha256"
+    "crc32c", "crc64nvme", "crc64ecma", "md5", "sha1", "sha256"
 ]
 """Full-object checksum algorithms. Each service defines the algorithms it supports."""
 

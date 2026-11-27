@@ -483,7 +483,7 @@ async fn verifies_unsolicited_digests_with_no_read_capability() -> Result<()> {
     // Standard check values for the same byte sequence, in wire digest order.
     for (algo, expected) in [
         (ChecksumAlgo::Crc64Nvme, "ae8b14860a799888"),
-        (ChecksumAlgo::Crc64Xz, "995dc9bbdf1939fa"),
+        (ChecksumAlgo::Crc64Ecma, "995dc9bbdf1939fa"),
         (ChecksumAlgo::Crc32c, "e3069283"),
         (ChecksumAlgo::Md5, "25f9e794323b453885f5181f1b624d0b"),
         (
@@ -527,6 +527,22 @@ async fn verifies_unsolicited_digests_with_no_read_capability() -> Result<()> {
             [(ReadMethod::Open, BytesRange::default(), false)]
         );
     }
+    Ok(())
+}
+
+#[tokio::test]
+async fn rejects_ecma_182_digest_for_vendor_crc64_ecma() -> Result<()> {
+    let fixture = Fixture {
+        checksum: Some(Checksum::new(
+            ChecksumAlgo::Crc64Ecma,
+            0x6c40_df5f_0b49_7347_u64.to_be_bytes(),
+        )),
+        ..Fixture::new(GOOD)
+    };
+    let op = fixture
+        .operator()?
+        .layer(ChecksumLayer::new().require_read(true));
+    assert_mismatch(op.read("object").await.unwrap_err());
     Ok(())
 }
 

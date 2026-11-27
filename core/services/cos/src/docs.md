@@ -18,10 +18,16 @@ Inspect the effective capability set with [`opendal_core::Operator::info`] and
 
 ## Checksum format
 
-Tencent Cloud COS calls its object checksum CRC64-ECMA. COS reports the
-CRC-64/XZ digest as an unsigned decimal integer in `x-cos-hash-crc64ecma`.
-OpenDAL represents this algorithm as `ChecksumAlgo::Crc64Xz`.
-The check value for `123456789` is `0x995DC9BBDF1939FA`.
+Tencent Cloud COS reports an unsigned decimal checksum named CRC64-ECMA in
+`x-cos-hash-crc64ecma`. Alibaba Cloud OSS uses the same checksum in
+`x-oss-hash-crc64ecma`. OpenDAL represents it as `ChecksumAlgo::Crc64Ecma`.
+
+CRC-64/XZ uses the canonical polynomial `0x42F0E1EBA9EA3693`, with
+`refin = true`, `refout = true`, and `init` and `xorout` both set to
+`0xFFFFFFFFFFFFFFFF`. The check value for the ASCII bytes `123456789` is
+`0x995DC9BBDF1939FA`. CRC-64/ECMA-182 (for example, `crc::CRC_64_ECMA_182`)
+yields `0x6C40DF5F0B497347` for the same input and is incompatible with
+these service digests.
 
 ## Configuration
 

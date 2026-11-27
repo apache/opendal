@@ -14,17 +14,18 @@ and [CLI signing example](https://github.com/seaweedfs/seaweedfs/wiki/Helm-Chart
 Pass the provider’s access key ID and secret access key together, or supply them
 through the AWS credential environment variables or shared credentials file.
 
-Set `enable_write_checksum` to true for an S3 gateway that verifies and returns
-full-object CRC checksums for PUT and multipart uploads. The option defaults to
-false and applies only to writes. OpenDAL verified this behavior with SeaweedFS
-4.52 using signed path-style requests. Check compatibility at your endpoint
-before enabling this option on other deployments. With
-`ChecksumLayer::require_read(true)`, full-object reads on this preset return
-`Unsupported`.
+## Write verification
 
-`WriteChecksum::Any` and `WriteChecksum::Fast` use CRC-64/NVME. Explicit algorithm
-and expected checksum intents support CRC-32C and CRC-64/NVME. Successful writes
-return the verified checksum in [`opendal_core::Metadata::checksum`].
+Pass a `WriteChecksum` intent to verify a non-append write. `Any` and `Fast`
+select CRC-64/NVME. `Algo` and `Expected` support CRC-32C and CRC-64/NVME.
+Successful PUT and multipart writes return the verified full-object checksum
+in [`opendal_core::Metadata::checksum`]. OpenDAL verified this behavior on
+SeaweedFS 4.52 with signed path-style requests.
+
+If the gateway completes the write without a valid matching checksum, OpenDAL
+returns `ErrorKind::Unexpected`. The object may already be visible. For presigned
+PUTs, use `Expected` and send the signed checksum header. The HTTP client receives
+the gateway's response directly.
 
 SeaweedFS does not support appending to objects through the S3 API. Disable
 `write_can_append` if your application uses it. Enable versioning on the bucket

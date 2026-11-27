@@ -92,17 +92,28 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ));
     }
 
-    let is_s3 = op.info().scheme() == "s3";
-    if cap.write && cap.stat && (!cap.write_with_checksum || is_s3) {
+    let scheme = op.info().scheme();
+    let test_s3_checksums = matches!(scheme, "s3" | "seaweedfs");
+    if cap.write && cap.stat && (!cap.write_with_checksum || test_s3_checksums) {
         tests.extend(async_trials!(op, test_write_with_unsupported_checksum));
     }
-    if is_s3 && cap.write && cap.write_with_checksum {
+    if test_s3_checksums && cap.write && cap.write_with_checksum {
         tests.extend(async_trials!(op, test_s3_writer_rejects_sha256_checksum));
     }
 
+    let minio_without_crc64nvme = scheme == "minio"
+        && std::env::var("OPENDAL_TEST_MINIO_WITHOUT_CRC64NVME").as_deref() == Ok("true");
+    if minio_without_crc64nvme && cap.read && cap.write {
+        tests.extend(async_trials!(
+            op,
+            test_minio_write_without_crc64nvme_receipt
+        ));
+    }
     if cap.read && cap.write && cap.write_with_checksum {
-        tests.extend(async_trials!(op, test_write_with_any_checksum));
-        if is_s3 && cap.stat {
+        if !minio_without_crc64nvme {
+            tests.extend(async_trials!(op, test_write_with_any_checksum));
+        }
+        if test_s3_checksums && cap.stat {
             tests.extend(async_trials!(
                 op,
                 test_write_with_checksum,
@@ -1522,6 +1533,28 @@ fn observe_s3_checksum_write(
             .with_context(context.with_http_transport(transport)),
         completed,
     )
+}
+
+/// The pinned MinIO fixture stores a PUT but omits the requested CRC-64/NVME receipt.
+async fn test_minio_write_without_crc64nvme_receipt(op: Operator) -> Result<()> {
+    let content = Bytes::from_static(b"123456789");
+    for intent in [
+        WriteChecksum::Any,
+        WriteChecksum::Expected(Checksum::new(ChecksumAlgo::Crc64Nvme, [0; 8])),
+    ] {
+        let (op, attempts) = observe_s3_checksum_write(&op, ServiceOperation("PutObject"));
+        let path = TEST_FIXTURE.new_file_path();
+        let err = op
+            .write_with(&path, content.clone())
+            .checksum(intent)
+            .await
+            .expect_err("a PUT without a checksum receipt must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected, "{err}");
+        assert!(!err.is_temporary(), "{err}");
+        assert_eq!(attempts.load(Ordering::Relaxed), 1);
+        assert_eq!(op.read(&path).await?.to_bytes(), content);
+    }
+    Ok(())
 }
 
 /// Write with a mismatching checksum should fail without creating the file.

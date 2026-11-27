@@ -47,5 +47,6 @@ runs:
         OPENDAL_MINIO_BUCKET=test
         OPENDAL_MINIO_ENDPOINT=http://127.0.0.1:9000
         OPENDAL_MINIO_SKIP_SIGNATURE=true
+        OPENDAL_TEST_MINIO_WITHOUT_CRC64NVME=true
         OPENDAL_TEST_CAPABILITY_OVERRIDES=stat_with_version=false,read_with_version=false,delete_with_version=false,list_with_versions=false,list_with_deleted=false,copy_with_source_version=false,restore=false,restore_with_version=false,restore_with_if_not_exists=false,write_can_append=false,copy_with_if_not_exists=false,copy_with_if_match=false,delete_with_if_match=false
         EOF

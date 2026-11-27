@@ -1,7 +1,8 @@
 ## Configuration
 
 Use [`crate::MinioConfig`] for serializable configuration or this builder for
-direct construction. Use [`crate::S3`] when an application needs the complete
+direct construction. The MinIO preset accepts only deployment connection and
+credential settings. Use [`crate::S3`] when an application needs the complete
 S3 configuration surface. Applications that use the `opendal` facade enable
 the `services-minio` feature.
 
@@ -17,20 +18,17 @@ anonymous requests.
 
 ## Write verification
 
-Set `enable_write_checksum=true` to allow per-write checksum intents for
-signed, non-append writes. The option defaults to `false`. Supply a
-[`opendal_core::WriteChecksum`] intent on each write that needs verification.
+Pass a `WriteChecksum` intent to verify a non-append write. `Any` and `Fast`
+select CRC-64/NVME. `Algo` and `Expected` support CRC-32C and CRC-64/NVME.
+Successful PUT and multipart writes return the verified full-object checksum
+in [`opendal_core::Metadata::checksum`]. OpenDAL verified both algorithms on
+MinIO `RELEASE.2025-01-20T14-49-07Z` with signed path-style requests.
 
-OpenDAL verified signed path-style PUT and multipart uploads on MinIO
-`RELEASE.2025-01-20T14-49-07Z`. Enable this option only on endpoints that
-verify and return full-object CRC checksums. The repository's
-`RELEASE.2024-09-22T00-33-43Z` fixture accepted incorrect CRCs. Keep the
-option disabled on that fixture.
-
-`Any` and `Fast` select CRC-64/NVME. `Algo` and `Expected` support CRC-32C
-and CRC-64/NVME. Successful writes return the confirmed checksum in
-[`opendal_core::Metadata::checksum`]. For a presigned PUT, use an `Expected`
-checksum and send the returned signed checksum header with the request.
+MinIO `RELEASE.2024-09-22T00-33-43Z` can store a PUT without checking or
+returning its CRC-64/NVME checksum. If MinIO completes a write without a valid
+matching checksum, OpenDAL returns `ErrorKind::Unexpected`. The object may
+already be visible. For presigned PUTs, use `Expected` and send the signed
+checksum header. The HTTP client receives MinIO's response directly.
 
 ## Examples
 

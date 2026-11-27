@@ -50,13 +50,6 @@ pub struct SeaweedfsConfig {
     /// <!-- @group General -->
     /// <!-- @default false -->
     pub enable_virtual_host_style: Option<bool>,
-    /// Opt in to native checksum verification for non-append writes. Defaults to false.
-    /// Verified with signed path-style requests to SeaweedFS 4.52.
-    ///
-    /// <!-- @group Write -->
-    /// <!-- @default false -->
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enable_write_checksum: Option<bool>,
     /// Access key ID. Set this field together with `secret_access_key`.
     ///
     /// <!-- @group Credentials -->
@@ -101,29 +94,5 @@ preset::provider_preset! {
     }
     flags {
         enable_virtual_host_style: "Set whether to use virtual-hosted-style addressing.",
-        enable_write_checksum: "Opt in to native checksum verification for non-append writes.",
-    }
-    write_checksum: enable_write_checksum;
-}
-
-#[cfg(test)]
-mod tests {
-    use super::SeaweedfsConfig;
-
-    #[test]
-    fn write_checksum_config_round_trip() {
-        for enabled in [None, Some(false), Some(true)] {
-            let config = SeaweedfsConfig {
-                enable_write_checksum: enabled,
-                ..Default::default()
-            };
-            let serialized = serde_json::to_value(&config).unwrap();
-            assert_eq!(
-                serialized.get("enable_write_checksum"),
-                enabled.map(serde_json::Value::Bool).as_ref()
-            );
-            let decoded: SeaweedfsConfig = serde_json::from_value(serialized).unwrap();
-            assert_eq!(decoded, config);
-        }
     }
 }

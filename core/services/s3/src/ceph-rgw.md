@@ -17,19 +17,20 @@ through the AWS credential environment variables or shared credentials file.
 The [RGW authentication guide](https://docs.ceph.com/en/latest/radosgw/s3/authentication/#presigned-urls)
 describes a deployment option that disables presigned URL authentication.
 
-## Write checksums
+## Write verification
 
-Set `enable_write_checksum=true` on a compatible signed RGW endpoint to opt in
-to CRC32C verification for non-append writes. OpenDAL verified signed
-path-style requests on RGW 20.2.5 and 21.2.0. Keep the option disabled on Reef
-18.2.8 and Squid 19.2.7, which accepted incorrect CRC32C values.
+Pass a `WriteChecksum` intent to verify a non-append write. `Any` and `Fast`
+select CRC-32C. `Algo` and `Expected` accept CRC-32C only. RGW can commit a
+multipart upload with an incorrect full-object CRC-64/NVME checksum.
+Successful PUT and multipart writes return the verified full-object CRC-32C
+in `Metadata::checksum()`. OpenDAL verified CRC-32C on RGW 20.2.5 and 21.2.0
+with signed path-style requests.
 
-`WriteChecksum::Any` and `Fast` select CRC32C. `Algo` and `Expected` accept
-only CRC32C because RGW can commit a multipart upload with an incorrect
-full-object CRC64NVME. A successful checksum write returns the confirmed
-full-object CRC32C in `Metadata::checksum()`. Supply an `Expected` CRC32C for a
-checksum-enabled presigned PUT and send both signed checksum headers with the
-request. Pass a checksum intent on each write that needs verification.
+RGW 18.2.8 and 19.2.7 can store an object without checking or returning its
+CRC-32C checksum. If RGW completes a write without a valid matching checksum,
+OpenDAL returns `ErrorKind::Unexpected`. The object may already be visible.
+For presigned PUTs, use `Expected` and send both signed checksum headers. The
+HTTP client receives the gateway's response directly.
 
 ## Source ETag conditions in writer copies
 

@@ -199,8 +199,7 @@ impl Builder for R2Builder {
 
     fn build(self) -> Result<impl Service> {
         let (config, credential_providers) = self.into_s3_config()?;
-        S3Builder::from_provider_config(config, credential_providers)
-            .build_with_scheme(R2_SCHEME, false)
+        S3Builder::from_provider_config(config, credential_providers).build_with_scheme(R2_SCHEME)
     }
 }
 

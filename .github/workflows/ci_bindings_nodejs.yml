@@ -45,6 +45,7 @@ on:
       - "core/layers/retry/**"
       - "core/layers/throttle/**"
       - "core/layers/timeout/**"
+      - "dev/src/generate/**"
       - "bindings/nodejs/**"
       - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_nodejs.yml"
@@ -86,6 +87,12 @@ jobs:
 
       - name: Check format
         run: pnpm exec prettier --check .
+
+      - name: Regenerate code from core
+        working-directory: .
+        run: |
+          cargo run --manifest-path=dev/Cargo.toml -- generate -l nodejs
+          cargo fmt --manifest-path bindings/nodejs/Cargo.toml --all
 
       # Useful for debugging
       - name: Print Clippy version

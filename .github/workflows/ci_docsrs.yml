@@ -35,7 +35,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-docsrs-${{ github.ref }}-${{ github.event_name }}
+  group: ci-docsrs-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

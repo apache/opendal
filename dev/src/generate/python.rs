@@ -539,7 +539,7 @@ fn generate_options_py(workspace_dir: &Path) -> Result<()> {
         "\nfrom __future__ import annotations\n\nfrom datetime import datetime\nfrom typing import Literal, TypeAlias, TypedDict\n",
     );
     out.push_str(
-        "\nChecksumAlgorithm: TypeAlias = Literal[\"crc32c\", \"crc64nvme\", \"md5\", \"sha1\", \"sha256\"]\n\"\"\"Full-object checksum algorithms. Each service defines the algorithms it supports.\"\"\"\n",
+        "\nChecksumAlgorithm: TypeAlias = Literal[\n    \"crc32c\", \"crc64nvme\", \"crc64xz\", \"md5\", \"sha1\", \"sha256\"\n]\n\"\"\"Full-object checksum algorithms. Each service defines the algorithms it supports.\"\"\"\n",
     );
 
     let mut exports = vec!["ChecksumAlgorithm".to_string()];

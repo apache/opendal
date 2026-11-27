@@ -227,6 +227,7 @@ fn checksum_algo_tag(algo: ChecksumAlgo) -> Option<u8> {
         ChecksumAlgo::Crc32c => Some(2),
         ChecksumAlgo::Md5 => Some(3),
         ChecksumAlgo::Sha256 => Some(4),
+        ChecksumAlgo::Crc64Xz => Some(5),
         _ => None,
     }
 }
@@ -237,6 +238,7 @@ fn checksum_algo_from_tag(tag: u8) -> Option<ChecksumAlgo> {
         2 => Some(ChecksumAlgo::Crc32c),
         3 => Some(ChecksumAlgo::Md5),
         4 => Some(ChecksumAlgo::Sha256),
+        5 => Some(ChecksumAlgo::Crc64Xz),
         _ => None,
     }
 }
@@ -338,6 +340,20 @@ mod tests {
         bad_checksum[last - 5] = 3; // wrong digest len for Crc32c
         bad_checksum.pop();
         assert!(Pointer::decode(Buffer::from(bad_checksum)).is_none());
+    }
+
+    #[test]
+    fn pointer_preserves_crc64_xz_checksum() {
+        let checksum = Checksum::new(
+            ChecksumAlgo::Crc64Xz,
+            0x995d_c9bb_df19_39fa_u64.to_be_bytes(),
+        );
+        let mut metadata = MetadataBuilder::file(9);
+        metadata.etag("\"abc\"").checksum(checksum.clone());
+        let pointer =
+            Pointer::from_metadata(metadata.build(), Timestamp::new(100, 200).unwrap()).unwrap();
+        let decoded = Pointer::decode(pointer.encode()).unwrap();
+        assert_eq!(decoded.metadata.checksum(), Some(checksum));
     }
 
     #[test]

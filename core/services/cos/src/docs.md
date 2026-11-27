@@ -16,6 +16,13 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+## Checksum format
+
+Tencent Cloud COS calls its object checksum CRC64-ECMA. COS reports the
+CRC-64/XZ digest as an unsigned decimal integer in `x-cos-hash-crc64ecma`.
+OpenDAL represents this algorithm as `ChecksumAlgo::Crc64Xz`.
+The check value for `123456789` is `0x995DC9BBDF1939FA`.
+
 ## Configuration
 
 Use [`crate::CosConfig`] for serializable configuration and this builder's

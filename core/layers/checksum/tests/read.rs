@@ -483,6 +483,7 @@ async fn verifies_unsolicited_digests_with_no_read_capability() -> Result<()> {
     // Standard check values for the same byte sequence, in wire digest order.
     for (algo, expected) in [
         (ChecksumAlgo::Crc64Nvme, "ae8b14860a799888"),
+        (ChecksumAlgo::Crc64Xz, "995dc9bbdf1939fa"),
         (ChecksumAlgo::Crc32c, "e3069283"),
         (ChecksumAlgo::Md5, "25f9e794323b453885f5181f1b624d0b"),
         (

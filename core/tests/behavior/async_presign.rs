@@ -51,7 +51,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     }
 
     if op.info().scheme() == "b2" && cap.presign_write {
-        tests.extend(async_trials!(op, test_presign_write_b2_content_type));
+        tests.extend(async_trials!(op, test_presign_write_b2_headers));
     }
 
     if op.info().scheme() == "swift" && cap.write && cap.presign_read {
@@ -158,7 +158,7 @@ async fn test_presign_write_with_metadata(op: Operator) -> Result<()> {
     Ok(())
 }
 
-async fn test_presign_write_b2_content_type(op: Operator) -> Result<()> {
+async fn test_presign_write_b2_headers(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
     let expire = Duration::from_secs(60);
     let default_request = op.presign_write(&path, expire).await?;
@@ -170,11 +170,22 @@ async fn test_presign_write_b2_content_type(op: Operator) -> Result<()> {
             expire,
             options::WriteOptions {
                 content_type: Some("application/json".to_owned()),
+                user_metadata: Some(
+                    [(
+                        "application-validation".to_owned(),
+                        "b2 trial + café %".to_owned(),
+                    )]
+                    .into(),
+                ),
                 ..Default::default()
             },
         )
         .await?;
     assert_eq!(request.header()[header::CONTENT_TYPE], "application/json");
+    assert_eq!(
+        request.header()["x-bz-info-application-validation"],
+        "b2%20trial%20%2B%20caf%C3%A9%20%25"
+    );
     Ok(())
 }
 

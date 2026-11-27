@@ -41,6 +41,10 @@ pub(super) mod constants {
     pub const X_BZ_CONTENT_SHA1: &str = "X-Bz-Content-Sha1";
     pub const X_BZ_PART_NUMBER: &str = "X-Bz-Part-Number";
     pub const X_BZ_INFO_PREFIX: &str = "X-Bz-Info-";
+    pub const CACHE_CONTROL_FILE_INFO_KEY: &str = "b2-cache-control";
+    pub const CONTENT_DISPOSITION_FILE_INFO_KEY: &str = "b2-content-disposition";
+    pub const CONTENT_ENCODING_FILE_INFO_KEY: &str = "b2-content-encoding";
+    pub const CONTENT_LANGUAGE_FILE_INFO_KEY: &str = "b2-content-language";
 }
 
 /// Core of [b2](https://www.backblaze.com/cloud-storage) services support.
@@ -996,9 +1000,8 @@ pub struct File {
     pub content_md5: Option<String>,
     pub content_type: Option<String>,
     pub file_name: String,
-    /// Custom file info (user metadata) stored with the file.
-    /// Keys are the original names without the `X-Bz-Info-` prefix.
-    /// Values are URL-encoded when stored, decoded when read.
+    /// File info keys are lowercase and omit the `X-Bz-Info-` prefix.
+    /// B2 decodes the percent-encoded upload values before returning them in JSON.
     #[serde(default)]
     pub file_info: HashMap<String, String>,
 }
@@ -1022,9 +1025,14 @@ pub(super) fn parse_file_info(file: &File) -> MetadataBuilder {
         metadata.content_type(content_type);
     }
 
-    // Parse user metadata from file_info
-    // B2 stores user metadata with keys stripped of the "X-Bz-Info-" prefix
-    // and values are URL-encoded
+    if let Some(content_disposition) = file
+        .file_info
+        .get(constants::CONTENT_DISPOSITION_FILE_INFO_KEY)
+    {
+        metadata.content_disposition(content_disposition);
+    }
+
+    // Preserve the legacy user metadata decoding for existing callers.
     if !file.file_info.is_empty() {
         let user_metadata: HashMap<String, String> = file
             .file_info

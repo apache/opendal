@@ -39,7 +39,9 @@ but the response fails to confirm the digest, the object may already be visible.
 that file. The application key needs `readFiles` permission. A version that
 has been permanently deleted, belongs to a different path, or is a hide marker
 returns `NotFound`. Ordinary `stat` and `list` expose current file IDs through
-`Metadata::version()`.
+`Metadata::version()`. Current and versioned stat and list results also expose
+the stored `Content-Disposition` in `Metadata::content_disposition()` when B2
+supplies its reserved file info field.
 
 ## File version listing
 
@@ -78,11 +80,15 @@ method, URL, and headers to execute the request.
 
 ## Presigned uploads
 
-`presign_write_options` returns a single-object POST with `user_metadata` in
-`X-Bz-Info-*` headers. When `WriteOptions::cache_control` is set, OpenDAL uses
-its value for `X-Bz-Info-b2-cache-control` to set the stored Cache-Control policy.
-In that case, OpenDAL skips the `cache-control` and `b2-cache-control`
-metadata keys with case-insensitive matching.
+`presign_write_options` returns a single-object POST. It uses `content_type`
+for `Content-Type` and defaults to `b2/x-auto`. The `cache_control`,
+`content_disposition`, `content_encoding`, and `content_language` options
+use reserved B2 file-info headers.
+
+OpenDAL sends `user_metadata` as `X-Bz-Info-*` headers. A dedicated option
+takes precedence over entries that map to the same native header, matching
+header names case-insensitively. Other entries are preserved, including
+`content-type` metadata in its own `X-Bz-Info-Content-Type` header.
 
 ## Restore
 

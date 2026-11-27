@@ -983,6 +983,26 @@ mod tests {
             assert!(cap.presign_write);
             assert!(!cap.presign_delete);
 
+            let disposition = "attachment; filename=\"test.txt\"";
+            let upload = op
+                .presign_write_options(
+                    "path/to/file.txt",
+                    std::time::Duration::from_secs(120),
+                    options::WriteOptions {
+                        content_disposition: Some(disposition.to_owned()),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                upload
+                    .header()
+                    .get("x-ms-blob-content-disposition")
+                    .and_then(|value| value.to_str().ok()),
+                Some(disposition)
+            );
+
             for req in [
                 op.presign_stat("path/to/file.txt", std::time::Duration::from_secs(120))
                     .await
@@ -993,6 +1013,7 @@ mod tests {
                 op.presign_write("path/to/file.txt", std::time::Duration::from_secs(120))
                     .await
                     .unwrap(),
+                upload,
             ] {
                 assert_eq!(req.uri().path(), "/test/path/to/file.txt");
                 assert!(

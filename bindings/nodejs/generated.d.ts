@@ -1313,17 +1313,7 @@ export interface ReaderOptions {
    * concurrency settings.
    */
   prefetch?: number
-  /** * Controls the optimization strategy for range reads in [`Reader::fetch`].
-   *
-   * When performing range reads, if the gap between two requested ranges is smaller than
-   * the configured `gap` size, OpenDAL will merge these ranges into a single read request
-   * and discard the unrequested data in between. This helps reduce the number of API calls
-   * to remote storage services.
-   *
-   * This optimization is particularly useful when performing multiple small range reads
-   * that are close to each other, as it reduces the overhead of multiple network requests
-   * at the cost of transferring some additional data.
-   */
+  /** Readers returned by `reader()` and `readerSync()` read sequentially, so `gap` has no effect. */
   gap?: bigint
   /** * Sets if-match condition for this operation.
    * If file exists and its etag doesn't match, an error will be returned.
@@ -1370,17 +1360,7 @@ export interface ReadOptions {
    * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
    */
   chunk?: number
-  /** * Controls the optimization strategy for range reads in [`Reader::fetch`].
-   *
-   * When performing range reads, if the gap between two requested ranges is smaller than
-   * the configured `gap` size, OpenDAL will merge these ranges into a single read request
-   * and discard the unrequested data in between. This helps reduce the number of API calls
-   * to remote storage services.
-   *
-   * This optimization is particularly useful when performing multiple small range reads
-   * that are close to each other, as it reduces the overhead of multiple network requests
-   * at the cost of transferring some additional data.
-   */
+  /** Each call to `read()` or `readSync()` reads a single byte range, so `gap` has no effect. */
   gap?: bigint
   /** * Sets the offset (starting position) for range read operations.
    * The read will start from this position in the file.

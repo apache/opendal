@@ -708,6 +708,7 @@ class AsyncOperator:
         content_type: str | None = None,
         cache_control: str | None = None,
         content_disposition: str | None = None,
+        checksum: bool = False,
     ) -> collections.abc.Awaitable[Metadata]:
         """
         Get the metadata of a file at the given path.
@@ -732,6 +733,9 @@ class AsyncOperator:
             The cache control of the file.
         content_disposition : str, optional
             The content disposition of the file.
+        checksum : bool, optional
+            Request the service's full-object checksum when available.
+            Defaults to False. See `Metadata.checksum` for the returned value.
 
         Returns
         -------
@@ -1292,6 +1296,7 @@ class Operator:
         content_type: str | None = None,
         cache_control: str | None = None,
         content_disposition: str | None = None,
+        checksum: bool = False,
     ) -> Metadata:
         """
         Get the metadata of a file at the given path.
@@ -1316,6 +1321,9 @@ class Operator:
             The cache control of the file.
         content_disposition : str, optional
             The content disposition of the file.
+        checksum : bool, optional
+            Request the service's full-object checksum when available.
+            Defaults to False. See `Metadata.checksum` for the returned value.
 
         Returns
         -------

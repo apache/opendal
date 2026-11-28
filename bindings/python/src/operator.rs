@@ -885,6 +885,9 @@ impl Operator {
     ///     The cache control of the file.
     /// content_disposition : str, optional
     ///     The content disposition of the file.
+    /// checksum : bool, optional
+    ///     Request the service's full-object checksum when available.
+    ///     Defaults to False. See `Metadata.checksum` for the returned value.
     ///
     /// Returns
     /// -------
@@ -899,7 +902,8 @@ impl Operator {
         if_unmodified_since=None,
         content_type=None,
         cache_control=None,
-        content_disposition=None))]
+        content_disposition=None,
+        checksum=false))]
     pub fn stat(
         &self,
         py: Python<'_>,
@@ -912,6 +916,7 @@ impl Operator {
         content_type: Option<String>,
         cache_control: Option<String>,
         content_disposition: Option<String>,
+        checksum: bool,
     ) -> PyResult<Metadata> {
         let path = path.to_string_lossy().to_string();
         let opts = StatOptions {
@@ -923,6 +928,7 @@ impl Operator {
             content_type,
             cache_control,
             content_disposition,
+            checksum,
         };
         check_runtime_process()?;
         let this = self.core.clone();
@@ -1806,6 +1812,9 @@ impl AsyncOperator {
     ///     The cache control of the file.
     /// content_disposition : str, optional
     ///     The content disposition of the file.
+    /// checksum : bool, optional
+    ///     Request the service's full-object checksum when available.
+    ///     Defaults to False. See `Metadata.checksum` for the returned value.
     ///
     /// Returns
     /// -------
@@ -1820,7 +1829,8 @@ impl AsyncOperator {
         if_unmodified_since=None,
         content_type=None,
         cache_control=None,
-        content_disposition=None) -> "collections.abc.Awaitable[Metadata]")]
+        content_disposition=None,
+        checksum=false) -> "collections.abc.Awaitable[Metadata]")]
     pub fn stat<'p>(
         &'p self,
         py: Python<'p>,
@@ -1833,6 +1843,7 @@ impl AsyncOperator {
         content_type: Option<String>,
         cache_control: Option<String>,
         content_disposition: Option<String>,
+        checksum: bool,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
@@ -1845,6 +1856,7 @@ impl AsyncOperator {
             content_type,
             cache_control,
             content_disposition,
+            checksum,
         };
 
         future_into_py(py, async move {
@@ -2265,6 +2277,7 @@ impl AsyncOperator {
             content_type,
             cache_control,
             content_disposition,
+            checksum: false,
         };
         future_into_py(py, async move {
             let res = this

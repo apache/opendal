@@ -23,7 +23,8 @@ filesystem, so the stubs must live at ``opendal/<name>.pyi``. This relocates
 them and applies two temporary fixups (until PyO3 introspection covers them):
 
 1. Inject the imports our forward-ref string annotations need (PyO3 writes the
-   annotation but not the import).
+   annotation but not the import). Restore the `ChecksumAlgorithm` alias on
+   the generated checksum property because PyO3 infers its Rust string type.
 2. Replace ``exceptions.pyi`` with a hand-written stub while the generated one is
    incomplete -- ``create_exception!`` types are not introspectable yet, so PyO3
    emits only ``__getattr__``. When that changes, the stub is kept as-is.
@@ -60,6 +61,7 @@ IMPORTS = {
         "from typing_extensions import Unpack\n"
     ),
     "file": "import collections.abc\nimport types\nimport typing\n",
+    "types": "from .options import ChecksumAlgorithm\n",
 }
 
 # Mirrors the `create_exception!` types in `src/errors.rs`; keep in sync.
@@ -112,6 +114,14 @@ def relocate() -> None:
     """Move the stubs to the public ``opendal/<name>.pyi`` paths."""
     for name in SUBMODULES:
         text = pin_disjoint_base_import((GEN / f"{name}.pyi").read_text())
+        if name == "types":
+            inferred = "def checksum(self, /) -> tuple[str, bytes] | None:"
+            if inferred not in text:
+                msg = "unexpected generated Metadata.checksum signature"
+                raise ValueError(msg)
+            text = text.replace(
+                inferred, inferred.replace("tuple[str,", "tuple[ChecksumAlgorithm,"), 1
+            )
         (PKG / f"{name}.pyi").write_text(IMPORTS.get(name, "") + text)
 
     # Stub for the ``opendal/_opendal.*.so`` extension itself.

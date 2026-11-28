@@ -106,9 +106,17 @@ impl Default for {{ o.c_name }} {
     }
 }
 
-impl From<&{{ o.c_name }}> for options::{{ o.core }} {
-    fn from(value: &{{ o.c_name }}) -> Self {
-        Self {
+impl {{ o.c_name }} {
+    /// Copy these options into core `{{ o.core }}`.
+    ///
+    /// # Safety
+    ///
+{%- for f in o.fields if f.repr == "owned_string" %}
+    /// * A non-null `{{ f.name }}` must point to a readable, nul-terminated C string
+    ///   for the duration of the copy.
+{%- endfor %}
+    pub(crate) unsafe fn to_core(&self) -> options::{{ o.core }} {
+        options::{{ o.core }} {
 {%- for line in o.conversion %}
             {{ line }}
 {%- endfor %}

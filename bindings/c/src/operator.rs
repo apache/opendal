@@ -1270,7 +1270,11 @@ pub unsafe extern "C" fn opendal_operator_list_with_cancel(
     let list_opts = if opts.is_null() {
         core::options::ListOptions::default()
     } else {
-        (&*opts).into()
+        // SAFETY: `opts` is non-null, and the caller of this function passes
+        // options whose non-null `start_after` is a readable, nul-terminated C
+        // string, such as the copy that `opendal_list_options_set_start_after`
+        // makes.
+        (*opts).to_core()
     };
     let cancel_token = opendal_cancel_token::as_inner(cancel);
     match block_on_cancellable(

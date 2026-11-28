@@ -416,16 +416,16 @@ fn conversion(core: &OptionsStruct, fields: &[FieldModel]) -> Result<Vec<String>
             let name = &core_field.name;
             let line = match fields.iter().find(|f| f.name == name) {
                 Some(field) => match field.repr {
-                    Repr::Bool => format!("{name}: value.{name},"),
+                    Repr::Bool => format!("{name}: self.{name},"),
                     Repr::UsizeZeroUnset => {
-                        let chain = format!("(value.{name} != 0).then_some(value.{name})");
+                        let chain = format!("(self.{name} != 0).then_some(self.{name})");
                         if chain.len() > CHAIN_WIDTH {
                             bail!("conversion of `{name}` would be rewrapped by rustfmt");
                         }
                         format!("{name}: {chain},")
                     }
                     Repr::OwnedString => {
-                        format!("{name}: unsafe {{ optional_string(value.{name}, \"{name}\") }},")
+                        format!("{name}: unsafe {{ optional_string(self.{name}, \"{name}\") }},")
                     }
                 },
                 None => format!("{name}: {},", default_value(core_field.kind)),
@@ -651,10 +651,13 @@ mod tests {
     fn test_conversion_defaults_unreleased_list_fields() {
         let (rendered, _) = render(&core_options());
         let conversion = rendered
-            .split("impl From<&opendal_list_options> for options::ListOptions {")
+            .split("pub(crate) unsafe fn to_core(&self) -> options::ListOptions {")
             .nth(1)
             .and_then(|rest| rest.split("\n}\n").next())
             .expect("the list conversion must be rendered");
+        // The conversion reads `start_after` through a raw pointer, so safe
+        // code must not reach it through a `From` impl.
+        assert!(!rendered.contains("impl From<"), "{rendered}");
         let defaulted: Vec<&str> = conversion
             .lines()
             .filter_map(|line| line.trim().strip_suffix(','))

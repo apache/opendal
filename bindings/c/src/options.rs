@@ -211,14 +211,20 @@ impl Default for opendal_list_options {
     }
 }
 
-impl From<&opendal_list_options> for options::ListOptions {
-    fn from(value: &opendal_list_options) -> Self {
-        Self {
-            limit: (value.limit != 0).then_some(value.limit),
-            start_after: unsafe { optional_string(value.start_after, "start_after") },
-            recursive: value.recursive,
-            versions: value.versions,
-            deleted: value.deleted,
+impl opendal_list_options {
+    /// Copy these options into core `ListOptions`.
+    ///
+    /// # Safety
+    ///
+    /// * A non-null `start_after` must point to a readable, nul-terminated C string
+    ///   for the duration of the copy.
+    pub(crate) unsafe fn to_core(&self) -> options::ListOptions {
+        options::ListOptions {
+            limit: (self.limit != 0).then_some(self.limit),
+            start_after: unsafe { optional_string(self.start_after, "start_after") },
+            recursive: self.recursive,
+            versions: self.versions,
+            deleted: self.deleted,
             glob: None,
         }
     }

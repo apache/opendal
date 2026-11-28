@@ -1395,17 +1395,14 @@ mod option_tests {
     }
 
     #[test]
-    fn test_list_options_into_core() {
+    fn test_list_options_to_core() {
         unsafe {
             let opts = opendal_list_options::opendal_list_options_new();
-            assert_eq!(
-                options::ListOptions::from(&*opts),
-                options::ListOptions::default()
-            );
+            assert_eq!((*opts).to_core(), options::ListOptions::default());
 
             // A limit of 0 means unset, also when it is set explicitly.
             opendal_list_options::opendal_list_options_set_limit(opts, 0);
-            assert_eq!(options::ListOptions::from(&*opts).limit, None);
+            assert_eq!((*opts).to_core().limit, None);
 
             let start_after = CString::new("dir/a").unwrap();
             opendal_list_options::opendal_list_options_set_recursive(opts, true);
@@ -1414,7 +1411,7 @@ mod option_tests {
             opendal_list_options::opendal_list_options_set_versions(opts, true);
             opendal_list_options::opendal_list_options_set_deleted(opts, true);
             assert_eq!(
-                options::ListOptions::from(&*opts),
+                (*opts).to_core(),
                 options::ListOptions {
                     recursive: true,
                     limit: Some(2),

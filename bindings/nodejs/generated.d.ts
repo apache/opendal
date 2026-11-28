@@ -1246,9 +1246,8 @@ export interface ListOptions {
   /**
    * Whether to list recursively under the prefix; default `false`.
    *
-   * Requires `Capability.listWithRecursive`.
-   * Services without native recursive listing rely on `crate::layers::SimulateLayer`
-   * (installed automatically by the default `auto-simulate` feature).
+   * Setting this option to `true` requires the operator's effective
+   * `Capability.listWithRecursive` capability.
    */
   recursive?: boolean
   /**

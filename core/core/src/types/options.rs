@@ -157,9 +157,8 @@ pub struct ListOptions {
     pub start_after: Option<String>,
     /// Whether to list recursively under the prefix; default `false`.
     ///
-    /// Requires [`Capability::list_with_recursive`](crate::Capability::list_with_recursive).
-    /// Services without native recursive listing rely on [`crate::layers::SimulateLayer`]
-    /// (installed automatically by the default `auto-simulate` feature).
+    /// Setting this option to `true` requires the operator's effective
+    /// [`Capability::list_with_recursive`](crate::Capability::list_with_recursive) capability.
     pub recursive: bool,
     /// Include object versions; default `false`.
     ///

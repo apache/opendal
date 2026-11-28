@@ -31,6 +31,7 @@ mod options;
 mod parser;
 mod python;
 mod ruby;
+mod rustdoc;
 
 use crate::workspace_dir;
 use anyhow::Result;

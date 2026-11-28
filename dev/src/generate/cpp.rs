@@ -30,6 +30,7 @@
 use super::capability;
 use super::core_options::{self, OptionKind};
 use super::metadata::{self, MetadataKind};
+use super::rustdoc::rewrite_code_spans;
 use anyhow::{Context, Result, bail};
 use minijinja::value::Serde;
 use minijinja::{Environment, context};
@@ -648,51 +649,12 @@ fn option_doc_lines(doc: &[String], capabilities: &[capability::CapabilityField]
         }
         let text = paragraph
             .iter()
-            .map(|line| cpp_code_spans(&strip_rustdoc_links(line.trim()), capabilities))
+            .map(|line| rewrite_code_spans(line.trim(), |code| cpp_code_span(code, capabilities)))
             .collect::<Vec<_>>()
             .join(" ");
         lines.extend(wrap_doc(&text, HPP_DOC_PREFIX, HPP_COLUMN_LIMIT));
     }
     lines
-}
-
-/// Replace each rustdoc intra-doc link in `line` with its code span.
-fn strip_rustdoc_links(line: &str) -> String {
-    let mut out = String::with_capacity(line.len());
-    let mut rest = line;
-    while let Some(start) = rest.find("[`") {
-        let Some(len) = rest[start + 1..].find("`]") else {
-            break;
-        };
-        out.push_str(&rest[..start]);
-        out.push_str(&rest[start + 1..start + len + 2]);
-        rest = &rest[start + len + 3..];
-        if let Some(target) = rest.strip_prefix('(')
-            && let Some(end) = target.find(')')
-        {
-            rest = &target[end + 1..];
-        }
-    }
-    out.push_str(rest);
-    out
-}
-
-/// Replace each code span in `line` that names a C++ member with its C++ name.
-fn cpp_code_spans(line: &str, capabilities: &[capability::CapabilityField]) -> String {
-    let mut out = String::with_capacity(line.len());
-    let mut rest = line;
-    while let Some(start) = rest.find('`') {
-        let Some(len) = rest[start + 1..].find('`') else {
-            break;
-        };
-        let code = &rest[start + 1..start + 1 + len];
-        out.push_str(&rest[..=start]);
-        out.push_str(&cpp_code_span(code, capabilities).unwrap_or_else(|| code.to_string()));
-        out.push('`');
-        rest = &rest[start + len + 2..];
-    }
-    out.push_str(rest);
-    out
 }
 
 /// The C++ name of a code span that names a member of the C++ surface, or

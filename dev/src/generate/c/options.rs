@@ -35,6 +35,7 @@ use serde::Serialize;
 
 use crate::generate::capability::{self, CapabilityField};
 use crate::generate::core_options::{self, OptionField, OptionKind, OptionsStruct};
+use crate::generate::rustdoc::rewrite_code_spans;
 
 /// How a released C struct stores one core field, and how Go fills it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -317,41 +318,7 @@ fn binding_doc(
 ) -> Vec<String> {
     lines
         .iter()
-        .map(|line| {
-            let mut unlinked = String::with_capacity(line.len());
-            let mut rest = line.as_str();
-            while let Some(start) = rest.find("[`") {
-                let Some(len) = rest[start + 1..].find("`]") else {
-                    break;
-                };
-                unlinked.push_str(&rest[..start]);
-                unlinked.push_str(&rest[start + 1..start + len + 2]);
-                rest = &rest[start + len + 3..];
-                if let Some(target) = rest.strip_prefix('(')
-                    && let Some(end) = target.find(')')
-                {
-                    rest = &target[end + 1..];
-                }
-            }
-            unlinked.push_str(rest);
-
-            let mut out = String::with_capacity(unlinked.len());
-            let mut rest = unlinked.as_str();
-            while let Some(start) = rest.find('`') {
-                let Some(len) = rest[start + 1..].find('`') else {
-                    break;
-                };
-                let code = &rest[start + 1..start + 1 + len];
-                out.push_str(&rest[..=start]);
-                out.push_str(
-                    &code_span(code, spec, capabilities, lang).unwrap_or_else(|| code.to_owned()),
-                );
-                out.push('`');
-                rest = &rest[start + len + 2..];
-            }
-            out.push_str(rest);
-            out
-        })
+        .map(|line| rewrite_code_spans(line, |code| code_span(code, spec, capabilities, lang)))
         .collect()
 }
 

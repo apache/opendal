@@ -20,6 +20,7 @@ use crate::generate::core_options::{self, OptionKind, OptionsStruct};
 use crate::generate::metadata::{self, MetadataKind};
 use crate::generate::options;
 use crate::generate::parser::{Config, ConfigType, Services, service_feature, sorted_services};
+use crate::generate::rustdoc::rewrite_code_spans;
 use anyhow::{Context, Result, bail};
 use minijinja::value::Serde;
 use minijinja::{Environment, context};
@@ -800,7 +801,7 @@ fn py_doc(core_doc: &[String], item: &str, names: &PyNames) -> Result<Vec<String
     }
     let lines: Vec<String> = core_doc
         .iter()
-        .map(|line| py_doc_line(line, names))
+        .map(|line| rewrite_code_spans(line, |code| py_code_span(code, names)))
         .collect();
 
     let mut out = Vec::with_capacity(lines.len());
@@ -850,42 +851,6 @@ fn sentences(text: &str) -> Vec<&str> {
     }
     sentences.push(&text[start..]);
     sentences
-}
-
-/// One doc line with rustdoc links unlinked and code spans renamed for
-/// Python (see [`py_doc`]).
-fn py_doc_line(line: &str, names: &PyNames) -> String {
-    let mut unlinked = String::with_capacity(line.len());
-    let mut rest = line;
-    while let Some(start) = rest.find("[`") {
-        let Some(len) = rest[start + 1..].find("`]") else {
-            break;
-        };
-        unlinked.push_str(&rest[..start]);
-        unlinked.push_str(&rest[start + 1..start + len + 2]);
-        rest = &rest[start + len + 3..];
-        if let Some(target) = rest.strip_prefix('(')
-            && let Some(end) = target.find(')')
-        {
-            rest = &target[end + 1..];
-        }
-    }
-    unlinked.push_str(rest);
-
-    let mut out = String::with_capacity(unlinked.len());
-    let mut rest = unlinked.as_str();
-    while let Some(start) = rest.find('`') {
-        let Some(len) = rest[start + 1..].find('`') else {
-            break;
-        };
-        let code = &rest[start + 1..start + 1 + len];
-        out.push_str(&rest[..=start]);
-        out.push_str(&py_code_span(code, names).unwrap_or_else(|| code.to_string()));
-        out.push('`');
-        rest = &rest[start + len + 2..];
-    }
-    out.push_str(rest);
-    out
 }
 
 /// The Python form of a code span that names a core capability or error

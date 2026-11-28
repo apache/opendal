@@ -20,6 +20,7 @@
 use super::capability::{self, CapabilityField};
 use super::core_options::{self, OptionField, OptionKind, OptionsStruct};
 use super::metadata::{self, MetadataKind};
+use super::rustdoc::rewrite_code_spans;
 use anyhow::{Result, bail};
 use minijinja::value::Serde;
 use minijinja::{Environment, context};
@@ -301,39 +302,7 @@ fn list_option_type(field: &OptionField) -> Result<(&'static str, String)> {
 fn js_doc(lines: &[String], capabilities: &[CapabilityField]) -> Vec<String> {
     lines
         .iter()
-        .map(|line| {
-            let mut unlinked = String::with_capacity(line.len());
-            let mut rest = line.as_str();
-            while let Some(start) = rest.find("[`") {
-                let Some(len) = rest[start + 1..].find("`]") else {
-                    break;
-                };
-                unlinked.push_str(&rest[..start]);
-                unlinked.push_str(&rest[start + 1..start + len + 2]);
-                rest = &rest[start + len + 3..];
-                if let Some(target) = rest.strip_prefix('(')
-                    && let Some(end) = target.find(')')
-                {
-                    rest = &target[end + 1..];
-                }
-            }
-            unlinked.push_str(rest);
-
-            let mut out = String::with_capacity(unlinked.len());
-            let mut rest = unlinked.as_str();
-            while let Some(start) = rest.find('`') {
-                let Some(len) = rest[start + 1..].find('`') else {
-                    break;
-                };
-                let code = &rest[start + 1..start + 1 + len];
-                out.push_str(&rest[..=start]);
-                out.push_str(&js_code_span(code, capabilities).unwrap_or_else(|| code.to_string()));
-                out.push('`');
-                rest = &rest[start + len + 2..];
-            }
-            out.push_str(rest);
-            out
-        })
+        .map(|line| rewrite_code_spans(line, |code| js_code_span(code, capabilities)))
         .collect()
 }
 

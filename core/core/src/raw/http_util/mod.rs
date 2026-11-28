@@ -50,6 +50,8 @@ pub use uri::percent_decode_path;
 pub use uri::percent_encode_path;
 
 mod error;
+#[cfg(feature = "reqsign")]
+pub use error::new_crypto_provider_missing_error;
 pub use error::new_request_build_error;
 pub use error::new_request_credential_error;
 pub use error::new_request_sign_error;

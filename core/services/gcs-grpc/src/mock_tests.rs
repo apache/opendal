@@ -28,7 +28,7 @@ use opendal_core::raw::oio::Read as _;
 use opendal_core::raw::oio::Write as _;
 use opendal_core::raw::*;
 use opendal_core::*;
-use reqsign_core::{Context as SignContext, ProvideCredentialChain};
+use reqsign_core::ProvideCredentialChain;
 use reqsign_google::RequestSigner;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
@@ -72,7 +72,7 @@ pub(super) fn test_writer(
         root: "/".to_string(),
         channel_endpoint: Endpoint::from_shared(endpoint.to_string()).unwrap(),
         channel: Default::default(),
-        sign_ctx: SignContext::new(),
+        sign_ctx: reqsign_context(),
         credential_provider: Arc::new(ProvideCredentialChain::new()),
         request_signer: Arc::new(RequestSigner::new("storage")),
         signers: HttpTransportCache::new(),

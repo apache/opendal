@@ -717,7 +717,7 @@ mod tests {
                 endpoint: "https://acc.file.core.windows.net".to_string(),
                 share_name: "share".to_string(),
                 skip_signature,
-                sign_ctx: Context::new(),
+                sign_ctx: opendal_core::raw::reqsign_context(),
                 credential_provider: Arc::new(credential),
                 request_signer: Arc::new(RequestSigner::new()),
                 signers: HttpTransportCache::new(),

@@ -321,6 +321,10 @@ impl S3Core {
             return new_request_sign_error(err.into()).with_temporary(retryable);
         }
 
+        if let Some(error) = new_crypto_provider_missing_error(&err) {
+            return error.with_operation("S3Core::sign").set_source(err);
+        }
+
         let kind = match err.kind() {
             ReqsignErrorKind::CredentialInvalid => ErrorKind::Unexpected,
             ReqsignErrorKind::ConfigInvalid => ErrorKind::ConfigInvalid,

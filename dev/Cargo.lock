@@ -1112,3 +1112,58 @@ name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+
+[[patch.unused]]
+name = "reqsign-aliyun-oss"
+version = "4.0.0"
+source = "git+https://github.com/apache/reqsign.git?rev=5fad0a9cb4ed97063f171a0c911a67ea57f4a93a#5fad0a9cb4ed97063f171a0c911a67ea57f4a93a"
+
+[[patch.unused]]
+name = "reqsign-aws-v4"
+version = "4.0.0"
+source = "git+https://github.com/apache/reqsign.git?rev=5fad0a9cb4ed97063f171a0c911a67ea57f4a93a#5fad0a9cb4ed97063f171a0c911a67ea57f4a93a"
+
+[[patch.unused]]
+name = "reqsign-azure-storage"
+version = "4.0.0"
+source = "git+https://github.com/apache/reqsign.git?rev=5fad0a9cb4ed97063f171a0c911a67ea57f4a93a#5fad0a9cb4ed97063f171a0c911a67ea57f4a93a"
+
+[[patch.unused]]
+name = "reqsign-command-execute-tokio"
+version = "4.0.0"
+source = "git+https://github.com/apache/reqsign.git?rev=5fad0a9cb4ed97063f171a0c911a67ea57f4a93a#5fad0a9cb4ed97063f171a0c911a67ea57f4a93a"
+
+[[patch.unused]]
+name = "reqsign-core"
+version = "4.0.0"
+source = "git+https://github.com/apache/reqsign.git?rev=5fad0a9cb4ed97063f171a0c911a67ea57f4a93a#5fad0a9cb4ed97063f171a0c911a67ea57f4a93a"
+
+[[patch.unused]]
+name = "reqsign-crypto-rustcrypto"
+version = "1.0.0"
+source = "git+https://github.com/apache/reqsign.git?rev=5fad0a9cb4ed97063f171a0c911a67ea57f4a93a#5fad0a9cb4ed97063f171a0c911a67ea57f4a93a"
+
+[[patch.unused]]
+name = "reqsign-file-read-tokio"
+version = "4.0.0"
+source = "git+https://github.com/apache/reqsign.git?rev=5fad0a9cb4ed97063f171a0c911a67ea57f4a93a#5fad0a9cb4ed97063f171a0c911a67ea57f4a93a"
+
+[[patch.unused]]
+name = "reqsign-google"
+version = "4.0.0"
+source = "git+https://github.com/apache/reqsign.git?rev=5fad0a9cb4ed97063f171a0c911a67ea57f4a93a#5fad0a9cb4ed97063f171a0c911a67ea57f4a93a"
+
+[[patch.unused]]
+name = "reqsign-huaweicloud-obs"
+version = "4.0.0"
+source = "git+https://github.com/apache/reqsign.git?rev=5fad0a9cb4ed97063f171a0c911a67ea57f4a93a#5fad0a9cb4ed97063f171a0c911a67ea57f4a93a"
+
+[[patch.unused]]
+name = "reqsign-tencent-cos"
+version = "4.0.0"
+source = "git+https://github.com/apache/reqsign.git?rev=5fad0a9cb4ed97063f171a0c911a67ea57f4a93a#5fad0a9cb4ed97063f171a0c911a67ea57f4a93a"
+
+[[patch.unused]]
+name = "reqsign-volcengine-tos"
+version = "4.0.0"
+source = "git+https://github.com/apache/reqsign.git?rev=5fad0a9cb4ed97063f171a0c911a67ea57f4a93a#5fad0a9cb4ed97063f171a0c911a67ea57f4a93a"

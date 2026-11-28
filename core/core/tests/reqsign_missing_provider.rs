@@ -1,0 +1,63 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+#![cfg(all(feature = "reqsign", not(feature = "reqsign-rustcrypto")))]
+
+use opendal_core::ErrorKind;
+use opendal_core::raw::new_request_sign_error;
+use opendal_core::raw::reqsign_context;
+
+#[test]
+fn missing_crypto_provider_is_config_invalid_with_remedies() {
+    let reqsign_err = reqsign_context().crypto_provider().unwrap_err();
+
+    let err = new_request_sign_error(reqsign_err.into());
+
+    assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    assert!(!err.is_temporary());
+    let message = err.to_string();
+    assert!(message.contains("`reqsign-rustcrypto`"), "{message}");
+    assert!(
+        message.contains("`opendal::reqsign_core::crypto::install_default`"),
+        "{message}"
+    );
+}
+
+#[test]
+fn other_sign_failures_stay_unexpected() {
+    let reqsign_err = opendal_core::reqsign_core::Error::request_invalid("bad request");
+
+    let err = new_request_sign_error(reqsign_err.into());
+
+    assert_eq!(err.kind(), ErrorKind::Unexpected);
+}
+
+#[test]
+fn other_config_invalid_sign_failures_keep_their_cause() {
+    let reqsign_err =
+        opendal_core::reqsign_core::Error::config_invalid("AWS STS signing region is invalid");
+
+    let err = new_request_sign_error(reqsign_err.into());
+
+    assert_eq!(err.kind(), ErrorKind::Unexpected);
+    assert!(!err.message().contains("CryptoProvider"), "{err}");
+    assert!(
+        err.to_string()
+            .contains("AWS STS signing region is invalid"),
+        "{err}"
+    );
+}

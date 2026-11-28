@@ -37,7 +37,6 @@ use reqsign_aws_v4::S3ExpressSessionConfig;
 use reqsign_aws_v4::StaticCredentialProvider;
 #[cfg(not(target_arch = "wasm32"))]
 use reqsign_command_execute_tokio::TokioCommandExecute;
-use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
 use reqsign_core::ProvideCredentialDyn;
@@ -1141,7 +1140,9 @@ impl S3Builder {
         // The base signer context carries local config readers and command
         // execution. HTTP sending is injected from OperationContext when S3Core
         // signs each operation.
-        let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
+        let ctx = opendal_core::raw::reqsign_context()
+            .with_file_read(TokioFileRead)
+            .with_env(OsEnv);
         #[cfg(not(target_arch = "wasm32"))]
         let ctx = ctx.with_command_execute(TokioCommandExecute);
 
@@ -3130,7 +3131,7 @@ mod tests {
 
         async fn provide_credential(
             &self,
-            ctx: &Context,
+            ctx: &reqsign_core::Context,
         ) -> reqsign_core::Result<Option<Self::Credential>> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             if let Some(err) = self.error.lock().expect("lock poisoned").take() {
@@ -3388,7 +3389,7 @@ mod tests {
             .disable_ec2_metadata()
             .build_inner(S3_SCHEME)
             .unwrap();
-        let ctx = Context::new()
+        let ctx = opendal_core::raw::reqsign_context()
             .with_env(reqsign_core::StaticEnv {
                 home_dir: Some("test-home".into()),
                 ..Default::default()
@@ -3514,7 +3515,7 @@ mod tests {
                 .disable_ec2_metadata()
                 .build_inner(S3_SCHEME)
                 .unwrap();
-            let ctx = Context::new()
+            let ctx = opendal_core::raw::reqsign_context()
                 .with_env(reqsign_core::StaticEnv {
                     home_dir: Some("test-home".into()),
                     envs: HashMap::from([("AWS_PROFILE".to_string(), profile.to_string())]),
@@ -3559,7 +3560,7 @@ mod tests {
                 .disable_ec2_metadata()
                 .build_inner(S3_SCHEME)
                 .unwrap();
-            let ctx = Context::new()
+            let ctx = opendal_core::raw::reqsign_context()
                 .with_env(reqsign_core::StaticEnv {
                     home_dir: Some("test-home".into()),
                     envs: HashMap::from([("AWS_PROFILE".to_string(), profile.to_string())]),
@@ -3608,7 +3609,7 @@ mod tests {
             .disable_ec2_metadata()
             .build_inner(S3_SCHEME)
             .unwrap();
-        let ctx = Context::new()
+        let ctx = opendal_core::raw::reqsign_context()
             .with_env(reqsign_core::StaticEnv {
                 home_dir: Some("test-home".into()),
                 envs: env.clone(),
@@ -3646,7 +3647,7 @@ mod tests {
             .disable_ec2_metadata()
             .build_inner(S3_SCHEME)
             .unwrap();
-        let ctx = Context::new()
+        let ctx = opendal_core::raw::reqsign_context()
             .with_env(reqsign_core::StaticEnv {
                 home_dir: Some("test-home".into()),
                 envs: env,
@@ -3683,7 +3684,7 @@ mod tests {
             .container_credentials_endpoint("http://169.254.170.2/v2/credentials/test")
             .build_inner(S3_SCHEME)
             .unwrap();
-        let ctx = Context::new()
+        let ctx = opendal_core::raw::reqsign_context()
             .with_env(reqsign_core::StaticEnv {
                 home_dir: Some("test-home".into()),
                 envs: HashMap::from([
@@ -3826,7 +3827,7 @@ mod tests {
 
         async fn provide_credential(
             &self,
-            ctx: &Context,
+            ctx: &reqsign_core::Context,
         ) -> reqsign_core::Result<Option<Credential>> {
             let id = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
             StaticCredentialProvider::new(&format!("ak-{id}"), "secret-key")

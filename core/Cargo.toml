@@ -90,6 +90,9 @@ all-features = true
 cargo-args = ["--config", 'env.ROCKSDB_LIB_DIR="/usr/lib"']
 
 [features]
+# Sign requests with reqsign's RustCrypto provider unless the application
+# installs a process-wide `CryptoProvider` before building operators.
+reqsign-rustcrypto = ["opendal-core/reqsign-rustcrypto"]
 # Install facade defaults before `main`: register enabled services and, when
 # configured, install the default HTTP transport. Disable this feature when the
 # application needs to install its own process-wide HTTP transport.
@@ -105,6 +108,7 @@ default = [
   "layers-logging",
   "layers-retry",
   "layers-timeout",
+  "reqsign-rustcrypto",
 ]
 executors-compio = ["dep:opendal-executor-compio"]
 executors-tokio = ["dep:opendal-executor-tokio"]

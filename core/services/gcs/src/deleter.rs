@@ -127,7 +127,7 @@ mod tests {
     use futures::stream;
     use http::Response;
     use http::header::CONTENT_TYPE;
-    use reqsign_core::Context;
+
     use reqsign_core::ProvideCredentialChain;
     use reqsign_google::RequestSigner;
     use reqsign_google::TokenCredentialProvider;
@@ -165,7 +165,7 @@ mod tests {
             endpoint: "https://storage.googleapis.com".to_string(),
             bucket: "test-bucket".to_string(),
             root: "/".to_string(),
-            sign_ctx: Context::new(),
+            sign_ctx: opendal_core::raw::reqsign_context(),
             credential_provider: Arc::new(
                 ProvideCredentialChain::new().push(TokenCredentialProvider::new("test-token")),
             ),

@@ -125,6 +125,67 @@ matching the previous jiff 0.2 conversion. For example, wasm cannot represent
 timestamps before the Unix epoch. Convert a `jiff::Timestamp` directly with
 `SystemTime::try_from(timestamp)` and handle the error.
 
+## reqsign 0.21 and crypto providers
+
+OpenDAL now uses reqsign 0.21 (`reqsign-core` 4.0). Request signing runs through
+a `reqsign_core::crypto::CryptoProvider`. The new `reqsign-rustcrypto` feature
+binds reqsign's RustCrypto provider to every signing service. The `opendal` crate
+and `object_store_opendal` enable it by default, so default builds keep signing
+requests without code changes. S3 presigning has stricter lifetime limits; see
+below.
+
+If you build with `default-features = false` and use a signing service such as
+S3, Azure Blob, GCS, or OSS, choose one of the following. Otherwise every signed
+request fails with `ErrorKind::ConfigInvalid`.
+
+Enable the RustCrypto provider:
+
+```toml
+[dependencies]
+opendal = { version = "0.59", default-features = false, features = [
+  "services-s3",
+  "reqsign-rustcrypto",
+] }
+```
+
+Or install a process-wide provider before you build the operator. For example,
+with `reqsign-crypto-boring`:
+
+```toml
+[dependencies]
+opendal = { version = "0.59", default-features = false, features = ["services-s3"] }
+reqsign-crypto-boring = "1.0"
+```
+
+```rust,ignore
+use opendal::Operator;
+use opendal::reqsign_core::crypto::install_default;
+use opendal::services::S3;
+use reqsign_crypto_boring::BoringCryptoProvider;
+
+install_default(BoringCryptoProvider::new()).expect("install the crypto provider once");
+let op = Operator::new(S3::default().bucket("bucket").region("us-east-1"))?;
+```
+
+With `default-features = false`, `auto-register-services` is off, so
+`Operator::from_uri("s3://...")` returns `ErrorKind::Unsupported` until you call
+`opendal::init_default_registry()` or register the service yourself.
+
+A provider installed with `install_default` takes precedence over
+`reqsign-rustcrypto`.
+
+If you implement reqsign traits such as `ProvideCredential` or `SignRequest`
+against `opendal::reqsign_core`, update them to the `reqsign-core` 4.0 API, and
+upgrade any direct `reqsign-*` dependencies to the releases that depend on
+`reqsign-core` 4.0.
+
+S3 presigning now requires a lifetime from 1 second to 604800 seconds (7 days).
+reqsign encodes `X-Amz-Expires` in whole seconds, so a sub-second duration
+encodes as `0`. `presign_read`, `presign_stat`, `presign_write`, and
+`presign_delete` return an error for an encoded lifetime outside that range,
+including with default features. Previously, OpenDAL signed these URLs without
+checking the lifetime. Clamp the duration before you presign.
+
 ## Tokio executor moved to `opendal-executor-tokio`
 
 If you depend directly on `opendal-core`, remove its `executors-tokio` feature

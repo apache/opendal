@@ -50,6 +50,11 @@ pub use ops::*;
 mod glob_matcher;
 pub use glob_matcher::GlobPattern;
 
+#[cfg(feature = "reqsign")]
+mod reqsign_context;
+#[cfg(feature = "reqsign")]
+pub use reqsign_context::reqsign_context;
+
 mod http_transport_cache;
 pub use http_transport_cache::HttpTransportCache;
 pub use http_transport_cache::WeakHttpTransporter;

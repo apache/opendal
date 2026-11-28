@@ -595,7 +595,7 @@ mod tests {
 
     use bytes::Buf;
     use http::header::AUTHORIZATION;
-    use reqsign_core::Context;
+
     use reqsign_core::StaticEnv;
     use reqsign_huaweicloud_obs::DefaultCredentialProvider;
     use reqsign_huaweicloud_obs::StaticCredentialProvider;
@@ -605,7 +605,7 @@ mod tests {
     /// Build a core whose signer only sees the given provider, so tests never
     /// depend on the ambient process environment.
     fn test_core(skip_signature: bool, provider: DefaultCredentialProvider) -> ObsCore {
-        let sign_ctx = Context::new().with_env(StaticEnv {
+        let sign_ctx = opendal_core::raw::reqsign_context().with_env(StaticEnv {
             home_dir: None,
             envs: HashMap::new(),
         });

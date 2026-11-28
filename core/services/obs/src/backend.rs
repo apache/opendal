@@ -24,7 +24,6 @@ use http::Uri;
 use log::debug;
 use opendal_core::raw::*;
 use opendal_core::*;
-use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_file_read_tokio::TokioFileRead;
 use reqsign_huaweicloud_obs::DefaultCredentialProvider;
@@ -208,7 +207,9 @@ impl Builder for ObsBuilder {
         };
         debug!("backend use endpoint {}", endpoint);
 
-        let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
+        let ctx = opendal_core::raw::reqsign_context()
+            .with_file_read(TokioFileRead)
+            .with_env(OsEnv);
 
         let provider = credential_provider(&self.config);
 
@@ -559,7 +560,7 @@ mod tests {
     ];
 
     fn ambient_context() -> Context {
-        Context::new().with_env(StaticEnv {
+        opendal_core::raw::reqsign_context().with_env(StaticEnv {
             home_dir: None,
             envs: AMBIENT_ENVS
                 .into_iter()

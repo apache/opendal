@@ -365,6 +365,13 @@ jobs:
             -p opendal --features http-transport-reqwest-rustls,layers-retry \
             --test http_context_init
 
+      - name: Test signing without a crypto provider
+        working-directory: core
+        run: |
+          cargo nextest run --locked --no-default-features \
+            -p opendal-core --features reqsign \
+            --test reqsign_missing_provider
+
   doc-test:
     runs-on: ubuntu-latest
 

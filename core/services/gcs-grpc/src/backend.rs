@@ -21,7 +21,7 @@ use std::sync::Arc;
 use log::debug;
 #[cfg(not(target_arch = "wasm32"))]
 use reqsign_command_execute_tokio::TokioCommandExecute;
-use reqsign_core::{Context, OsEnv, ProvideCredential, ProvideCredentialChain};
+use reqsign_core::{OsEnv, ProvideCredential, ProvideCredentialChain};
 use reqsign_file_read_tokio::TokioFileRead;
 use reqsign_google::{
     Credential, DefaultCredentialProvider, EnvCredentialProvider, FileCredentialProvider,
@@ -182,7 +182,9 @@ impl GcsGrpcBuilder {
             .clone()
             .unwrap_or_else(|| DEFAULT_GCS_SCOPE.to_string());
 
-        let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
+        let ctx = opendal_core::raw::reqsign_context()
+            .with_file_read(TokioFileRead)
+            .with_env(OsEnv);
         #[cfg(not(target_arch = "wasm32"))]
         let ctx = ctx.with_command_execute(TokioCommandExecute);
 
@@ -597,7 +599,7 @@ mod tests {
         );
 
         let http = MockHttpSend::default();
-        let ctx = Context::new()
+        let ctx = opendal_core::raw::reqsign_context()
             .with_env(StaticEnv::default())
             .with_http_send(http.clone());
         let (mut parts, ()) = http::Request::get("https://storage.googleapis.com")
@@ -650,7 +652,7 @@ mod tests {
                 paths: Arc::default(),
             };
             let http = MockHttpSend::default();
-            let ctx = Context::new()
+            let ctx = opendal_core::raw::reqsign_context()
                 .with_env(StaticEnv {
                     home_dir: None,
                     envs: HashMap::from([(env_key.to_string(), env_value.to_string())]),
@@ -701,7 +703,7 @@ mod tests {
             paths: Arc::default(),
         };
         let http = MockHttpSend::default();
-        let ctx = Context::new()
+        let ctx = opendal_core::raw::reqsign_context()
             .with_env(StaticEnv {
                 home_dir: None,
                 envs: HashMap::from([

@@ -185,10 +185,30 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     env.add_function("make_config_field_doc", make_config_field_doc);
     env.add_function("config_field_is_required", config_field_is_required);
 
-    // Generate the `Scheme` enum (Rust).
+    // Map-valued config fields per service. `from_config` converts a dict to
+    // a JSON object string only for these fields. `Services` is a `HashMap`,
+    // so sort by service name to keep the generated file stable.
+    let mut map_fields: Vec<(String, Vec<String>)> = srvs
+        .iter()
+        .filter_map(|(name, srv)| {
+            let fields: Vec<String> = srv
+                .config
+                .iter()
+                .filter(|config| config.value == ConfigType::HashMap)
+                .map(|config| config.name.clone())
+                .collect();
+            (!fields.is_empty()).then(|| (name.clone(), fields))
+        })
+        .collect();
+    map_fields.sort();
+
+    // Generate the `Scheme` enum and the map-field lookup (Rust).
     let tmpl = env.get_template("python")?;
     let output = workspace_dir.join("bindings/python/src/services.rs");
-    let mut rendered = tmpl.render(context! { srvs => Serde(&srvs) })?;
+    let mut rendered = tmpl.render(context! {
+        srvs => Serde(&srvs),
+        map_fields => Serde(&map_fields),
+    })?;
     if !rendered.ends_with('\n') {
         rendered.push('\n');
     }

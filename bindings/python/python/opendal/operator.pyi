@@ -221,9 +221,11 @@ class AsyncOperator:
         A static type checker validates the service scheme and the options for
         the service, context, and layers. The binding converts non-string values
         such as booleans, integers, finite floats, durations, paths, and flat
-        lists or tuples to the strings the registry consumes.
-        Service config values such as bytes, mappings, and nested sequences
-        raise ``Unsupported``.
+        lists or tuples to the strings the registry consumes. For a service
+        option that takes a map, such as ``S3Config.assume_role_session_tags``,
+        a ``dict`` with ``str`` keys and values becomes a JSON object string.
+        A ``dict`` for any other option, and values such as bytes, other
+        mappings, and nested sequences, raise ``Unsupported``.
 
         Construction options are stored when pickling the operator and may
         include credentials. Reapply layers added via ``.layer()`` after unpickling.
@@ -990,9 +992,11 @@ class Operator:
         A static type checker validates the service scheme and the options for
         the service, context, and layers. The binding converts non-string values
         such as booleans, integers, finite floats, durations, paths, and flat
-        lists or tuples to the strings the registry consumes.
-        Service config values such as bytes, mappings, and nested sequences
-        raise ``Unsupported``.
+        lists or tuples to the strings the registry consumes. For a service
+        option that takes a map, such as ``S3Config.assume_role_session_tags``,
+        a ``dict`` with ``str`` keys and values becomes a JSON object string.
+        A ``dict`` for any other option, and values such as bytes, other
+        mappings, and nested sequences, raise ``Unsupported``.
 
         Construction options are stored when pickling the operator and may
         include credentials. Reapply layers added via ``.layer()`` after unpickling.

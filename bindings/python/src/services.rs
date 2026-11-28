@@ -393,3 +393,16 @@ impl_enum_to_str!(
         YandexDisk => "yandex-disk",
     }
 );
+
+/// Return the config fields of `scheme` that core reads as a map from a JSON
+/// object string. `from_config` converts a `dict` to that string only for
+/// these fields.
+pub(crate) fn map_config_fields(scheme: &str) -> &'static [&'static str] {
+    match scheme {
+        #[cfg(feature = "services-hdfs-native")]
+        "hdfs-native" => &["options"],
+        #[cfg(feature = "services-s3")]
+        "s3" => &["assume_role_session_tags"],
+        _ => &[],
+    }
+}

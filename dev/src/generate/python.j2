@@ -81,3 +81,16 @@ impl_enum_to_str!(
 {%- endfor %}
     }
 );
+
+/// Return the config fields of `scheme` that core reads as a map from a JSON
+/// object string. `from_config` converts a `dict` to that string only for
+/// these fields.
+pub(crate) fn map_config_fields(scheme: &str) -> &'static [&'static str] {
+    match scheme {
+{%- for item in map_fields %}
+        #[cfg(feature = "{{ service_to_feature(item[0]) }}")]
+        "{{ snake_to_kebab_case(item[0]) }}" => &[{% for field in item[1] %}"{{ field }}"{% if not loop.last %}, {% endif %}{% endfor %}],
+{%- endfor %}
+        _ => &[],
+    }
+}

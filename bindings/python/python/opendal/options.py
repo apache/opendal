@@ -123,7 +123,7 @@ class ListKwargs(TypedDict, total=False):
     - Pagination: `limit`, `start_after`.
     - Versioning: `versions`, `deleted`.
 
-    The operation fails with `crate::ErrorKind::Unsupported` when an option
+    The operation fails with `opendal.exceptions.Unsupported` when an option
     requires a capability that the operator lacks.
     """
 
@@ -132,24 +132,22 @@ class ListKwargs(TypedDict, total=False):
     start_after: str
     """Start listing after this key, excluding the key itself.
 
-    Setting this requires `Capability.list_with_start_after`.
+    Setting this requires `op.capability().list_with_start_after`.
     """
     recursive: bool
     """Whether to list recursively under the prefix; default `false`.
 
-    Requires `Capability.list_with_recursive`.
-    Services without native recursive listing rely on `crate::layers::SimulateLayer`
-    (installed automatically by the default `auto-simulate` feature).
+    Requires `op.capability().list_with_recursive`.
     """
     versions: bool
     """Include object versions; default `false`.
 
-    Requires `Capability.list_with_versions`.
+    Requires `op.capability().list_with_versions`.
     """
     deleted: bool
     """Include delete markers; default `false`.
 
-    Requires `Capability.list_with_deleted`.
+    Requires `op.capability().list_with_deleted`.
     """
 
 

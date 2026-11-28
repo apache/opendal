@@ -33,7 +33,7 @@ use pyo3::pyclass;
 /// - Pagination: `limit`, `start_after`.
 /// - Versioning: `versions`, `deleted`.
 ///
-/// The operation fails with `crate::ErrorKind::Unsupported` when an option
+/// The operation fails with `opendal.exceptions.Unsupported` when an option
 /// requires a capability that the operator lacks.
 #[pyclass(module = "opendal")]
 #[derive(Default, Debug)]
@@ -42,21 +42,19 @@ pub struct ListOptions {
     pub limit: Option<usize>,
     /// Start listing after this key, excluding the key itself.
     ///
-    /// Setting this requires `Capability.list_with_start_after`.
+    /// Setting this requires `op.capability().list_with_start_after`.
     pub start_after: Option<String>,
     /// Whether to list recursively under the prefix; default `false`.
     ///
-    /// Requires `Capability.list_with_recursive`.
-    /// Services without native recursive listing rely on `crate::layers::SimulateLayer`
-    /// (installed automatically by the default `auto-simulate` feature).
+    /// Requires `op.capability().list_with_recursive`.
     pub recursive: Option<bool>,
     /// Include object versions; default `false`.
     ///
-    /// Requires `Capability.list_with_versions`.
+    /// Requires `op.capability().list_with_versions`.
     pub versions: Option<bool>,
     /// Include delete markers; default `false`.
     ///
-    /// Requires `Capability.list_with_deleted`.
+    /// Requires `op.capability().list_with_deleted`.
     pub deleted: Option<bool>,
 }
 

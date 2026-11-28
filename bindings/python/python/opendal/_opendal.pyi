@@ -58,7 +58,7 @@ class ListOptions:
     - Pagination: `limit`, `start_after`.
     - Versioning: `versions`, `deleted`.
 
-    The operation fails with `crate::ErrorKind::Unsupported` when an option
+    The operation fails with `opendal.exceptions.Unsupported` when an option
     requires a capability that the operator lacks.
     """
 

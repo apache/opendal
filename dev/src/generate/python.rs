@@ -24,7 +24,7 @@ use anyhow::{Context, Result, bail};
 use minijinja::value::Serde;
 use minijinja::{Environment, context};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
@@ -715,92 +715,188 @@ fn default_expr(kind: OptionKind) -> &'static str {
     }
 }
 
+/// The Python names of the core items that generated docstrings reference.
+struct PyNames {
+    /// The core capabilities; the Python `Capability` has an attribute of
+    /// the same name for each.
+    capabilities: Vec<CapabilityField>,
+    /// Each core `ErrorKind` variant and the `opendal.exceptions` class that
+    /// `bindings/python/src/errors.rs` raises for it.
+    exceptions: BTreeMap<String, String>,
+}
+
+impl PyNames {
+    fn parse(workspace_dir: &Path) -> Result<Self> {
+        let capabilities =
+            capability::parse(&workspace_dir.join("core/core/src/types/capability.rs"))?;
+        let errors = workspace_dir.join("bindings/python/src/errors.rs");
+        // `format_pyerr_impl` maps each kind with a line such as
+        // `ocore::ErrorKind::Unsupported => Unsupported::new_err(e),`.
+        let exceptions: BTreeMap<String, String> = fs::read_to_string(&errors)?
+            .lines()
+            .filter_map(|line| {
+                let (kind, class) = line
+                    .trim()
+                    .strip_prefix("ocore::ErrorKind::")?
+                    .split_once(" => ")?;
+                Some((
+                    kind.to_string(),
+                    class.strip_suffix("::new_err(e),")?.to_string(),
+                ))
+            })
+            .collect();
+        if !exceptions.contains_key("Unsupported") {
+            bail!(
+                "no ErrorKind to exception mapping parsed from {}",
+                errors.display()
+            );
+        }
+        Ok(Self {
+            capabilities,
+            exceptions,
+        })
+    }
+}
+
 /// The docstring of a generated class or field: the core doc comment, one
-/// entry per line.
+/// entry per line, adjusted for Python callers.
 ///
-/// Rustdoc links become plain code spans, because Python documentation
-/// cannot resolve Rust paths: ``[`Capability::list_with_limit`](crate::Capability::list_with_limit)``
-/// and ``[`crate::layers::SimulateLayer`]`` keep only their code span.
-/// Code spans that name a core capability then use its Python name (see
-/// [`py_code_span`]); other code spans stay as written.
-fn py_doc(
-    core_doc: &[String],
-    item: &str,
-    capabilities: &[CapabilityField],
-) -> Result<Vec<String>> {
+/// - Rustdoc links become plain code spans, because Python documentation
+///   cannot resolve Rust paths: ``[`Capability::list_with_limit`](crate::Capability::list_with_limit)``
+///   and ``[`crate::layers::SimulateLayer`]`` keep only their code span.
+/// - Code spans that name a core capability or error kind use the Python
+///   check or exception instead (see [`py_code_span`]); other code spans stay
+///   as written.
+/// - A sentence that names a Rust layer (a `crate::layers::` code span) is
+///   dropped, because Python callers cannot install Rust layers or choose
+///   Cargo features. The capability that the same doc names, such as
+///   `op.capability().list_with_recursive`, is the check Python callers have.
+///   The rest of that paragraph is joined into one line.
+///
+/// The text is not escaped here; the renderers escape it for their output.
+fn py_doc(core_doc: &[String], item: &str, names: &PyNames) -> Result<Vec<String>> {
     if core_doc.iter().all(|line| line.is_empty()) {
         bail!("core {item} has no doc comment");
     }
-    let mut lines = Vec::with_capacity(core_doc.len());
-    for line in core_doc {
-        let mut unlinked = String::with_capacity(line.len());
-        let mut rest = line.as_str();
-        while let Some(start) = rest.find("[`") {
-            let Some(len) = rest[start + 1..].find("`]") else {
-                break;
-            };
-            unlinked.push_str(&rest[..start]);
-            unlinked.push_str(&rest[start + 1..start + len + 2]);
-            rest = &rest[start + len + 3..];
-            if let Some(target) = rest.strip_prefix('(')
-                && let Some(end) = target.find(')')
-            {
-                rest = &target[end + 1..];
-            }
-        }
-        unlinked.push_str(rest);
+    let lines: Vec<String> = core_doc
+        .iter()
+        .map(|line| py_doc_line(line, names))
+        .collect();
 
-        let mut out = String::with_capacity(unlinked.len());
-        let mut rest = unlinked.as_str();
-        while let Some(start) = rest.find('`') {
-            let Some(len) = rest[start + 1..].find('`') else {
-                break;
-            };
-            let code = &rest[start + 1..start + 1 + len];
-            out.push_str(&rest[..=start]);
-            out.push_str(&py_code_span(code, capabilities).unwrap_or_else(|| code.to_string()));
-            out.push('`');
-            rest = &rest[start + len + 2..];
+    let mut out = Vec::with_capacity(lines.len());
+    for paragraph in lines.split(|line| line.is_empty()) {
+        let paragraph: Vec<String> = if paragraph
+            .iter()
+            .any(|line| line.contains("`crate::layers::"))
+        {
+            let text = paragraph.join(" ");
+            let kept: Vec<&str> = sentences(&text)
+                .into_iter()
+                .filter(|sentence| !sentence.contains("`crate::layers::"))
+                .collect();
+            if kept.is_empty() {
+                Vec::new()
+            } else {
+                vec![kept.join(" ")]
+            }
+        } else {
+            paragraph.to_vec()
+        };
+        if paragraph.is_empty() {
+            continue;
         }
-        out.push_str(rest);
-        if out.contains('"') || out.contains('\\') {
-            bail!(
-                "core {item} doc line `{out}` has a character docstrings must escape; \
-                 teach dev/src/generate/python.rs about it"
-            );
+        if !out.is_empty() {
+            out.push(String::new());
         }
-        lines.push(out);
+        out.extend(paragraph);
     }
-    Ok(lines)
+    if out.is_empty() {
+        bail!("core {item} has no doc comment that applies to Python");
+    }
+    Ok(out)
 }
 
-/// The Python name of a code span that names a core capability, or `None` to
-/// keep the code span as written.
+/// Split prose into sentences at a `. ` that an uppercase letter or a code
+/// span follows, so `e.g. a` and `(see below).` stay inside their sentence.
+fn sentences(text: &str) -> Vec<&str> {
+    let mut sentences = Vec::new();
+    let mut start = 0;
+    for (at, _) in text.match_indices(". ") {
+        let next = text[at + 2..].chars().next();
+        if next.is_some_and(|c| c.is_ascii_uppercase() || c == '`') {
+            sentences.push(&text[start..=at]);
+            start = at + 2;
+        }
+    }
+    sentences.push(&text[start..]);
+    sentences
+}
+
+/// One doc line with rustdoc links unlinked and code spans renamed for
+/// Python (see [`py_doc`]).
+fn py_doc_line(line: &str, names: &PyNames) -> String {
+    let mut unlinked = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(start) = rest.find("[`") {
+        let Some(len) = rest[start + 1..].find("`]") else {
+            break;
+        };
+        unlinked.push_str(&rest[..start]);
+        unlinked.push_str(&rest[start + 1..start + len + 2]);
+        rest = &rest[start + len + 3..];
+        if let Some(target) = rest.strip_prefix('(')
+            && let Some(end) = target.find(')')
+        {
+            rest = &target[end + 1..];
+        }
+    }
+    unlinked.push_str(rest);
+
+    let mut out = String::with_capacity(unlinked.len());
+    let mut rest = unlinked.as_str();
+    while let Some(start) = rest.find('`') {
+        let Some(len) = rest[start + 1..].find('`') else {
+            break;
+        };
+        let code = &rest[start + 1..start + 1 + len];
+        out.push_str(&rest[..=start]);
+        out.push_str(&py_code_span(code, names).unwrap_or_else(|| code.to_string()));
+        out.push('`');
+        rest = &rest[start + len + 2..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// The Python form of a code span that names a core capability or error
+/// kind, or `None` to keep the code span as written.
 ///
-/// The `Capability` pyclass exposes every core capability as an attribute of
-/// the same name, so `Capability::list_with_start_after` reads
-/// `Capability.list_with_start_after`, the attribute of the `Capability` that
-/// `Operator.capability()` returns. Keyword arguments keep their core names,
-/// so a code span that names an options field, like `start_after`, needs no
-/// rewrite.
-fn py_code_span(code: &str, capabilities: &[CapabilityField]) -> Option<String> {
-    let name = code
-        .strip_prefix("crate::")
-        .unwrap_or(code)
-        .strip_prefix("Capability::")?;
-    capabilities
-        .iter()
-        .any(|f| f.name == name)
-        .then(|| format!("Capability.{name}"))
+/// - `Capability::list_with_start_after` becomes
+///   `op.capability().list_with_start_after`: the `Capability` that
+///   `Operator.capability()` returns has an attribute of the same name for
+///   every core capability, so callers can check it before setting an option.
+/// - `ErrorKind::Unsupported` becomes `opendal.exceptions.Unsupported`, the
+///   exception that `bindings/python/src/errors.rs` raises for that kind.
+///
+/// Keyword arguments keep their core names, so a code span that names an
+/// options field, like `start_after`, needs no rewrite.
+fn py_code_span(code: &str, names: &PyNames) -> Option<String> {
+    let path = code.strip_prefix("crate::").unwrap_or(code);
+    if let Some(name) = path.strip_prefix("Capability::") {
+        return names
+            .capabilities
+            .iter()
+            .any(|f| f.name == name)
+            .then(|| format!("op.capability().{name}"));
+    }
+    let kind = path.strip_prefix("ErrorKind::")?;
+    let class = names.exceptions.get(kind)?;
+    Some(format!("opendal.exceptions.{class}"))
 }
 
 /// Build the render model of one generated class, checking the table against
 /// the parsed core struct.
-fn py_class(
-    spec: &PyOptions,
-    parsed: &[OptionsStruct],
-    capabilities: &[CapabilityField],
-) -> Result<PyClass> {
+fn py_class(spec: &PyOptions, parsed: &[OptionsStruct], names: &PyNames) -> Result<PyClass> {
     let class = spec.name;
     let Some(core) = parsed.iter().find(|options| options.name == class) else {
         bail!("core options struct `{class}` not found");
@@ -838,7 +934,7 @@ fn py_class(
         fields.push(PyField {
             name,
             kind,
-            doc: py_doc(&field.doc, &format!("{class}::{name}"), capabilities)?,
+            doc: py_doc(&field.doc, &format!("{class}::{name}"), names)?,
             rust_type,
         });
     }
@@ -862,19 +958,16 @@ fn py_class(
 
     Ok(PyClass {
         name: class,
-        doc: py_doc(&core.doc, class, capabilities)?,
+        doc: py_doc(&core.doc, class, names)?,
         fields,
         conversion,
     })
 }
 
-fn generated_classes(
-    parsed: &[OptionsStruct],
-    capabilities: &[CapabilityField],
-) -> Result<Vec<PyClass>> {
+fn generated_classes(parsed: &[OptionsStruct], names: &PyNames) -> Result<Vec<PyClass>> {
     GENERATED_OPTIONS
         .iter()
-        .map(|spec| py_class(spec, parsed, capabilities))
+        .map(|spec| py_class(spec, parsed, names))
         .collect()
 }
 
@@ -891,8 +984,8 @@ fn render_options_rs(classes: &[PyClass]) -> Result<String> {
 /// generated from `core/core/src/types/options.rs`.
 fn generate_options_rs(workspace_dir: &Path) -> Result<Vec<PyClass>> {
     let source = workspace_dir.join("core/core/src/types/options.rs");
-    let capabilities = capability::parse(&workspace_dir.join("core/core/src/types/capability.rs"))?;
-    let classes = generated_classes(&core_options::parse(&source)?, &capabilities)?;
+    let names = PyNames::parse(workspace_dir)?;
+    let classes = generated_classes(&core_options::parse(&source)?, &names)?;
     let output = workspace_dir.join("bindings/python/src/options/generated.rs");
     fs::create_dir_all(output.parent().expect("output has a parent"))?;
     fs::write(output, render_options_rs(&classes)?)?;
@@ -1039,13 +1132,17 @@ method's keyword arguments.
 ";
 
 /// Render a class or field docstring as a `"""..."""` block in a class body,
-/// one line per source line.
+/// one line per source line. Python reads the block back as `doc`, whatever
+/// quotes or backslashes it holds.
 fn push_docstring(out: &mut String, doc: &str) {
+    let (prefix, doc) = docstring_source(doc, !doc.contains('\n'));
     let lines: Vec<&str> = doc.lines().collect();
     if lines.is_empty() {
         return;
     }
-    out.push_str("    \"\"\"");
+    out.push_str("    ");
+    out.push_str(prefix);
+    out.push_str("\"\"\"");
     out.push_str(lines[0]);
     if lines.len() == 1 {
         out.push_str("\"\"\"\n");
@@ -1061,6 +1158,46 @@ fn push_docstring(out: &mut String, doc: &str) {
     }
 }
 
+/// The string prefix and the text between the `"""` quotes of a docstring
+/// that Python reads back as `doc`. `closes_inline` says the closing quotes
+/// follow the text on the same line.
+///
+/// Text with a backslash becomes a raw docstring when a raw string can hold
+/// it, because ruff's D301 rejects backslash escapes in docstrings and its
+/// fix, which `just stub-gen` applies, turns them into raw strings that read
+/// back differently. Other text escapes each backslash, every third `"` in a
+/// row, and the quotes right before inline closing quotes.
+fn docstring_source(doc: &str, closes_inline: bool) -> (&'static str, String) {
+    let trailing = if closes_inline {
+        doc.len() - doc.trim_end_matches('"').len()
+    } else {
+        0
+    };
+    if doc.contains('\\')
+        && !doc.contains(r#"""""#)
+        && trailing == 0
+        && !(closes_inline && doc.ends_with('\\'))
+    {
+        return ("r", doc.to_string());
+    }
+
+    let (body, quotes) = doc.split_at(doc.len() - trailing);
+    let mut out = String::with_capacity(doc.len());
+    let mut run = 0;
+    for c in body.chars() {
+        match c {
+            '\\' => out.push_str(r"\\"),
+            '"' if run == 2 => out.push_str(r#"\""#),
+            c => out.push(c),
+        }
+        run = if c == '"' && run < 2 { run + 1 } else { 0 };
+    }
+    for _ in quotes.chars() {
+        out.push_str(r#"\""#);
+    }
+    ("", out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1073,15 +1210,129 @@ mod tests {
         core_options::parse(&path).expect("core options must parse")
     }
 
-    fn core_capabilities() -> Vec<CapabilityField> {
-        capability::parse(&crate::workspace_dir().join("core/core/src/types/capability.rs"))
-            .expect("core capabilities must parse")
+    fn py_names() -> PyNames {
+        PyNames::parse(&crate::workspace_dir()).expect("Python names must parse")
     }
 
     fn list_class(parsed: &[OptionsStruct]) -> PyClass {
-        let mut classes = generated_classes(parsed, &core_capabilities()).unwrap();
+        let mut classes = generated_classes(parsed, &py_names()).unwrap();
         assert_eq!(classes.len(), 1);
         classes.remove(0)
+    }
+
+    /// The docstrings of every class and class field in `source`, keyed by
+    /// `Class` and `Class.field`, as Python's `ast` parses them and
+    /// `inspect.cleandoc` dedents them. Panics when `source` is not valid
+    /// Python.
+    fn python_docstrings(source: &str) -> BTreeMap<String, String> {
+        use std::io::Write;
+        use std::process::Stdio;
+
+        const SCRIPT: &str = r#"
+import ast, inspect, json, sys
+docs = {}
+for cls in ast.parse(sys.stdin.read()).body:
+    if not isinstance(cls, ast.ClassDef):
+        continue
+    field = None
+    for i, node in enumerate(cls.body):
+        if isinstance(node, ast.AnnAssign):
+            field = node.target.id
+        elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant):
+            key = cls.name if i == 0 else f"{cls.name}.{field}"
+            docs[key] = inspect.cleandoc(node.value.value)
+print(json.dumps(docs))
+"#;
+        let mut child = Command::new("python3")
+            .args(["-c", SCRIPT])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("python3 must be installed to check generated Python");
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(source.as_bytes())
+            .unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert!(
+            output.status.success(),
+            "generated Python does not parse:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice(&output.stdout).unwrap()
+    }
+
+    /// The code spans in `doc` that start with `prefix`, without it.
+    fn spans<'a>(doc: &'a [String], prefix: &str) -> Vec<&'a str> {
+        doc.iter()
+            .flat_map(|line| line.split('`').skip(1).step_by(2))
+            .filter_map(|span| span.strip_prefix(prefix))
+            .collect()
+    }
+
+    /// The `ListOptions` surface on main (4ae8e6122), copied from
+    /// `bindings/python/src/options.rs`, and the Python checks its docs
+    /// name, copied from the capability each field requires in
+    /// `core/core/src/types/options.rs`. The doc wording itself is core's,
+    /// so a core reword passes.
+    fn assert_list_surface(class: &PyClass) {
+        let fields: Vec<String> = class
+            .fields
+            .iter()
+            .map(|f| format!("{}: {}", f.name, f.rust_type))
+            .collect();
+        assert_eq!(
+            fields,
+            [
+                "limit: Option<usize>",
+                "start_after: Option<String>",
+                "recursive: Option<bool>",
+                "versions: Option<bool>",
+                "deleted: Option<bool>",
+            ]
+        );
+
+        assert_eq!(
+            spans(&class.doc, "opendal.exceptions."),
+            ["Unsupported"],
+            "{:?}",
+            class.doc
+        );
+        let checks: Vec<String> = class
+            .fields
+            .iter()
+            .map(|f| {
+                format!(
+                    "{}: {}",
+                    f.name,
+                    spans(&f.doc, "op.capability().").join(" ")
+                )
+            })
+            .collect();
+        assert_eq!(
+            checks,
+            [
+                "limit: ",
+                "start_after: list_with_start_after",
+                "recursive: list_with_recursive",
+                "versions: list_with_versions",
+                "deleted: list_with_deleted",
+            ]
+        );
+
+        // No Rust-only names reach Python callers.
+        for line in class
+            .doc
+            .iter()
+            .chain(class.fields.iter().flat_map(|f| &f.doc))
+        {
+            for rust in ["crate::", "Capability::", "ErrorKind::", "auto-simulate"] {
+                assert!(!line.contains(rust), "{line}");
+            }
+        }
     }
 
     /// The keyword-only parameters of every `#[pyo3(signature)]` method in
@@ -1143,68 +1394,21 @@ mod tests {
     }
 
     /// The `ListOptions` API on main (4ae8e6122), copied from
-    /// `bindings/python/src/options.rs`, with the docstrings that core's doc
-    /// comments give it.
+    /// `bindings/python/src/options.rs`, with docstrings taken from core.
     #[test]
     fn test_list_options_match_main() {
-        let class = list_class(&core_options());
-        let fields: Vec<String> = class
-            .fields
-            .iter()
-            .map(|f| format!("{}: {}", f.name, f.rust_type))
-            .collect();
-        assert_eq!(
-            fields,
-            [
-                "limit: Option<usize>",
-                "start_after: Option<String>",
-                "recursive: Option<bool>",
-                "versions: Option<bool>",
-                "deleted: Option<bool>",
-            ]
-        );
+        let parsed = core_options();
+        let class = list_class(&parsed);
+        assert_list_surface(&class);
 
-        // Copied from `core/core/src/types/options.rs`, with rustdoc links
-        // as plain code spans.
-        assert_eq!(
-            class.doc,
-            [
-                "Options for list operations.",
-                "",
-                "# Groups",
-                "- Traversal: `recursive`.",
-                "- Pagination: `limit`, `start_after`.",
-                "- Versioning: `versions`, `deleted`.",
-                "",
-                "The operation fails with `crate::ErrorKind::Unsupported` when an option",
-                "requires a capability that the operator lacks.",
-            ]
-        );
-        let docs: Vec<String> = class
-            .fields
-            .iter()
-            .map(|f| format!("{}: {}", f.name, f.doc.join("\n")))
-            .collect();
-        assert_eq!(
-            docs,
-            [
-                "limit: Maximum results per request (backend hint) to control memory and throttling.",
-                "start_after: Start listing after this key, excluding the key itself.\n\
-                 \n\
-                 Setting this requires `Capability.list_with_start_after`.",
-                "recursive: Whether to list recursively under the prefix; default `false`.\n\
-                 \n\
-                 Requires `Capability.list_with_recursive`.\n\
-                 Services without native recursive listing rely on `crate::layers::SimulateLayer`\n\
-                 (installed automatically by the default `auto-simulate` feature).",
-                "versions: Include object versions; default `false`.\n\
-                 \n\
-                 Requires `Capability.list_with_versions`.",
-                "deleted: Include delete markers; default `false`.\n\
-                 \n\
-                 Requires `Capability.list_with_deleted`.",
-            ]
-        );
+        // Each docstring is its own core doc comment.
+        let core = parsed.iter().find(|o| o.name == "ListOptions").unwrap();
+        let names = py_names();
+        assert_eq!(class.doc, py_doc(&core.doc, "ListOptions", &names).unwrap());
+        for field in &class.fields {
+            let core = core.fields.iter().find(|f| f.name == field.name).unwrap();
+            assert_eq!(field.doc, py_doc(&core.doc, field.name, &names).unwrap());
+        }
 
         // An explicit `limit`, including `0`, passes through, and an omitted
         // flag is `false`. Every other core field, such as `glob`, keeps the
@@ -1258,26 +1462,38 @@ mod tests {
             ]
         );
         assert!(!extract.contains("reject_unknown_kwargs"));
-        assert!(rs.contains(
-            "/// requires a capability that the operator lacks.\n\
-             #[pyclass(module = \"opendal\")]\n\
-             #[derive(Default, Debug)]\n\
-             pub struct ListOptions {\n    \
-             /// Maximum results per request (backend hint) to control memory and throttling.\n    \
-             pub limit: Option<usize>,\n    \
-             /// Start listing after this key, excluding the key itself.\n    \
-             ///\n    \
-             /// Setting this requires `Capability.list_with_start_after`.\n    \
-             pub start_after: Option<String>,\n"
-        ));
+
+        // The pyclass and its fields, in order, each after its docs.
+        let body = rs
+            .split_once("#[pyclass(module = \"opendal\")]\n#[derive(Default, Debug)]\npub struct ListOptions {\n")
+            .unwrap()
+            .1
+            .split_once("\n}\n")
+            .unwrap()
+            .0;
+        let members: Vec<&str> = body
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.starts_with("///"))
+            .collect();
+        assert_eq!(
+            members,
+            [
+                "pub limit: Option<usize>,",
+                "pub start_after: Option<String>,",
+                "pub recursive: Option<bool>,",
+                "pub versions: Option<bool>,",
+                "pub deleted: Option<bool>,",
+            ]
+        );
+        assert!(body.starts_with("    /// "), "{body}");
     }
 
     /// The `options.py` TypedDicts on main (4ae8e6122): the class order and
-    /// the `ListKwargs` keys and types, with the docstrings that core's doc
-    /// comments give them.
+    /// the `ListKwargs` keys and types, with docstrings taken from core.
     #[test]
     fn test_options_py_matches_main() {
-        let generated = generated_classes(&core_options(), &core_capabilities()).unwrap();
+        let generated = generated_classes(&core_options(), &py_names()).unwrap();
         let py = render_options_py(&crate::workspace_dir(), &generated).unwrap();
         let classes: Vec<&str> = py
             .lines()
@@ -1325,44 +1541,17 @@ mod tests {
                 "deleted: bool",
             ]
         );
-        assert_eq!(
-            list,
-            r#"    """Options for list operations.
 
-    # Groups
-    - Traversal: `recursive`.
-    - Pagination: `limit`, `start_after`.
-    - Versioning: `versions`, `deleted`.
-
-    The operation fails with `crate::ErrorKind::Unsupported` when an option
-    requires a capability that the operator lacks.
-    """
-
-    limit: int
-    """Maximum results per request (backend hint) to control memory and throttling."""
-    start_after: str
-    """Start listing after this key, excluding the key itself.
-
-    Setting this requires `Capability.list_with_start_after`.
-    """
-    recursive: bool
-    """Whether to list recursively under the prefix; default `false`.
-
-    Requires `Capability.list_with_recursive`.
-    Services without native recursive listing rely on `crate::layers::SimulateLayer`
-    (installed automatically by the default `auto-simulate` feature).
-    """
-    versions: bool
-    """Include object versions; default `false`.
-
-    Requires `Capability.list_with_versions`.
-    """
-    deleted: bool
-    """Include delete markers; default `false`.
-
-    Requires `Capability.list_with_deleted`.
-    """"#
-        );
+        // The docstrings parse back, as Python reads them, to the docs.
+        let docs = python_docstrings(&py);
+        let class = &generated[0];
+        assert_eq!(docs["ListKwargs"], class.doc.join("\n"));
+        for field in &class.fields {
+            assert_eq!(
+                docs[&format!("ListKwargs.{}", field.name)],
+                field.doc.join("\n")
+            );
+        }
     }
 
     /// The `list` and `scan` keyword arguments on main (4ae8e6122), copied
@@ -1426,11 +1615,10 @@ mod tests {
     #[test]
     fn test_new_core_field_is_not_exposed() {
         let parsed = core_options();
-        let base_rs =
-            render_options_rs(&generated_classes(&parsed, &core_capabilities()).unwrap()).unwrap();
+        let base_rs = render_options_rs(&generated_classes(&parsed, &py_names()).unwrap()).unwrap();
         let base_py = render_options_py(
             &crate::workspace_dir(),
-            &generated_classes(&parsed, &core_capabilities()).unwrap(),
+            &generated_classes(&parsed, &py_names()).unwrap(),
         )
         .unwrap();
 
@@ -1449,7 +1637,7 @@ mod tests {
                 doc: Vec::new(),
             });
         }
-        let classes = generated_classes(&mutated, &core_capabilities()).unwrap();
+        let classes = generated_classes(&mutated, &py_names()).unwrap();
         let rs = render_options_rs(&classes).unwrap();
         let py = render_options_py(&crate::workspace_dir(), &classes).unwrap();
 
@@ -1514,10 +1702,10 @@ mod tests {
             (
                 |list| {
                     let i = position(list, "limit");
-                    list.fields[i].doc = vec!["See [`Capability`] and \\d.".to_string()];
+                    list.fields[i].doc =
+                        vec!["Install [`crate::layers::SimulateLayer`] to page.".to_string()];
                 },
-                "core ListOptions::limit doc line `See `Capability` and \\d.` has a character \
-                 docstrings must escape; teach dev/src/generate/python.rs about it",
+                "core ListOptions::limit has no doc comment that applies to Python",
             ),
             (
                 |list| list.has_unmirrored_fields = true,
@@ -1535,7 +1723,7 @@ mod tests {
                     .unwrap(),
             );
             assert_eq!(
-                generated_classes(&mutated, &core_capabilities())
+                generated_classes(&mutated, &py_names())
                     .unwrap_err()
                     .to_string(),
                 error
@@ -1546,15 +1734,15 @@ mod tests {
     #[test]
     fn test_py_doc_strips_rustdoc_links() {
         let lines = [
-            "Rely on [`crate::layers::SimulateLayer`](crate::layers::SimulateLayer) and [`Self::recursive`].",
+            "Use [`crate::Operator::list_with`](crate::Operator::list_with) and [`Self::recursive`].",
             "",
             "A [plain](https://opendal.apache.org) link and `code` stay.",
         ]
         .map(String::from);
         assert_eq!(
-            py_doc(&lines, "Test", &core_capabilities()).unwrap(),
+            py_doc(&lines, "Test", &py_names()).unwrap(),
             [
-                "Rely on `crate::layers::SimulateLayer` and `Self::recursive`.",
+                "Use `crate::Operator::list_with` and `Self::recursive`.",
                 "",
                 "A [plain](https://opendal.apache.org) link and `code` stay.",
             ]
@@ -1567,53 +1755,174 @@ mod tests {
             "- Pagination: `limit`, `start_after`.",
             "Requires [`Capability::list_with_limit`](crate::Capability::list_with_limit).",
             "Requires [`crate::Capability::list_with_versions`] and `Capability::list_with_deleted`.",
-            "Unknown `Capability::no_such_flag`, `crate::ErrorKind::Unsupported`, and prose Capability::list stay.",
+            "Fails with [`crate::ErrorKind::Unsupported`] or `ErrorKind::ConditionNotMatch`.",
+            "Unknown `Capability::no_such_flag`, `ErrorKind::NoSuchKind`, and prose Capability::list stay.",
         ]
         .map(String::from);
         assert_eq!(
-            py_doc(&lines, "Test", &core_capabilities()).unwrap(),
+            py_doc(&lines, "Test", &py_names()).unwrap(),
             [
                 "- Pagination: `limit`, `start_after`.",
-                "Requires `Capability.list_with_limit`.",
-                "Requires `Capability.list_with_versions` and `Capability.list_with_deleted`.",
-                "Unknown `Capability::no_such_flag`, `crate::ErrorKind::Unsupported`, and prose Capability::list stay.",
+                "Requires `op.capability().list_with_limit`.",
+                "Requires `op.capability().list_with_versions` and `op.capability().list_with_deleted`.",
+                "Fails with `opendal.exceptions.Unsupported` or `opendal.exceptions.ConditionNotMatch`.",
+                "Unknown `Capability::no_such_flag`, `ErrorKind::NoSuchKind`, and prose Capability::list stay.",
             ]
         );
     }
 
-    /// Every capability the generated docstrings name is an attribute of the
-    /// `Capability` class in `python/opendal/capability.pyi`.
+    /// Python callers cannot install Rust layers, so a sentence that names
+    /// one is dropped; the rest of its paragraph stays.
     #[test]
-    fn test_list_options_docs_name_python_capabilities() {
-        let pyi = fs::read_to_string(
-            crate::workspace_dir().join("bindings/python/python/opendal/capability.pyi"),
-        )
-        .unwrap();
-        let attributes: HashSet<&str> = pyi
+    fn test_py_doc_drops_rust_layer_sentences() {
+        let lines = [
+            "Whether to list recursively; default `false`.",
+            "",
+            "Requires [`Capability::list_with_recursive`](crate::Capability::list_with_recursive).",
+            "Services without native recursive listing rely on [`crate::layers::SimulateLayer`]",
+            "(installed automatically by the default `auto-simulate` feature). Use it e.g. for scans.",
+            "",
+            "Or install [`crate::layers::SimulateLayer`] yourself.",
+            "",
+            "- A list item.",
+            "- Another item.",
+        ]
+        .map(String::from);
+        assert_eq!(
+            py_doc(&lines, "Test", &py_names()).unwrap(),
+            [
+                "Whether to list recursively; default `false`.",
+                "",
+                "Requires `op.capability().list_with_recursive`. Use it e.g. for scans.",
+                "",
+                "- A list item.",
+                "- Another item.",
+            ]
+        );
+    }
+
+    /// Core docs may hold any text: quotes, backslashes, and rewording reach
+    /// valid Python with their value intact, and the surface checks, which
+    /// pin no core wording, still pass.
+    #[test]
+    fn test_list_options_survive_any_core_doc() {
+        let mut parsed = core_options();
+        let list = parsed.iter_mut().find(|o| o.name == "ListOptions").unwrap();
+        list.doc = [
+            r#""Options" for list operations, with \d, \\ and """ inside."#,
+            "",
+            "Fails with [`crate::ErrorKind::Unsupported`] when an option",
+            r#"needs a missing capability, a "quoted" ending""#,
+        ]
+        .map(String::from)
+        .to_vec();
+        for field in &mut list.fields {
+            let capability = field
+                .doc
+                .iter()
+                .find_map(|line| {
+                    let (_, rest) = line.split_once("[`Capability::")?;
+                    Some(rest.split('`').next()?.to_string())
+                })
+                .map(|name| format!(" Needs [`Capability::{name}`](crate::Capability::{name})."))
+                .unwrap_or_default();
+            field.doc = vec![format!(r#"Reworded "{}" doc.{capability}"#, field.name)];
+        }
+        fn field<'a>(list: &'a mut OptionsStruct, name: &str) -> &'a mut Vec<String> {
+            &mut list.fields.iter_mut().find(|f| f.name == name).unwrap().doc
+        }
+        *field(list, "limit") = vec![r#"Maximum results "per request""#.to_string()];
+        field(list, "start_after")[0].push_str(r" Keys match \d+.");
+        *field(list, "deleted") = vec![
+            r#"Ends with """"#.to_string(),
+            String::new(),
+            r#"Needs [`Capability::list_with_deleted`](crate::Capability::list_with_deleted) and \ "x""#
+                .to_string(),
+        ];
+
+        let generated = generated_classes(&parsed, &py_names()).unwrap();
+        let class = &generated[0];
+        assert_list_surface(class);
+        assert_eq!(
+            class.fields[1].doc,
+            [
+                r#"Reworded "start_after" doc. Needs `op.capability().list_with_start_after`. Keys match \d+."#
+            ]
+        );
+
+        let py = render_options_py(&crate::workspace_dir(), &generated).unwrap();
+        // A backslash without `"""` makes a raw docstring, which ruff accepts.
+        assert!(
+            py.contains(r#"    r"""Reworded "start_after" doc."#),
+            "{py}"
+        );
+        assert!(
+            py.contains(r#"    """Maximum results "per request\""""#),
+            "{py}"
+        );
+        let docs = python_docstrings(&py);
+        assert_eq!(
+            docs["ListKwargs"],
+            "\"Options\" for list operations, with \\d, \\\\ and \"\"\" inside.\n\
+             \n\
+             Fails with `opendal.exceptions.Unsupported` when an option\n\
+             needs a missing capability, a \"quoted\" ending\""
+        );
+        assert_eq!(docs["ListKwargs.limit"], r#"Maximum results "per request""#);
+        for field in &class.fields {
+            assert_eq!(
+                docs[&format!("ListKwargs.{}", field.name)],
+                field.doc.join("\n")
+            );
+        }
+
+        let rs = render_options_rs(&generated).unwrap();
+        assert!(
+            rs.contains("    /// Maximum results \"per request\"\n    pub limit: Option<usize>,\n")
+        );
+    }
+
+    /// Every capability and exception the generated docstrings name exists
+    /// in the Python API: `python/opendal/capability.pyi` and
+    /// `python/opendal/exceptions.pyi`.
+    #[test]
+    fn test_list_options_docs_name_python_api() {
+        let stub = |name: &str| {
+            fs::read_to_string(
+                crate::workspace_dir()
+                    .join("bindings/python/python/opendal")
+                    .join(name),
+            )
+            .unwrap()
+        };
+        let capability = stub("capability.pyi");
+        let attributes: HashSet<&str> = capability
             .lines()
             .filter_map(|line| line.strip_prefix("    def ")?.split_once("(self, /)"))
             .map(|(name, _)| name)
             .collect();
         assert!(attributes.contains("list_with_start_after"));
+        let exceptions = stub("exceptions.pyi");
+        let classes: HashSet<&str> = exceptions
+            .lines()
+            .filter_map(|line| line.strip_prefix("class ")?.split_once('('))
+            .map(|(name, _)| name)
+            .collect();
+        assert!(classes.contains("NotFound"));
 
         let class = list_class(&core_options());
-        let docs: Vec<&String> = class
+        let docs: Vec<String> = class
             .doc
             .iter()
             .chain(class.fields.iter().flat_map(|f| &f.doc))
+            .cloned()
             .collect();
-        let mut named = Vec::new();
-        for line in &docs {
-            assert!(!line.contains("Capability::"), "{line}");
-            for span in line.split('`').skip(1).step_by(2) {
-                if let Some(name) = span.strip_prefix("Capability.") {
-                    assert!(attributes.contains(name), "{span} is not in capability.pyi");
-                    named.push(name);
-                }
-            }
+        let checks = spans(&docs, "op.capability().");
+        for name in &checks {
+            assert!(attributes.contains(name), "{name} is not in capability.pyi");
         }
         assert_eq!(
-            named,
+            checks,
             [
                 "list_with_start_after",
                 "list_with_recursive",
@@ -1621,5 +1930,18 @@ mod tests {
                 "list_with_deleted",
             ]
         );
+        let raised = spans(&docs, "opendal.exceptions.");
+        for name in &raised {
+            assert!(classes.contains(name), "{name} is not in exceptions.pyi");
+        }
+        assert_eq!(raised, ["Unsupported"]);
+
+        // Every exception that the generator may name exists.
+        for class in py_names().exceptions.values() {
+            assert!(
+                classes.contains(class.as_str()),
+                "{class} is not in exceptions.pyi"
+            );
+        }
     }
 }

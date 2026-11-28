@@ -132,24 +132,24 @@ class ListKwargs(TypedDict, total=False):
     start_after: str
     """Start listing after this key, excluding the key itself.
 
-    Setting this requires `Capability::list_with_start_after`.
+    Setting this requires `Capability.list_with_start_after`.
     """
     recursive: bool
     """Whether to list recursively under the prefix; default `false`.
 
-    Requires `Capability::list_with_recursive`.
+    Requires `Capability.list_with_recursive`.
     Services without native recursive listing rely on `crate::layers::SimulateLayer`
     (installed automatically by the default `auto-simulate` feature).
     """
     versions: bool
     """Include object versions; default `false`.
 
-    Requires `Capability::list_with_versions`.
+    Requires `Capability.list_with_versions`.
     """
     deleted: bool
     """Include delete markers; default `false`.
 
-    Requires `Capability::list_with_deleted`.
+    Requires `Capability.list_with_deleted`.
     """
 
 

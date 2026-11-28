@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::generate::capability;
+use crate::generate::capability::{self, CapabilityField};
 use crate::generate::core_options::{self, OptionKind, OptionsStruct};
 use crate::generate::metadata::{self, MetadataKind};
 use crate::generate::options;
@@ -721,26 +721,46 @@ fn default_expr(kind: OptionKind) -> &'static str {
 /// Rustdoc links become plain code spans, because Python documentation
 /// cannot resolve Rust paths: ``[`Capability::list_with_limit`](crate::Capability::list_with_limit)``
 /// and ``[`crate::layers::SimulateLayer`]`` keep only their code span.
-fn py_doc(core_doc: &[String], item: &str) -> Result<Vec<String>> {
+/// Code spans that name a core capability then use its Python name (see
+/// [`py_code_span`]); other code spans stay as written.
+fn py_doc(
+    core_doc: &[String],
+    item: &str,
+    capabilities: &[CapabilityField],
+) -> Result<Vec<String>> {
     if core_doc.iter().all(|line| line.is_empty()) {
         bail!("core {item} has no doc comment");
     }
     let mut lines = Vec::with_capacity(core_doc.len());
     for line in core_doc {
-        let mut out = String::with_capacity(line.len());
+        let mut unlinked = String::with_capacity(line.len());
         let mut rest = line.as_str();
         while let Some(start) = rest.find("[`") {
             let Some(len) = rest[start + 1..].find("`]") else {
                 break;
             };
-            out.push_str(&rest[..start]);
-            out.push_str(&rest[start + 1..start + len + 2]);
+            unlinked.push_str(&rest[..start]);
+            unlinked.push_str(&rest[start + 1..start + len + 2]);
             rest = &rest[start + len + 3..];
             if let Some(target) = rest.strip_prefix('(')
                 && let Some(end) = target.find(')')
             {
                 rest = &target[end + 1..];
             }
+        }
+        unlinked.push_str(rest);
+
+        let mut out = String::with_capacity(unlinked.len());
+        let mut rest = unlinked.as_str();
+        while let Some(start) = rest.find('`') {
+            let Some(len) = rest[start + 1..].find('`') else {
+                break;
+            };
+            let code = &rest[start + 1..start + 1 + len];
+            out.push_str(&rest[..=start]);
+            out.push_str(&py_code_span(code, capabilities).unwrap_or_else(|| code.to_string()));
+            out.push('`');
+            rest = &rest[start + len + 2..];
         }
         out.push_str(rest);
         if out.contains('"') || out.contains('\\') {
@@ -754,9 +774,33 @@ fn py_doc(core_doc: &[String], item: &str) -> Result<Vec<String>> {
     Ok(lines)
 }
 
+/// The Python name of a code span that names a core capability, or `None` to
+/// keep the code span as written.
+///
+/// The `Capability` pyclass exposes every core capability as an attribute of
+/// the same name, so `Capability::list_with_start_after` reads
+/// `Capability.list_with_start_after`, the attribute of the `Capability` that
+/// `Operator.capability()` returns. Keyword arguments keep their core names,
+/// so a code span that names an options field, like `start_after`, needs no
+/// rewrite.
+fn py_code_span(code: &str, capabilities: &[CapabilityField]) -> Option<String> {
+    let name = code
+        .strip_prefix("crate::")
+        .unwrap_or(code)
+        .strip_prefix("Capability::")?;
+    capabilities
+        .iter()
+        .any(|f| f.name == name)
+        .then(|| format!("Capability.{name}"))
+}
+
 /// Build the render model of one generated class, checking the table against
 /// the parsed core struct.
-fn py_class(spec: &PyOptions, parsed: &[OptionsStruct]) -> Result<PyClass> {
+fn py_class(
+    spec: &PyOptions,
+    parsed: &[OptionsStruct],
+    capabilities: &[CapabilityField],
+) -> Result<PyClass> {
     let class = spec.name;
     let Some(core) = parsed.iter().find(|options| options.name == class) else {
         bail!("core options struct `{class}` not found");
@@ -794,7 +838,7 @@ fn py_class(spec: &PyOptions, parsed: &[OptionsStruct]) -> Result<PyClass> {
         fields.push(PyField {
             name,
             kind,
-            doc: py_doc(&field.doc, &format!("{class}::{name}"))?,
+            doc: py_doc(&field.doc, &format!("{class}::{name}"), capabilities)?,
             rust_type,
         });
     }
@@ -818,16 +862,19 @@ fn py_class(spec: &PyOptions, parsed: &[OptionsStruct]) -> Result<PyClass> {
 
     Ok(PyClass {
         name: class,
-        doc: py_doc(&core.doc, class)?,
+        doc: py_doc(&core.doc, class, capabilities)?,
         fields,
         conversion,
     })
 }
 
-fn generated_classes(parsed: &[OptionsStruct]) -> Result<Vec<PyClass>> {
+fn generated_classes(
+    parsed: &[OptionsStruct],
+    capabilities: &[CapabilityField],
+) -> Result<Vec<PyClass>> {
     GENERATED_OPTIONS
         .iter()
-        .map(|spec| py_class(spec, parsed))
+        .map(|spec| py_class(spec, parsed, capabilities))
         .collect()
 }
 
@@ -844,7 +891,8 @@ fn render_options_rs(classes: &[PyClass]) -> Result<String> {
 /// generated from `core/core/src/types/options.rs`.
 fn generate_options_rs(workspace_dir: &Path) -> Result<Vec<PyClass>> {
     let source = workspace_dir.join("core/core/src/types/options.rs");
-    let classes = generated_classes(&core_options::parse(&source)?)?;
+    let capabilities = capability::parse(&workspace_dir.join("core/core/src/types/capability.rs"))?;
+    let classes = generated_classes(&core_options::parse(&source)?, &capabilities)?;
     let output = workspace_dir.join("bindings/python/src/options/generated.rs");
     fs::create_dir_all(output.parent().expect("output has a parent"))?;
     fs::write(output, render_options_rs(&classes)?)?;
@@ -1025,8 +1073,13 @@ mod tests {
         core_options::parse(&path).expect("core options must parse")
     }
 
+    fn core_capabilities() -> Vec<CapabilityField> {
+        capability::parse(&crate::workspace_dir().join("core/core/src/types/capability.rs"))
+            .expect("core capabilities must parse")
+    }
+
     fn list_class(parsed: &[OptionsStruct]) -> PyClass {
-        let mut classes = generated_classes(parsed).unwrap();
+        let mut classes = generated_classes(parsed, &core_capabilities()).unwrap();
         assert_eq!(classes.len(), 1);
         classes.remove(0)
     }
@@ -1138,18 +1191,18 @@ mod tests {
                 "limit: Maximum results per request (backend hint) to control memory and throttling.",
                 "start_after: Start listing after this key, excluding the key itself.\n\
                  \n\
-                 Setting this requires `Capability::list_with_start_after`.",
+                 Setting this requires `Capability.list_with_start_after`.",
                 "recursive: Whether to list recursively under the prefix; default `false`.\n\
                  \n\
-                 Requires `Capability::list_with_recursive`.\n\
+                 Requires `Capability.list_with_recursive`.\n\
                  Services without native recursive listing rely on `crate::layers::SimulateLayer`\n\
                  (installed automatically by the default `auto-simulate` feature).",
                 "versions: Include object versions; default `false`.\n\
                  \n\
-                 Requires `Capability::list_with_versions`.",
+                 Requires `Capability.list_with_versions`.",
                 "deleted: Include delete markers; default `false`.\n\
                  \n\
-                 Requires `Capability::list_with_deleted`.",
+                 Requires `Capability.list_with_deleted`.",
             ]
         );
 
@@ -1214,7 +1267,7 @@ mod tests {
              pub limit: Option<usize>,\n    \
              /// Start listing after this key, excluding the key itself.\n    \
              ///\n    \
-             /// Setting this requires `Capability::list_with_start_after`.\n    \
+             /// Setting this requires `Capability.list_with_start_after`.\n    \
              pub start_after: Option<String>,\n"
         ));
     }
@@ -1224,7 +1277,7 @@ mod tests {
     /// comments give them.
     #[test]
     fn test_options_py_matches_main() {
-        let generated = generated_classes(&core_options()).unwrap();
+        let generated = generated_classes(&core_options(), &core_capabilities()).unwrap();
         let py = render_options_py(&crate::workspace_dir(), &generated).unwrap();
         let classes: Vec<&str> = py
             .lines()
@@ -1290,24 +1343,24 @@ mod tests {
     start_after: str
     """Start listing after this key, excluding the key itself.
 
-    Setting this requires `Capability::list_with_start_after`.
+    Setting this requires `Capability.list_with_start_after`.
     """
     recursive: bool
     """Whether to list recursively under the prefix; default `false`.
 
-    Requires `Capability::list_with_recursive`.
+    Requires `Capability.list_with_recursive`.
     Services without native recursive listing rely on `crate::layers::SimulateLayer`
     (installed automatically by the default `auto-simulate` feature).
     """
     versions: bool
     """Include object versions; default `false`.
 
-    Requires `Capability::list_with_versions`.
+    Requires `Capability.list_with_versions`.
     """
     deleted: bool
     """Include delete markers; default `false`.
 
-    Requires `Capability::list_with_deleted`.
+    Requires `Capability.list_with_deleted`.
     """"#
         );
     }
@@ -1373,10 +1426,11 @@ mod tests {
     #[test]
     fn test_new_core_field_is_not_exposed() {
         let parsed = core_options();
-        let base_rs = render_options_rs(&generated_classes(&parsed).unwrap()).unwrap();
+        let base_rs =
+            render_options_rs(&generated_classes(&parsed, &core_capabilities()).unwrap()).unwrap();
         let base_py = render_options_py(
             &crate::workspace_dir(),
-            &generated_classes(&parsed).unwrap(),
+            &generated_classes(&parsed, &core_capabilities()).unwrap(),
         )
         .unwrap();
 
@@ -1395,7 +1449,7 @@ mod tests {
                 doc: Vec::new(),
             });
         }
-        let classes = generated_classes(&mutated).unwrap();
+        let classes = generated_classes(&mutated, &core_capabilities()).unwrap();
         let rs = render_options_rs(&classes).unwrap();
         let py = render_options_py(&crate::workspace_dir(), &classes).unwrap();
 
@@ -1418,7 +1472,7 @@ mod tests {
             options.fields.iter().position(|f| f.name == name).unwrap()
         }
         type Mutation = fn(&mut OptionsStruct);
-        let cases: [(Mutation, &str); 6] = [
+        let cases: [(Mutation, &str); 7] = [
             (
                 |list| {
                     list.fields.remove(position(list, "limit"));
@@ -1432,6 +1486,16 @@ mod tests {
                 },
                 "core ListOptions::limit has kind OptionU64; \
                  Python ListOptions.limit requires OptionUsize",
+            ),
+            // A change to another kind that Python supports must fail too,
+            // instead of silently turning `start_after` into a bool.
+            (
+                |list| {
+                    let i = position(list, "start_after");
+                    list.fields[i].kind = OptionKind::Bool;
+                },
+                "core ListOptions::start_after has kind Bool; \
+                 Python ListOptions.start_after requires OptionString",
             ),
             (
                 |list| {
@@ -1470,26 +1534,91 @@ mod tests {
                     .find(|o| o.name == "ListOptions")
                     .unwrap(),
             );
-            assert_eq!(generated_classes(&mutated).unwrap_err().to_string(), error);
+            assert_eq!(
+                generated_classes(&mutated, &core_capabilities())
+                    .unwrap_err()
+                    .to_string(),
+                error
+            );
         }
     }
 
     #[test]
     fn test_py_doc_strips_rustdoc_links() {
         let lines = [
-            "Requires [`Capability::list_with_limit`](crate::Capability::list_with_limit).",
-            "Rely on [`crate::layers::SimulateLayer`] and [`Self::recursive`].",
+            "Rely on [`crate::layers::SimulateLayer`](crate::layers::SimulateLayer) and [`Self::recursive`].",
             "",
             "A [plain](https://opendal.apache.org) link and `code` stay.",
         ]
         .map(String::from);
         assert_eq!(
-            py_doc(&lines, "Test").unwrap(),
+            py_doc(&lines, "Test", &core_capabilities()).unwrap(),
             [
-                "Requires `Capability::list_with_limit`.",
                 "Rely on `crate::layers::SimulateLayer` and `Self::recursive`.",
                 "",
                 "A [plain](https://opendal.apache.org) link and `code` stay.",
+            ]
+        );
+    }
+
+    #[test]
+    fn test_py_doc_uses_python_names() {
+        let lines = [
+            "- Pagination: `limit`, `start_after`.",
+            "Requires [`Capability::list_with_limit`](crate::Capability::list_with_limit).",
+            "Requires [`crate::Capability::list_with_versions`] and `Capability::list_with_deleted`.",
+            "Unknown `Capability::no_such_flag`, `crate::ErrorKind::Unsupported`, and prose Capability::list stay.",
+        ]
+        .map(String::from);
+        assert_eq!(
+            py_doc(&lines, "Test", &core_capabilities()).unwrap(),
+            [
+                "- Pagination: `limit`, `start_after`.",
+                "Requires `Capability.list_with_limit`.",
+                "Requires `Capability.list_with_versions` and `Capability.list_with_deleted`.",
+                "Unknown `Capability::no_such_flag`, `crate::ErrorKind::Unsupported`, and prose Capability::list stay.",
+            ]
+        );
+    }
+
+    /// Every capability the generated docstrings name is an attribute of the
+    /// `Capability` class in `python/opendal/capability.pyi`.
+    #[test]
+    fn test_list_options_docs_name_python_capabilities() {
+        let pyi = fs::read_to_string(
+            crate::workspace_dir().join("bindings/python/python/opendal/capability.pyi"),
+        )
+        .unwrap();
+        let attributes: HashSet<&str> = pyi
+            .lines()
+            .filter_map(|line| line.strip_prefix("    def ")?.split_once("(self, /)"))
+            .map(|(name, _)| name)
+            .collect();
+        assert!(attributes.contains("list_with_start_after"));
+
+        let class = list_class(&core_options());
+        let docs: Vec<&String> = class
+            .doc
+            .iter()
+            .chain(class.fields.iter().flat_map(|f| &f.doc))
+            .collect();
+        let mut named = Vec::new();
+        for line in &docs {
+            assert!(!line.contains("Capability::"), "{line}");
+            for span in line.split('`').skip(1).step_by(2) {
+                if let Some(name) = span.strip_prefix("Capability.") {
+                    assert!(attributes.contains(name), "{span} is not in capability.pyi");
+                    named.push(name);
+                }
+            }
+        }
+        assert_eq!(
+            named,
+            [
+                "list_with_start_after",
+                "list_with_recursive",
+                "list_with_versions",
+                "list_with_deleted",
             ]
         );
     }

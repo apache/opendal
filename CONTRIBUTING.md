@@ -132,11 +132,9 @@ assistance, release checks, and routine maintenance changes.
   or under a committer's personal GitHub account with a clear AI label so
   contributors can distinguish automated analysis from a maintainer's human
   judgment or a formal PMC decision.
-- **Committer and PMC authority:** Every pull request requires at least one
-  human OpenDAL committer to review, approve, and merge it. Public API changes,
-  specifications, architectural decisions, security vulnerability
-  classifications, and Apache release votes remain under human committer and
-  PMC accountability.
+- **Committer and PMC authority:** Human OpenDAL committers and the PMC set
+  project direction and remain accountable for it. See
+  [Reviews & Approvals](#reviews--approvals) for the limits on delegation.
 - **Human escalation:** Automated triage and review can be wrong. If an AI
   maintenance agent misclassifies or closes an Issue or Pull Request, reply
   with concrete technical evidence and request review from a human maintainer.
@@ -167,9 +165,26 @@ refactor: Polish the implementation of webhdfs
 
 #### Reviews & Approvals
 
-All pull requests must be reviewed, approved, and merged by at least one human
-OpenDAL committer. AI agents may assist with initial screening and technical
-review, but they do not replace committer approval or merge accountability.
+Human OpenDAL committers and the PMC set project direction and remain
+accountable for it. Before merging changes involving public APIs, portable
+specifications, project architecture, breaking changes, new services or
+dependencies, concurrency or consistency semantics, security boundaries,
+vulnerability classifications, or release decisions, obtain a decision from
+the responsible human committer or the PMC.
+
+Within established project direction, a committer may explicitly delegate
+routine review, approval, and merge to an AI agent acting from the committer's
+account. The committer remains accountable for each approval and merge made
+under their account.
+
+Every pull request requires approval from a committer's account. Before merge,
+obtain at least one independent review of the exact head commit, address
+substantive review findings, and confirm that required CI checks pass on that
+commit.
+
+Label agent-authored reviews and comments as AI-generated. Agents must never
+declare PMC consensus, cast Apache release votes, or issue official security
+decisions.
 
 #### Merge Style
 

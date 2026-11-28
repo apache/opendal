@@ -178,6 +178,11 @@ let test_operator_stat test_ctxt =
   assert_equal false (Operator.Metadata.is_dir metadata);
   assert_equal true (Operator.Metadata.is_file metadata);
   assert_equal 10L (Operator.Metadata.content_length metadata);
+  assert_equal Operator.Metadata.File (Operator.Metadata.mode metadata);
+  assert_equal false (Operator.Metadata.is_deleted metadata);
+  ignore (test_check_result (Operator.create_dir bo "tempdir/"));
+  let dir_metadata = Operator.stat bo "tempdir/" |> test_check_result in
+  assert_equal Operator.Metadata.Dir (Operator.Metadata.mode dir_metadata);
   ()
 
 (** Test list functionality *)
@@ -480,16 +485,58 @@ let test_config_duplicate_key_last_wins _ =
   let info = Operator.info bo in
   assert_equal "/second/" (Operator.OperatorInfo.root info)
 
-(* Compile-time check: wrappers that re-include [Capability] must still match
-   the signature of [Opendal.Operator]. This fails to type-check if
-   [operator.mli] exposes [Capability] as a module alias. *)
+(* Compile-time check: the [Metadata] accessors that the hand-written module
+   exposed before it was generated from core. The signature is a literal copy
+   from the previous [operator.mli]; do not derive it from the generator.
+   Dropping or retyping one of these accessors fails to type-check. *)
+module Released_metadata : sig
+  val is_file : Opendal_core.Operator.metadata -> bool
+  val is_dir : Opendal_core.Operator.metadata -> bool
+  val content_length : Opendal_core.Operator.metadata -> int64
+  val content_md5 : Opendal_core.Operator.metadata -> string option
+  val content_type : Opendal_core.Operator.metadata -> string option
+  val content_disposition : Opendal_core.Operator.metadata -> string option
+  val etag : Opendal_core.Operator.metadata -> string option
+  val last_modified : Opendal_core.Operator.metadata -> int64 option
+end =
+  Opendal.Operator.Metadata
+
+(* Compile-time check: wrappers that re-include [Capability] or [Metadata]
+   must still match the signature of [Opendal.Operator]. This fails to
+   type-check if [operator.mli] exposes either module as a module alias. *)
 module Wrapped_operator : module type of Opendal.Operator = struct
   include Opendal.Operator
 
   module Capability = struct
     include Opendal.Operator.Capability
   end
+
+  module Metadata = struct
+    include Opendal.Operator.Metadata
+  end
 end
+
+(* Compile-time check: every [Capability] accessor that [operator.mli] declared
+   before [Capability] was generated from core keeps its name and type. *)
+module Historical_capability : sig
+  val stat : Opendal_core.Operator.capability -> bool
+  val read : Opendal_core.Operator.capability -> bool
+  val write : Opendal_core.Operator.capability -> bool
+  val create_dir : Opendal_core.Operator.capability -> bool
+  val delete : Opendal_core.Operator.capability -> bool
+  val copy : Opendal_core.Operator.capability -> bool
+  val rename : Opendal_core.Operator.capability -> bool
+  val list : Opendal_core.Operator.capability -> bool
+  val list_with_limit : Opendal_core.Operator.capability -> bool
+  val list_with_start_after : Opendal_core.Operator.capability -> bool
+  val list_with_recursive : Opendal_core.Operator.capability -> bool
+  val presign : Opendal_core.Operator.capability -> bool
+  val presign_read : Opendal_core.Operator.capability -> bool
+  val presign_stat : Opendal_core.Operator.capability -> bool
+  val presign_write : Opendal_core.Operator.capability -> bool
+  val shared : Opendal_core.Operator.capability -> bool
+end =
+  Opendal.Operator.Capability
 
 (** Test that a structurally re-exported Capability module still works *)
 let test_capability_wrapper _ =
@@ -498,6 +545,13 @@ let test_capability_wrapper _ =
   assert_equal
     (Operator.Capability.read cap)
     (Wrapped_operator.Capability.read cap)
+
+(** Test that a structurally re-exported Metadata module still works *)
+let test_metadata_wrapper _ =
+  let bo = new_test_memory_operator () in
+  ignore (Operator.write bo "wrapped" (Bytes.of_string "x") |> test_check_result);
+  let metadata = Operator.stat bo "wrapped" |> test_check_result in
+  assert_equal Operator.Metadata.File (Wrapped_operator.Metadata.mode metadata)
 
 let suite =
   "OCaml OpenDAL Test Suite"
@@ -528,6 +582,7 @@ let suite =
          "test_config_duplicate_key_last_wins"
          >:: test_config_duplicate_key_last_wins;
          "test_capability_wrapper" >:: test_capability_wrapper;
+         "test_metadata_wrapper" >:: test_metadata_wrapper;
        ]
 
 let () = run_test_tt_main suite

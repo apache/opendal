@@ -69,9 +69,10 @@ describe('basic io with memory', function () {
     });
 
     it('write/read file', function () use ($op) {
-        $op->write('test.txt', 'hello world');
+        $content = 'hello 🌰';
+        $op->write('test.txt', $content);
         expect($op->is_exist('test.txt'))->toEqual(1)
-            ->and($op->read('test.txt'))->toEqual('hello world');
+            ->and($op->read('test.txt'))->toBe($content);
     });
 
     it('write/read file overwrite', function () use ($op) {
@@ -103,31 +104,36 @@ describe('basic io with memory', function () {
 describe('binary safe IO with fs', function () {
     $op = new \OpenDAL\Operator('fs', ['root' => '/tmp']);
 
-    it('write & read invalid UTF-8', function () use ($op) {
+    it('writes and reads a byte array', function () use ($op) {
         $content = "hello 🌰 \x80\x80\x80 🍋";
         $bytesArray = unpack('C*', $content);
 
         expect($bytesArray)->toBeArray();
 
         $op->write_binary('test.txt', $bytesArray);
-        $content = $op->read('test.txt');
 
-        expect($content)->toBeString()->toEqual($content);
+        expect($op->read('test.txt'))->toBe($content);
     });
 });
 
 describe('binary safe IO with memory', function () {
     $op = new \OpenDAL\Operator('memory', []);
 
-    it('write & read invalid UTF-8', function () use ($op) {
+    it('writes and reads arbitrary string bytes', function () use ($op) {
+        $content = "prefix\0\x80\xff suffix";
+        $op->write('bytes.bin', $content);
+
+        expect($op->read('bytes.bin'))->toBe($content);
+    });
+
+    it('writes and reads a byte array', function () use ($op) {
         $content = "hello 🌰 \x80\x80\x80 🍋";
         $bytesArray = unpack('C*', $content);
 
         expect($bytesArray)->toBeArray();
 
         $op->write_binary('test.txt', $bytesArray);
-        $content = $op->read('test.txt');
 
-        expect($content)->toBeString()->toEqual($content);
+        expect($op->read('test.txt'))->toBe($content);
     });
 });

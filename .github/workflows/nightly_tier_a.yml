@@ -45,6 +45,10 @@ jobs:
     if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     uses: ./.github/workflows/ci_core.yml
 
+  docsrs:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_docsrs.yml
+
   odev:
     if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     uses: ./.github/workflows/ci_odev.yml
@@ -150,6 +154,7 @@ jobs:
     needs:
       - check
       - core
+      - docsrs
       - odev
       - website
       - edge_local

@@ -55,6 +55,24 @@ pub fn new_hanging_operator(layers: &LayerBuilder) -> AnyhowResult<*mut Operator
     build_operator(layers, HangingService)
 }
 
+/// Build a memory operator holding an empty `path` with `content_language`,
+/// which the C++ `WriteOptions` cannot set.
+pub fn new_content_language_operator(
+    path: &str,
+    content_language: &str,
+) -> AnyhowResult<*mut Operator> {
+    let op = crate::into_blocking_operator(od::Operator::new(od::services::Memory::default())?)?;
+    op.0.write_options(
+        path,
+        Buffer::new(),
+        od::options::WriteOptions {
+            content_language: Some(content_language.to_string()),
+            ..Default::default()
+        },
+    )?;
+    Ok(Box::into_raw(Box::new(op)))
+}
+
 pub fn new_retryable_operator(layers: &LayerBuilder) -> AnyhowResult<*mut Operator> {
     reset_retryable_attempts();
     build_operator(

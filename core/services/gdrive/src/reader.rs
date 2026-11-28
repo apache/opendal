@@ -27,6 +27,7 @@ pub struct GdriveReader {
     backend: GdriveBackend,
     ctx: OperationContext,
     path: String,
+    args: OpRead,
 }
 
 impl GdriveReader {
@@ -34,55 +35,44 @@ impl GdriveReader {
         backend: GdriveBackend,
         ctx: OperationContext,
         path: &str,
-        _: OpRead,
+        args: OpRead,
     ) -> Self {
         Self {
             backend,
             ctx,
             path: path.to_string(),
+            args,
         }
     }
 }
 
 impl oio::StreamRead for GdriveReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let backend = &self.backend;
+        let core = &self.backend.core;
         let path = self.path.as_str();
-        let abs_path = build_absolute_path(&backend.core.root, path);
-        let resp = match backend.core.gdrive_get(&self.ctx, path, range).await {
+        let abs_path = build_absolute_path(&core.root, path);
+        let version = self.args.version();
+        let resp = match core.gdrive_get(&self.ctx, path, range, version).await {
             Ok(resp) => resp,
             Err(err) if err.kind() == ErrorKind::NotFound => {
-                backend.core.refresh_path(&abs_path).await;
-                backend.core.gdrive_get(&self.ctx, path, range).await?
+                core.refresh_path(&abs_path).await;
+                core.gdrive_get(&self.ctx, path, range, version).await?
             }
             Err(err) => return Err(err),
         };
 
-        let status = resp.status();
-        let (rp, stream) = match status {
+        let resp = if resp.status() == StatusCode::NOT_FOUND {
+            core.refresh_path(&abs_path).await;
+            core.gdrive_get(&self.ctx, path, range, version).await?
+        } else {
+            resp
+        };
+
+        let (rp, stream) = match resp.status() {
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
                 RpRead::new(parse_into_metadata(path, resp.headers())?),
                 resp.into_body(),
             ),
-            StatusCode::NOT_FOUND => {
-                backend.core.refresh_path(&abs_path).await;
-                let resp = backend.core.gdrive_get(&self.ctx, path, range).await?;
-                let status = resp.status();
-                match status {
-                    StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                        RpRead::new(parse_into_metadata(path, resp.headers())?),
-                        resp.into_body(),
-                    ),
-                    _ => {
-                        let (part, mut body) = resp.into_parts();
-                        let buf = body.to_buffer().await?;
-                        return Err(parse_error(
-                            ErrorContext::new(ServiceOperation("DownloadFile")),
-                            Response::from_parts(part, buf),
-                        ));
-                    }
-                }
-            }
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;

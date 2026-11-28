@@ -199,6 +199,13 @@ impl SimulateService {
         let capability = self.srv.capability();
 
         if path == "/" && args.version().is_none() {
+            if args.is_conditional() {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "stat conditions are not supported for a synthesized root",
+                )
+                .with_operation(Operation::Stat));
+            }
             return Ok(RpStat::new(MetadataBuilder::dir().build()));
         }
 
@@ -220,7 +227,11 @@ impl SimulateService {
                 return Ok(RpStat::new(meta));
             }
 
-            if self.config.stat_dir && capability.list && args.version().is_none() {
+            if self.config.stat_dir
+                && capability.list
+                && args.version().is_none()
+                && !args.is_conditional()
+            {
                 let mut l = self.srv.list(
                     ctx,
                     path,

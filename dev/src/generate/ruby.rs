@@ -20,6 +20,7 @@
 use super::capability;
 use super::metadata::{self, MetadataKind};
 use anyhow::Result;
+use minijinja::value::Serde;
 use minijinja::{Environment, context};
 use serde::Serialize;
 use std::fs;
@@ -41,7 +42,7 @@ fn generate_capability(workspace_dir: &Path) -> Result<()> {
     env.add_template("capability_rs", include_str!("ruby/capability_rs.j2"))?;
     let rendered = env
         .get_template("capability_rs")?
-        .render(context! { fields => fields })?;
+        .render(context! { fields => Serde(&fields) })?;
 
     let output = workspace_dir.join("bindings/ruby/src/capability.rs");
     fs::write(output, format!("{rendered}\n"))?;
@@ -80,7 +81,7 @@ fn generate_metadata(workspace_dir: &Path) -> Result<()> {
     env.add_template("metadata_rs", include_str!("ruby/metadata_rs.j2"))?;
     let rendered = env
         .get_template("metadata_rs")?
-        .render(context! { methods => methods })?;
+        .render(context! { methods => Serde(&methods) })?;
 
     let output = workspace_dir.join("bindings/ruby/src/metadata.rs");
     fs::write(output, format!("{rendered}\n"))?;

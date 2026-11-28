@@ -811,6 +811,7 @@ mod tests {
                 id: "dir-id".to_string(),
                 name: "dir".to_string(),
                 size: None,
+                head_revision_id: None,
                 modified_time: None,
                 parents: vec!["parent-id".to_string()],
             })

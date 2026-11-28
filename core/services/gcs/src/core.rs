@@ -592,6 +592,10 @@ impl GcsCore {
             req = req.header(CONTENT_TYPE, content_type);
         }
 
+        if let Some(content_disposition) = args.content_disposition() {
+            req = req.header(CONTENT_DISPOSITION, content_disposition);
+        }
+
         if let Some(content_encoding) = args.content_encoding() {
             req = req.header(CONTENT_ENCODING, content_encoding);
         }
@@ -2166,12 +2170,14 @@ mod tests {
     }
 
     #[test]
-    fn test_gcs_insert_object_xml_request_with_cache_control() {
+    fn test_gcs_insert_object_xml_request_with_cache_control_and_content_disposition() {
+        let content_disposition = "attachment; filename=\"greeting.txt\"";
         let request = test_core()
             .gcs_insert_object_xml_request(
                 "object",
                 &write_args(options::WriteOptions {
                     cache_control: Some("private, max-age=137".to_owned()),
+                    content_disposition: Some(content_disposition.to_owned()),
                     ..Default::default()
                 }),
                 Buffer::new(),
@@ -2179,6 +2185,7 @@ mod tests {
             .expect("request must build");
 
         assert_eq!(request.headers()[CACHE_CONTROL], "private, max-age=137");
+        assert_eq!(request.headers()[CONTENT_DISPOSITION], content_disposition);
     }
 
     #[test]

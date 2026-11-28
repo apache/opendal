@@ -76,8 +76,8 @@ it('initialization OpenDAL', function () {
         ->not->toThrow(Exception::class);
 });
 
-it('invalid UTF-8 encoding', function () {
-    $op = new \OpenDAL\Operator('fs', ['root' => '/tmp']);
+it('rejects a path with invalid UTF-8', function () {
+    $op = new \OpenDAL\Operator('memory', []);
 
-    $op->write('test.txt', 'invalid UTF-8: '.chr(0x80));
-})->throws('Exception')->expectExceptionMessage('Invalid value given for argument `content`.');
+    $op->write("invalid path \x80", 'content');
+})->throws(TypeError::class)->expectExceptionMessage('Invalid value given for argument `path`.');

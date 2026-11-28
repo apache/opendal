@@ -39,17 +39,25 @@ but the response fails to confirm the digest, the object may already be visible.
 that file. The application key needs `readFiles` permission. A version that
 has been permanently deleted, belongs to a different path, or is a hide marker
 returns `NotFound`. Ordinary `stat` and `list` expose current file IDs through
-`Metadata::version()`.
+`Metadata::version()`. Current and versioned stat and list results also expose
+the stored `Content-Disposition` in `Metadata::content_disposition()` when B2
+supplies its reserved file info field.
 
 ## File version listing
 
-`list_with(path).versions(true)` and `lister_with(path).versions(true)` return
-current and historical data versions with their B2 file IDs in
-`Metadata::version()`. The application key needs `listFiles` permission. A
-hidden file can have readable historical versions. `Metadata::is_current()`
-is `Some(false)` for those versions when a hide marker is current. The list
-omits hide markers and unfinished uploads. Non-recursive listings include
-virtual directories without version metadata.
+`list_with(path)` and `lister_with(path)` return current visible files by
+default. Set `versions(true)` to include historical data versions. Set
+`deleted(true)` to include current and historical hide markers. Use both
+options to include all data versions and hide markers. The application key
+needs `listFiles` permission.
+
+Data versions and hide markers expose their B2 file IDs in
+`Metadata::version()`. With either option enabled, `Metadata::is_current()`
+indicates whether a data version or hide marker is current for its name. Hide
+markers have `Metadata::is_deleted()` set to `true`, zero content length, and
+the B2 upload timestamp in `Metadata::last_modified()`. Listings omit unfinished
+uploads. Non-recursive listings include virtual directories without version
+metadata.
 
 ## File reads by version
 
@@ -69,6 +77,18 @@ GET and addresses the file by name. `presign_read_options` and
 option-bearing variants support overriding the response
 `Content-Type`, `Content-Disposition`, and `Cache-Control`. Use the returned
 method, URL, and headers to execute the request.
+
+## Presigned uploads
+
+`presign_write_options` returns a single-object POST. It uses `content_type`
+for `Content-Type` and defaults to `b2/x-auto`. The `cache_control`,
+`content_disposition`, `content_encoding`, and `content_language` options
+use reserved B2 file-info headers.
+
+OpenDAL sends `user_metadata` as `X-Bz-Info-*` headers. A dedicated option
+takes precedence over entries that map to the same native header, matching
+header names case-insensitively. Other entries are preserved, including
+`content-type` metadata in its own `X-Bz-Info-Content-Type` header.
 
 ## Restore
 

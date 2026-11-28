@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::collections::hash_map::IntoIter;
 use std::iter::empty;
 
@@ -51,6 +52,10 @@ pub fn new_json_deserialize_error(e: serde_json::Error) -> Error {
 /// ConfigDeserializer is used to deserialize given configs from `HashMap<String, String>`.
 ///
 /// This is only used by our services' config.
+///
+/// A map field takes a JSON object with unique keys and string values, such as
+/// `{"fs.defaultFS":"hdfs://ns"}`. Keys inside the object keep their case,
+/// unlike the config keys, which are lowercased.
 pub struct ConfigDeserializer(MapDeserializer<'static, Pairs, de::value::Error>);
 
 impl ConfigDeserializer {
@@ -303,11 +308,68 @@ impl<'de> Deserializer<'de> for Pair {
         }
     }
 
+    fn deserialize_map<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        // Return empty for an empty value, as `deserialize_seq` does.
+        if self.1.is_empty() {
+            return MapDeserializer::new(empty::<(String, String)>()).deserialize_map(visitor);
+        }
+
+        // A JSON object keeps the case of its keys, and its values may contain
+        // the `,` and `=` that a delimited encoding would need to escape.
+        let mut json = serde_json::Deserializer::from_str(&self.1);
+        let entries = (&mut json)
+            .deserialize_map(UniqueStringMapVisitor)
+            .and_then(|entries| json.end().map(|()| entries))
+            .map_err(|e| {
+                de::Error::custom(format_args!(
+                    "parse config '{}' failed: expected a JSON object with unique keys and string values: {e}",
+                    self.0
+                ))
+            })?;
+        MapDeserializer::new(entries.into_iter()).deserialize_map(visitor)
+    }
+
     serde::forward_to_deserialize_any! {
         char str string unit newtype_struct enum
-        bytes byte_buf map unit_struct tuple_struct
+        bytes byte_buf unit_struct tuple_struct
         identifier tuple ignored_any
         struct
+    }
+}
+
+/// Collects a JSON object with string values and rejects a repeated key, which
+/// the `HashMap` deserializer would silently overwrite.
+struct UniqueStringMapVisitor;
+
+impl<'de> Visitor<'de> for UniqueStringMapVisitor {
+    type Value = HashMap<String, String>;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("a JSON object with string values")
+    }
+
+    fn visit_map<A>(self, mut access: A) -> Result<Self::Value, A::Error>
+    where
+        A: de::MapAccess<'de>,
+    {
+        let mut entries = HashMap::new();
+        while let Some((key, value)) = access.next_entry::<String, String>()? {
+            match entries.entry(key) {
+                Entry::Occupied(entry) => {
+                    return Err(de::Error::custom(format_args!(
+                        "duplicate key `{}`",
+                        entry.key()
+                    )));
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(value);
+                }
+            }
+        }
+        Ok(entries)
     }
 }
 
@@ -344,6 +406,11 @@ mod tests {
         vec_value_two: Vec<String>,
         vec_none: Option<Vec<String>>,
         vec_empty: Vec<String>,
+
+        map_value: HashMap<String, String>,
+        map_option_value_none: Option<HashMap<String, String>>,
+        map_option_value_empty: Option<HashMap<String, String>>,
+        map_empty: HashMap<String, String>,
     }
 
     #[test]
@@ -369,6 +436,13 @@ mod tests {
         map.insert("vec_value_two", "hello,world");
         map.insert("vec_none", "");
         map.insert("vec_empty", "");
+        map.insert(
+            "map_value",
+            r#"{"fs.defaultFS":"hdfs://ns","dfs.ha.namenodes.ns":"nn1,nn2"}"#,
+        );
+        map.insert("map_option_value_none", "");
+        map.insert("map_option_value_empty", "{}");
+        map.insert("map_empty", "");
         let map = map
             .into_iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
@@ -398,8 +472,55 @@ mod tests {
                 vec_value_two: vec!["hello".to_string(), "world".to_string()],
                 vec_none: None,
                 vec_empty: vec![],
+                map_value: HashMap::from([
+                    ("fs.defaultFS".to_string(), "hdfs://ns".to_string()),
+                    ("dfs.ha.namenodes.ns".to_string(), "nn1,nn2".to_string()),
+                ]),
+                map_option_value_none: None,
+                map_option_value_empty: Some(HashMap::new()),
+                map_empty: HashMap::new(),
             }
         );
+    }
+
+    #[test]
+    fn test_config_deserializer_rejects_invalid_map() {
+        for value in [
+            "fs.defaultFS=hdfs://ns",
+            r#"["fs.defaultFS"]"#,
+            r#"{"dfs.replication":3}"#,
+            r#"{"fs.defaultFS":null}"#,
+            r#"{"fs":{"defaultFS":"hdfs://ns"}}"#,
+        ] {
+            let map = HashMap::from([("map_value".to_string(), value.to_string())]);
+            let err = TestConfig::deserialize(ConfigDeserializer::new(map)).unwrap_err();
+            assert!(
+                err.to_string()
+                    .starts_with("parse config 'map_value' failed: expected a JSON object"),
+                "{value}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_config_deserializer_rejects_duplicate_map_keys() {
+        for value in [
+            r#"{"fs.defaultFS":"hdfs://a","fs.defaultFS":"hdfs://b"}"#,
+            r#"{"fs.defaultFS":"hdfs://a","fs.defaultFS":"hdfs://a"}"#,
+        ] {
+            let map = HashMap::from([("map_value".to_string(), value.to_string())]);
+            let err = TestConfig::deserialize(ConfigDeserializer::new(map))
+                .unwrap_err()
+                .to_string();
+            assert!(
+                err.starts_with("parse config 'map_value' failed: expected a JSON object"),
+                "{value}: {err}"
+            );
+            assert!(
+                err.contains("duplicate key `fs.defaultFS`"),
+                "{value}: {err}"
+            );
+        }
     }
 
     #[test]

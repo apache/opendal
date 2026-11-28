@@ -2498,10 +2498,7 @@ impl Operator {
     ///
     /// async fn test(op: Operator) -> Result<()> {
     ///     let signed_req = op.presign_stat("test",Duration::from_secs(3600)).await?;
-    ///     let req = http::Request::builder()
-    ///         .method(signed_req.method())
-    ///         .uri(signed_req.uri())
-    ///         .body(())?;
+    ///     let req: http::Request<()> = signed_req.into();
     ///
     /// #    Ok(())
     /// # }
@@ -2564,10 +2561,7 @@ impl Operator {
     ///             ..Default::default()
     ///         }
     ///     ).await?;
-    ///     let req = http::Request::builder()
-    ///         .method(signed_req.method())
-    ///         .uri(signed_req.uri())
-    ///         .body(())?;
+    ///     let req: http::Request<()> = signed_req.into();
     ///
     /// #    Ok(())
     /// # }
@@ -2628,12 +2622,12 @@ impl Operator {
     ///
     /// - `signed_req.method()`: `GET`
     /// - `signed_req.uri()`: `https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>`
-    /// - `signed_req.headers()`: `{ "host": "s3.amazonaws.com" }`
+    /// - `signed_req.header()`: `{ "host": "s3.amazonaws.com" }`
     ///
     /// We can download this file via `curl` or other tools without credentials:
     ///
     /// ```shell
-    /// curl "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>" -O /tmp/test.txt
+    /// curl "https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>" -o /tmp/test.txt
     /// ```
     pub async fn presign_read(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
         self.presign_read_with(path, expire).await
@@ -2701,10 +2695,7 @@ impl Operator {
     ///             ..Default::default()
     ///         }
     ///     ).await?;
-    ///     let req = http::Request::builder()
-    ///         .method(signed_req.method())
-    ///         .uri(signed_req.uri())
-    ///         .body(())?;
+    ///     let req: http::Request<()> = signed_req.into();
     ///
     /// #    Ok(())
     /// # }
@@ -2774,7 +2765,7 @@ impl Operator {
     ///
     /// - `signed_req.method()`: `PUT`
     /// - `signed_req.uri()`: `https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>`
-    /// - `signed_req.headers()`: `{ "host": "s3.amazonaws.com" }`
+    /// - `signed_req.header()`: `{ "host": "s3.amazonaws.com" }`
     ///
     /// We can upload file as this file via `curl` or other tools without credential:
     ///
@@ -2804,10 +2795,7 @@ impl Operator {
     ///         .presign_write_with("test", Duration::from_secs(3600))
     ///         .cache_control("no-store")
     ///         .await?;
-    ///     let req = http::Request::builder()
-    ///         .method(signed_req.method())
-    ///         .uri(signed_req.uri())
-    ///         .body(())?;
+    ///     let req: http::Request<()> = signed_req.into();
     ///
     ///     Ok(())
     /// }
@@ -2853,10 +2841,7 @@ impl Operator {
     ///             ..Default::default()
     ///         }
     ///     ).await?;
-    ///     let req = http::Request::builder()
-    ///         .method(signed_req.method())
-    ///         .uri(signed_req.uri())
-    ///         .body(())?;
+    ///     let req: http::Request<()> = signed_req.into();
     ///
     /// #    Ok(())
     /// # }
@@ -2917,7 +2902,7 @@ impl Operator {
     ///
     /// - `signed_req.method()`: `DELETE`
     /// - `signed_req.uri()`: `https://s3.amazonaws.com/examplebucket/test.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=access_key_id/20130721/us-east-1/s3/aws4_request&X-Amz-Date=20130721T201207Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature-value>`
-    /// - `signed_req.headers()`: `{ "host": "s3.amazonaws.com" }`
+    /// - `signed_req.header()`: `{ "host": "s3.amazonaws.com" }`
     ///
     /// We can delete file as this file via `curl` or other tools without credential:
     ///
@@ -2967,10 +2952,7 @@ impl Operator {
     ///             ..Default::default()
     ///         }
     ///     ).await?;
-    ///     let req = http::Request::builder()
-    ///         .method(signed_req.method())
-    ///         .uri(signed_req.uri())
-    ///         .body(())?;
+    ///     let req: http::Request<()> = signed_req.into();
     ///
     /// #    Ok(())
     /// # }

@@ -25,8 +25,7 @@ without notice. It is not ready for production use.
 ## Capabilities
 
 - **Synchronous API** — all calls block; there is no async variant.
-- **String and binary writes** — `write` for UTF-8 strings, `write_binary` for
-  arbitrary byte arrays.
+- **Binary-safe writes** — `write` stores PHP strings byte for byte.
 - **Metadata** — `stat` returns content length, content type, ETag, MD5, and
   entry mode (file or directory).
 - **Directory operations** — `create_dir` creates directories recursively.

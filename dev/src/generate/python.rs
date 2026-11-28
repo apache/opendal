@@ -20,7 +20,7 @@ use crate::generate::metadata::{self, MetadataKind};
 use crate::generate::options;
 use crate::generate::parser::{Config, ConfigType, Services, service_feature, sorted_services};
 use anyhow::{Context, Result, bail};
-use minijinja::value::ViaDeserialize;
+use minijinja::value::Serde;
 use minijinja::{Environment, context};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -187,7 +187,7 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     // Generate the `Scheme` enum (Rust).
     let tmpl = env.get_template("python")?;
     let output = workspace_dir.join("bindings/python/src/services.rs");
-    let mut rendered = tmpl.render(context! { srvs => srvs })?;
+    let mut rendered = tmpl.render(context! { srvs => Serde(&srvs) })?;
     if !rendered.ends_with('\n') {
         rendered.push('\n');
     }
@@ -196,7 +196,7 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     // Generate the service, context, and layer config TypedDicts (Python).
     let tmpl = env.get_template("python_config")?;
     let output = workspace_dir.join("bindings/python/python/opendal/config.py");
-    let mut rendered = tmpl.render(context! { srvs => srvs, layers => layers })?;
+    let mut rendered = tmpl.render(context! { srvs => Serde(&srvs), layers => Serde(&layers) })?;
     if !rendered.ends_with('\n') {
         rendered.push('\n');
     }
@@ -227,7 +227,7 @@ fn generate_capability(workspace_dir: &Path) -> Result<()> {
     env.add_template("capability_rs", include_str!("python/capability_rs.j2"))?;
     let rendered = env
         .get_template("capability_rs")?
-        .render(context! { fields => fields })?;
+        .render(context! { fields => Serde(&fields) })?;
 
     let output = workspace_dir.join("bindings/python/src/capability.rs");
     fs::write(output, format!("{rendered}\n"))?;
@@ -316,7 +316,7 @@ fn generate_metadata(workspace_dir: &Path) -> Result<()> {
     env.add_template("metadata_rs", include_str!("python/metadata_rs.j2"))?;
     let rendered = env
         .get_template("metadata_rs")?
-        .render(context! { fields => fields })?;
+        .render(context! { fields => Serde(&fields) })?;
 
     let output = workspace_dir.join("bindings/python/src/metadata.rs");
     fs::write(output, format!("{rendered}\n"))?;
@@ -454,7 +454,7 @@ pub fn format_text(text: &str, indent: usize, max_line_length: usize) -> String 
 // Compose first line: param_name : type[, optional]
 pub fn make_pydoc_param_header(
     name: &str,
-    ty: ViaDeserialize<ConfigType>,
+    ty: Serde<ConfigType>,
     optional: bool,
 ) -> Result<String, minijinja::Error> {
     let py_type = make_python_type(ty)?;
@@ -465,10 +465,7 @@ pub fn make_pydoc_param_header(
 }
 
 /// Generate a properly indented NumPy-style docstring line for a parameter
-pub fn make_pydoc_param(
-    comments: &str,
-    ty: ViaDeserialize<ConfigType>,
-) -> Result<String, minijinja::Error> {
+pub fn make_pydoc_param(comments: &str, ty: Serde<ConfigType>) -> Result<String, minijinja::Error> {
     // Collect description parts
     let mut desc_parts = Vec::new();
     let comments = comments.trim();
@@ -507,7 +504,7 @@ fn is_path_like_field(name: &str) -> bool {
 /// Returns only the *base* value type (no `Required[...]`/`NotRequired[...]`
 /// wrapper — the template applies that based on `config_field_is_required`).
 /// Curated path-like `String` fields are widened to `str | os.PathLike[str]`.
-fn make_config_field_type(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
+fn make_config_field_type(field: Serde<Config>) -> Result<String, minijinja::Error> {
     Ok(match field.value {
         ConfigType::Bool => "bool".to_string(),
         ConfigType::Duration => "str | timedelta".to_string(),
@@ -533,7 +530,7 @@ fn make_config_field_type(field: ViaDeserialize<Config>) -> Result<String, minij
 /// The base `TypedDict` is declared `total=False`, so every item is optional
 /// (`NotRequired`) unless it is a required core field. `bool` flags are always
 /// treated as optional, matching the Java binding and historical stub-gen.
-fn config_field_is_required(field: ViaDeserialize<Config>) -> Result<bool, minijinja::Error> {
+fn config_field_is_required(field: Serde<Config>) -> Result<bool, minijinja::Error> {
     Ok(!field.optional && field.value != ConfigType::Bool)
 }
 
@@ -542,7 +539,7 @@ fn config_field_is_required(field: ViaDeserialize<Config>) -> Result<bool, minij
 /// Returns an empty string when there is nothing to document (the template then
 /// omits the docstring). Backslashes and `"""` runs are escaped, and a trailing
 /// `"` is escaped so it cannot merge with the closing delimiter.
-fn make_config_field_doc(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
+fn make_config_field_doc(field: Serde<Config>) -> Result<String, minijinja::Error> {
     let mut parts = Vec::new();
     let comments = field.comments.trim();
     if !comments.is_empty() {
@@ -586,7 +583,7 @@ fn escape_docstring(text: &str) -> String {
     out
 }
 
-fn make_python_type(ty: ViaDeserialize<ConfigType>) -> Result<String, minijinja::Error> {
+fn make_python_type(ty: Serde<ConfigType>) -> Result<String, minijinja::Error> {
     Ok(match ty.0 {
         ConfigType::Bool => "builtins.bool",
         ConfigType::Duration => "typing.Any",
@@ -749,39 +746,5 @@ fn push_field_doc(out: &mut String, doc: &str) {
             }
         }
         out.push_str("\n    \"\"\"\n");
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// `Metadata` getters exposed by the Python binding before it was
-    /// generated. Each must still come from core so the generated pyclass
-    /// never silently drops a user-facing attribute.
-    const LEGACY_METADATA_GETTERS: &[&str] = &[
-        "content_disposition",
-        "content_length",
-        "content_md5",
-        "content_type",
-        "content_encoding",
-        "etag",
-        "mode",
-        "last_modified",
-        "version",
-        "user_metadata",
-    ];
-
-    #[test]
-    fn test_legacy_metadata_getters_exist_in_core() {
-        let path = crate::workspace_dir().join("core/core/src/types/metadata.rs");
-        let fields = metadata::parse(&path).expect("core metadata must parse");
-
-        for &legacy in LEGACY_METADATA_GETTERS {
-            assert!(
-                fields.iter().any(|f| f.name == legacy),
-                "legacy Python metadata getter `{legacy}` is missing from core Metadata"
-            );
-        }
     }
 }

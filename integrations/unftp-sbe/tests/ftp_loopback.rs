@@ -104,7 +104,7 @@ async fn retrieve(ftp: &mut AsyncFtpStream, path: &str) -> Result<Vec<u8>> {
         .with_context(|| format!("RETR {path}"))?;
     let mut bytes = Vec::new();
     stream.read_to_end(&mut bytes).await?;
-    ftp.finalize_retr_stream(stream).await?;
+    stream.finish().await?;
     Ok(bytes)
 }
 
@@ -249,8 +249,9 @@ async fn cwd_rejects_regular_file() -> Result<()> {
 #[tokio::test]
 async fn restart_is_unsupported() -> Result<()> {
     with_ftp_client(async |ftp| {
+        ftp.resume_transfer(1).await?;
         assert_reply(
-            ftp.resume_transfer(1).await,
+            ftp.retr_as_stream("missing").await.map(|_| ()),
             Status::NotImplemented,
             "REST 1",
         );
@@ -387,7 +388,7 @@ async fn known_mtime_entries_on_fs() -> Result<()> {
         );
 
         let mdtm = ftp.mdtm("f.txt").await.context("MDTM f.txt")?;
-        let mdtm_ts = mdtm.and_utc().timestamp() as u64;
+        let mdtm_ts = mdtm.in_tz("UTC")?.timestamp().as_second() as u64;
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .context("system time before epoch")?

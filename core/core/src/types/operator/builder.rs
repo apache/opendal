@@ -231,6 +231,39 @@ mod tests {
         op.create_dir("dir/").await
     }
 
+    #[cfg(feature = "auto-simulate")]
+    #[tokio::test]
+    async fn conditional_stat_checks_exact_directory_marker() -> Result<()> {
+        let op = Operator::new(DirectoryMarkerService)?;
+
+        assert!(op.stat("/").await?.is_dir());
+        let error = op.stat_with("/").if_match(MARKER_ETAG).await.unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::Unsupported);
+
+        assert!(op.stat("dir/").await?.is_dir());
+        let marker = op.stat_with("dir/").if_match(MARKER_ETAG).await?;
+        assert!(marker.is_dir());
+        assert_eq!(marker.etag(), Some(MARKER_ETAG));
+
+        let error = op
+            .stat_with("dir/")
+            .if_match("\"stale\"")
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::ConditionNotMatch);
+
+        assert!(op.stat("implicit/").await?.is_dir());
+        let error = op
+            .stat_with("implicit/")
+            .if_match(MARKER_ETAG)
+            .await
+            .unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::NotFound);
+        Ok(())
+    }
+
+    const MARKER_ETAG: &str = "\"marker\"";
+
     #[derive(Debug, Default)]
     struct DirectoryMarkerService;
 
@@ -245,7 +278,7 @@ mod tests {
     impl Service for DirectoryMarkerService {
         type Reader = ();
         type Writer = oio::OneShotWriter<DirectoryMarkerWriter>;
-        type Lister = ();
+        type Lister = DirectoryMarkerLister;
         type Deleter = ();
         type Copier = ();
         type Composer = ();
@@ -256,6 +289,8 @@ mod tests {
 
         fn capability(&self) -> Capability {
             Capability {
+                stat: true,
+                stat_with_if_match: true,
                 list: true,
                 write: true,
                 write_can_empty: true,
@@ -272,8 +307,22 @@ mod tests {
             Service::create_dir(&(), ctx, path, args).await
         }
 
-        async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
-            Service::stat(&(), ctx, path, args).await
+        async fn stat(&self, _: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+            if path != "dir/" {
+                return Err(Error::new(ErrorKind::NotFound, "marker is missing"));
+            }
+            if let Some(etag) = args.if_match()
+                && etag != MARKER_ETAG
+            {
+                return Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    "marker ETag differs",
+                ));
+            }
+
+            let mut metadata = MetadataBuilder::dir();
+            metadata.etag(MARKER_ETAG);
+            Ok(RpStat::new(metadata.build()))
         }
 
         fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -289,8 +338,16 @@ mod tests {
             Service::delete(&(), ctx)
         }
 
-        fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
-            Ok(())
+        fn list(&self, _: &OperationContext, path: &str, _: OpList) -> Result<Self::Lister> {
+            let entry = match path {
+                "dir/" => Some(oio::Entry::new(path, MetadataBuilder::dir().build())),
+                "implicit/" => Some(oio::Entry::new(
+                    "implicit/child",
+                    MetadataBuilder::file(1).build(),
+                )),
+                _ => None,
+            };
+            Ok(DirectoryMarkerLister(entry))
         }
 
         fn copy(
@@ -320,6 +377,14 @@ mod tests {
             args: OpPresign,
         ) -> Result<RpPresign> {
             Service::presign(&(), ctx, path, args).await
+        }
+    }
+
+    struct DirectoryMarkerLister(Option<oio::Entry>);
+
+    impl oio::List for DirectoryMarkerLister {
+        async fn next(&mut self) -> Result<Option<oio::Entry>> {
+            Ok(self.0.take())
         }
     }
 

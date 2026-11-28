@@ -81,12 +81,14 @@ namespace OpenDAL {
         public function __construct(string $scheme_str, array $config) {}
 
         /**
-         * Write string into given path.
+         * Write a PHP string to the given path, preserving every byte.
          */
         public function write(string $path, string $content): mixed {}
 
         /**
-         * Write bytes into given path, binary safe.
+         * Write an array of bytes to the given path.
+         *
+         * Prefer `write` for binary strings.
          */
         public function write_binary(string $path, array $content): mixed {}
 

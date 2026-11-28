@@ -1,0 +1,68 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Docs.rs CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "core/**/Cargo.toml"
+      - "core/Cargo.toml"
+      - "core/Cargo.lock"
+      - ".github/scripts/check_docsrs.py"
+      - ".github/scripts/test_check_docsrs.py"
+      - ".github/workflows/ci_docsrs.yml"
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-docsrs-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check_docsrs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Test docs.rs checker
+        run: python3 -m unittest discover -s .github/scripts -p "test_check_docsrs.py"
+
+      - name: Setup Rust Nightly
+        run: |
+          rustup toolchain install nightly --profile minimal --target x86_64-unknown-linux-gnu
+          rustc +nightly --version
+          rustdoc +nightly --version
+
+      - name: Verify opendal-core package tarball
+        working-directory: core
+        run: cargo +nightly package --locked -p opendal-core
+
+      - name: Build docs in docs.rs sandbox
+        run: |
+          python3 .github/scripts/check_docsrs.py \
+            --toolchain nightly \
+            --manifest-path core/Cargo.toml \
+            --manifest-path core/services/rocksdb/Cargo.toml

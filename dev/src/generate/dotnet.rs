@@ -40,6 +40,7 @@
 //! regeneration.
 
 use anyhow::{Result, bail};
+use minijinja::value::Serde;
 use minijinja::{Environment, context};
 use serde::Serialize;
 use std::fs;
@@ -244,7 +245,7 @@ fn generate_capability(workspace_dir: &Path) -> Result<()> {
     ];
     for (template, relative) in outputs {
         let tmpl = env.get_template(template)?;
-        let rendered = tmpl.render(context! { fields => fields })?;
+        let rendered = tmpl.render(context! { fields => Serde(&fields) })?;
         write_rendered(&workspace_dir.join(relative), rendered)?;
     }
 
@@ -280,7 +281,7 @@ fn generate_metadata(workspace_dir: &Path) -> Result<()> {
     ];
     for (template, relative) in outputs {
         let tmpl = env.get_template(template)?;
-        let rendered = tmpl.render(context! { fields => fields })?;
+        let rendered = tmpl.render(context! { fields => Serde(&fields) })?;
         write_rendered(&workspace_dir.join(relative), rendered)?;
     }
 
@@ -510,7 +511,7 @@ fn generate_options(workspace_dir: &Path) -> Result<()> {
 
     let rendered = env
         .get_template("options_rs")?
-        .render(context! { classes => classes })?;
+        .render(context! { classes => Serde(&classes) })?;
     write_rendered(
         &workspace_dir.join("bindings/dotnet/src/options.rs"),
         rendered,
@@ -518,7 +519,7 @@ fn generate_options(workspace_dir: &Path) -> Result<()> {
 
     let tmpl = env.get_template("options_cs")?;
     for class in &classes {
-        let rendered = tmpl.render(context! { class => class })?;
+        let rendered = tmpl.render(context! { class => Serde(class) })?;
         let output =
             workspace_dir.join(format!("bindings/dotnet/OpenDAL/Options/{}.cs", class.name));
         write_rendered(&output, rendered)?;
@@ -937,9 +938,9 @@ fn generate_service_configs(workspace_dir: &Path, services: Services) -> Result<
 
         let rendered = tmpl.render(context! {
             service => name,
-            class_name => class_name,
+            class_name => &class_name,
             scheme => scheme,
-            fields => fields,
+            fields => Serde(&fields),
         })?;
         let output = workspace_dir.join(format!(
             "bindings/dotnet/OpenDAL/ServiceConfig/{class_name}ServiceConfig.cs"

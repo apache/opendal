@@ -18,38 +18,7 @@
 use opendal as od;
 
 use super::ffi;
-
-impl From<od::Metadata> for ffi::Metadata {
-    fn from(meta: od::Metadata) -> Self {
-        let mode = meta.mode().into();
-        let content_length = meta.content_length();
-        let cache_control = meta.cache_control().map(ToOwned::to_owned).into();
-        let content_disposition = meta.content_disposition().map(ToOwned::to_owned).into();
-        let content_md5 = meta.content_md5().map(ToOwned::to_owned).into();
-        let content_type = meta.content_type().map(ToOwned::to_owned).into();
-        let content_encoding = meta.content_encoding().map(ToOwned::to_owned).into();
-        let etag = meta.etag().map(ToOwned::to_owned).into();
-        let last_modified = to_ffi_optional_timestamp(meta.last_modified());
-        let version = meta.version().map(ToOwned::to_owned).into();
-        let is_current = meta.is_current().into();
-        let is_deleted = meta.is_deleted();
-
-        Self {
-            mode,
-            content_length,
-            cache_control,
-            content_disposition,
-            content_md5,
-            content_type,
-            content_encoding,
-            etag,
-            last_modified,
-            version,
-            is_current,
-            is_deleted,
-        }
-    }
-}
+use super::metadata::ffi as metadata_ffi;
 
 impl From<od::Entry> for ffi::Entry {
     fn from(entry: od::Entry) -> Self {
@@ -58,7 +27,7 @@ impl From<od::Entry> for ffi::Entry {
     }
 }
 
-impl From<od::EntryMode> for ffi::EntryMode {
+impl From<od::EntryMode> for metadata_ffi::EntryMode {
     fn from(mode: od::EntryMode) -> Self {
         match mode {
             od::EntryMode::FILE => Self::File,
@@ -75,36 +44,38 @@ impl From<od::EntryMode> for ffi::EntryMode {
 /// `Timestamp::subsec_nanosecond` carries the same sign for instants before
 /// the Unix epoch. Normalize them into a floor second and a non-negative
 /// nanosecond so C++ can rebuild the instant with `seconds + nanoseconds`.
-fn to_ffi_optional_timestamp(timestamp: Option<od::raw::Timestamp>) -> ffi::OptionalTimestamp {
-    let Some(timestamp) = timestamp else {
-        return ffi::OptionalTimestamp {
-            has_value: false,
-            seconds: 0,
-            nanoseconds: 0,
+impl From<Option<od::raw::Timestamp>> for metadata_ffi::OptionalTimestamp {
+    fn from(timestamp: Option<od::raw::Timestamp>) -> Self {
+        let Some(timestamp) = timestamp else {
+            return Self {
+                has_value: false,
+                seconds: 0,
+                nanoseconds: 0,
+            };
         };
-    };
 
-    let timestamp = timestamp.into_inner();
-    let mut seconds = timestamp.as_second();
-    let mut nanoseconds = timestamp.subsec_nanosecond();
-    if nanoseconds < 0 {
-        seconds -= 1;
-        nanoseconds += 1_000_000_000;
-    }
+        let timestamp = timestamp.into_inner();
+        let mut seconds = timestamp.as_second();
+        let mut nanoseconds = timestamp.subsec_nanosecond();
+        if nanoseconds < 0 {
+            seconds -= 1;
+            nanoseconds += 1_000_000_000;
+        }
 
-    ffi::OptionalTimestamp {
-        has_value: true,
-        seconds,
-        nanoseconds: nanoseconds as u32,
+        Self {
+            has_value: true,
+            seconds,
+            nanoseconds: nanoseconds as u32,
+        }
     }
 }
 
-impl From<Option<String>> for ffi::OptionalString {
-    fn from(s: Option<String>) -> Self {
+impl From<Option<&str>> for metadata_ffi::OptionalString {
+    fn from(s: Option<&str>) -> Self {
         match s {
             Some(s) => Self {
                 has_value: true,
-                value: s,
+                value: s.to_owned(),
             },
             None => Self {
                 has_value: false,
@@ -114,7 +85,28 @@ impl From<Option<String>> for ffi::OptionalString {
     }
 }
 
-impl From<Option<bool>> for ffi::OptionalBool {
+impl From<Option<od::UserMetadata<'_>>> for metadata_ffi::OptionalUserMetadata {
+    fn from(user_metadata: Option<od::UserMetadata<'_>>) -> Self {
+        match user_metadata {
+            Some(user_metadata) => Self {
+                has_value: true,
+                value: user_metadata
+                    .into_iter()
+                    .map(|(key, value)| metadata_ffi::HashMapValue {
+                        key: key.to_owned(),
+                        value: value.to_owned(),
+                    })
+                    .collect(),
+            },
+            None => Self {
+                has_value: false,
+                value: Vec::new(),
+            },
+        }
+    }
+}
+
+impl From<Option<bool>> for metadata_ffi::OptionalBool {
     fn from(b: Option<bool>) -> Self {
         match b {
             Some(b) => Self {
@@ -150,10 +142,10 @@ impl From<Option<od::Entry>> for ffi::OptionalEntry {
 mod tests {
     use super::*;
 
-    fn last_modified_of(timestamp: od::raw::Timestamp) -> ffi::OptionalTimestamp {
+    fn last_modified_of(timestamp: od::raw::Timestamp) -> metadata_ffi::OptionalTimestamp {
         let mut builder = od::MetadataBuilder::file(0);
         builder.last_modified(timestamp);
-        let metadata: ffi::Metadata = builder.build().into();
+        let metadata: metadata_ffi::Metadata = builder.build().into();
         metadata.last_modified
     }
 
@@ -184,8 +176,68 @@ mod tests {
 
     #[test]
     fn test_last_modified_absent() {
-        let metadata: ffi::Metadata = od::MetadataBuilder::file(0).build().into();
+        let metadata: metadata_ffi::Metadata = od::MetadataBuilder::file(0).build().into();
 
         assert!(!metadata.last_modified.has_value);
+    }
+
+    #[test]
+    fn test_metadata_carries_every_accessor() {
+        let mut builder = od::MetadataBuilder::file(42);
+        builder
+            .is_current(Some(false))
+            .is_deleted(true)
+            .cache_control("cache_control")
+            .content_md5("content_md5")
+            .content_type("content_type")
+            .content_encoding("content_encoding")
+            .content_language("content_language")
+            .last_modified(od::raw::Timestamp::new(7, 8).unwrap())
+            .etag("etag")
+            .content_disposition("content_disposition")
+            .version("version")
+            .user_metadata([("owner".to_string(), "opendal".to_string())]);
+
+        let metadata: metadata_ffi::Metadata = builder.build().into();
+
+        assert!(metadata.mode == metadata_ffi::EntryMode::File);
+        assert!(metadata.is_current.has_value);
+        assert!(!metadata.is_current.value);
+        assert!(metadata.is_deleted);
+        assert_eq!(metadata.content_length, 42);
+        for (field, expected) in [
+            (&metadata.cache_control, "cache_control"),
+            (&metadata.content_md5, "content_md5"),
+            (&metadata.content_type, "content_type"),
+            (&metadata.content_encoding, "content_encoding"),
+            (&metadata.content_language, "content_language"),
+            (&metadata.etag, "etag"),
+            (&metadata.content_disposition, "content_disposition"),
+            (&metadata.version, "version"),
+        ] {
+            assert!(field.has_value, "{expected} is missing");
+            assert_eq!(field.value, expected);
+        }
+        assert!(metadata.last_modified.has_value);
+        assert_eq!(metadata.last_modified.seconds, 7);
+        assert_eq!(metadata.last_modified.nanoseconds, 8);
+        assert!(metadata.user_metadata.has_value);
+        let pairs: Vec<_> = metadata
+            .user_metadata
+            .value
+            .iter()
+            .map(|pair| (pair.key.as_str(), pair.value.as_str()))
+            .collect();
+        assert_eq!(pairs, [("owner", "opendal")]);
+    }
+
+    #[test]
+    fn test_metadata_keeps_absent_accessors_absent() {
+        let metadata: metadata_ffi::Metadata = od::MetadataBuilder::dir().build().into();
+
+        assert!(metadata.mode == metadata_ffi::EntryMode::Dir);
+        assert!(!metadata.is_current.has_value);
+        assert!(!metadata.content_language.has_value);
+        assert!(!metadata.user_metadata.has_value);
     }
 }

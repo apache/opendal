@@ -23,6 +23,7 @@ use ext_php_rs::binary::Binary;
 use ext_php_rs::builders::ClassBuilder;
 use ext_php_rs::class::RegisteredClass;
 use ext_php_rs::convert::FromZval;
+use ext_php_rs::describe::abi::Str;
 use ext_php_rs::exception::PhpException;
 use ext_php_rs::flags::DataType;
 use ext_php_rs::prelude::*;
@@ -53,15 +54,17 @@ impl Operator {
         Ok(Operator(op))
     }
 
-    /// Write string into given path.
-    pub fn write(&self, path: &str, content: String) -> PhpResult<()> {
+    /// Write a PHP string to the given path, preserving every byte.
+    pub fn write(&self, path: &str, content: Binary<u8>) -> PhpResult<()> {
         self.0
-            .write(path, content)
+            .write(path, Vec::from(content))
             .map(|_| ())
             .map_err(format_php_err)
     }
 
-    /// Write bytes into given path, binary safe.
+    /// Write an array of bytes to the given path.
+    ///
+    /// Prefer `write` for binary strings.
     pub fn write_binary(&self, path: &str, content: Vec<u8>) -> PhpResult<()> {
         self.0
             .write(path, content)
@@ -130,37 +133,37 @@ pub struct Metadata(od::Metadata);
 #[php_impl]
 #[php(change_method_case = "none")]
 impl Metadata {
-    #[php(getter)]
+    #[php(getter, change_case = "none")]
     pub fn content_disposition(&self) -> Option<String> {
         self.0.content_disposition().map(|s| s.to_string())
     }
 
     /// Content length of this entry.
-    #[php(getter)]
+    #[php(getter, change_case = "none")]
     pub fn content_length(&self) -> u64 {
         self.0.content_length()
     }
 
     /// Content MD5 of this entry.
-    #[php(getter)]
+    #[php(getter, change_case = "none")]
     pub fn content_md5(&self) -> Option<String> {
         self.0.content_md5().map(|s| s.to_string())
     }
 
     /// Content Type of this entry.
-    #[php(getter)]
+    #[php(getter, change_case = "none")]
     pub fn content_type(&self) -> Option<String> {
         self.0.content_type().map(|s| s.to_string())
     }
 
     /// ETag of this entry.
-    #[php(getter)]
+    #[php(getter, change_case = "none")]
     pub fn etag(&self) -> Option<String> {
         self.0.etag().map(|s| s.to_string())
     }
 
     /// mode represent this entry's mode.
-    #[php(getter)]
+    #[php(getter, change_case = "none")]
     pub fn mode(&self) -> EntryMode {
         EntryMode(self.0.mode())
     }
@@ -171,7 +174,7 @@ impl Metadata {
 pub struct EntryMode(od::EntryMode);
 
 impl<'b> FromZval<'b> for EntryMode {
-    const TYPE: DataType = DataType::Object(Some("OpenDAL\\EntryMode"));
+    const TYPE: DataType = DataType::Object(Str::new("OpenDAL\\EntryMode"));
 
     fn from_zval(zval: &'b Zval) -> Option<Self> {
         zval.object().and_then(|obj| obj.get_property("mode").ok())
@@ -181,7 +184,7 @@ impl<'b> FromZval<'b> for EntryMode {
 #[php_impl]
 #[php(change_method_case = "none")]
 impl EntryMode {
-    #[php(getter)]
+    #[php(getter, change_case = "none")]
     pub fn is_dir(&self) -> u8 {
         match self.0.is_dir() {
             true => 1,
@@ -189,7 +192,7 @@ impl EntryMode {
         }
     }
 
-    #[php(getter)]
+    #[php(getter, change_case = "none")]
     pub fn is_file(&self) -> u8 {
         match self.0.is_file() {
             true => 1,
@@ -206,7 +209,11 @@ fn register_exception(_type: i32, _module_number: i32) -> i32 {
     // Use the native exception allocator so Zend captures the file, line, and stack trace.
     let result = ClassBuilder::new(Exception::CLASS_NAME)
         .extends((ce::exception, "\\Exception"))
-        .registration(|class| Exception::get_metadata().set_ce(class))
+        .registration(|class, arg_info| {
+            let metadata = Exception::get_metadata();
+            metadata.set_ce(class);
+            metadata.set_arg_info(arg_info);
+        })
         .register();
     i32::from(result.is_err())
 }

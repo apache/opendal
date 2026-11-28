@@ -18,11 +18,17 @@
  */
 
 #include <chrono>
+#include <cstdint>
+#include <memory>
+#include <optional>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
 
 #include "gtest/gtest.h"
+#include "lib.rs.h"
 #include "opendal.hpp"
+#include "utils/metadata_converter.hpp"
 
 class MetadataTest : public ::testing::Test {
  protected:
@@ -612,3 +618,179 @@ TEST_F(MetadataTest, AfterFileModification) {
   EXPECT_GT(modified_metadata.ContentLength(),
             initial_metadata.ContentLength());
 }
+
+TEST_F(MetadataTest, WrittenFieldsRoundTrip) {
+  opendal::WriteOptions options;
+  options.cache_control = "no-cache";
+  options.content_type = "text/plain";
+  options.content_disposition = "inline";
+  options.content_encoding = "identity";
+  options.user_metadata =
+      std::unordered_map<std::string, std::string>{{"owner", "opendal"}};
+  op.Write("written_fields.txt", "content", options);
+
+  auto metadata = when_i_get_metadata_for("written_fields.txt");
+
+  EXPECT_EQ(metadata.CacheControl(), "no-cache");
+  EXPECT_EQ(metadata.ContentType(), "text/plain");
+  EXPECT_EQ(metadata.ContentDisposition(), "inline");
+  EXPECT_EQ(metadata.ContentEncoding(), "identity");
+  const std::unordered_map<std::string, std::string> expected{
+      {"owner", "opendal"}};
+  EXPECT_EQ(metadata.UserMetadata(), expected);
+  EXPECT_EQ(metadata.user_metadata, expected);
+  EXPECT_EQ(metadata.ContentLanguage(), std::nullopt);
+}
+
+TEST_F(MetadataTest, ContentLanguageCrossesBridge) {
+  // C++ WriteOptions cannot set Content-Language, so a testing hook writes it
+  // from Rust. Operator::Stat converts its result with utils::parse_metadata.
+  const std::unique_ptr<opendal::ffi::Operator,
+                        decltype(&opendal::ffi::delete_operator)>
+      language_op(opendal::ffi::new_test_content_language_operator(
+                      "language.txt", "en-US"),
+                  &opendal::ffi::delete_operator);
+
+  const auto metadata =
+      opendal::utils::parse_metadata(language_op->stat("language.txt"));
+
+  EXPECT_EQ(metadata.ContentLanguage(), "en-US");
+  EXPECT_EQ(metadata.content_language, "en-US");
+}
+
+namespace {
+
+// The `opendal::Metadata` API as declared in `data_structure.hpp` before the
+// class was generated. Existing callers rely on these exact types.
+using opendal::EntryMode;
+using opendal::Metadata;
+using OptionalString = std::optional<std::string>;
+using OptionalTime = std::optional<std::chrono::system_clock::time_point>;
+
+static_assert(std::is_same_v<std::underlying_type_t<EntryMode>, int>);
+static_assert(static_cast<int>(EntryMode::FILE) == 1);
+static_assert(static_cast<int>(EntryMode::DIR) == 2);
+static_assert(static_cast<int>(EntryMode::UNKNOWN) == 0);
+
+static_assert(std::is_same_v<decltype(Metadata::type), EntryMode>);
+static_assert(
+    std::is_same_v<decltype(Metadata::content_length), std::uint64_t>);
+static_assert(
+    std::is_same_v<decltype(Metadata::cache_control), OptionalString>);
+static_assert(
+    std::is_same_v<decltype(Metadata::content_disposition), OptionalString>);
+static_assert(std::is_same_v<decltype(Metadata::content_md5), OptionalString>);
+static_assert(std::is_same_v<decltype(Metadata::content_type), OptionalString>);
+static_assert(
+    std::is_same_v<decltype(Metadata::content_encoding), OptionalString>);
+static_assert(std::is_same_v<decltype(Metadata::etag), OptionalString>);
+static_assert(std::is_same_v<decltype(Metadata::last_modified), OptionalTime>);
+static_assert(std::is_same_v<decltype(Metadata::version), OptionalString>);
+static_assert(
+    std::is_same_v<decltype(Metadata::is_current), std::optional<bool>>);
+static_assert(std::is_same_v<decltype(Metadata::is_deleted), bool>);
+
+static_assert(
+    std::is_same_v<decltype(&Metadata::Mode), EntryMode (Metadata::*)() const>);
+static_assert(
+    std::is_same_v<decltype(&Metadata::IsFile), bool (Metadata::*)() const>);
+static_assert(
+    std::is_same_v<decltype(&Metadata::IsDir), bool (Metadata::*)() const>);
+static_assert(std::is_same_v<decltype(&Metadata::ContentLength),
+                             std::uint64_t (Metadata::*)() const>);
+static_assert(std::is_same_v<decltype(&Metadata::CacheControl),
+                             const OptionalString& (Metadata::*)() const>);
+static_assert(std::is_same_v<decltype(&Metadata::ContentDisposition),
+                             const OptionalString& (Metadata::*)() const>);
+static_assert(std::is_same_v<decltype(&Metadata::ContentMd5),
+                             const OptionalString& (Metadata::*)() const>);
+static_assert(std::is_same_v<decltype(&Metadata::ContentType),
+                             const OptionalString& (Metadata::*)() const>);
+static_assert(std::is_same_v<decltype(&Metadata::ContentEncoding),
+                             const OptionalString& (Metadata::*)() const>);
+static_assert(std::is_same_v<decltype(&Metadata::Etag),
+                             const OptionalString& (Metadata::*)() const>);
+static_assert(std::is_same_v<decltype(&Metadata::LastModified),
+                             const OptionalTime& (Metadata::*)() const>);
+static_assert(std::is_same_v<decltype(&Metadata::Version),
+                             const OptionalString& (Metadata::*)() const>);
+static_assert(std::is_same_v<decltype(&Metadata::IsCurrent),
+                             const std::optional<bool>& (Metadata::*)() const>);
+static_assert(
+    std::is_same_v<decltype(&Metadata::IsDeleted), bool (Metadata::*)() const>);
+
+// `Metadata() = default;` keeps the class an aggregate only before C++20, so
+// C++17 callers may brace-initialize it by position.
+#if __cplusplus < 202002L
+TEST(MetadataCompatibilityTest, PositionalInitializerKeepsFrozenOrder) {
+  const auto modified =
+      std::chrono::system_clock::time_point(std::chrono::seconds(7));
+  // `type` through `is_deleted` in their order before the class was
+  // generated, then the members appended since.
+  const Metadata metadata{
+      EntryMode::DIR,
+      42,
+      "cache_control",
+      "content_disposition",
+      "content_md5",
+      "content_type",
+      "content_encoding",
+      "etag",
+      modified,
+      "version",
+      false,
+      true,
+      "content_language",
+      std::unordered_map<std::string, std::string>{{"owner", "opendal"}},
+  };
+
+  EXPECT_EQ(metadata.type, EntryMode::DIR);
+  EXPECT_EQ(metadata.content_length, 42u);
+  EXPECT_EQ(metadata.cache_control, "cache_control");
+  EXPECT_EQ(metadata.content_disposition, "content_disposition");
+  EXPECT_EQ(metadata.content_md5, "content_md5");
+  EXPECT_EQ(metadata.content_type, "content_type");
+  EXPECT_EQ(metadata.content_encoding, "content_encoding");
+  EXPECT_EQ(metadata.etag, "etag");
+  EXPECT_EQ(metadata.last_modified, modified);
+  EXPECT_EQ(metadata.version, "version");
+  EXPECT_EQ(metadata.is_current, false);
+  EXPECT_TRUE(metadata.is_deleted);
+  EXPECT_EQ(metadata.content_language, "content_language");
+  const std::unordered_map<std::string, std::string> expected{
+      {"owner", "opendal"}};
+  EXPECT_EQ(metadata.user_metadata, expected);
+}
+
+// The members appended since have default member initializers, so existing
+// initializers of `type` through `is_deleted` stay complete for callers that
+// build with `-Werror=missing-field-initializers`.
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic error "-Wmissing-field-initializers"
+#endif
+TEST(MetadataCompatibilityTest, HandWrittenPositionalInitializerIsComplete) {
+  const Metadata metadata{
+      EntryMode::FILE,
+      1,
+      "cache_control",
+      "content_disposition",
+      "content_md5",
+      "content_type",
+      "content_encoding",
+      "etag",
+      std::chrono::system_clock::time_point(std::chrono::seconds(1)),
+      "version",
+      true,
+      false,
+  };
+
+  EXPECT_EQ(metadata.content_language, std::nullopt);
+  EXPECT_EQ(metadata.user_metadata, std::nullopt);
+}
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+#endif
+
+}  // namespace

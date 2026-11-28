@@ -23,6 +23,7 @@ use http::StatusCode;
 
 use super::core::GdriveFile;
 use super::core::GdriveRecentPathState;
+use super::core::GdriveRevision;
 use super::core::metadata_from_gdrive_file;
 use super::core::normalize_dir_path;
 use super::core::parse_error;
@@ -138,8 +139,10 @@ impl Builder for GdriveBuilder {
         let info = ServiceInfo::new(GDRIVE_SCHEME, &root, "");
         let capability = Capability {
             stat: true,
+            stat_with_version: true,
 
             read: true,
+            read_with_version: true,
             read_with_suffix: true,
 
             list: true,
@@ -260,12 +263,19 @@ impl Service for GdriveBackend {
         Ok(RpCreateDir::default())
     }
 
-    async fn stat(&self, ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        let version = args.version();
+        if matches!(version, Some("" | "." | "..")) {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "invalid Google Drive revision ID",
+            ));
+        }
         let path = build_absolute_path(&self.core.root, path);
 
         match self.core.recent_entry_for_path(&path).await {
             GdriveRecentPathState::Present(metadata) => {
-                if metadata.mode().is_dir() && path.ends_with('/') {
+                if version.is_none() && metadata.mode().is_dir() && path.ends_with('/') {
                     return Ok(RpStat::new(*metadata));
                 }
             }
@@ -290,7 +300,15 @@ impl Service for GdriveBackend {
                 }
             },
         };
-        let mut resp = self.core.gdrive_stat_by_id(ctx, &file_id).await?;
+        let stat_by_id = async |file_id: &str| match version {
+            Some(revision_id) => {
+                self.core
+                    .gdrive_stat_revision_by_id(ctx, file_id, revision_id)
+                    .await
+            }
+            None => self.core.gdrive_stat_by_id(ctx, file_id).await,
+        };
+        let mut resp = stat_by_id(&file_id).await?;
 
         if resp.status() == StatusCode::NOT_FOUND {
             file_id = self
@@ -301,33 +319,45 @@ impl Service for GdriveBackend {
                     ErrorKind::NotFound,
                     format!("path not found: {path}"),
                 ))?;
-            resp = self.core.gdrive_stat_by_id(ctx, &file_id).await?;
+            resp = stat_by_id(&file_id).await?;
         }
 
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(
-                ErrorContext::new(ServiceOperation("GetFile")),
-                resp,
+            let operation = if version.is_some() {
+                ServiceOperation("GetRevision")
+            } else {
+                ServiceOperation("GetFile")
+            };
+            return Err(parse_error(ErrorContext::new(operation), resp));
+        }
+
+        let body = resp.into_body();
+        let metadata = if version.is_some() {
+            let revision: GdriveRevision =
+                serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
+            revision.into_metadata()?
+        } else {
+            let file: GdriveFile =
+                serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
+            metadata_from_gdrive_file(&file)?
+        };
+        Ok(RpStat::new(metadata))
+    }
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        // These values cannot address a revision as a URL path segment.
+        if matches!(args.version(), Some("" | "." | "..")) {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "invalid Google Drive revision ID",
             ));
         }
 
-        let bs = resp.into_body();
-        let gdrive_file: GdriveFile =
-            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-        Ok(RpStat::new(metadata_from_gdrive_file(&gdrive_file)?))
-    }
-    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
-        let output: oio::StreamReader<GdriveReader> = {
-            Ok(oio::StreamReader::new(GdriveReader::new(
-                self.clone(),
-                ctx.clone(),
-                path,
-                args,
-            )))
-        }?;
-
-        Ok(output)
+        Ok(oio::StreamReader::new(GdriveReader::new(
+            self.clone(),
+            ctx.clone(),
+            path,
+            args,
+        )))
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {

@@ -231,6 +231,8 @@ impl Builder for CosBuilder {
             stat: true,
             stat_with_if_match: true,
             stat_with_if_none_match: true,
+            stat_with_if_modified_since: true,
+            stat_with_if_unmodified_since: true,
             stat_with_version: true,
 
             read: true,
@@ -240,6 +242,9 @@ impl Builder for CosBuilder {
             read_with_if_none_match: true,
             read_with_if_modified_since: true,
             read_with_if_unmodified_since: true,
+            read_with_override_cache_control: true,
+            read_with_override_content_disposition: true,
+            read_with_override_content_type: true,
             read_with_version: true,
 
             write: true,
@@ -614,7 +619,115 @@ fn build_endpoint(uri: &Uri, bucket: &str) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
+    use http::header::CONTENT_ENCODING;
+
     use super::*;
+
+    #[tokio::test]
+    async fn presign_read_signs_optional_response_overrides() {
+        let op = Operator::new(
+            CosBuilder::default()
+                .bucket("test")
+                .endpoint("https://cos.example.com")
+                .secret_id("test")
+                .secret_key("test")
+                .disable_config_load(),
+        )
+        .unwrap();
+
+        let cache_control = Some("private, max-age=42, no-transform");
+        let disposition = Some("attachment; filename=\"preview & report.txt\"");
+        let content_type = Some("application/json; profile=\"a&b\"");
+        for (cache_control, disposition, content_type) in [
+            (None, None, None),
+            (cache_control, None, None),
+            (None, disposition, None),
+            (None, None, content_type),
+            (cache_control, disposition, content_type),
+        ] {
+            let request = op
+                .presign_read_options(
+                    "object.txt",
+                    Duration::from_secs(60),
+                    options::ReadOptions {
+                        override_cache_control: cache_control.map(str::to_owned),
+                        override_content_disposition: disposition.map(str::to_owned),
+                        override_content_type: content_type.map(str::to_owned),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .unwrap();
+            let query = request.uri().query().unwrap();
+            let signed_params = query
+                .split('&')
+                .find_map(|param| param.strip_prefix("q-url-param-list="))
+                .map(percent_decode_path)
+                .expect("missing COS signed query parameters");
+            for (key, expected) in [
+                ("response-cache-control", cache_control),
+                ("response-content-disposition", disposition),
+                ("response-content-type", content_type),
+            ] {
+                let values: Vec<_> = query
+                    .split('&')
+                    .filter_map(|param| param.split_once('='))
+                    .filter(|(name, _)| *name == key)
+                    .map(|(_, value)| percent_decode_path(value))
+                    .collect();
+                assert_eq!(values.as_slice(), expected.as_slice(), "{key} query values");
+                assert_eq!(
+                    signed_params.split(';').filter(|name| *name == key).count(),
+                    usize::from(expected.is_some()),
+                    "{key} signed query count"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn presign_write_signs_optional_content_encoding() {
+        let op = Operator::new(
+            CosBuilder::default()
+                .bucket("test")
+                .endpoint("https://cos.example.com")
+                .secret_id("test")
+                .secret_key("test")
+                .disable_config_load(),
+        )
+        .unwrap();
+
+        for encoding in [Some("gzip"), None] {
+            let request = op
+                .presign_write_options(
+                    "object.txt",
+                    Duration::from_secs(60),
+                    options::WriteOptions {
+                        content_type: Some("text/plain".to_owned()),
+                        content_encoding: encoding.map(str::to_owned),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .unwrap();
+            let values: Vec<_> = request.header().get_all(CONTENT_ENCODING).iter().collect();
+            assert_eq!(values.as_slice(), encoding.as_slice());
+
+            let signed_headers = request
+                .uri()
+                .query()
+                .unwrap()
+                .split('&')
+                .find_map(|param| param.strip_prefix("q-header-list="))
+                .map(percent_decode_path)
+                .expect("missing COS signed headers");
+            let signed_count = signed_headers
+                .split(';')
+                .filter(|name| *name == CONTENT_ENCODING.as_str())
+                .count();
+            assert_eq!(signed_count, usize::from(encoding.is_some()));
+        }
+    }
 
     fn endpoint_of(raw: &str, bucket: &str) -> String {
         build_endpoint(&raw.parse::<Uri>().unwrap(), bucket).unwrap()

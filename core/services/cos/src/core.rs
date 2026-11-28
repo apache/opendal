@@ -23,6 +23,7 @@ use http::Request;
 use http::Response;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
+use http::header::CONTENT_ENCODING;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
@@ -150,6 +151,24 @@ impl CosCore {
                 percent_decode_path(version)
             ))
         }
+        if let Some(cache_control) = args.override_cache_control() {
+            query_args.push(format!(
+                "response-cache-control={}",
+                percent_encode_path(cache_control)
+            ));
+        }
+        if let Some(disposition) = args.override_content_disposition() {
+            query_args.push(format!(
+                "response-content-disposition={}",
+                percent_encode_path(disposition)
+            ));
+        }
+        if let Some(content_type) = args.override_content_type() {
+            query_args.push(format!(
+                "response-content-type={}",
+                percent_encode_path(content_type)
+            ));
+        }
         if !query_args.is_empty() {
             url.push_str(&format!("?{}", query_args.join("&")));
         }
@@ -210,6 +229,9 @@ impl CosCore {
         if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime)
         }
+        if let Some(encoding) = args.content_encoding() {
+            req = req.header(CONTENT_ENCODING, encoding)
+        }
 
         // For a bucket which has never enabled versioning, you may use it to
         // specify whether to prohibit overwriting the object with the same name
@@ -252,6 +274,15 @@ impl CosCore {
     }
 
     pub fn cos_head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
+        // COS ignores If-Unmodified-Since when If-Match succeeds.
+        if args.if_match().is_some() && args.if_unmodified_since().is_some() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "COS does not support stat with both if_match and if_unmodified_since",
+            )
+            .with_operation(Operation::Stat));
+        }
+
         let p = build_absolute_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -276,6 +307,14 @@ impl CosCore {
 
         if let Some(if_none_match) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+
+        if let Some(if_modified_since) = args.if_modified_since() {
+            req = req.header(IF_MODIFIED_SINCE, if_modified_since.format_http_date());
+        }
+
+        if let Some(if_unmodified_since) = args.if_unmodified_since() {
+            req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
         }
 
         let req = req

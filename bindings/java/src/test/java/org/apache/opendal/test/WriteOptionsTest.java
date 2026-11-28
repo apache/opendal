@@ -23,10 +23,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.security.KeyPairGenerator;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Stream;
@@ -35,6 +38,7 @@ import org.apache.opendal.Metadata;
 import org.apache.opendal.OpenDALException.Code;
 import org.apache.opendal.Operator;
 import org.apache.opendal.OperatorOutputStream;
+import org.apache.opendal.PresignedRequest;
 import org.apache.opendal.ServiceConfig;
 import org.apache.opendal.WriteOptions;
 import org.apache.opendal.layer.CapabilityCheckLayer;
@@ -51,6 +55,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class WriteOptionsTest {
     private static final String CONTENT_LANGUAGE = "fr-CA, en";
     private static final byte[] CONTENT = "content".getBytes(StandardCharsets.UTF_8);
+    private static final Duration PRESIGN_EXPIRY = Duration.ofMinutes(1);
 
     @TempDir
     Path root;
@@ -206,13 +211,80 @@ public class WriteOptionsTest {
                     .ifNotChanged(snapshot)
                     .build();
             async.write("file", CONTENT, fromSnapshot).join();
+
+            WriteOptions createOnly = WriteOptions.builder().ifNotExists(true).build();
+            WriteOptions versionMatch =
+                    WriteOptions.builder().ifVersionMatch("42").build();
+            WriteOptions snapshotMatch = WriteOptions.builder()
+                    .ifNotChanged(Metadata.builder().version("42").build())
+                    .build();
+            op.write("file", CONTENT, createOnly);
+            op.write("file", CONTENT, versionMatch);
+            async.write("file", CONTENT, snapshotMatch).join();
+
+            for (WriteOptions matching : new WriteOptions[] {versionMatch, snapshotMatch}) {
+                WriteOptions conflicting =
+                        matching.toBuilder().ifNotExists(true).build();
+                assertThatThrownBy(() -> op.write("file", CONTENT, conflicting))
+                        .is(OpenDALExceptionCondition.ofSync(Code.Unsupported));
+                assertThatThrownBy(
+                                () -> async.write("file", CONTENT, conflicting).join())
+                        .is(OpenDALExceptionCondition.ofAsync(Code.Unsupported));
+                assertThatThrownBy(() -> async.presignWrite("file", PRESIGN_EXPIRY, conflicting)
+                                .join())
+                        .is(OpenDALExceptionCondition.ofAsync(Code.Unsupported));
+            }
         } finally {
             server.stop(0);
         }
 
-        assertThat(queries).hasSize(2);
+        assertThat(queries).hasSize(5);
         assertThat(queries.get(0)).contains("uploadType=media", "ifGenerationMatch=17", "ifGenerationNotMatch=18");
         assertThat(queries.get(1)).contains("uploadType=media", "ifGenerationMatch=19", "ifGenerationNotMatch=18");
+        assertThat(queries.get(2)).contains("ifGenerationMatch=0");
+        assertThat(queries.get(3)).contains("ifGenerationMatch=42");
+        assertThat(queries.get(4)).contains("ifGenerationMatch=42");
+    }
+
+    @Test
+    void testGcsPresignWriteGenerationConditions() throws Exception {
+        // An ephemeral RSA key lets GCS sign locally with a test service account.
+        KeyPairGenerator keyGenerator = KeyPairGenerator.getInstance("RSA");
+        keyGenerator.initialize(2048);
+        String privateKey = Base64.getMimeEncoder(64, new byte[] {'\n'})
+                .encodeToString(keyGenerator.generateKeyPair().getPrivate().getEncoded());
+        String credential = "{\"type\":\"service_account\",\"client_email\":\"test@example.com\","
+                + "\"private_key\":\"-----BEGIN PRIVATE KEY-----\\n"
+                + privateKey.replace("\n", "\\n")
+                + "\\n-----END PRIVATE KEY-----\\n\"}";
+
+        try (AsyncOperator async = AsyncOperator.of(ServiceConfig.Gcs.builder()
+                .bucket("bucket")
+                .credential(Base64.getEncoder().encodeToString(credential.getBytes(StandardCharsets.UTF_8)))
+                .disableConfigLoad(true)
+                .disableVmMetadata(true)
+                .build())) {
+            WriteOptions versionNotMatch =
+                    WriteOptions.builder().ifVersionNotMatch("42").build();
+            assertThatThrownBy(() -> async.presignWrite("file", PRESIGN_EXPIRY, versionNotMatch)
+                            .join())
+                    .is(OpenDALExceptionCondition.ofAsync(Code.Unsupported));
+
+            WriteOptions versionMatch =
+                    WriteOptions.builder().ifVersionMatch("42").build();
+            WriteOptions createOnly = WriteOptions.builder().ifNotExists(true).build();
+            PresignedRequest match =
+                    async.presignWrite("file", PRESIGN_EXPIRY, versionMatch).join();
+            PresignedRequest create =
+                    async.presignWrite("file", PRESIGN_EXPIRY, createOnly).join();
+            assertThat(match.getHeaders()).containsEntry("x-goog-if-generation-match", "42");
+            assertThat(create.getHeaders()).containsEntry("x-goog-if-generation-match", "0");
+            for (PresignedRequest request : new PresignedRequest[] {match, create}) {
+                assertThat(request.getMethod()).isEqualTo("PUT");
+                assertThat(URI.create(request.getUri()).getQuery())
+                        .contains("X-Goog-SignedHeaders=host;x-goog-if-generation-match", "X-Goog-Signature=");
+            }
+        }
     }
 
     @Test

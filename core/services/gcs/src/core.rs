@@ -324,6 +324,13 @@ impl GcsCore {
         idempotency_token: Option<&str>,
         crc32c: Option<[u8; 4]>,
     ) -> Result<Request<Buffer>> {
+        if op.if_not_exists() && op.if_version_match().is_some() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "GCS writes do not support combining if_not_exists with if_version_match",
+            ));
+        }
+
         let p = build_absolute_path(&self.root, path);
 
         let request_metadata = InsertRequestMetadata {
@@ -423,6 +430,13 @@ impl GcsCore {
         op: &OpWrite,
         idempotency_token: &str,
     ) -> Result<Request<Buffer>> {
+        if op.if_not_exists() && op.if_version_match().is_some() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "GCS writes do not support combining if_not_exists with if_version_match",
+            ));
+        }
+
         let p = build_absolute_path(&self.root, path);
         let base = format!("{}/upload/storage/v1/b/{}/o", self.endpoint, self.bucket);
         let mut url = QueryPairsWriter::new(&base)
@@ -549,6 +563,19 @@ impl GcsCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
+        if args.if_version_not_match().is_some() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "GCS XML writes do not support if_version_not_match",
+            ));
+        }
+        if args.if_not_exists() && args.if_version_match().is_some() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "GCS writes do not support combining if_not_exists with if_version_match",
+            ));
+        }
+
         let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
@@ -1677,24 +1704,6 @@ mod tests {
                 .contains("ifGenerationNotMatch=456")
         );
 
-        let write = core
-            .gcs_insert_object_request(
-                "object",
-                Some(0),
-                &write_args(options::WriteOptions {
-                    if_not_exists: true,
-                    if_version_match: Some("123".to_owned()),
-                    ..Default::default()
-                }),
-                Buffer::new(),
-                None,
-                None,
-            )
-            .expect("write request must build");
-        let query = write.uri().query().unwrap();
-        assert!(query.contains("ifGenerationMatch=123"));
-        assert_eq!(query.matches("ifGenerationMatch=").count(), 1);
-
         let delete = core
             .gcs_delete_object_request(
                 "object",
@@ -1715,21 +1724,6 @@ mod tests {
                 .unwrap()
                 .contains("ifGenerationNotMatch=456")
         );
-
-        let resumable = core
-            .gcs_initiate_resumable_upload_request(
-                "object",
-                &write_args(options::WriteOptions {
-                    if_not_exists: true,
-                    if_version_match: Some("123".to_owned()),
-                    ..Default::default()
-                }),
-                "token",
-            )
-            .expect("resumable request must build");
-        let query = resumable.uri().query().unwrap();
-        assert!(query.contains("ifGenerationMatch=123"));
-        assert_eq!(query.matches("ifGenerationMatch=").count(), 1);
 
         let rewrite = core
             .gcs_rewrite_object_request(
@@ -2015,6 +2009,87 @@ mod tests {
     }
 
     #[test]
+    fn test_write_generation_preconditions_are_mapped_to_json_api() {
+        let core = test_core();
+
+        for (options, expected) in [
+            (
+                options::WriteOptions {
+                    if_not_exists: true,
+                    ..Default::default()
+                },
+                &["ifGenerationMatch=0"][..],
+            ),
+            (
+                options::WriteOptions {
+                    if_version_match: Some("123".to_owned()),
+                    ..Default::default()
+                },
+                &["ifGenerationMatch=123"][..],
+            ),
+            (
+                options::WriteOptions {
+                    if_version_not_match: Some("456".to_owned()),
+                    ..Default::default()
+                },
+                &["ifGenerationNotMatch=456"][..],
+            ),
+            (
+                options::WriteOptions {
+                    if_not_exists: true,
+                    if_version_not_match: Some("456".to_owned()),
+                    ..Default::default()
+                },
+                &["ifGenerationMatch=0", "ifGenerationNotMatch=456"][..],
+            ),
+        ] {
+            let args = write_args(options);
+            let insert = core
+                .gcs_insert_object_request("object", Some(0), &args, Buffer::new(), None, None)
+                .unwrap();
+            let resumable = core
+                .gcs_initiate_resumable_upload_request("object", &args, "token")
+                .unwrap();
+
+            for request in [insert, resumable] {
+                let conditions: Vec<_> = request
+                    .uri()
+                    .query()
+                    .unwrap()
+                    .split('&')
+                    .filter(|param| param.starts_with("ifGeneration"))
+                    .collect();
+                assert_eq!(conditions, expected, "{}", request.uri());
+            }
+        }
+    }
+
+    #[test]
+    fn test_write_requests_reject_combining_if_not_exists_with_version_match() {
+        let core = test_core();
+        let args = write_args(options::WriteOptions {
+            if_not_exists: true,
+            if_version_match: Some("123".to_owned()),
+            ..Default::default()
+        });
+
+        let insert = core
+            .gcs_insert_object_request("object", Some(0), &args, Buffer::new(), None, None)
+            .unwrap_err();
+        assert_eq!(insert.kind(), ErrorKind::Unsupported);
+
+        let resumable = core
+            .gcs_initiate_resumable_upload_request("object", &args, "token")
+            .unwrap_err();
+        assert_eq!(resumable.kind(), ErrorKind::Unsupported);
+
+        let xml = core
+            .gcs_insert_object_xml_request("object", &args, Buffer::new())
+            .unwrap_err();
+        assert_eq!(xml.kind(), ErrorKind::Unsupported);
+    }
+
+    #[test]
     fn test_generation_match_is_mapped_to_xml_api() {
         let core = test_core();
 
@@ -2046,7 +2121,6 @@ mod tests {
             .gcs_insert_object_xml_request(
                 "object",
                 &write_args(options::WriteOptions {
-                    if_not_exists: true,
                     if_version_match: Some("123".to_owned()),
                     ..Default::default()
                 }),
@@ -2074,6 +2148,21 @@ mod tests {
             )
             .expect("create request must build");
         assert_eq!(create.headers()["x-goog-if-generation-match"], "0");
+    }
+
+    #[test]
+    fn test_gcs_insert_object_xml_request_rejects_version_not_match() {
+        let err = test_core()
+            .gcs_insert_object_xml_request(
+                "object",
+                &write_args(options::WriteOptions {
+                    if_version_not_match: Some("456".to_owned()),
+                    ..Default::default()
+                }),
+                Buffer::new(),
+            )
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
     }
 
     #[test]

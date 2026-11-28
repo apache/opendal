@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
+#include <utility>
 
 extern "C" {
 #include "opendal.h"
@@ -42,6 +43,27 @@ ASSERT_MEMBER_TYPE(limit, uintptr_t);
 ASSERT_MEMBER_TYPE(start_after, char*);
 ASSERT_MEMBER_TYPE(versions, bool);
 ASSERT_MEMBER_TYPE(deleted, bool);
+
+// Converts to any member type, so brace initialization with N of these
+// compiles only when the aggregate has at least N members.
+struct any_member {
+    template <typename T>
+    operator T() const;
+};
+
+template <typename T, typename... Args>
+auto brace_initializable(int) -> decltype(void(T { std::declval<Args>()... }), std::true_type {});
+template <typename T, typename... Args>
+std::false_type brace_initializable(...);
+
+// Exactly the five members above: a sixth member, even one that fits into
+// the trailing padding, fails here.
+static_assert(decltype(brace_initializable<opendal_list_options,
+                  any_member, any_member, any_member, any_member, any_member>(0))::value,
+    "opendal_list_options lost a member");
+static_assert(!decltype(brace_initializable<opendal_list_options,
+                  any_member, any_member, any_member, any_member, any_member, any_member>(0))::value,
+    "opendal_list_options gained a member");
 
 #if UINTPTR_MAX == UINT64_MAX
 static_assert(sizeof(opendal_list_options) == 32, "opendal_list_options changed its size");

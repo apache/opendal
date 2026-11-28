@@ -27,9 +27,9 @@ import (
 // WithListFn is a functional option for list operations.
 //
 // # Groups
-// - Traversal: `recursive`.
-// - Pagination: `limit`, `start_after`.
-// - Versioning: `versions`, `deleted`.
+// - Traversal: `ListWithRecursive`.
+// - Pagination: `ListWithLimit`, `ListWithStartAfter`.
+// - Versioning: `ListWithVersions`, `ListWithDeleted`.
 //
 // The operation fails with `crate::ErrorKind::Unsupported` when an option
 // requires a capability that the operator lacks.
@@ -39,7 +39,7 @@ type WithListFn func(*listOptions)
 //
 // Whether to list recursively under the prefix; default `false`.
 //
-// Requires `Capability::list_with_recursive`.
+// Requires `Capability.ListWithRecursive`.
 // Services without native recursive listing rely on `crate::layers::SimulateLayer`
 // (installed automatically by the default `auto-simulate` feature).
 func ListWithRecursive(recursive bool) WithListFn {
@@ -63,7 +63,7 @@ func ListWithLimit(limit uint) WithListFn {
 //
 // Start listing after this key, excluding the key itself.
 //
-// Setting this requires `Capability::list_with_start_after`.
+// Setting this requires `Capability.ListWithStartAfter`.
 func ListWithStartAfter(startAfter string) WithListFn {
 	return func(o *listOptions) {
 		o.startAfter = &startAfter
@@ -74,7 +74,7 @@ func ListWithStartAfter(startAfter string) WithListFn {
 //
 // Include object versions; default `false`.
 //
-// Requires `Capability::list_with_versions`.
+// Requires `Capability.ListWithVersions`.
 func ListWithVersions(versions bool) WithListFn {
 	return func(o *listOptions) {
 		o.versions = versions
@@ -85,7 +85,7 @@ func ListWithVersions(versions bool) WithListFn {
 //
 // Include delete markers; default `false`.
 //
-// Requires `Capability::list_with_deleted`.
+// Requires `Capability.ListWithDeleted`.
 func ListWithDeleted(deleted bool) WithListFn {
 	return func(o *listOptions) {
 		o.deleted = deleted

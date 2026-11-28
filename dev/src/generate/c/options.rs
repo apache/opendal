@@ -20,8 +20,8 @@
 //! Released option structs are C ABI: `opendal.h` fixes their member order
 //! and types, and C and Zig callers may read or set members directly.
 //! [`RELEASED_OPTIONS`] records that surface. Docs come from the core doc
-//! comments, plus how C and Go encode an unset option. Core fields it does not list keep their core default in the
-//! conversion and stay out of C and Go.
+//! comments, plus how C and Go encode an unset option. Core fields it does not
+//! list keep their core default in the conversion and stay out of C and Go.
 //!
 //! Only `ListOptions` is generated so far. The other option structs are still
 //! written by hand in `bindings/c/src/types.rs` and the Go operation files.
@@ -33,6 +33,7 @@ use minijinja::value::Serde;
 use minijinja::{Environment, context};
 use serde::Serialize;
 
+use crate::generate::capability::{self, CapabilityField};
 use crate::generate::core_options::{self, OptionField, OptionKind, OptionsStruct};
 
 /// How a released C struct stores one core field, and how Go fills it.
@@ -123,7 +124,8 @@ struct FieldModel {
 
 pub(super) fn generate(workspace_dir: &Path) -> Result<()> {
     let source = workspace_dir.join("core/core/src/types/options.rs");
-    let models = build(&core_options::parse(&source)?)?;
+    let capabilities = capability::parse(&workspace_dir.join("core/core/src/types/capability.rs"))?;
+    let models = build(&core_options::parse(&source)?, &capabilities)?;
 
     let mut env = Environment::new();
     env.add_template("options_rs", include_str!("options_rs.j2"))?;
@@ -141,19 +143,23 @@ pub(super) fn generate(workspace_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-fn build(parsed: &[OptionsStruct]) -> Result<Vec<OptionsModel>> {
+fn build(parsed: &[OptionsStruct], capabilities: &[CapabilityField]) -> Result<Vec<OptionsModel>> {
     RELEASED_OPTIONS
         .iter()
         .map(|spec| {
             let Some(core) = parsed.iter().find(|options| options.name == spec.core) else {
                 bail!("core options are missing `{}`, which C releases", spec.core);
             };
-            options_model(core, spec)
+            options_model(core, spec, capabilities)
         })
         .collect()
 }
 
-fn options_model(core: &OptionsStruct, spec: &OptionsSpec) -> Result<OptionsModel> {
+fn options_model(
+    core: &OptionsStruct,
+    spec: &OptionsSpec,
+    capabilities: &[CapabilityField],
+) -> Result<OptionsModel> {
     let go_prefix = spec.core.strip_suffix("Options").unwrap_or(spec.core);
     let base = heck::AsSnakeCase(go_prefix).to_string();
     let c_name = format!("opendal_{base}_options");
@@ -161,7 +167,8 @@ fn options_model(core: &OptionsStruct, spec: &OptionsSpec) -> Result<OptionsMode
     let mut fields = Vec::new();
     for &(name, repr) in spec.fields {
         let core_field = core_field(core, name, repr)?;
-        let doc = plain_doc(&core_field.doc);
+        let c_doc = binding_doc(&core_field.doc, spec, capabilities, Lang::C);
+        let go_doc = binding_doc(&core_field.doc, spec, capabilities, Lang::Go);
         let (c_type, c_default, go_type) = match repr {
             Repr::Bool => ("bool", "false", "bool"),
             Repr::UsizeZeroUnset => ("usize", "0", "uint"),
@@ -189,10 +196,10 @@ fn options_model(core: &OptionsStruct, spec: &OptionsSpec) -> Result<OptionsMode
             repr,
             c_type,
             c_default,
-            c_doc: with_note(&doc, c_unset),
+            c_doc: with_note(&c_doc, c_unset),
             setter_doc: [format!("\\brief Set `{name}`."), String::new()]
                 .into_iter()
-                .chain(doc.iter().cloned())
+                .chain(c_doc.iter().cloned())
                 .chain([
                     String::new(),
                     format!("@param opts The {c_name} to modify."),
@@ -205,7 +212,7 @@ fn options_model(core: &OptionsStruct, spec: &OptionsSpec) -> Result<OptionsMode
                     String::new(),
                 ]
                 .into_iter()
-                .chain(doc.iter().cloned())
+                .chain(go_doc)
                 .collect::<Vec<_>>(),
                 go_unset,
             ),
@@ -222,8 +229,7 @@ fn options_model(core: &OptionsStruct, spec: &OptionsSpec) -> Result<OptionsMode
         field.go_field_padded = format!("{:<width$} ", field.go_field);
     }
 
-    let summary = plain_doc(&core.doc);
-    let mut c_doc = summary.clone();
+    let mut c_doc = binding_doc(&core.doc, spec, capabilities, Lang::C);
     if let Some(first) = c_doc.first_mut() {
         *first = format!("\\brief {first}");
     }
@@ -241,7 +247,7 @@ fn options_model(core: &OptionsStruct, spec: &OptionsSpec) -> Result<OptionsMode
             .map(|f| format!("@see {c_name}_set_{}", f.name)),
     );
 
-    let mut go_fn_doc = summary;
+    let mut go_fn_doc = binding_doc(&core.doc, spec, capabilities, Lang::Go);
     if let Some(first) = go_fn_doc.first_mut() {
         let purpose = first.strip_prefix("Options for ").unwrap_or(first);
         *first = format!("With{go_prefix}Fn is a functional option for {purpose}");
@@ -288,24 +294,38 @@ fn core_field<'a>(core: &'a OptionsStruct, name: &str, repr: Repr) -> Result<&'a
     Ok(field)
 }
 
-/// The core doc comment as C and Go show it, one entry per line.
+/// The binding that a doc comment is rendered for.
+#[derive(Clone, Copy)]
+enum Lang {
+    C,
+    Go,
+}
+
+/// The core doc comment as `lang` shows it, one entry per line.
 ///
 /// Rustdoc links become plain code spans, as in the Node.js generator,
 /// because C and Go documentation cannot resolve Rust paths:
 /// ``[`Capability::list_with_limit`](crate::Capability::list_with_limit)``
 /// and ``[`crate::layers::SimulateLayer`]`` keep only their code span.
-fn plain_doc(lines: &[String]) -> Vec<String> {
+/// Code spans that name a released option or a capability then use their
+/// binding name (see [`code_span`]); other code spans stay as written.
+fn binding_doc(
+    lines: &[String],
+    spec: &OptionsSpec,
+    capabilities: &[CapabilityField],
+    lang: Lang,
+) -> Vec<String> {
     lines
         .iter()
         .map(|line| {
-            let mut out = String::with_capacity(line.len());
+            let mut unlinked = String::with_capacity(line.len());
             let mut rest = line.as_str();
             while let Some(start) = rest.find("[`") {
                 let Some(len) = rest[start + 1..].find("`]") else {
                     break;
                 };
-                out.push_str(&rest[..start]);
-                out.push_str(&rest[start + 1..start + len + 2]);
+                unlinked.push_str(&rest[..start]);
+                unlinked.push_str(&rest[start + 1..start + len + 2]);
                 rest = &rest[start + len + 3..];
                 if let Some(target) = rest.strip_prefix('(')
                     && let Some(end) = target.find(')')
@@ -313,10 +333,63 @@ fn plain_doc(lines: &[String]) -> Vec<String> {
                     rest = &target[end + 1..];
                 }
             }
+            unlinked.push_str(rest);
+
+            let mut out = String::with_capacity(unlinked.len());
+            let mut rest = unlinked.as_str();
+            while let Some(start) = rest.find('`') {
+                let Some(len) = rest[start + 1..].find('`') else {
+                    break;
+                };
+                let code = &rest[start + 1..start + 1 + len];
+                out.push_str(&rest[..=start]);
+                out.push_str(
+                    &code_span(code, spec, capabilities, lang).unwrap_or_else(|| code.to_owned()),
+                );
+                out.push('`');
+                rest = &rest[start + len + 2..];
+            }
             out.push_str(rest);
             out
         })
         .collect()
+}
+
+/// The binding name of a code span that names a released field of `spec` or
+/// a core capability, or `None` to keep the code span as written.
+///
+/// - C: a released field is the struct member of the same name, such as
+///   `start_after`, and `Capability::list_with_start_after` is the
+///   `opendal_capability.list_with_start_after` member.
+/// - Go: a released field is its option function, such as
+///   `ListWithStartAfter`, and `Capability::list_with_start_after` is the
+///   `Capability.ListWithStartAfter` method that `generate_capability` emits.
+fn code_span(
+    code: &str,
+    spec: &OptionsSpec,
+    capabilities: &[CapabilityField],
+    lang: Lang,
+) -> Option<String> {
+    if spec.fields.iter().any(|&(name, _)| name == code) {
+        return Some(match lang {
+            Lang::C => code.to_owned(),
+            Lang::Go => {
+                let go_prefix = spec.core.strip_suffix("Options").unwrap_or(spec.core);
+                format!("{go_prefix}With{}", super::to_pascal(code))
+            }
+        });
+    }
+    let name = code
+        .strip_prefix("crate::")
+        .unwrap_or(code)
+        .strip_prefix("Capability::")?;
+    capabilities
+        .iter()
+        .any(|f| f.name == name)
+        .then(|| match lang {
+            Lang::C => format!("opendal_capability.{name}"),
+            Lang::Go => format!("Capability.{}", super::to_pascal(name)),
+        })
 }
 
 /// `doc` followed by `note` as its own paragraph.
@@ -389,13 +462,22 @@ mod tests {
         core_options::parse(&source).expect("core options must parse")
     }
 
-    fn render_rs(parsed: &[OptionsStruct]) -> String {
-        Environment::new()
-            .render_str(
-                include_str!("options_rs.j2"),
-                context! { options => Serde(&build(parsed).unwrap()) },
-            )
-            .unwrap()
+    fn core_capabilities() -> Vec<CapabilityField> {
+        let source = crate::workspace_dir().join("core/core/src/types/capability.rs");
+        capability::parse(&source).expect("core capability must parse")
+    }
+
+    /// The rendered C options and Go options.
+    fn render(parsed: &[OptionsStruct]) -> (String, String) {
+        let models = context! { options => Serde(&build(parsed, &core_capabilities()).unwrap()) };
+        let env = Environment::new();
+        let c = env
+            .render_str(include_str!("options_rs.j2"), models.clone())
+            .unwrap();
+        let go = env
+            .render_str(include_str!("options_go.j2"), models)
+            .unwrap();
+        (c, go)
     }
 
     /// The doc comment lines directly above the first line that starts with
@@ -416,29 +498,34 @@ mod tests {
         doc
     }
 
+    /// The code spans in the doc comment lines of `rendered`.
+    fn doc_code_spans<'a>(rendered: &'a str, prefix: &str) -> Vec<&'a str> {
+        rendered
+            .lines()
+            .filter_map(|line| line.trim_start().strip_prefix(prefix))
+            .flat_map(|doc| doc.split('`').skip(1).step_by(2))
+            .collect()
+    }
+
     #[test]
     fn test_docs_come_from_core() {
         let parsed = core_options();
-        let models = context! { options => Serde(&build(&parsed).unwrap()) };
-        let env = Environment::new();
-        let c = env
-            .render_str(include_str!("options_rs.j2"), models.clone())
-            .unwrap();
-        let go = env
-            .render_str(include_str!("options_go.j2"), models)
-            .unwrap();
+        let (c, go) = render(&parsed);
+        let spec = &RELEASED_OPTIONS[0];
         let list = parsed.iter().find(|o| o.name == "ListOptions").unwrap();
-        for &(name, _) in RELEASED_OPTIONS[0].fields {
+        for &(name, _) in spec.fields {
             let core_field = list.fields.iter().find(|f| f.name == name).unwrap();
-            let doc = plain_doc(&core_field.doc);
-            let doc: Vec<&str> = doc.iter().map(String::as_str).collect();
 
+            let doc = binding_doc(&core_field.doc, spec, &core_capabilities(), Lang::C);
+            let doc: Vec<&str> = doc.iter().map(String::as_str).collect();
             let member = doc_above(&c, "    ///", &format!("    pub {name}: "));
             assert!(
                 member.starts_with(&doc),
                 "C member docs of `{name}`: {member:?}"
             );
 
+            let doc = binding_doc(&core_field.doc, spec, &core_capabilities(), Lang::Go);
+            let doc: Vec<&str> = doc.iter().map(String::as_str).collect();
             let option = format!("func ListWith{}(", super::super::to_pascal(name));
             let option_doc = doc_above(&go, "//", &option);
             assert!(
@@ -449,26 +536,120 @@ mod tests {
     }
 
     #[test]
-    fn test_plain_doc_strips_rustdoc_links() {
+    fn test_binding_doc_strips_rustdoc_links() {
         let lines = [
-            "Requires [`Capability::list_with_limit`](crate::Capability::list_with_limit).",
-            "Rely on [`crate::layers::SimulateLayer`] and [`Self::recursive`].",
+            "Rely on [`crate::layers::SimulateLayer`](crate::layers::SimulateLayer) and [`Self::recursive`].",
             "A [plain](https://opendal.apache.org) link and `code` stay.",
         ]
         .map(String::from);
+        let expected = [
+            "Rely on `crate::layers::SimulateLayer` and `Self::recursive`.",
+            "A [plain](https://opendal.apache.org) link and `code` stay.",
+        ];
+        for lang in [Lang::C, Lang::Go] {
+            let doc = binding_doc(&lines, &RELEASED_OPTIONS[0], &core_capabilities(), lang);
+            assert_eq!(doc, expected);
+        }
+    }
+
+    #[test]
+    fn test_binding_doc_uses_binding_names() {
+        let lines = [
+            "- Pagination: `limit`, `start_after`.",
+            "Requires [`Capability::list_with_limit`](crate::Capability::list_with_limit).",
+            "Requires [`crate::Capability::list_with_versions`] and `Capability::list_with_deleted`.",
+            "Unknown `Capability::no_such_flag`, `start_after_key`, `glob`, and prose start_after stay.",
+        ]
+        .map(String::from);
+        let spec = &RELEASED_OPTIONS[0];
         assert_eq!(
-            plain_doc(&lines),
+            binding_doc(&lines, spec, &core_capabilities(), Lang::C),
             [
-                "Requires `Capability::list_with_limit`.",
-                "Rely on `crate::layers::SimulateLayer` and `Self::recursive`.",
-                "A [plain](https://opendal.apache.org) link and `code` stay.",
+                "- Pagination: `limit`, `start_after`.",
+                "Requires `opendal_capability.list_with_limit`.",
+                "Requires `opendal_capability.list_with_versions` and `opendal_capability.list_with_deleted`.",
+                "Unknown `Capability::no_such_flag`, `start_after_key`, `glob`, and prose start_after stay.",
+            ]
+        );
+        assert_eq!(
+            binding_doc(&lines, spec, &core_capabilities(), Lang::Go),
+            [
+                "- Pagination: `ListWithLimit`, `ListWithStartAfter`.",
+                "Requires `Capability.ListWithLimit`.",
+                "Requires `Capability.ListWithVersions` and `Capability.ListWithDeleted`.",
+                "Unknown `Capability::no_such_flag`, `start_after_key`, `glob`, and prose start_after stay.",
             ]
         );
     }
 
     #[test]
+    fn test_list_docs_name_the_generated_surface() {
+        let (c, go) = render(&core_options());
+
+        // Core writes `start_after` as a plain code span in the struct doc and
+        // the capability as a rustdoc link in the field doc.
+        assert!(c.contains("/// - Pagination: `limit`, `start_after`.\n"));
+        assert!(c.contains(
+            "    /// Setting this requires `opendal_capability.list_with_start_after`.\n"
+        ));
+        assert!(go.contains("// - Pagination: `ListWithLimit`, `ListWithStartAfter`.\n"));
+        assert!(go.contains("// Setting this requires `Capability.ListWithStartAfter`.\n"));
+
+        // Every option or capability that the docs name exists in the
+        // generated C header and Go capability.
+        let workspace = crate::workspace_dir();
+        let header =
+            std::fs::read_to_string(workspace.join("bindings/c/include/opendal.h")).unwrap();
+        let struct_body = |name: &str| -> String {
+            let start = header
+                .find(&format!("typedef struct {name} {{"))
+                .unwrap_or_else(|| panic!("opendal.h must define {name}"));
+            let end = start + header[start..].find(&format!("}} {name};")).unwrap();
+            header[start..end].to_owned()
+        };
+        let c_members = |name: &str| -> Vec<String> {
+            struct_body(name)
+                .lines()
+                .filter_map(|line| line.trim().strip_suffix(';'))
+                .filter_map(|decl| decl.rsplit([' ', '*']).next())
+                .map(str::to_owned)
+                .collect()
+        };
+        let released: Vec<&str> = RELEASED_OPTIONS[0]
+            .fields
+            .iter()
+            .map(|&(name, _)| name)
+            .collect();
+        let list_members = c_members("opendal_list_options");
+        let capability_members = c_members("opendal_capability");
+        for code in doc_code_spans(&c, "///") {
+            assert!(!code.contains("Capability::"), "{code}");
+            if let Some(member) = code.strip_prefix("opendal_capability.") {
+                assert!(capability_members.iter().any(|m| m == member), "{code}");
+            } else if released.contains(&code) {
+                assert!(list_members.iter().any(|m| m == code), "{code}");
+            }
+        }
+
+        let capability_go =
+            std::fs::read_to_string(workspace.join("bindings/go/capability.go")).unwrap();
+        for code in doc_code_spans(&go, "//") {
+            assert!(!code.contains("Capability::"), "{code}");
+            assert!(!released.contains(&code), "{code} must use its Go name");
+            if let Some(method) = code.strip_prefix("Capability.") {
+                assert!(
+                    capability_go.contains(&format!("func (c *Capability) {method}() ")),
+                    "{code}"
+                );
+            } else if code.starts_with("ListWith") {
+                assert!(go.contains(&format!("\nfunc {code}(")), "{code}");
+            }
+        }
+    }
+
+    #[test]
     fn test_conversion_defaults_unreleased_list_fields() {
-        let rendered = render_rs(&core_options());
+        let (rendered, _) = render(&core_options());
         let conversion = rendered
             .split("impl From<&opendal_list_options> for options::ListOptions {")
             .nth(1)
@@ -490,17 +671,37 @@ mod tests {
         let mut parsed = core_options();
         let list = parsed.iter_mut().find(|o| o.name == "ListOptions").unwrap();
         list.fields.retain(|f| f.name != "start_after");
-        let err = build(&parsed).err().unwrap().to_string();
+        let err = build(&parsed, &core_capabilities())
+            .err()
+            .unwrap()
+            .to_string();
         assert!(
             err.contains("missing released C field `start_after`"),
             "{err}"
         );
 
-        let mut parsed = core_options();
-        let list = parsed.iter_mut().find(|o| o.name == "ListOptions").unwrap();
-        let limit = list.fields.iter_mut().find(|f| f.name == "limit").unwrap();
-        limit.kind = OptionKind::Usize;
-        let err = build(&parsed).err().unwrap().to_string();
-        assert!(err.contains("`limit` has kind Usize"), "{err}");
+        // Any kind change fails, including one to another kind that C can
+        // encode, so `start_after` never silently becomes a `bool` member.
+        for (name, kind, message) in [
+            ("limit", OptionKind::Usize, "`limit` has kind Usize"),
+            (
+                "start_after",
+                OptionKind::Bool,
+                "`start_after` has kind Bool",
+            ),
+        ] {
+            let mut parsed = core_options();
+            let list = parsed.iter_mut().find(|o| o.name == "ListOptions").unwrap();
+            list.fields
+                .iter_mut()
+                .find(|f| f.name == name)
+                .unwrap()
+                .kind = kind;
+            let err = build(&parsed, &core_capabilities())
+                .err()
+                .unwrap()
+                .to_string();
+            assert!(err.contains(message), "{err}");
+        }
     }
 }

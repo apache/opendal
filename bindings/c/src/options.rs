@@ -46,7 +46,7 @@ use opendal::options;
 pub struct opendal_list_options {
     /// Whether to list recursively under the prefix; default `false`.
     ///
-    /// Requires `Capability::list_with_recursive`.
+    /// Requires `opendal_capability.list_with_recursive`.
     /// Services without native recursive listing rely on `crate::layers::SimulateLayer`
     /// (installed automatically by the default `auto-simulate` feature).
     pub recursive: bool,
@@ -56,17 +56,17 @@ pub struct opendal_list_options {
     pub limit: usize,
     /// Start listing after this key, excluding the key itself.
     ///
-    /// Setting this requires `Capability::list_with_start_after`.
+    /// Setting this requires `opendal_capability.list_with_start_after`.
     ///
     /// NULL means unset.
     pub start_after: *mut c_char,
     /// Include object versions; default `false`.
     ///
-    /// Requires `Capability::list_with_versions`.
+    /// Requires `opendal_capability.list_with_versions`.
     pub versions: bool,
     /// Include delete markers; default `false`.
     ///
-    /// Requires `Capability::list_with_deleted`.
+    /// Requires `opendal_capability.list_with_deleted`.
     pub deleted: bool,
 }
 
@@ -85,7 +85,7 @@ impl opendal_list_options {
     ///
     /// Whether to list recursively under the prefix; default `false`.
     ///
-    /// Requires `Capability::list_with_recursive`.
+    /// Requires `opendal_capability.list_with_recursive`.
     /// Services without native recursive listing rely on `crate::layers::SimulateLayer`
     /// (installed automatically by the default `auto-simulate` feature).
     ///
@@ -121,7 +121,7 @@ impl opendal_list_options {
     ///
     /// Start listing after this key, excluding the key itself.
     ///
-    /// Setting this requires `Capability::list_with_start_after`.
+    /// Setting this requires `opendal_capability.list_with_start_after`.
     ///
     /// @param opts The opendal_list_options to modify.
     /// @param start_after The string to copy; NULL unsets it.
@@ -151,7 +151,7 @@ impl opendal_list_options {
     ///
     /// Include object versions; default `false`.
     ///
-    /// Requires `Capability::list_with_versions`.
+    /// Requires `opendal_capability.list_with_versions`.
     ///
     /// @param opts The opendal_list_options to modify.
     /// @param versions The value to set.
@@ -169,7 +169,7 @@ impl opendal_list_options {
     ///
     /// Include delete markers; default `false`.
     ///
-    /// Requires `Capability::list_with_deleted`.
+    /// Requires `opendal_capability.list_with_deleted`.
     ///
     /// @param opts The opendal_list_options to modify.
     /// @param deleted The value to set.

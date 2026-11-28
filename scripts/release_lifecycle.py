@@ -102,6 +102,61 @@ def request_json(url, payload=None, headers=None):
         return json.loads(body) if body else None
 
 
+def atr_jwt():
+    url = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"] + f"&audience={ATR}/"
+    headers = {
+        "Authorization": "bearer " + os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]
+    }
+    return request_json(url, headers=headers)["value"]
+
+
+def atr_release(version, *, optional=False):
+    try:
+        release = request_json(f"{ATR}/api/release/get/opendal/{version}")["release"]
+    except urllib.error.HTTPError as error:
+        if optional and error.code == 404:
+            return None
+        raise
+    if release["project_key"] != "opendal" or release["version"] != version:
+        raise ValueError("ATR returned a different release")
+    return release
+
+
+def selected_revision(release):
+    field = (
+        "latest_revision_number"
+        if release["phase"] == "release_candidate_draft"
+        else "voted_revision_number"
+    )
+    number = release.get(field)
+    if not isinstance(number, str) or not re.fullmatch(r"[0-9]+", number):
+        raise ValueError(f"ATR revision is missing: {field}")
+    return number
+
+
+def manifest_url(version, revision):
+    return f"{ATR}/api/release/manifest/opendal/{version}/{revision}"
+
+
+def atr_manifest(version, revision):
+    manifest = request_json(manifest_url(version, revision))
+    if (manifest["project"], manifest["version"], manifest["revision"]) != (
+        "opendal",
+        version,
+        revision,
+    ):
+        raise ValueError("ATR returned a different revision manifest")
+    files = {}
+    for entry in manifest["files"]:
+        path, digest = entry["path"], entry["digest"]
+        if path in files or not re.fullmatch(r"sha3-256:[a-f0-9]{64}", digest or ""):
+            raise ValueError(f"Ambiguous or missing ATR digest for {path}")
+        files[path] = digest
+    if not files:
+        raise ValueError("Empty ATR revision manifest")
+    return files
+
+
 def ref_sha(kind, name):
     ref = api(f"repos/{REPO}/git/ref/{kind}/{name}", optional=True)
     if ref is None:
@@ -140,11 +195,32 @@ class Candidate:
             raise ValueError(f"RC branch and tag disagree: {rc}")
         return cls(rc, sha)
 
+    def revision_status(self, revision, files):
+        encoded = json.dumps(files, sort_keys=True, separators=(",", ":")).encode()
+        return {
+            "state": "success",
+            "context": f"release/atr/{self.version}/{revision}",
+            "description": f"{self.rc} {hashlib.sha256(encoded).hexdigest()}",
+            "target_url": manifest_url(self.version, revision),
+        }
+
+    def recorded_revision(self, status):
+        for recorded in pages(f"repos/{REPO}/commits/{self.sha}/statuses?per_page=100"):
+            if (
+                recorded["context"] == status["context"]
+                and recorded["creator"]["login"] == "github-actions[bot]"
+            ):
+                return {key: recorded.get(key) for key in status}
+        return None
+
     def atr(self):
-        release = request_json(f"{ATR}/api/release/get/opendal/{self.rc}")["release"]
-        if release["project_key"] != "opendal" or release["version"] != self.rc:
-            raise ValueError("ATR returned another candidate")
-        return release
+        release = atr_release(self.version, optional=True)
+        if release is None:
+            # Before the transition, each RC owned a separate ATR release and vote.
+            return atr_release(self.rc)
+        revision = selected_revision(release)
+        status = self.revision_status(revision, atr_manifest(self.version, revision))
+        return release if self.recorded_revision(status) == status else None
 
 
 def passed(release):
@@ -229,7 +305,7 @@ def comment_once(discussion_id, marker, text):
     )
 
 
-def announcement(candidate):
+def announcement(candidate, atr_version):
     v = candidate.version
     return f"""Hi everyone,
 
@@ -239,7 +315,7 @@ OpenDAL is an Open Data Access Layer that provides unified access to storage ser
 
 - [Downloads](https://opendal.apache.org/download)
 - [Release notes](https://github.com/{REPO}/releases/tag/v{v})
-- [Approved candidate]({ATR}/vote/opendal/{candidate.rc})
+- [Approved candidate]({ATR}/vote/opendal/{atr_version})
 - [Website](https://opendal.apache.org/)
 
 Thanks to everyone who contributed and verified this release.
@@ -260,61 +336,13 @@ def version_notes(candidate):
     return render_plan(plan)
 
 
-def notice(candidate, release, status=None):
-    rc = candidate.rc
-    phase = release["phase"]
-    revision = release.get("latest_revision_number")
-    if phase != "release" and (not revision or not re.fullmatch(r"[0-9]+", revision)):
-        raise ValueError("ATR revision is missing")
-    if status is None:
-        status = {
-            "release_candidate_draft": "Candidate uploaded; RM verification is next.",
-            "release_candidate": "Voting is open. Review the candidate and vote through ATR or the dev mailing list.",
-            "release_preview": "Vote passed; final publication is being prepared.",
-            "release": "ATR announcement sent; checking GitHub publication and follow-up.",
-        }[phase]
-    branch = (
-        f"releases/{candidate.version}"
-        if release["phase"] == "release"
-        else candidate.branch
-    )
-    body = (
-        f"""**Apache OpenDAL {candidate.version} has been released.**
-
-- [GitHub Release](https://github.com/{REPO}/releases/tag/v{candidate.version})
-- [ATR status]({ATR}/vote/opendal/{rc})
-- [Source branch](https://github.com/{REPO}/tree/{branch}); commit: `{candidate.sha}`.
-
-Follow the status replies below for optional package distribution and cleanup.
-"""
-        if phase == "release"
-        else f"""**Release candidate: {rc}**
-
-ATR is the release authority. Follow the latest status replies below and the ATR
-vote page for current progress; this opening post contains candidate instructions.
-
-- [ATR checks]({ATR}/checks/opendal/{rc}) · [Download candidate]({ATR}/download/path/opendal/{rc}) · [Vote]({ATR}/vote/opendal/{rc})
-- [Candidate branch](https://github.com/{REPO}/tree/{branch}) · [RC tag](https://github.com/{REPO}/releases/tag/v{rc})
-- Candidate commit: `{candidate.sha}`; ATR revision: `{revision}`.
-- [RC builds](https://github.com/{REPO}/actions?query=branch%3Av{rc}) · [Scheduled publication](https://github.com/{REPO}/actions/workflows/release_lifecycle.yml) · [Manual publication](https://github.com/{REPO}/actions/workflows/release_publish.yml)
-
-{version_notes(candidate)}
-### Release manager: next actions
-
-1. Review the candidate in ATR. Other builds and language package staging are optional and do not block starting the ATR vote.
-2. Review the source artifacts and announcement draft below.
-3. Start the vote on the selected revision with automatic resolution and publication enabled. ATR checks the tally at the scheduled end; inspect ATR if the vote remains unresolved.
-
-### CLI for release managers and agents
-
-Read-only checks:
-
-```bash
-atr check status opendal {rc} {revision}
-atr vote tabulate opendal {rc}
-```
-
-After verification, start the vote (do not repeat this if voting is already open):
+def vote_start_instructions(candidate, atr_version, revision):
+    if atr_version == candidate.rc:
+        return (
+            f"Start this vote using the [ATR form]({ATR}/voting/opendal/{atr_version}). "
+            f"Set **Publish location** to `{candidate.version}` for this existing RC-named release."
+        )
+    return f"""After verification, start the vote (do not repeat this if voting is already open):
 
 ```bash
 uv run --python 3.13 --with "apache-trusted-releases @ git+https://github.com/apache/tooling-releases-client" python - <<'PYTHON'
@@ -323,7 +351,7 @@ from atrclient.models.api import VoteStartArgs
 
 task = api.vote_start(VoteStartArgs(
     project="opendal",
-    version="{rc}",
+    version="{atr_version}",
     revision="{revision}",
     email_to="dev@opendal.apache.org",
     automatic_resolve_when_finished=True,
@@ -339,7 +367,65 @@ PYTHON
 This uses the official ATR client and the same credentials as `atr`. It checks
 that the returned task enables both automatic resolution and publication. If a
 check fails, inspect that task in ATR; do not repeat the start command. The CLI's
-`--auto-publish` option alone does not enable automatic resolution.
+`--auto-publish` option alone does not enable automatic resolution."""
+
+
+def notice(candidate, release, status=None):
+    rc = candidate.rc
+    atr_version = release["version"]
+    phase = release["phase"]
+    revision = selected_revision(release)
+    if status is None:
+        status = {
+            "release_candidate_draft": "Candidate uploaded; RM verification is next.",
+            "release_candidate": "Voting is open. Review the candidate and vote through ATR or the dev mailing list.",
+            "release_preview": "Vote passed; final publication is being prepared.",
+            "release": "ATR announcement sent; checking GitHub publication and follow-up.",
+        }[phase]
+        if phase == "release_candidate_draft" and atr_version == rc:
+            status += f" Start voting in the ATR web form with Publish location set to `{candidate.version}`."
+    branch = (
+        f"releases/{candidate.version}"
+        if release["phase"] == "release"
+        else candidate.branch
+    )
+    body = (
+        f"""**Apache OpenDAL {candidate.version} has been released.**
+
+- [GitHub Release](https://github.com/{REPO}/releases/tag/v{candidate.version})
+- [ATR status]({ATR}/vote/opendal/{atr_version})
+- [Source branch](https://github.com/{REPO}/tree/{branch}); commit: `{candidate.sha}`.
+
+Follow the status replies below for optional package distribution and cleanup.
+"""
+        if phase == "release"
+        else f"""**Release candidate: {rc}**
+
+ATR is the release authority. Follow the latest status replies below and the ATR
+vote page for current progress; this opening post contains candidate instructions.
+
+- [ATR checks]({ATR}/checks/opendal/{atr_version}) · [Download candidate]({ATR}/download/path/opendal/{atr_version}) · [Vote]({ATR}/vote/opendal/{atr_version})
+- [Candidate branch](https://github.com/{REPO}/tree/{branch}) · [RC tag](https://github.com/{REPO}/releases/tag/v{rc})
+- Candidate commit: `{candidate.sha}`; [ATR revision `{revision}` manifest]({manifest_url(atr_version, revision)}).
+- [RC builds](https://github.com/{REPO}/actions?query=branch%3Av{rc}) · [Scheduled publication](https://github.com/{REPO}/actions/workflows/release_lifecycle.yml) · [Manual publication](https://github.com/{REPO}/actions/workflows/release_publish.yml)
+
+{version_notes(candidate)}
+### Release manager: next actions
+
+1. Review the candidate in ATR. Other builds and language package staging are optional and do not block starting the ATR vote.
+2. Review the source artifacts and announcement draft below.
+3. Start the vote on the selected revision with automatic resolution and publication enabled. ATR checks the tally at the scheduled end; inspect ATR if the vote remains unresolved.
+
+### CLI for release managers and agents
+
+Read-only checks:
+
+```bash
+atr check status opendal {atr_version} {revision}
+atr vote tabulate opendal {atr_version}
+```
+
+{vote_start_instructions(candidate, atr_version, revision)}
 
 ATR attempts automatic resolution at the scheduled vote end and publishes the
 source archives if the vote passes. Insufficient votes leave the vote open for
@@ -347,7 +433,7 @@ manual follow-up; do not assume later ballots automatically trigger another
 attempt. If manual resolution is needed, review the tally first:
 
 ```bash
-atr vote resolve opendal {rc} passed
+atr vote resolve opendal {atr_version} passed
 ```
 
 These commands change the release state; agents need the RM's authorization for voting actions. The hourly GitHub workflow follows ATR's resolved result to create the final branch and tag, publish packages, and finish announcements and cleanup. It does not tally or resolve votes.
@@ -364,7 +450,7 @@ Download and verify the candidate. During voting, ASF committers can vote on ATR
 
 <details><summary>Final announcement draft</summary>
 
-{announcement(candidate)}
+{announcement(candidate, atr_version)}
 </details>
 """
     )
@@ -376,7 +462,7 @@ Download and verify the candidate. During voting, ASF committers can vote on ATR
         comment_once(
             current["id"],
             f"<!-- opendal-vote:{rc}:{seq} -->",
-            f"Voting is now open: [{rc}]({ATR}/vote/opendal/{rc}). The ATR page shows the deadline and participation instructions. Follow ATR and these status replies for current progress; the opening post records candidate preparation. Other builds and language package staging are optional and do not block this vote.",
+            f"Voting is now open: [{rc}]({ATR}/vote/opendal/{atr_version}). The ATR page shows the deadline and participation instructions. Follow ATR and these status replies for current progress; the opening post records candidate preparation. Other builds and language package staging are optional and do not block this vote.",
         )
     else:
         atr_status = (
@@ -386,7 +472,7 @@ Download and verify the candidate. During voting, ASF committers can vote on ATR
         )
         progress = f"""**{status}**
 
-- {atr_status}; [current ATR status]({ATR}/vote/opendal/{rc}).
+- {atr_status}; [current ATR status]({ATR}/vote/opendal/{atr_version}).
 - [Source branch](https://github.com/{REPO}/tree/{branch}) · [Scheduled publication](https://github.com/{REPO}/actions/workflows/release_lifecycle.yml) · [Manual publication](https://github.com/{REPO}/actions/workflows/release_publish.yml).
 """
         digest = hashlib.sha256(progress.encode()).hexdigest()
@@ -433,18 +519,36 @@ def candidates():
 
 
 def sync():
-    approved = []
+    approved_by_version = {}
+    unbound = set()
+    bound = set()
     errors = []
     for rc in candidates():
         try:
             candidate = Candidate.load(rc)
             release = candidate.atr()
+            if release is None:
+                unbound.add(candidate.version)
+                continue
+            if release["version"] == candidate.version:
+                bound.add(candidate.version)
             if passed(release):
-                approved.append(rc)
+                approved_by_version.setdefault(candidate.version, []).append(rc)
             else:
                 notice(candidate, release)
         except (RuntimeError, ValueError, OSError, KeyError) as error:
             errors.append(f"{rc}: {error}")
+    unresolved = unbound - bound
+    for version in sorted(unresolved):
+        errors.append(f"{version}: no Git RC matches the selected ATR revision")
+    approved = []
+    for version, matches in approved_by_version.items():
+        if version in unresolved:
+            continue
+        if len(matches) == 1:
+            approved.extend(matches)
+        else:
+            errors.append(f"{version}: multiple approved candidates: {matches}")
     with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
         output.write(f"candidates={json.dumps(approved)}\n")
     if errors:
@@ -776,10 +880,13 @@ def cleanup(candidate):
 
 def publish(candidate):
     release = candidate.atr()
+    if release is None:
+        raise ValueError(f"{candidate.rc} does not match the selected ATR revision")
     if not passed(release):
         raise ValueError("ATR has not resolved this vote as passed")
+    revision = selected_revision(release)
     final_refs(candidate)
-    body = announcement(candidate)
+    body = announcement(candidate, release["version"])
     existing = api(f"repos/{REPO}/releases/tags/v{candidate.version}", optional=True)
     if existing and (existing["draft"] or existing["prerelease"]):
         raise ValueError("existing GitHub Release is still draft or prerelease")
@@ -796,33 +903,26 @@ def publish(candidate):
             },
         )
     if release["phase"] != "release":
-        token_url = (
-            os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"]
-            + "&audience=https://releases.apache.org/"
-        )
-        jwt = request_json(
-            token_url,
-            headers={
-                "Authorization": "bearer "
-                + os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]
-            },
-        )["value"]
         # This is the endpoint used by apache/tooling-actions/release-on-atr.
         # ATR validates publication and download propagation before sending mail.
         request_json(
             f"{ATR}/api/publisher/release/announce",
             {
                 "publisher": "github",
-                "jwt": jwt,
-                "version": candidate.rc,
-                "revision": release["latest_revision_number"],
+                "jwt": atr_jwt(),
+                "version": release["version"],
+                "revision": revision,
                 "email_to": "announce@apache.org",
                 "body": body,
                 "path_suffix": release.get("download_path_suffix") or None,
             },
         )
         release = candidate.atr()
-        if release["phase"] != "release":
+        if (
+            release is None
+            or release["phase"] != "release"
+            or selected_revision(release) != revision
+        ):
             raise ValueError("ATR has not confirmed the announcement")
     discussion(
         f"[ANNOUNCE] Release Apache OpenDAL {candidate.version}", body, "Announcements"
@@ -887,7 +987,12 @@ def main():
     else:
         candidate = Candidate.load(args.rc or "")
         if args.action == "notify":
-            notice(candidate, candidate.atr(), args.status)
+            release = candidate.atr()
+            if release is None:
+                raise ValueError(
+                    f"{candidate.rc} does not match the selected ATR revision"
+                )
+            notice(candidate, release, args.status)
         else:
             publish(candidate)
 

@@ -34,8 +34,10 @@ class LifecycleTests(unittest.TestCase):
     def setUp(self):
         self.candidate = release.Candidate("0.59.3-rc.2", "a" * 40)
         self.atr = {
+            "version": self.candidate.rc,
             "phase": "release_preview",
             "vote_resolved": "2026-09-14T00:00:00",
+            "voted_revision_number": "00003",
             "latest_revision_number": "00003",
             "download_path_suffix": "",
             "current_vote_seq": 1,
@@ -85,6 +87,125 @@ class LifecycleTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "not resolved"):
                 release.publish(self.candidate)
             refs.assert_not_called()
+
+    def test_withdrawn_vote_and_approved_revision_select_only_the_second_git_rc(self):
+        first = release.Candidate("0.60.0-rc.1", "a" * 40)
+        second = release.Candidate("0.60.0-rc.2", "b" * 40)
+        artifacts = {
+            number: {"package.asc": "sha3-256:" + digest * 64}
+            for number, digest in [("00004", "c"), ("00009", "d")]
+        }
+        statuses = {
+            candidate.sha: [
+                candidate.revision_status(number, artifacts[number])
+                | {"creator": {"login": "github-actions[bot]"}}
+            ]
+            for candidate, number in [(first, "00004"), (second, "00009")]
+        }
+        state = self.atr | {
+            "project_key": "opendal",
+            "version": second.version,
+            "phase": "release_candidate",
+            "voted_revision_number": "00004",
+            "latest_revision_number": "00004",
+            "vote_resolved": None,
+            "commit_hash": "f" * 40,
+        }
+
+        def atr_read(url):
+            if url.endswith("/" + second.version):
+                return {"release": state.copy()}
+            if "/manifest/" in url:
+                number = url.rsplit("/", 1)[1]
+                return {
+                    "project": "opendal",
+                    "version": second.version,
+                    "revision": number,
+                    "files": [
+                        {"path": k, "digest": v} for k, v in artifacts[number].items()
+                    ],
+                }
+            raise urllib.error.HTTPError(
+                url, 404, "No such long-version release", {}, None
+            )
+
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.dict(os.environ, {"GITHUB_OUTPUT": str(Path(directory, "outputs"))}),
+            patch.object(release, "candidates", return_value=[first.rc, second.rc]),
+            patch.object(
+                release,
+                "ref_sha",
+                side_effect=lambda kind, name: (
+                    first.sha if name.endswith(first.rc) else second.sha
+                ),
+            ),
+            patch.object(release, "request_json", side_effect=atr_read),
+            patch.object(
+                release, "pages", side_effect=lambda path: statuses[path.split("/")[4]]
+            ),
+            patch.object(release, "notice") as notice,
+            patch.object(
+                release,
+                "final_refs",
+                side_effect=InterruptedError("observed final refs"),
+            ) as refs,
+        ):
+            release.sync()
+            self.assertEqual(notice.call_args.args[0], first)
+            state.update(
+                phase="release_candidate_draft",
+                latest_revision_number="00009",
+                voted_revision_number=None,
+            )
+            release.sync()
+            self.assertEqual(notice.call_args.args[0], second)
+            state.update(
+                phase="release_preview",
+                voted_revision_number="00009",
+                latest_revision_number="00012",
+                vote_resolved="now",
+            )
+            release.sync()
+            with self.assertRaisesRegex(ValueError, "does not match"):
+                release.publish(first)
+            refs.assert_not_called()
+            with self.assertRaises(InterruptedError):
+                release.publish(second)
+            refs.assert_called_once_with(second)
+            state.update(phase="release", latest_revision_number=None)
+            release.sync()
+            self.assertEqual(
+                Path(directory, "outputs").read_text().splitlines(),
+                [
+                    "candidates=[]",
+                    "candidates=[]",
+                    'candidates=["0.60.0-rc.2"]',
+                    'candidates=["0.60.0-rc.2"]',
+                ],
+            )
+            artifacts["00009"]["extra.asc"] = "sha3-256:" + "0" * 64
+            with self.assertRaisesRegex(RuntimeError, "no Git RC matches"):
+                release.sync()
+            with self.assertRaisesRegex(ValueError, "does not match"):
+                release.publish(second)
+            self.assertEqual(refs.call_count, 1)
+
+    def test_existing_long_version_uses_its_own_vote(self):
+        legacy = self.atr | {"project_key": "opendal", "commit_hash": "f" * 40}
+        shared = f"{release.ATR}/api/release/get/opendal/{self.candidate.version}"
+        with patch.object(
+            release,
+            "request_json",
+            side_effect=[
+                urllib.error.HTTPError(shared, 404, "Not found", {}, None),
+                {"release": legacy},
+            ],
+        ) as get:
+            self.assertEqual(self.candidate.atr(), legacy)
+            get.assert_called_with(
+                f"{release.ATR}/api/release/get/opendal/{self.candidate.rc}"
+            )
 
     def test_conflicting_final_ref_cannot_be_replaced(self):
         with (
@@ -246,7 +367,12 @@ class LifecycleTests(unittest.TestCase):
             ):
                 release.notice(
                     self.candidate,
-                    self.atr | {"phase": phase, "latest_revision_number": None},
+                    self.atr
+                    | {
+                        "phase": phase,
+                        "latest_revision_number": None,
+                        "voted_revision_number": None,
+                    },
                 )
 
     def test_sync_pr_can_recover_after_branch_push(self):

@@ -121,7 +121,7 @@ jobs:
           SOURCE_SIGNING_FINGERPRINT: ${{ vars.SOURCE_SIGNING_FINGERPRINT }}
           SOURCE_SIGNING_KEY: ${{ secrets.GPG_SECRET_KEY }}
           SOURCE_SIGNING_PASSPHRASE: ""
-        run: python3 scripts/sign_source_release.py "$RUNNER_TEMP/source-bundle" "$CANDIDATE" "$RC" "$RUNNER_TEMP/signed-source/${RC%-rc.*}"
+        run: python3 scripts/sign_source_release.py "$RUNNER_TEMP/source-bundle" "$CANDIDATE" "$RC" "$RUNNER_TEMP/signed-source"
       - uses: actions/upload-artifact@v7
         id: signed
         with:
@@ -135,18 +135,25 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      statuses: write
     steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
       - uses: actions/download-artifact@v8
         with:
           artifact-ids: ${{ needs.source_sign.outputs.artifact-id }}
           path: ${{ runner.temp }}/signed-source
           merge-multiple: true
       - name: Upload candidate to ATR compose
-        uses: apache/tooling-actions/upload-to-atr@fa721a0b176d713807b574da721b96545b587eea
-        with:
-          project: opendal
-          version: ${{ inputs.rc }}
-          src: ${{ runner.temp }}/signed-source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RC: ${{ inputs.rc }}
+          CANDIDATE: ${{ inputs.candidate }}
+        run: python3 scripts/compose_atr.py "$RC" "$CANDIDATE" "$RUNNER_TEMP/signed-source"
       - name: Record staging handoff
         run: |
           echo 'Candidate uploaded to ATR compose. Inspect ATR checks and independently rebuild the downloaded files before starting a vote. This workflow does not vote or finish a release.' >> "$GITHUB_STEP_SUMMARY"

@@ -22,8 +22,7 @@ project:
     key: opendal
     committee: opendal
   policy:
-    # Compose supplies the final-version directory. ATR's version includes the RC number.
-    download_path_suffix: ""
+    download_path_suffix: "{{VERSION}}"
 
 github:
   description: "Apache OpenDAL: One Layer, All Storage."

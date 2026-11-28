@@ -42,9 +42,8 @@ struct ListOptions {
   std::optional<std::string> start_after;
   /// Whether to list recursively under the prefix; default `false`.
   ///
-  /// Requires `opendal::Capability::list_with_recursive`. Services without
-  /// native recursive listing rely on `crate::layers::SimulateLayer` (installed
-  /// automatically by the default `auto-simulate` feature).
+  /// Setting this option to `true` requires the operator's effective
+  /// `opendal::Capability::list_with_recursive` capability.
   bool recursive{false};
   /// Include object versions; default `false`.
   ///

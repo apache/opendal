@@ -136,6 +136,22 @@ impl ObsBuilder {
         self
     }
 
+    /// Enable virtual host style so that OpenDAL addresses the bucket as
+    /// `{bucket}.{endpoint}` and signs with `/bucket/object` as
+    /// CanonicalizedResource.
+    ///
+    /// Use this for an ordinary internal or third-party OBS service endpoint
+    /// where the bucket is configured separately. Without it, non-Huawei
+    /// hostnames are treated as bucket-bound custom domains (CNAME).
+    ///
+    /// The endpoint host must resolve in DNS as `{bucket}.{endpoint host}`.
+    /// Virtual host style cannot address a literal IP endpoint, and the
+    /// endpoint's port and path are not part of the signed host.
+    pub fn enable_virtual_host_style(mut self) -> Self {
+        self.config.enable_virtual_host_style = true;
+        self
+    }
+
     /// Disable config load so that opendal will not load config from
     /// environment.
     ///
@@ -196,17 +212,13 @@ impl Builder for ObsBuilder {
             None => "https".to_string(),
         };
 
-        let (endpoint, is_obs_default) = {
-            let host = uri.host().unwrap_or_default().to_string();
-            if host.starts_with("obs.")
-                && (host.ends_with(".myhuaweicloud.com") || host.ends_with(".huawei.com"))
-            {
-                (format!("{bucket}.{host}"), true)
-            } else {
-                (host, false)
-            }
-        };
-        debug!("backend use endpoint {}", endpoint);
+        let host = uri.host().unwrap_or_default().to_string();
+        let (endpoint, is_obs_default) =
+            resolve_obs_endpoint(&host, &bucket, self.config.enable_virtual_host_style);
+        debug!(
+            "backend use endpoint {}, virtual_host_style={}",
+            endpoint, is_obs_default
+        );
 
         let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
@@ -538,6 +550,60 @@ impl Service for ObsBackend {
             parts.uri,
             parts.headers,
         )))
+    }
+}
+
+/// Decide OBS request host and whether CanonicalizedResource should use the
+/// configured bucket name (`true`) or the endpoint host as a CNAME bucket
+/// (`false`).
+fn resolve_obs_endpoint(
+    host: &str,
+    bucket: &str,
+    enable_virtual_host_style: bool,
+) -> (String, bool) {
+    let is_huawei_default = host.starts_with("obs.")
+        && (host.ends_with(".myhuaweicloud.com") || host.ends_with(".huawei.com"));
+    if enable_virtual_host_style || is_huawei_default {
+        (format!("{bucket}.{host}"), true)
+    } else {
+        (host.to_string(), false)
+    }
+}
+
+#[cfg(test)]
+mod endpoint_tests {
+    use super::*;
+
+    #[test]
+    fn huawei_public_hosts_use_virtual_host_style_by_default() {
+        for host in [
+            "obs.cn-north-4.myhuaweicloud.com",
+            "obs.cn-south-1.huawei.com",
+        ] {
+            let (endpoint, is_default) = resolve_obs_endpoint(host, "example-bucket", false);
+            assert_eq!(endpoint, format!("example-bucket.{host}"));
+            assert!(is_default);
+        }
+    }
+
+    #[test]
+    fn non_huawei_hosts_default_to_cname_mode() {
+        for host in ["obs.internal.example", "192.0.2.10", "custom.obs.example"] {
+            let (endpoint, is_default) = resolve_obs_endpoint(host, "example-bucket", false);
+            assert_eq!(endpoint, host);
+            assert!(!is_default);
+        }
+    }
+
+    #[test]
+    fn enable_virtual_host_style_forces_bucket_signing_on_internal_hosts() {
+        // A literal IP endpoint stays on path-style addressing, so it is covered
+        // by `non_huawei_hosts_default_to_cname_mode` only.
+        for host in ["obs.internal.example", "custom.obs.example"] {
+            let (endpoint, is_default) = resolve_obs_endpoint(host, "example-bucket", true);
+            assert_eq!(endpoint, format!("example-bucket.{host}"));
+            assert!(is_default);
+        }
     }
 }
 

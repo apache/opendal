@@ -64,3 +64,27 @@ async fn main() -> Result<()> {
     Ok(())
 }
 ```
+
+For an ordinary internal or third-party OBS service endpoint (bucket configured
+separately, not a bucket-bound CNAME), enable virtual host style so requests are
+addressed as `{bucket}.{endpoint}` and signed with `/bucket/...`:
+
+```rust,no_run
+# use opendal_core::Result;
+# use opendal_service_obs::Obs;
+# fn main() -> Result<()> {
+let builder = Obs::default()
+    .bucket("example-bucket")
+    .endpoint("http://obs.internal.example")
+    .enable_virtual_host_style()
+    .access_key_id("access_key_id")
+    .secret_access_key("secret_access_key");
+# let _ = builder;
+# Ok(())
+# }
+```
+
+Virtual host style needs `{bucket}.{endpoint host}` to resolve in DNS. A literal
+IP endpoint cannot be reached that way, so it keeps path-style addressing, which
+is what Huawei's SDKs use for IP endpoints. The signed host comes from the
+endpoint's host only, without its port or path.

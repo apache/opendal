@@ -3533,6 +3533,22 @@ public interface ServiceConfig {
          */
         public final Boolean enableVersioning;
         /**
+         * <p>Enable virtual host style so that OpenDAL addresses the bucket as
+         * <code>{bucket}.{endpoint}</code> and signs with <code>/bucket/object</code> as
+         * CanonicalizedResource.</p>
+         * <p>By default, only Huawei public OBS hostnames (<code>obs.*.myhuaweicloud.com</code>
+         * / <code>obs.*.huawei.com</code>) use that mode. Every other endpoint is treated as a
+         * bucket-bound custom domain (CNAME), which signs with the endpoint host as
+         * the bucket name. Set this to <code>true</code> for an ordinary internal or
+         * third-party OBS service endpoint where the bucket is configured
+         * separately (see #8321).</p>
+         * <p>The endpoint host must resolve in DNS as <code>{bucket}.{endpoint host}</code>.
+         * Virtual host style therefore cannot address a literal IP endpoint, which
+         * Huawei's SDKs keep on path-style addressing, and the endpoint's port and
+         * path are not part of the signed host.</p>
+         */
+        public final Boolean enableVirtualHostStyle;
+        /**
          * <p>Endpoint for obs.</p>
          */
         public final String endpoint;
@@ -3578,6 +3594,9 @@ public interface ServiceConfig {
             }
             if (enableVersioning != null) {
                 map.put("enable_versioning", String.valueOf(enableVersioning));
+            }
+            if (enableVirtualHostStyle != null) {
+                map.put("enable_virtual_host_style", String.valueOf(enableVirtualHostStyle));
             }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);

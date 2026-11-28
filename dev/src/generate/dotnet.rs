@@ -938,11 +938,8 @@ fn generate_service_configs(workspace_dir: &Path, services: Services) -> Result<
         let fields = srvs[name]
             .config
             .iter()
-            // A HashMap config has no string encoding in the options map, so
-            // it cannot be expressed through IServiceConfig.ToOptions.
-            .filter(|config| config.value != ConfigType::HashMap)
             .map(config_field)
-            .collect::<Result<Vec<ConfigField>>>()?;
+            .collect::<Vec<ConfigField>>();
 
         let rendered = tmpl.render(context! {
             service => name,
@@ -959,7 +956,7 @@ fn generate_service_configs(workspace_dir: &Path, services: Services) -> Result<
     Ok(())
 }
 
-fn config_field(config: &Config) -> Result<ConfigField> {
+fn config_field(config: &Config) -> ConfigField {
     let pascal = heck::AsUpperCamelCase(&config.name).to_string();
 
     // Strings and durations stay nullable even when core requires them, so a
@@ -988,9 +985,11 @@ fn config_field(config: &Config) -> Result<ConfigField> {
             true,
             format!("string.Join(\",\", {pascal})"),
         ),
-        ConfigType::HashMap => bail!(
-            "config `{}` is a HashMap and should have been filtered out",
-            config.name
+        // Core reads a map-valued option from a JSON object string.
+        ConfigType::HashMap => (
+            "IReadOnlyDictionary<string, string>?",
+            true,
+            format!("Utilities.ToOptionJson({pascal})"),
         ),
     };
 
@@ -999,7 +998,7 @@ fn config_field(config: &Config) -> Result<ConfigField> {
         None => String::new(),
     };
 
-    Ok(ConfigField {
+    ConfigField {
         pascal,
         key: config.name.clone(),
         cs_type: cs_type.to_string(),
@@ -1007,7 +1006,7 @@ fn config_field(config: &Config) -> Result<ConfigField> {
         value_expr,
         deprecated,
         doc: xml_escape(&single_line(&config.comments)),
-    })
+    }
 }
 
 fn to_option_string(pascal: &str) -> String {

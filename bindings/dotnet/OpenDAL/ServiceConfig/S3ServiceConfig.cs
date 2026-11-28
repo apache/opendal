@@ -42,6 +42,10 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public int? AssumeRoleDurationSeconds { get; init; }
         /// <summary>
+        /// assume_role_session_tags for this backend.
+        /// </summary>
+        public IReadOnlyDictionary<string, string>? AssumeRoleSessionTags { get; init; }
+        /// <summary>
         /// Deprecated: S3 delete batch capability is enabled by default.
         /// </summary>
         [System.Obsolete("S3 delete batch capability is enabled by default. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints.")]
@@ -214,6 +218,10 @@ namespace OpenDAL.ServiceConfig
             if (AssumeRoleDurationSeconds is not null)
             {
                 map["assume_role_duration_seconds"] = Utilities.ToOptionString(AssumeRoleDurationSeconds);
+            }
+            if (AssumeRoleSessionTags is not null)
+            {
+                map["assume_role_session_tags"] = Utilities.ToOptionJson(AssumeRoleSessionTags);
             }
 #pragma warning disable CS0618
             if (BatchMaxOperations is not null)

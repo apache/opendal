@@ -672,10 +672,16 @@ typedef struct opendal_stat_options {
 } opendal_stat_options;
 
 /**
- * \brief The options for the list operation.
+ * \brief Options for list operations.
  *
- * This struct carries the options for the list operation, including whether to
- * list recursively, an optional result limit, and an optional start-after key.
+ * # Groups
+ * - Traversal: `recursive`.
+ * - Pagination: `limit`, `start_after`.
+ * - Versioning: `versions`, `deleted`.
+ *
+ * The operation fails with `crate::ErrorKind::Unsupported` when an option
+ * requires a capability that the operator lacks.
+ *
  * Use `opendal_list_options_new()` to construct and `opendal_list_options_free()` to free.
  *
  * @see opendal_operator_list_with
@@ -689,23 +695,36 @@ typedef struct opendal_stat_options {
  */
 typedef struct opendal_list_options {
   /**
-   * Whether to list recursively under the prefix; default false.
+   * Whether to list recursively under the prefix; default `false`.
+   *
+   * Setting this option to `true` requires the operator's effective
+   * `opendal_capability.list_with_recursive` capability.
    */
   bool recursive;
   /**
-   * Optional hint for maximum results per request; 0 means unset.
+   * Maximum results per request (backend hint) to control memory and throttling.
+   *
+   * `0` means unset.
    */
   uintptr_t limit;
   /**
-   * Optional key to start listing from; NULL means unset.
+   * Start listing after this key, excluding the key itself.
+   *
+   * Setting this requires `opendal_capability.list_with_start_after`.
+   *
+   * NULL means unset.
    */
   char *start_after;
   /**
-   * Include object versions when supported by version-aware backends; default false.
+   * Include object versions; default `false`.
+   *
+   * Requires `opendal_capability.list_with_versions`.
    */
   bool versions;
   /**
-   * Include delete markers when supported by version-aware backends; default false.
+   * Include delete markers; default `false`.
+   *
+   * Requires `opendal_capability.list_with_deleted`.
    */
   bool deleted;
 } opendal_list_options;
@@ -2914,45 +2933,62 @@ void opendal_bytes_free(struct opendal_bytes *ptr);
 struct opendal_list_options *opendal_list_options_new(void);
 
 /**
- * \brief Set the recursive option.
+ * \brief Set `recursive`.
+ *
+ * Whether to list recursively under the prefix; default `false`.
+ *
+ * Setting this option to `true` requires the operator's effective
+ * `opendal_capability.list_with_recursive` capability.
  *
  * @param opts The opendal_list_options to modify.
- * @param recursive Whether to list recursively.
+ * @param recursive The value to set.
  */
 void opendal_list_options_set_recursive(struct opendal_list_options *opts, bool recursive);
 
 /**
- * \brief Set the limit option.
+ * \brief Set `limit`.
+ *
+ * Maximum results per request (backend hint) to control memory and throttling.
  *
  * @param opts The opendal_list_options to modify.
- * @param limit Maximum number of results per request; 0 means unset.
+ * @param limit The value to set; `0` unsets it.
  */
 void opendal_list_options_set_limit(struct opendal_list_options *opts, uintptr_t limit);
 
 /**
- * \brief Set the start_after option.
+ * \brief Set `start_after`.
  *
- * Passes the specified key to the underlying service to start listing from.
+ * Start listing after this key, excluding the key itself.
+ *
+ * Setting this requires `opendal_capability.list_with_start_after`.
  *
  * @param opts The opendal_list_options to modify.
- * @param start_after The key to start listing from; NULL to unset.
+ * @param start_after The string to copy; NULL unsets it.
  */
 void opendal_list_options_set_start_after(struct opendal_list_options *opts,
                                           const char *start_after);
 
 /**
- * \brief Set the versions option.
+ * \brief Set `versions`.
+ *
+ * Include object versions; default `false`.
+ *
+ * Requires `opendal_capability.list_with_versions`.
  *
  * @param opts The opendal_list_options to modify.
- * @param versions Whether to include object versions.
+ * @param versions The value to set.
  */
 void opendal_list_options_set_versions(struct opendal_list_options *opts, bool versions);
 
 /**
- * \brief Set the deleted option.
+ * \brief Set `deleted`.
+ *
+ * Include delete markers; default `false`.
+ *
+ * Requires `opendal_capability.list_with_deleted`.
  *
  * @param opts The opendal_list_options to modify.
- * @param deleted Whether to include delete markers.
+ * @param deleted The value to set.
  */
 void opendal_list_options_set_deleted(struct opendal_list_options *opts, bool deleted);
 

@@ -192,6 +192,7 @@ mod tests {
     use core::raw::{self, oio};
 
     use super::*;
+    use crate::buffer::opendal_bytes;
     use crate::copier::opendal_copier;
     use crate::deleter::opendal_deleter;
     use crate::error::{opendal_code, opendal_error};
@@ -201,7 +202,6 @@ mod tests {
         opendal_operator_stat_with_cancel,
     };
     use crate::reader::opendal_reader;
-    use crate::types::opendal_bytes;
 
     #[derive(Debug)]
     struct Gate {

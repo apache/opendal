@@ -3123,12 +3123,6 @@
           "language": "javascript",
           "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"hdfs-native\", {\n});",
           "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"hdfs-native\", {\n  // work dir of this backend\n  // root: \"...\",\n\n  // name_node of this backend\n  // name_node: \"...\",\n\n  // other options for hdfs client\n  // options: \"{\\\"key\\\":\\\"value\\\"}\",\n});"
-        },
-        {
-          "binding": "go",
-          "language": "go",
-          "minimal": "import (\n\t\"github.com/apache/opendal-go-services/hdfs-native\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(hdfs-native.Scheme, opendal.OperatorOptions{\n})",
-          "full": "import (\n\t\"github.com/apache/opendal-go-services/hdfs-native\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(hdfs-native.Scheme, opendal.OperatorOptions{\n\t// work dir of this backend\n\t// \"root\": \"...\",\n\n\t// name_node of this backend\n\t// \"name_node\": \"...\",\n\n\t// other options for hdfs client\n\t// \"options\": \"{\\\"key\\\":\\\"value\\\"}\",\n})"
         }
       ]
     },

@@ -62,7 +62,7 @@ impl Metadata {
 
     pub fn __repr__(&self) -> String {
         let parts = [
-{%- for f in fields %}
+{%- for f in fields if f.repr_fmt %}
             format!("{{ f.name }}={{ f.repr_fmt }}", self.0.{{ f.name }}()),
 {%- endfor %}
         ];

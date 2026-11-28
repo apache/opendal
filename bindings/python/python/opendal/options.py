@@ -149,6 +149,8 @@ class StatKwargs(TypedDict, total=False):
     """The cache control of the file."""
     content_disposition: str
     """The content disposition of the file."""
+    checksum: bool
+    """Request the service's full-object checksum when available. Defaults to False."""
 
 
 class CopyKwargs(TypedDict, total=False):

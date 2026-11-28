@@ -19,10 +19,9 @@
 //!
 //! `Metadata` is a compact encoding, so it has no field list to mirror; its
 //! public shape is the set of `pub fn name(&self) -> T` accessors. This module
-//! reads those accessors in source order and classifies each return type into
-//! the handful of shapes the .NET FFI mirror knows how to carry, so the Rust
-//! mirror, the C# interop struct, the marshaller, and the public class are all
-//! rendered from the same list.
+//! reads those accessors in source order and classifies the return types
+//! shared by the binding generators. A binding can map additional accessors
+//! from their original return types.
 
 use anyhow::{Context, Result, bail};
 use serde::Serialize;
@@ -71,16 +70,45 @@ pub struct MetadataField {
 /// Accessors derived from another field, which have no FFI representation.
 const DERIVED: &[&str] = &["is_file", "is_dir"];
 
-/// Accessors whose types bindings do not mirror yet.
-const NOT_MIRRORED: &[&str] = &["checksum"];
+/// Accessors that require a binding-specific mapping.
+const BINDING_SPECIFIC: &[&str] = &["checksum"];
 
-/// Parse the `impl Metadata` accessors out of the given core source file.
+/// A core accessor before its return type is mapped for a binding.
+pub(super) struct MetadataAccessor {
+    pub name: String,
+    pub output: ReturnType,
+    pub doc: String,
+}
+
+impl MetadataAccessor {
+    pub(super) fn into_field(self) -> Result<MetadataField> {
+        let Self { name, output, doc } = self;
+        let Some(kind) = classify(&output) else {
+            bail!(
+                "metadata accessor `{name}` returns an unsupported type; \
+                 teach dev/src/generate/metadata.rs about it before regenerating"
+            );
+        };
+        Ok(MetadataField { name, kind, doc })
+    }
+}
+
+/// Parse the core metadata accessors with shared binding mappings.
 pub fn parse(path: &Path) -> Result<Vec<MetadataField>> {
+    parse_accessors(path)?
+        .into_iter()
+        .filter(|accessor| !BINDING_SPECIFIC.contains(&accessor.name.as_str()))
+        .map(MetadataAccessor::into_field)
+        .collect()
+}
+
+/// Extract the public `impl Metadata` accessors from the core source file.
+pub(super) fn parse_accessors(path: &Path) -> Result<Vec<MetadataAccessor>> {
     let content =
         fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
     let ast = syn::parse_file(&content)?;
 
-    let mut fields = Vec::new();
+    let mut accessors = Vec::new();
     for item in ast.items {
         let Item::Impl(impl_) = item else {
             continue;
@@ -98,26 +126,23 @@ pub fn parse(path: &Path) -> Result<Vec<MetadataField>> {
             }
 
             let name = func.sig.ident.to_string();
-            if DERIVED.contains(&name.as_str()) || NOT_MIRRORED.contains(&name.as_str()) {
+            if DERIVED.contains(&name.as_str()) {
                 continue;
             }
 
-            let Some(kind) = classify(&func.sig.output) else {
-                bail!(
-                    "metadata accessor `{name}` returns an unsupported type; \
-                     teach dev/src/generate/metadata.rs about it before regenerating"
-                );
-            };
-            let doc = first_paragraph(&doc_lines(&func.attrs));
-            fields.push(MetadataField { name, kind, doc });
+            accessors.push(MetadataAccessor {
+                name,
+                output: func.sig.output,
+                doc: first_paragraph(&doc_lines(&func.attrs)),
+            });
         }
     }
 
-    if fields.is_empty() {
+    if accessors.is_empty() {
         bail!("impl Metadata not found in {}", path.display());
     }
 
-    Ok(fields)
+    Ok(accessors)
 }
 
 /// Parse the names of the public `impl MetadataBuilder` methods that take

@@ -30,7 +30,7 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 
 import opendal
-from opendal.options import ReadKwargs
+from opendal.options import ReadKwargs, StatKwargs
 
 CONTENT = b"HelloWorld"
 TRUNCATED_CONTENT = b"Hell"
@@ -132,6 +132,16 @@ def serve_requests(port_queue, requests, slow_started, slow_release, stop):
         def do_GET(self) -> None:
             range_header = self.headers.get("Range")
             requests.append(("GET", self.path, range_header))
+            if urlsplit(self.path).path == "/storage/v1/b/checksum-test/o/object":
+                # GCS reports CRC32C in the object metadata without a hint.
+                body = b'{"size":"9","generation":"42","crc32c":"4waSgw=="}'
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+
             content = TRUNCATED_CONTENT if self.path == "/truncated" else CONTENT
             body = content
             status = 200
@@ -251,6 +261,34 @@ async def test_read_forwards_response_overrides(request_server, prefetch):
         (parse_qs(urlsplit(target).query), byte_range)
         for target, byte_range in state._reads()
     ] == [(expected_query, "bytes=2-6")] * 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("asynchronous", [False, True], ids=["sync", "async"])
+@pytest.mark.parametrize("options", [{}, {"checksum": False}, {"checksum": True}])
+async def test_stat_exposes_checksum_returned_by_the_service(
+    request_server, asynchronous, options
+):
+    endpoint, state = request_server
+    state._reset()
+    operator = opendal.Operator(
+        "gcs", endpoint=endpoint, bucket="checksum-test", skip_signature="true"
+    )
+    kwargs: StatKwargs = {"version": "42", **options}
+    if asynchronous:
+        metadata = await operator.to_async_operator().stat("object", **kwargs)
+    else:
+        metadata = operator.stat("object", **kwargs)
+
+    checksum = metadata.checksum
+    assert checksum == ("crc32c", b"\xe3\x06\x92\x83")
+    assert isinstance(checksum[1], bytes)
+    assert metadata.version == "42"
+    assert state._reads() == [
+        ("/storage/v1/b/checksum-test/o/object?generation=42", None)
+    ]
+    with pytest.raises(AttributeError):
+        metadata.checksum = None
 
 
 @pytest.fixture

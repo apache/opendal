@@ -146,30 +146,79 @@ def test_from_config_stringifies_flat_list_and_tuple():
     assert args[1]["probe_tuple"] == "x,1,true,/p,1000000us"
 
 
+def _s3_with_tags(tags: object) -> S3Config:
+    """Build an offline S3 config whose map option `assume_role_session_tags` is `tags`."""
+    return {
+        "scheme": "s3",
+        "bucket": "b",
+        "region": "us-east-1",
+        "assume_role_session_tags": tags,
+    }  # type: ignore[typeddict-item, return-value]
+
+
 @pytest.mark.parametrize("operator_type", [opendal.Operator, opendal.AsyncOperator])
-def test_from_config_lowers_dict_to_json_object(operator_type):
+def test_from_config_lowers_map_option_dict_to_json_object(operator_type):
     op = operator_type.from_config(
-        {"scheme": "memory", "probe": {"fs.defaultFS": "hdfs://ns", "Team": "a,b=c"}}  # type: ignore[arg-type]
+        _s3_with_tags({"fs.defaultFS": "hdfs://ns", "Team": "a,b=c"})
     )
     _, args = op.__reduce__()
-    assert args[1]["probe"] == '{"Team":"a,b=c","fs.defaultFS":"hdfs://ns"}'
+    assert (
+        args[1]["assume_role_session_tags"]
+        == '{"Team":"a,b=c","fs.defaultFS":"hdfs://ns"}'
+    )
 
 
-def test_from_config_dict_values_survive_json_encoding():
+def test_from_config_map_option_values_survive_json_encoding():
     value = {'quote"': "back\\slash", "newline": "a\nb", "control": "\x01", "ü": "ß"}
-    op = opendal.Operator.from_config(
-        {"scheme": "memory", "probe": value}  # type: ignore[arg-type]
-    )
+    op = opendal.Operator.from_config(_s3_with_tags(value))
     _, args = op.__reduce__()
-    assert json.loads(args[1]["probe"]) == value
+    assert json.loads(args[1]["assume_role_session_tags"]) == value
 
 
-def test_from_config_empty_dict_is_explicit_empty_object():
-    op = opendal.Operator.from_config(
-        {"scheme": "memory", "probe": {}}  # type: ignore[arg-type]
-    )
+def test_from_config_empty_map_option_dict_is_explicit_empty_object():
+    op = opendal.Operator.from_config(_s3_with_tags({}))
     _, args = op.__reduce__()
-    assert args[1]["probe"] == "{}"
+    assert args[1]["assume_role_session_tags"] == "{}"
+
+
+@pytest.mark.parametrize("operator_type", [opendal.Operator, opendal.AsyncOperator])
+def test_from_config_rejects_dict_for_non_map_option(operator_type):
+    # `fs.root` is a string option, so a dict must not reach the service as a
+    # JSON string (it would become a directory named `{"directory":"data"}`).
+    with pytest.raises(Unsupported, match="map-valued options"):
+        operator_type.from_config(
+            {"scheme": "fs", "root": {"directory": "data"}}  # type: ignore[typeddict-item]
+        )
+
+
+@pytest.mark.parametrize("operator_type", [opendal.Operator, opendal.AsyncOperator])
+def test_from_config_rejects_dict_for_context_and_layer_options(operator_type):
+    with pytest.raises(Unsupported, match="map-valued options"):
+        operator_type.from_config(
+            {"scheme": "memory"},
+            context={"http": {"proxy": {"url": "http://proxy"}}},  # type: ignore[dict-item]
+        )
+    with pytest.raises(Unsupported, match="map-valued options"):
+        operator_type.from_config(
+            {"scheme": "memory"},
+            layers=[{"name": "retry", "factor": {"a": "1"}}],  # type: ignore[list-item]
+        )
+
+
+@pytest.mark.parametrize(
+    "bad_tags",
+    [
+        {"a": 1},
+        {1: "a"},
+        {"a": None},
+        {"a": {"b": "c"}},
+        {"a": ["x"]},
+        {"a": b"x"},
+    ],
+)
+def test_from_config_rejects_map_option_dict_with_non_str_members(bad_tags):
+    with pytest.raises(Unsupported, match="must map str keys to str values"):
+        opendal.Operator.from_config(_s3_with_tags(bad_tags))
 
 
 class IdentityKey(str):
@@ -186,9 +235,7 @@ def test_from_config_rejects_dict_keys_with_equal_content():
     value = {IdentityKey("Team"): "a", IdentityKey("Team"): "b"}
     assert len(value) == 2
     with pytest.raises(ConfigInvalid, match="repeats a key"):
-        opendal.Operator.from_config(
-            {"scheme": "memory", "probe": value}  # type: ignore[arg-type]
-        )
+        opendal.Operator.from_config(_s3_with_tags(value))
 
 
 @pytest.mark.parametrize("operator_type", [opendal.Operator, opendal.AsyncOperator])
@@ -255,12 +302,7 @@ def _make_cyclic_list() -> list[object]:
         bytearray(b"/tmp/foo"),
         memoryview(b"/tmp/foo"),
         BytesPathLike(),
-        {"a": 1},
-        {1: "a"},
-        {"a": None},
-        {"a": {"b": "c"}},
-        {"a": ["x"]},
-        {"a": b"x"},
+        {"a": "1"},
         [{"a": "1"}],
         ({"a": "1"},),
         MappingProxyType({"a": "1", "b": "2"}),

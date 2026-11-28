@@ -323,7 +323,11 @@ class ImpactTests(unittest.TestCase):
         ):
             release.notice(
                 candidate,
-                {"phase": "release_candidate_draft", "latest_revision_number": "00001"},
+                {
+                    "version": candidate.version,
+                    "phase": "release_candidate_draft",
+                    "latest_revision_number": "00001",
+                },
             )
             body = discussion.call_args.args[1]
             self.assertIn("0.60.0", body)

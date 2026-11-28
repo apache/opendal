@@ -15,7 +15,7 @@ start votes, finish releases, or publish language packages.
 Dispatch the workflow from the release branch with a full reviewed candidate
 commit SHA and an `X.Y.Z-rc.N` candidate version. The candidate must be reachable
 from the workflow commit, and its core package version must equal `X.Y.Z`.
-Merge the version bump PR into the release branch before preparing the candidate.
+The Git tag `vX.Y.Z-rc.N` must point to the reviewed SHA before compose can replace the ATR draft. Weekly preparation creates this tag. Merge the version bump PR into the release branch before preparing the candidate.
 After the release succeeds, merge the release branch back into `main` to carry
 the version updates forward. Automatic version selection is not implemented.
 
@@ -31,17 +31,11 @@ Three jobs separate credentials and responsibilities:
    scripts run only in the build job, without the key. The public
    key must already be in OpenDAL KEYS. Each generated signature is verified
    against the configured primary fingerprint before the signed bundle is saved.
-3. The upload job downloads the signed bundle by ID and uses the commit-pinned
-   `apache/tooling-actions/upload-to-atr` action. GitHub OIDC authorizes a temporary
-   SSH key, and rsync transfers the bundle to ATR compose. This job receives
-   `id-token: write`, but no GPG private key. No SVN credentials or persistent ATR
-   token are needed.
+3. The upload job downloads the signed bundle by ID. GitHub OIDC authorizes an ephemeral SSH key and declares the reviewed source SHA. The job uses `rsync -av --delete` to replace the ATR draft under the final version, verifies every uploaded file against the accepted revision manifest, and writes a GitHub commit status linking the Git RC to that revision. Its permissions are `contents: read`, `id-token: write` and `statuses: write`.
 
 The signed bundle contains only source `.tar.gz`, `.sha512` and `.asc` files.
 Build logs and reproduction reports stay in Actions. An upload success does not
 mean ATR checks passed: inspect the candidate revision and check results in ATR.
-The upstream upload action is experimental; its pinned implementation must be
-reviewed again before upgrading.
 
 ## Prerequisites
 
@@ -115,4 +109,4 @@ layout before publication so it matches OpenDAL's release directory conventions.
 - [ATR staging and voting](https://releases.apache.org/docs/staging-and-voting)
 - [ATR publication and KEYS management](https://releases.apache.org/docs/promoting-to-release)
 - [ASF automated signing procedure](https://infra.apache.org/release-signing.html#automated-release-signing)
-- [Official upload action](https://github.com/apache/tooling-actions/tree/fa721a0b176d713807b574da721b96545b587eea/upload-to-atr)
+- [ATR rsync and revision semantics](https://releases.apache.org/docs/uploading-files#rsync)

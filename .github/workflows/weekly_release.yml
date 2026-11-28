@@ -119,6 +119,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      statuses: write
     uses: ./.github/workflows/release-compose.yml
     with:
       candidate: ${{ needs.prepare.outputs.sha }}
@@ -168,6 +169,7 @@ jobs:
     permissions:
       discussions: write
       contents: read
+      statuses: read
     steps:
       - uses: actions/checkout@v7
         with:

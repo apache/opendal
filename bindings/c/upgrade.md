@@ -32,6 +32,13 @@ These changes break binary compatibility. Rebuild C and Zig consumers using
 `opendal.h` and `libopendal_c` from the same OpenDAL source version. Mixing
 binaries built against an older header with the new library is unsupported.
 
+Later releases keep this field order but can still break binary
+compatibility. Appending a field can increase `sizeof(opendal_capability)`, and
+`opendal_operator_info_get_capability` writes the whole struct into
+caller-provided storage, so a caller built with an older header may allocate
+too little space. C and Zig consumers must keep `opendal.h` and `libopendal_c`
+on the same version in every upgrade.
+
 # Upgrade to v0.45
 
 Change to use `Cmake` to build the C binding.

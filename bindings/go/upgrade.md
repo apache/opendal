@@ -21,6 +21,11 @@ together. Each companion ships a `libopendal_c` that must match the ABI expected
 by the Go binding. If you build the library yourself, use the matching OpenDAL
 sources. Mixing old and new layouts is unsupported.
 
+Later releases can append fields and grow `opendal_capability` again. The Go
+binding allocates the struct from its own mirror, so a companion `libopendal_c`
+that is newer than the binding may write past it. Upgrade the binding and its
+companions together in every release.
+
 #### `context.Context` parameter on I/O operations
 
 All `Operator` I/O methods and non-stdlib handle methods now accept `context.Context` as their first parameter to support cooperative cancellation and deadlines via `opendal_cancel_token`:

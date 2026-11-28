@@ -27,7 +27,8 @@ import { Operator } from '../index.mjs'
 // `ListOptions` and the list methods as `generated.d.ts` declared them before
 // `ListOptions` was generated from core. Callers pass these options as object
 // literals or implement the interface structurally, so each member must stay
-// with its type and stay optional.
+// with its type and stay optional, and a new member must be added here on
+// purpose.
 const FROZEN_MEMBERS = [
   'limit?: number',
   'startAfter?: string',
@@ -43,6 +44,7 @@ const FROZEN_SIGNATURES = [
   'listerSync(path: string, options?: ListOptions | undefined | null): BlockingLister',
 ]
 
+// Values of each declared type that the memory service accepts.
 const SAMPLES = { number: 0, string: 'a', boolean: false }
 
 function declared(kind, name) {
@@ -59,10 +61,8 @@ describe('ListOptions keeps its historical surface', () => {
   const op = new Operator('memory')
   const members = declared('interface', 'ListOptions')
 
-  test('every member is optional', () => {
-    for (const member of members) {
-      assert.match(member, /^\w+\?: /)
-    }
+  test('declares exactly the frozen members', () => {
+    assert.sameMembers(members, FROZEN_MEMBERS)
   })
 
   for (const signature of FROZEN_SIGNATURES) {
@@ -75,23 +75,12 @@ describe('ListOptions keeps its historical surface', () => {
     const [, field, type] = member.match(/^(\w+)\?: (.+)$/)
 
     test(member, async () => {
-      assert.include(members, member)
-
-      // Each list method must accept the declared type instead of failing
-      // with a napi `*Expected` error.
+      // Each list method must accept a value of the declared type.
       const options = { [field]: SAMPLES[type] }
-      for (const list of [
-        () => op.list('/', options),
-        () => op.listSync('/', options),
-        () => op.lister('/', options),
-        () => op.listerSync('/', options),
-      ]) {
-        try {
-          await list()
-        } catch (err) {
-          assert.notMatch(String(err.code), /Expected$/, `${field}: ${err.message}`)
-        }
-      }
+      await op.list('/', options)
+      op.listSync('/', options)
+      await op.lister('/', options)
+      op.listerSync('/', options)
     })
   }
 })

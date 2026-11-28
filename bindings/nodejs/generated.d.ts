@@ -1228,7 +1228,7 @@ export declare const enum EntryMode {
  *
  * # Groups
  * - Traversal: `recursive`.
- * - Pagination: `limit`, `start_after`.
+ * - Pagination: `limit`, `startAfter`.
  * - Versioning: `versions`, `deleted`.
  *
  * The operation fails with `crate::ErrorKind::Unsupported` when an option
@@ -1240,13 +1240,13 @@ export interface ListOptions {
   /**
    * Start listing after this key, excluding the key itself.
    *
-   * Setting this requires `Capability::list_with_start_after`.
+   * Setting this requires `Capability.listWithStartAfter`.
    */
   startAfter?: string
   /**
    * Whether to list recursively under the prefix; default `false`.
    *
-   * Requires `Capability::list_with_recursive`.
+   * Requires `Capability.listWithRecursive`.
    * Services without native recursive listing rely on `crate::layers::SimulateLayer`
    * (installed automatically by the default `auto-simulate` feature).
    */
@@ -1254,13 +1254,13 @@ export interface ListOptions {
   /**
    * Include object versions; default `false`.
    *
-   * Requires `Capability::list_with_versions`.
+   * Requires `Capability.listWithVersions`.
    */
   versions?: boolean
   /**
    * Include delete markers; default `false`.
    *
-   * Requires `Capability::list_with_deleted`.
+   * Requires `Capability.listWithDeleted`.
    */
   deleted?: boolean
 }

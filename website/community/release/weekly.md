@@ -150,20 +150,24 @@ checks passed. The RM independently verifies the candidate before opening voting
 
 ## Vote and community notification
 
+ATR uses the final version, such as `0.60.0`, as the release name. Each Git RC keeps its own tag and commit. After a vote is withdrawn, the next compose replaces the entire draft with the next signed bundle, including signatures and checksums. Compose verifies the paths and digests in ATR's accepted revision and records that revision on the Git RC commit. The project publish location is `{{VERSION}}`, so the approved files land directly under `downloads.apache.org/opendal/0.60.0/`.
+
+For an existing ATR draft registered as `X.Y.Z-rc.N`, continue using its full ATR name. When starting its vote in the ATR web form, set **Publish location** to `X.Y.Z`. To replace an older candidate with a new Git RC, withdraw any active vote first. Once the final-version ATR record exists, the lifecycle follows its revisions for that version.
+
 Use the [official ATR CLI](https://github.com/apache/tooling-releases-client/blob/main/RELEASE-PROCESS.md)
-or ATR's browser controls. The candidate Discussion substitutes the real RC and
+or ATR's browser controls. The candidate Discussion substitutes the ATR release name and
 revision into these commands:
 
 ```bash
-atr check status opendal 0.59.3-rc.1 00001
+atr check status opendal 0.60.0 00004
 uv run --python 3.13 --with "apache-trusted-releases @ git+https://github.com/apache/tooling-releases-client" python - <<'PYTHON'
 from atrclient import api
 from atrclient.models.api import VoteStartArgs
 
 task = api.vote_start(VoteStartArgs(
     project="opendal",
-    version="0.59.3-rc.1",
-    revision="00001",
+    version="0.60.0",
+    revision="00004",
     email_to="dev@opendal.apache.org",
     automatic_resolve_when_finished=True,
     automatic_publish_when_resolved=True,
@@ -193,8 +197,8 @@ count as ATR Trusted Vote ballots; follow ATR's instructions to cast a ballot.
 For manual recovery, inspect the tally and resolve according to the result:
 
 ```bash
-atr vote tabulate opendal 0.59.3-rc.1
-atr vote resolve opendal 0.59.3-rc.1 passed
+atr vote tabulate opendal 0.60.0
+atr vote resolve opendal 0.60.0 passed
 ```
 
 Use ATR's browser controls to cancel a vote or inspect the tally if the CLI is
@@ -268,10 +272,7 @@ one.
 For new `releases/<version>-rc.N` candidates, the hourly workflow calls
 `release_publish.yml` once ATR reports a resolved passing vote. It:
 
-1. Verifies the RC branch and tag identify the same commit. Creates the retained
-   `releases/<version>` branch and signed `v<version>` tag at that commit. Existing
-   final refs must agree; they are never moved. ATR's OIDC `commit_hash` is not
-   used because the upload workflow starts on main before generating the RC.
+1. Matches the vote's locked revision and its full file manifest to the compose status on the Git RC commit. The RC branch and tag must point to that commit. Creates the retained `releases/<version>` branch and signed `v<version>` tag there, or verifies existing final refs on a retry.
 2. Creates the GitHub Release and asks ATR to send the announcement to
    `announce@apache.org`. ATR checks source publication and download propagation.
    Posts the reviewed announcement in GitHub Announcements, which the repository

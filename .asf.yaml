@@ -17,6 +17,13 @@
 
 # All configurations could be found here: https://github.com/apache/infrastructure-asfyaml/
 
+project:
+  metadata:
+    key: opendal
+    committee: opendal
+  policy:
+    download_path_suffix: "{{VERSION}}"
+
 github:
   description: "Apache OpenDAL: One Layer, All Storage."
   homepage: https://opendal.apache.org

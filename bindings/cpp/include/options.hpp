@@ -38,21 +38,21 @@ struct ListOptions {
   std::optional<std::size_t> limit;
   /// Start listing after this key, excluding the key itself.
   ///
-  /// Setting this requires `Capability::list_with_start_after`.
+  /// Setting this requires `opendal::Capability::list_with_start_after`.
   std::optional<std::string> start_after;
   /// Whether to list recursively under the prefix; default `false`.
   ///
-  /// Requires `Capability::list_with_recursive`. Services without native
-  /// recursive listing rely on `crate::layers::SimulateLayer` (installed
+  /// Requires `opendal::Capability::list_with_recursive`. Services without
+  /// native recursive listing rely on `crate::layers::SimulateLayer` (installed
   /// automatically by the default `auto-simulate` feature).
   bool recursive{false};
   /// Include object versions; default `false`.
   ///
-  /// Requires `Capability::list_with_versions`.
+  /// Requires `opendal::Capability::list_with_versions`.
   bool versions{false};
   /// Include delete markers; default `false`.
   ///
-  /// Requires `Capability::list_with_deleted`.
+  /// Requires `opendal::Capability::list_with_deleted`.
   bool deleted{false};
 };
 

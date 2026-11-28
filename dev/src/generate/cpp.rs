@@ -593,6 +593,7 @@ fn option_member(
     options: &str,
     field: &core_options::OptionField,
     kind: OptionKind,
+    capabilities: &[capability::CapabilityField],
 ) -> Result<OptionMember> {
     let name = field.name.as_str();
     let member = format!("options.{name}");
@@ -619,7 +620,7 @@ fn option_member(
     };
     Ok(OptionMember {
         name: name.to_string(),
-        hpp_doc_lines: option_doc_lines(&field.doc),
+        hpp_doc_lines: option_doc_lines(&field.doc, capabilities),
         hpp_member: format!("{cpp_type} {name}{cpp_init};"),
         bridge_type,
         cpp_value,
@@ -633,8 +634,10 @@ fn option_member(
 /// line separates paragraphs. Rustdoc links become plain code spans, because
 /// Doxygen cannot resolve Rust paths:
 /// ``[`Capability::list_with_limit`](crate::Capability::list_with_limit)``
-/// and ``[`crate::layers::SimulateLayer`]`` keep only their code span.
-fn option_doc_lines(doc: &[String]) -> Vec<String> {
+/// and ``[`crate::layers::SimulateLayer`]`` keep only their code span. Code
+/// spans that name a C++ member then use its C++ name (see `cpp_code_span`);
+/// other code spans stay as written.
+fn option_doc_lines(doc: &[String], capabilities: &[capability::CapabilityField]) -> Vec<String> {
     let mut lines = Vec::new();
     for paragraph in doc.split(|line| line.trim().is_empty()) {
         if paragraph.is_empty() {
@@ -645,7 +648,7 @@ fn option_doc_lines(doc: &[String]) -> Vec<String> {
         }
         let text = paragraph
             .iter()
-            .map(|line| strip_rustdoc_links(line.trim()))
+            .map(|line| cpp_code_spans(&strip_rustdoc_links(line.trim()), capabilities))
             .collect::<Vec<_>>()
             .join(" ");
         lines.extend(wrap_doc(&text, HPP_DOC_PREFIX, HPP_COLUMN_LIMIT));
@@ -674,6 +677,43 @@ fn strip_rustdoc_links(line: &str) -> String {
     out
 }
 
+/// Replace each code span in `line` that names a C++ member with its C++ name.
+fn cpp_code_spans(line: &str, capabilities: &[capability::CapabilityField]) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(start) = rest.find('`') {
+        let Some(len) = rest[start + 1..].find('`') else {
+            break;
+        };
+        let code = &rest[start + 1..start + 1 + len];
+        out.push_str(&rest[..=start]);
+        out.push_str(&cpp_code_span(code, capabilities).unwrap_or_else(|| code.to_string()));
+        out.push('`');
+        rest = &rest[start + len + 2..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// The C++ name of a code span that names a member of the C++ surface, or
+/// `None` to keep the code span as written.
+///
+/// A core capability such as `Capability::list_with_start_after` reads
+/// `opendal::Capability::list_with_start_after`, the member of the
+/// `opendal::Capability` that `Operator::Info()` returns, spelled by
+/// `cpp_name`. Option members keep their core names in C++, so a span such as
+/// `start_after` stays as written.
+fn cpp_code_span(code: &str, capabilities: &[capability::CapabilityField]) -> Option<String> {
+    let name = code
+        .strip_prefix("crate::")
+        .unwrap_or(code)
+        .strip_prefix("Capability::")?;
+    capabilities
+        .iter()
+        .any(|f| f.name == name)
+        .then(|| format!("opendal::Capability::{}", cpp_name(name)))
+}
+
 /// Check `specs` against the parsed core structs and build their render
 /// models.
 ///
@@ -684,6 +724,7 @@ fn strip_rustdoc_links(line: &str) -> String {
 fn options_models(
     parsed: &[core_options::OptionsStruct],
     specs: &[OptionsSpec],
+    capabilities: &[capability::CapabilityField],
 ) -> Result<Vec<OptionsModel>> {
     let mut models = Vec::with_capacity(specs.len());
     for spec in specs {
@@ -713,7 +754,7 @@ fn options_models(
                     field.kind
                 );
             }
-            members.push(option_member(spec.name, field, kind)?);
+            members.push(option_member(spec.name, field, kind, capabilities)?);
         }
         let unexposed: Vec<String> = core
             .fields
@@ -743,7 +784,8 @@ fn generate_options(workspace_dir: &Path) -> Result<()> {
 /// Render every options output as `(path relative to workspace, content)`.
 fn render_options(workspace_dir: &Path) -> Result<Vec<(&'static str, String)>> {
     let parsed = core_options::parse(&workspace_dir.join("core/core/src/types/options.rs"))?;
-    let options = options_models(&parsed, OPTIONS)?;
+    let capabilities = capability::parse(&workspace_dir.join("core/core/src/types/capability.rs"))?;
+    let options = options_models(&parsed, OPTIONS, &capabilities)?;
 
     let mut env = Environment::new();
     env.add_template("options_hpp", include_str!("cpp/options_hpp.j2"))?;
@@ -994,7 +1036,12 @@ struct ListOptions {
                 rest = &rest[at + close + 1..];
             }
             plain.push_str(rest);
-            let plain = plain.replace("[`", "`").replace("`]", "`");
+            // C++ callers read capabilities from the `opendal::Capability`
+            // that `Operator::Info()` returns.
+            let plain = plain
+                .replace("[`", "`")
+                .replace("`]", "`")
+                .replace("`Capability::", "`opendal::Capability::");
             let expected = paragraphs(plain.lines());
             assert!(
                 !expected.is_empty(),
@@ -1022,13 +1069,25 @@ struct ListOptions {
             );
         }
         // A rendered intra-doc link, copied from core's `start_after` doc.
-        assert!(
-            header.contains(
-                "  ///\n  /// Setting this requires `Capability::list_with_start_after`.\n"
-            )
-        );
+        assert!(header.contains(
+            "  ///\n  /// Setting this requires `opendal::Capability::list_with_start_after`.\n"
+        ));
         assert!(!header.contains("[`"));
         assert!(!header.contains("](crate::"));
+        assert!(!header.contains(" `Capability::"));
+
+        // Each referenced capability is a member of the generated C++ class.
+        let capability_header = rendered("bindings/cpp/include/capability.hpp");
+        let mut referenced = 0;
+        for reference in header.split("`opendal::Capability::").skip(1) {
+            let member = &reference[..reference.find('`').unwrap()];
+            assert!(
+                capability_header.contains(&format!("  bool {member}{{false}};\n")),
+                "capability.hpp lacks `{member}`"
+            );
+            referenced += 1;
+        }
+        assert_eq!(referenced, 4);
     }
 
     #[test]
@@ -1041,9 +1100,9 @@ struct ListOptions {
         ]
         .map(String::from);
         assert_eq!(
-            option_doc_lines(&doc),
+            option_doc_lines(&doc, &core_fields()),
             [
-                "Requires `Capability::list_with_limit`.",
+                "Requires `opendal::Capability::list_with_limit`.",
                 "",
                 "Rely on `crate::layers::SimulateLayer` and `Self::recursive`. A",
                 "[plain](https://opendal.apache.org) link and `code` stay.",
@@ -1052,9 +1111,37 @@ struct ListOptions {
     }
 
     #[test]
+    fn test_option_doc_lines_use_cpp_names() {
+        let doc = [
+            "- Pagination: `limit`, `start_after`.",
+            "",
+            "Requires [`Capability::list_with_start_after`](crate::Capability::list_with_start_after).",
+            "",
+            "Requires [`crate::Capability::list_with_versions`] and `Capability::delete`.",
+            "",
+            "Unknown `Capability::no_such_flag`, [`crate::ErrorKind::Unsupported`], `glob`, and prose Capability::list stay.",
+        ]
+        .map(String::from);
+        assert_eq!(
+            option_doc_lines(&doc, &core_fields()),
+            [
+                "- Pagination: `limit`, `start_after`.",
+                "",
+                "Requires `opendal::Capability::list_with_start_after`.",
+                "",
+                "Requires `opendal::Capability::list_with_versions` and",
+                "`opendal::Capability::delete_feature`.",
+                "",
+                "Unknown `Capability::no_such_flag`, `crate::ErrorKind::Unsupported`,",
+                "`glob`, and prose Capability::list stay.",
+            ]
+        );
+    }
+
+    #[test]
     fn test_new_core_field_stays_unexposed() {
         let mut parsed = parsed_options();
-        let before = options_models(&parsed, OPTIONS).unwrap();
+        let before = options_models(&parsed, OPTIONS, &core_fields()).unwrap();
         let list = parsed.iter_mut().find(|s| s.name == "ListOptions").unwrap();
         list.fields.insert(
             1,
@@ -1065,7 +1152,7 @@ struct ListOptions {
             },
         );
 
-        let after = options_models(&parsed, OPTIONS).unwrap();
+        let after = options_models(&parsed, OPTIONS, &core_fields()).unwrap();
 
         assert_eq!(before[0].members, after[0].members);
         assert_eq!(after[0].unexposed[0], "new_mid");
@@ -1084,7 +1171,9 @@ struct ListOptions {
                 brief: "",
                 fields,
             };
-            options_models(&parsed, &[spec]).unwrap_err().to_string()
+            options_models(&parsed, &[spec], &core_fields())
+                .unwrap_err()
+                .to_string()
         };
 
         assert_eq!(
@@ -1105,6 +1194,24 @@ struct ListOptions {
         assert_eq!(
             error("ListOptions", &[("limit", OptionU64)]),
             "core `ListOptions::limit` has kind OptionUsize, but OPTIONS lists OptionU64"
+        );
+        // Core changing a listed field to another kind the bridge carries must
+        // fail too, instead of silently turning `start_after` into a `bool`.
+        let mut changed = parsed.clone();
+        let list = changed
+            .iter_mut()
+            .find(|s| s.name == "ListOptions")
+            .unwrap();
+        list.fields
+            .iter_mut()
+            .find(|f| f.name == "start_after")
+            .unwrap()
+            .kind = Bool;
+        assert_eq!(
+            options_models(&changed, OPTIONS, &core_fields())
+                .unwrap_err()
+                .to_string(),
+            "core `ListOptions::start_after` has kind Bool, but OPTIONS lists OptionString"
         );
         assert_eq!(
             error("ReadOptions", &[("if_modified_since", OptionTimestamp)]),

@@ -1,9 +1,0 @@
-* @Xuanwo
-
-/core @Xuanwo
-/bindings/c/ @xyjixyjixyji
-/bindings/haskell/ @silver-ymz
-/bindings/lua/ @oowl
-/bindings/nodejs/ @suyanhanx
-/bindings/python/ @messense @Zheaoli
-/bindings/ruby/ @PsiACE

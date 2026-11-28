@@ -518,6 +518,61 @@ export function run(op) {
       10000,
     )
 
+    test('reads pending in a terminated worker leave no borrow on other threads', async () => {
+      const memory = new Operator('memory')
+      memory.writeSync('object', 'hello')
+      const server = createServer()
+      server.listen(0, '127.0.0.1')
+      onTestFinished(() => {
+        server.closeAllConnections()
+        server.close()
+      })
+      await once(server, 'listening')
+      let requests = 0
+      const requested = new Promise((resolve) => {
+        server.on('request', () => {
+          if (++requests === 8) resolve()
+        })
+      })
+      const worker = new Worker(
+        `
+          const { workerData } = require('node:worker_threads')
+          import(workerData.entry).then(async ({ Operator }) => {
+            const op = new Operator('http', { endpoint: workerData.endpoint })
+            for (let i = 0; i < 8; i++) {
+              const reader = await op.reader('object')
+              reader.read(Buffer.alloc(16))
+              reader.readChunk(16)
+            }
+          })
+        `,
+        {
+          eval: true,
+          workerData: {
+            entry: new URL('../../index.mjs', import.meta.url).href,
+            endpoint: `http://127.0.0.1:${server.address().port}`,
+          },
+        },
+      )
+      onTestFinished(() => worker.terminate())
+
+      await Promise.race([
+        requested,
+        once(worker, 'exit').then(([code]) => {
+          throw new Error(`Worker exited before starting its GETs (${code})`)
+        }),
+      ])
+      expect(await worker.terminate()).toBe(1)
+
+      // Terminating the worker frees its Readers, and this thread can reuse their addresses.
+      const readers = []
+      for (let i = 0; i < 1000; i++) {
+        const reader = memory.readerSync('object')
+        readers.push(reader)
+        expect(reader.read(Buffer.alloc(5))).toBe(5n)
+      }
+    })
+
     test.runIf(op.capability().read && op.capability().write)('write with behavior', async () => {
       let c = Buffer.from('hello world')
       const filename = `random_file_${randomUUID()}`

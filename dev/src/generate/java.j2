@@ -46,6 +46,11 @@ public interface ServiceConfig {
     /**
      * Convert the structured config to a type erased config map.
      *
+     * <p>A map-valued field becomes one entry, under the field's option name, whose value is a JSON
+     * object string, such as {@code assume_role_session_tags} = {@code {"Team":"data"}}. The map's
+     * entries are not flattened into top-level entries. Its keys are sorted, an empty map becomes
+     * {@code {}}, and an unset field has no entry.
+     *
      * @return the config map
      */
     Map<String, String> configMap();

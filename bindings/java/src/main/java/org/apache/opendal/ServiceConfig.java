@@ -46,6 +46,11 @@ public interface ServiceConfig {
     /**
      * Convert the structured config to a type erased config map.
      *
+     * <p>A map-valued field becomes one entry, under the field's option name, whose value is a JSON
+     * object string, such as {@code assume_role_session_tags} = {@code {"Team":"data"}}. The map's
+     * entries are not flattened into top-level entries. Its keys are sorted, an empty map becomes
+     * {@code {}}, and an unset field has no entry.
+     *
      * @return the config map
      */
     Map<String, String> configMap();
@@ -2269,7 +2274,7 @@ public interface ServiceConfig {
                 map.put("name_node", nameNode);
             }
             if (options != null) {
-                map.putAll(options);
+                map.put("options", ConfigJson.encodeObject("options", options));
             }
             if (root != null) {
                 map.put("root", root);
@@ -5046,7 +5051,9 @@ public interface ServiceConfig {
                 map.put("assume_role_duration_seconds", String.valueOf(assumeRoleDurationSeconds));
             }
             if (assumeRoleSessionTags != null) {
-                map.putAll(assumeRoleSessionTags);
+                map.put(
+                        "assume_role_session_tags",
+                        ConfigJson.encodeObject("assume_role_session_tags", assumeRoleSessionTags));
             }
             if (batchMaxOperations != null) {
                 map.put("batch_max_operations", String.valueOf(batchMaxOperations));

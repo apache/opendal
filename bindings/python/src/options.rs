@@ -30,6 +30,9 @@ use pyo3::types::PyDict;
 use pyo3::types::PyDictMethods;
 use std::collections::HashMap;
 
+mod generated;
+pub use generated::*;
+
 /// Options for `read` operations.
 #[pyclass(module = "opendal")]
 #[derive(Default)]
@@ -374,51 +377,6 @@ impl From<WriteOptions> for ocore::options::WriteOptions {
             if_none_match: opts.if_none_match,
             if_not_exists: opts.if_not_exists.unwrap_or(false),
             checksum: opts.checksum.map(ocore::WriteChecksum::Algo),
-            ..Default::default()
-        }
-    }
-}
-
-/// Options for `list` operations.
-#[pyclass(module = "opendal")]
-#[derive(Default, Debug)]
-pub struct ListOptions {
-    /// The maximum number of entries to return.
-    pub limit: Option<usize>,
-    /// The entry to start after.
-    pub start_after: Option<String>,
-    /// Whether to list recursively.
-    pub recursive: Option<bool>,
-    /// Whether to list versions.
-    pub versions: Option<bool>,
-    /// Whether to list deleted entries.
-    pub deleted: Option<bool>,
-}
-
-impl<'a, 'py> FromPyObject<'a, 'py> for ListOptions {
-    type Error = PyErr;
-
-    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
-        let dict = downcast_kwargs(obj)?;
-
-        Ok(Self {
-            limit: extract_optional(&dict, "limit")?,
-            start_after: extract_optional(&dict, "start_after")?,
-            recursive: extract_optional(&dict, "recursive")?,
-            versions: extract_optional(&dict, "versions")?,
-            deleted: extract_optional(&dict, "deleted")?,
-        })
-    }
-}
-
-impl From<ListOptions> for ocore::options::ListOptions {
-    fn from(opts: ListOptions) -> Self {
-        Self {
-            limit: opts.limit,
-            start_after: opts.start_after,
-            recursive: opts.recursive.unwrap_or(false),
-            versions: opts.versions.unwrap_or(false),
-            deleted: opts.deleted.unwrap_or(false),
             ..Default::default()
         }
     }

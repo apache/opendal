@@ -199,7 +199,6 @@ mod tests {
             [
                 "ReadOptions",
                 "WriteOptions",
-                "ListOptions",
                 "StatOptions",
                 "CopyOptions",
                 "RenameOptions",
@@ -229,7 +228,7 @@ mod tests {
             "The user metadata to set on the file."
         );
 
-        for option in [&options[4], &options[5]] {
+        for option in [&options[3], &options[4]] {
             assert!(
                 option
                     .fields
@@ -240,7 +239,7 @@ mod tests {
             );
         }
 
-        let delete = &options[6];
+        let delete = &options[5];
         assert_eq!(delete.fields.len(), 3);
         assert_eq!(
             delete.fields[1].doc,

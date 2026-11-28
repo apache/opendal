@@ -17,8 +17,11 @@
  * under the License.
  */
 
+using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Globalization;
+using System.Text;
+using System.Text.Json;
 
 namespace OpenDAL;
 
@@ -142,6 +145,27 @@ public static class Utilities
 			IFormattable f => f.ToString(null, CultureInfo.InvariantCulture) ?? string.Empty,
 			_ => value.ToString() ?? string.Empty,
 		};
+	}
+
+	/// <summary>
+	/// Encodes a map-valued service option as the JSON object string that OpenDAL core parses.
+	/// </summary>
+	/// <param name="value">Map to encode. Keys keep their case.</param>
+	/// <returns>A JSON object with keys in ordinal order, or <c>{}</c> for an empty map. A null value is written as JSON <c>null</c>, which core rejects with <see cref="ErrorCode.ConfigInvalid"/>.</returns>
+	internal static string ToOptionJson(IReadOnlyDictionary<string, string> value)
+	{
+		var buffer = new ArrayBufferWriter<byte>();
+		using (var writer = new Utf8JsonWriter(buffer))
+		{
+			writer.WriteStartObject();
+			foreach (var pair in value.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+			{
+				writer.WriteString(pair.Key, pair.Value);
+			}
+			writer.WriteEndObject();
+		}
+
+		return Encoding.UTF8.GetString(buffer.WrittenSpan);
 	}
 
 	/// <summary>

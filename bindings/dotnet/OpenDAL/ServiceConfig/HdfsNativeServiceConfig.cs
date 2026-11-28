@@ -38,6 +38,10 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? NameNode { get; init; }
         /// <summary>
+        /// other options for hdfs client
+        /// </summary>
+        public IReadOnlyDictionary<string, string>? Options { get; init; }
+        /// <summary>
         /// work dir of this backend
         /// </summary>
         public string? Root { get; init; }
@@ -56,6 +60,10 @@ namespace OpenDAL.ServiceConfig
             if (NameNode is not null)
             {
                 map["name_node"] = Utilities.ToOptionString(NameNode);
+            }
+            if (Options is not null)
+            {
+                map["options"] = Utilities.ToOptionJson(Options);
             }
             if (Root is not null)
             {

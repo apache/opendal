@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -178,10 +179,6 @@ fn config_scalar_to_string(value: &Bound<PyAny>) -> PyResult<String> {
             + component("seconds")? * 1_000_000
             + component("microseconds")?;
         Ok(format!("{micros}us"))
-    } else if value.cast::<PyDict>().is_ok() {
-        Err(Unsupported::new_err(
-            "a map-valued config field cannot be built via from_config; leave it unset",
-        ))
     } else if value.hasattr(pyo3::intern!(py, "__fspath__"))? {
         let fspath = py
             .import(pyo3::intern!(py, "os"))?
@@ -191,12 +188,12 @@ fn config_scalar_to_string(value: &Bound<PyAny>) -> PyResult<String> {
             Ok(path)
         } else {
             Err(Unsupported::new_err(
-                "unsupported config value type; pass a str, bool, int, finite float, datetime.timedelta, os.PathLike, or list of those",
+                "unsupported config value type; pass a str, bool, int, finite float, datetime.timedelta, os.PathLike, a list of those, or a dict of str to str",
             ))
         }
     } else {
         Err(Unsupported::new_err(
-            "unsupported config value type; pass a str, bool, int, finite float, datetime.timedelta, os.PathLike, or list of those",
+            "unsupported config value type; pass a str, bool, int, finite float, datetime.timedelta, os.PathLike, a list of those, or a dict of str to str",
         ))
     }
 }
@@ -206,9 +203,27 @@ fn config_scalar_to_string(value: &Bound<PyAny>) -> PyResult<String> {
 ///
 /// Accepts the native types the `opendal.config` TypedDicts declare: `str`,
 /// `bool`, `int`, finite `float`, `datetime.timedelta`, `os.PathLike[str]`,
-/// and flat `list`/`tuple` of those (`,`-joined, as core parses `Vec`). Nested
-/// collections and mappings have no flat-map form and are rejected.
+/// and flat `list`/`tuple` of those (`,`-joined, as core parses `Vec`). A
+/// top-level `dict` of `str` to `str` becomes the JSON object string core
+/// parses for map options; its keys are sorted so equal dicts store the same
+/// string. Nested collections and other mappings are rejected.
 fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
+    if let Ok(dict) = value.cast::<PyDict>() {
+        let mut map = BTreeMap::new();
+        for (key, value) in dict.iter() {
+            let (Ok(key), Ok(value)) = (key.extract::<String>(), value.extract::<String>()) else {
+                return Err(Unsupported::new_err(
+                    "a dict config value must map str keys to str values",
+                ));
+            };
+            // Only reachable with `str` subclasses whose `__eq__`/`__hash__`
+            // differ from their string content.
+            if map.insert(key, value).is_some() {
+                return Err(ConfigInvalid::new_err("a dict config value repeats a key"));
+            }
+        }
+        return serde_json::to_string(&map).map_err(|e| Unexpected::new_err(e.to_string()));
+    }
     if let Ok(list) = value.cast::<PyList>() {
         let parts = list
             .iter()
@@ -449,8 +464,10 @@ impl Operator {
     /// A static type checker validates the service scheme and the options for
     /// the service, context, and layers. The binding converts non-string values
     /// such as booleans, integers, finite floats, durations, paths, and flat
-    /// lists or tuples to the strings the registry consumes.
-    /// Service config values such as bytes, mappings, and nested sequences
+    /// lists or tuples to the strings the registry consumes. A ``dict`` with
+    /// ``str`` keys and values, which map options such as
+    /// ``S3Config.assume_role_session_tags`` take, becomes a JSON object
+    /// string. Values such as bytes, other mappings, and nested sequences
     /// raise ``Unsupported``.
     ///
     /// Construction options are stored when pickling the operator and may
@@ -1363,8 +1380,10 @@ impl AsyncOperator {
     /// A static type checker validates the service scheme and the options for
     /// the service, context, and layers. The binding converts non-string values
     /// such as booleans, integers, finite floats, durations, paths, and flat
-    /// lists or tuples to the strings the registry consumes.
-    /// Service config values such as bytes, mappings, and nested sequences
+    /// lists or tuples to the strings the registry consumes. A ``dict`` with
+    /// ``str`` keys and values, which map options such as
+    /// ``S3Config.assume_role_session_tags`` take, becomes a JSON object
+    /// string. Values such as bytes, other mappings, and nested sequences
     /// raise ``Unsupported``.
     ///
     /// Construction options are stored when pickling the operator and may

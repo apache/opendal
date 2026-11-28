@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import json
 import pickle
 from collections import UserDict
 from datetime import timedelta
@@ -27,12 +28,13 @@ import opendal
 from opendal.config import (
     ConcurrentLimitLayerConfig,
     FsConfig,
+    HdfsNativeConfig,
     MiniMokaConfig,
     MokaConfig,
     RetryLayerConfig,
     S3Config,
 )
-from opendal.exceptions import ConfigInvalid, Unsupported
+from opendal.exceptions import ConfigInvalid, Unexpected, Unsupported
 
 
 @pytest.mark.need_capability("shared")
@@ -144,6 +146,95 @@ def test_from_config_stringifies_flat_list_and_tuple():
     assert args[1]["probe_tuple"] == "x,1,true,/p,1000000us"
 
 
+@pytest.mark.parametrize("operator_type", [opendal.Operator, opendal.AsyncOperator])
+def test_from_config_lowers_dict_to_json_object(operator_type):
+    op = operator_type.from_config(
+        {"scheme": "memory", "probe": {"fs.defaultFS": "hdfs://ns", "Team": "a,b=c"}}  # type: ignore[arg-type]
+    )
+    _, args = op.__reduce__()
+    assert args[1]["probe"] == '{"Team":"a,b=c","fs.defaultFS":"hdfs://ns"}'
+
+
+def test_from_config_dict_values_survive_json_encoding():
+    value = {'quote"': "back\\slash", "newline": "a\nb", "control": "\x01", "ü": "ß"}
+    op = opendal.Operator.from_config(
+        {"scheme": "memory", "probe": value}  # type: ignore[arg-type]
+    )
+    _, args = op.__reduce__()
+    assert json.loads(args[1]["probe"]) == value
+
+
+def test_from_config_empty_dict_is_explicit_empty_object():
+    op = opendal.Operator.from_config(
+        {"scheme": "memory", "probe": {}}  # type: ignore[arg-type]
+    )
+    _, args = op.__reduce__()
+    assert args[1]["probe"] == "{}"
+
+
+class IdentityKey(str):
+    """A str subclass whose equal-content instances are distinct dict keys."""
+
+    __hash__ = object.__hash__
+
+    def __eq__(self, other: object) -> bool:
+        """Compare by identity."""
+        return self is other
+
+
+def test_from_config_rejects_dict_keys_with_equal_content():
+    value = {IdentityKey("Team"): "a", IdentityKey("Team"): "b"}
+    assert len(value) == 2
+    with pytest.raises(ConfigInvalid, match="repeats a key"):
+        opendal.Operator.from_config(
+            {"scheme": "memory", "probe": value}  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize("operator_type", [opendal.Operator, opendal.AsyncOperator])
+def test_from_config_s3_session_tags_from_dict(operator_type):
+    op = operator_type.from_config(
+        S3Config(
+            scheme="s3",
+            bucket="b",
+            region="us-east-1",
+            assume_role_session_tags={"Team": "x"},
+        )
+    )
+    _, args = op.__reduce__()
+    assert args[1]["assume_role_session_tags"] == '{"Team":"x"}'
+    if operator_type is opendal.Operator:
+        restored = pickle.loads(pickle.dumps(op))
+        _, restored_args = restored.__reduce__()
+        assert restored_args[1]["assume_role_session_tags"] == '{"Team":"x"}'
+
+
+@pytest.mark.skipif(
+    not hasattr(opendal.services.Scheme, "HdfsNative"),
+    reason="requires the services-hdfs-native feature",
+)
+def test_from_config_hdfs_native_options_keep_key_case():
+    # With `name_node="default"`, the hdfs-native client reads `fs.defaultFS`
+    # from `options` while building, without contacting a NameNode.
+    opendal.Operator.from_config(
+        HdfsNativeConfig(
+            scheme="hdfs-native",
+            name_node="default",
+            root="/tmp",
+            options={"fs.defaultFS": "hdfs://127.0.0.1:9000"},
+        )
+    )
+    with pytest.raises(Unexpected, match="No fs.defaultFS setting found"):
+        opendal.Operator.from_config(
+            HdfsNativeConfig(
+                scheme="hdfs-native",
+                name_node="default",
+                root="/tmp",
+                options={"fs.defaultfs": "hdfs://127.0.0.1:9000"},
+            )
+        )
+
+
 class BytesPathLike:
     def __fspath__(self) -> bytes:
         """Return a bytes path."""
@@ -164,7 +255,14 @@ def _make_cyclic_list() -> list[object]:
         bytearray(b"/tmp/foo"),
         memoryview(b"/tmp/foo"),
         BytesPathLike(),
-        {"a": "1"},
+        {"a": 1},
+        {1: "a"},
+        {"a": None},
+        {"a": {"b": "c"}},
+        {"a": ["x"]},
+        {"a": b"x"},
+        [{"a": "1"}],
+        ({"a": "1"},),
         MappingProxyType({"a": "1", "b": "2"}),
         UserDict({"a": "1"}),
         {"a", "b"},

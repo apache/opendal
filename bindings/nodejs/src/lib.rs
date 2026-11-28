@@ -18,16 +18,21 @@
 #[macro_use]
 extern crate napi_derive;
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::io::Read;
+use std::pin::pin;
+use std::sync::Arc;
 
 use futures::TryStreamExt;
+use futures::future;
 use napi::bindgen_prelude::*;
 use opendal::options::{
     DeleteOptions, ListOptions, ReadOptions, ReaderOptions, StatOptions, WriteOptions,
 };
 use tokio::sync::Mutex;
+use tokio::sync::watch;
 
 use crate::layer::Layer;
 use crate::metadata::Metadata;
@@ -284,7 +289,7 @@ impl Operator {
             .await
             .map_err(format_napi_error)?;
         Ok(Reader {
-            inner: Mutex::new(inner),
+            inner: Arc::new(Mutex::new(inner)),
         })
     }
 
@@ -939,7 +944,9 @@ impl BlockingReader {
 /// manner.
 #[napi]
 pub struct Reader {
-    inner: Mutex<opendal::FuturesAsyncReader>,
+    // Node can free this object while a read is pending, for example when its
+    // worker terminates. Pending reads own a clone instead of borrowing `self`.
+    inner: Arc<Mutex<opendal::FuturesAsyncReader>>,
 }
 
 #[napi]
@@ -948,18 +955,22 @@ impl Reader {
     ///
     /// Wait for the promise to settle before accessing the buffer again.
     #[napi(ts_return_type = "Promise<bigint>")]
-    pub async fn read(
+    pub fn read<'env>(
         &self,
+        env: &'env Env,
         #[napi(ts_arg_type = "Buffer")] buf: ReadTarget,
-    ) -> Result<ReadIntoBuffer> {
-        let chunk = self
-            .inner
-            .lock()
-            .await
-            .read_buffer(buf.requested_len)
-            .await
-            .map_err(format_napi_error)?;
-        Ok(ReadIntoBuffer { target: buf, chunk })
+    ) -> Result<PromiseRaw<'env, ReadIntoBuffer>> {
+        let inner = self.inner.clone();
+        let env_shutdown = subscribe_env_shutdown(env)?;
+        env.spawn_future(until_env_shutdown(env_shutdown, async move {
+            let chunk = inner
+                .lock()
+                .await
+                .read_buffer(buf.requested_len)
+                .await
+                .map_err(format_napi_error)?;
+            Ok(ReadIntoBuffer { target: buf, chunk })
+        }))
     }
 
     /// Read up to `maxBytes` bytes from the same cursor as `read`.
@@ -967,23 +978,72 @@ impl Reader {
     /// `maxBytes` must be an integer between 1 and 4294967295. The promise
     /// resolves to a writable Buffer, or `null` at the end of the input.
     #[napi(ts_return_type = "Promise<Buffer | null>")]
-    pub async fn read_chunk(&self, max_bytes: f64) -> Result<Option<ReadChunk>> {
-        // N-API's uint32 conversion truncates and wraps JavaScript numbers.
-        if !(1.0..=f64::from(u32::MAX)).contains(&max_bytes) || max_bytes.fract() != 0.0 {
-            return Err(Error::new(
-                Status::InvalidArg,
-                "maxBytes must be an integer between 1 and 4294967295",
-            ));
-        }
+    pub fn read_chunk<'env>(
+        &self,
+        env: &'env Env,
+        max_bytes: f64,
+    ) -> Result<PromiseRaw<'env, Option<ReadChunk>>> {
+        let inner = self.inner.clone();
+        let env_shutdown = subscribe_env_shutdown(env)?;
+        env.spawn_future(until_env_shutdown(env_shutdown, async move {
+            // N-API's uint32 conversion truncates and wraps JavaScript numbers.
+            if !(1.0..=f64::from(u32::MAX)).contains(&max_bytes) || max_bytes.fract() != 0.0 {
+                return Err(Error::new(
+                    Status::InvalidArg,
+                    "maxBytes must be an integer between 1 and 4294967295",
+                ));
+            }
 
-        let chunk = self
-            .inner
-            .lock()
-            .await
-            .read_buffer(max_bytes as usize)
-            .await
-            .map_err(format_napi_error)?;
-        Ok((!chunk.is_empty()).then_some(ReadChunk(chunk)))
+            let chunk = inner
+                .lock()
+                .await
+                .read_buffer(max_bytes as usize)
+                .await
+                .map_err(format_napi_error)?;
+            Ok((!chunk.is_empty()).then_some(ReadChunk(chunk)))
+        }))
+    }
+}
+
+thread_local! {
+    // Keyed by `napi_env` because an embedder such as Electron can run several
+    // Node.js environments on one thread. Each environment's cleanup hook drops
+    // its sender when that environment shuts down.
+    static ENV_SHUTDOWN: RefCell<HashMap<usize, watch::Sender<()>>> = RefCell::new(HashMap::new());
+}
+
+/// Subscribes to the shutdown of the calling Node.js environment.
+fn subscribe_env_shutdown(env: &Env) -> Result<watch::Receiver<()>> {
+    let key = env.raw() as usize;
+    ENV_SHUTDOWN.with_borrow_mut(|senders| {
+        if let Some(sender) = senders.get(&key) {
+            return Ok(sender.subscribe());
+        }
+        env.add_env_cleanup_hook(key, |key| {
+            let _ = ENV_SHUTDOWN.try_with(|senders| senders.borrow_mut().remove(&key));
+        })?;
+        let (sender, receiver) = watch::channel(());
+        senders.insert(key, sender);
+        Ok(receiver)
+    })
+}
+
+/// Cancels `fut` when the Node.js environment that started it shuts down.
+///
+/// Without this, a read pending when its worker terminates would keep its
+/// reader, and the reader's open request, alive.
+async fn until_env_shutdown<T>(
+    mut env_shutdown: watch::Receiver<()>,
+    fut: impl Future<Output = Result<T>>,
+) -> Result<T> {
+    let fut = pin!(fut);
+    let shutdown = pin!(env_shutdown.changed());
+    match future::select(fut, shutdown).await {
+        future::Either::Left((result, _)) => result,
+        future::Either::Right(_) => Err(Error::new(
+            Status::Cancelled,
+            "Node.js environment shut down before the read completed",
+        )),
     }
 }
 

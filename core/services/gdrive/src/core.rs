@@ -256,6 +256,29 @@ impl GdriveCore {
         ctx.http_transport().send(req).await
     }
 
+    fn revision_url(file_id: &str, revision_id: &str) -> String {
+        let file_id = percent_encode_path(file_id).replace('/', "%2F");
+        let revision_id = percent_encode_path(revision_id).replace('/', "%2F");
+        format!("https://www.googleapis.com/drive/v3/files/{file_id}/revisions/{revision_id}")
+    }
+
+    pub async fn gdrive_stat_revision_by_id(
+        &self,
+        ctx: &OperationContext,
+        file_id: &str,
+        revision_id: &str,
+    ) -> Result<Response<Buffer>> {
+        let url = Self::revision_url(file_id, revision_id);
+        let mut req = Request::get(format!("{url}?fields=id,size,mimeType,modifiedTime"))
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("GetRevision"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        self.sign(ctx, &mut req).await?;
+
+        ctx.http_transport().send(req).await
+    }
+
     pub async fn gdrive_get(
         &self,
         ctx: &OperationContext,
@@ -287,11 +310,7 @@ impl GdriveCore {
         };
 
         let url = if let Some(revision_id) = version {
-            let file_id = percent_encode_path(&path_id).replace('/', "%2F");
-            let revision_id = percent_encode_path(revision_id).replace('/', "%2F");
-            format!(
-                "https://www.googleapis.com/drive/v3/files/{file_id}/revisions/{revision_id}?alt=media"
-            )
+            format!("{}?alt=media", Self::revision_url(&path_id, revision_id))
         } else {
             format!(
                 "https://www.googleapis.com/drive/v3/files/{path_id}?alt=media&supportsAllDrives=true"
@@ -1058,6 +1077,38 @@ pub struct GdriveFile {
     // a file belongs to. This is needed for the OR query optimization.
     #[serde(default)]
     pub parents: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct GdriveRevision {
+    id: String,
+    mime_type: String,
+    size: Option<String>,
+    modified_time: String,
+}
+
+impl GdriveRevision {
+    pub(super) fn into_metadata(self) -> Result<Metadata> {
+        let Some(size) = self.size else {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "version stat requires a Google Drive binary file revision",
+            ));
+        };
+        let size = size.parse::<u64>().map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "parse revision content length").set_source(e)
+        })?;
+        let modified_time = self.modified_time.parse::<Timestamp>().map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "parse revision last modified time").set_source(e)
+        })?;
+        let mut metadata = MetadataBuilder::file(size);
+        metadata
+            .content_type(self.mime_type)
+            .last_modified(modified_time)
+            .version(self.id);
+        Ok(metadata.build())
+    }
 }
 
 /// refer to https://developers.google.com/drive/api/reference/rest/v3/files/list

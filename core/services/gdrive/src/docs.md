@@ -27,10 +27,13 @@ Concurrent directory creation through an operator and its clones reuses work for
 ### Binary file revisions
 
 For binary files, `stat` exposes the `headRevisionId` when Drive provides it.
-Pass that ID to the `version` option of a read to select that revision. Drive
-can purge older revisions and may require a revision to be marked Keep Forever
-before allowing its download. A missing revision returns `NotFound`. A download
-that Drive denies with HTTP 403 returns `PermissionDenied`.
+Pass that ID to `stat_with(path).version(id)` or `read_with(path).version(id)`
+to select the revision. Version-selected stat returns the revision’s content
+length, MIME type, last-modified timestamp, and ID from Drive.
+
+Drive can purge older revisions and may require a revision to be marked Keep
+Forever before allowing its download. A missing revision returns `NotFound`.
+A download that Drive denies with HTTP 403 returns `PermissionDenied`.
 
 ### Resumable uploads and retries
 

@@ -598,6 +598,14 @@ impl Service for GcsBackend {
                 "GCS compose does not support the requested destination option",
             ));
         }
+        // Both destination conditions use the same ifGenerationMatch query parameter.
+        if args.if_not_exists() && args.if_version_match().is_some() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "GCS compose does not support combining if_not_exists with if_version_match",
+            )
+            .with_operation(Operation::Compose));
+        }
         Ok(GcsComposer::new(self.core.clone(), ctx.clone(), to, args))
     }
 
@@ -742,6 +750,105 @@ mod tests {
         assert!(capability.read_with_version);
         assert!(capability.copy_with_source_version);
         assert!(capability.delete_with_version);
+    }
+
+    #[derive(Clone, Default)]
+    struct RecordingComposeTransport(Arc<Mutex<Vec<(http::Method, http::Uri)>>>);
+
+    impl HttpTransport for RecordingComposeTransport {
+        async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
+            let (parts, _) = req.into_parts();
+            self.0.lock().unwrap().push((parts.method, parts.uri));
+
+            let body = Buffer::from(r#"{"size":"1","generation":"44"}"#);
+            let size = body.len() as u64;
+            Ok(http::Response::new(HttpBody::new(
+                futures::stream::iter([Ok(body)]),
+                Some(size),
+            )))
+        }
+    }
+
+    fn test_compose_operator() -> (Operator, RecordingComposeTransport) {
+        let transport = RecordingComposeTransport::default();
+        let op = Operator::new(
+            GcsBuilder::default()
+                .endpoint("https://gcs.invalid")
+                .bucket("example-bucket")
+                .skip_signature(),
+        )
+        .unwrap()
+        .with_context(
+            OperationContext::new().with_http_transport(HttpTransporter::new(transport.clone())),
+        );
+        (op, transport)
+    }
+
+    #[tokio::test]
+    async fn test_compose_rejects_combined_destination_conditions_before_dispatch() {
+        let (op, transport) = test_compose_operator();
+        let mut metadata = MetadataBuilder::file(1);
+        metadata.version("33");
+
+        for (condition, options) in [
+            (
+                "if_version_match",
+                options::ComposeOptions {
+                    if_not_exists: true,
+                    if_version_match: Some("33".to_string()),
+                    ..Default::default()
+                },
+            ),
+            (
+                "if_not_changed",
+                options::ComposeOptions {
+                    if_not_exists: true,
+                    if_not_changed: Some(metadata.build()),
+                    ..Default::default()
+                },
+            ),
+        ] {
+            let err = op
+                .composer_options("target", options)
+                .await
+                .err()
+                .unwrap_or_else(|| panic!("if_not_exists with {condition} must fail at creation"));
+            assert_eq!(err.kind(), ErrorKind::Unsupported, "{condition}: {err}");
+            assert!(transport.0.lock().unwrap().is_empty(), "{condition}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_compose_encodes_each_supported_destination_condition() {
+        let (op, transport) = test_compose_operator();
+
+        for (options, query) in [
+            (
+                options::ComposeOptions {
+                    if_not_exists: true,
+                    ..Default::default()
+                },
+                "ifGenerationMatch=0",
+            ),
+            (
+                options::ComposeOptions {
+                    if_version_match: Some("33".to_string()),
+                    ..Default::default()
+                },
+                "ifGenerationMatch=33",
+            ),
+        ] {
+            op.compose_options(["source"], "target", options)
+                .await
+                .unwrap();
+
+            let mut requests = transport.0.lock().unwrap();
+            assert_eq!(requests.len(), 1);
+            let (method, uri) = requests.pop().unwrap();
+            assert_eq!(method, http::Method::POST);
+            assert_eq!(uri.path(), "/storage/v1/b/example-bucket/o/target/compose");
+            assert_eq!(uri.query(), Some(query));
+        }
     }
 
     #[test]

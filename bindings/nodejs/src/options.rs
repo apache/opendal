@@ -175,18 +175,7 @@ pub struct ReadOptions {
      */
     pub chunk: Option<u32>,
 
-    /**
-     * Controls the optimization strategy for range reads in [`Reader::fetch`].
-     *
-     * When performing range reads, if the gap between two requested ranges is smaller than
-     * the configured `gap` size, OpenDAL will merge these ranges into a single read request
-     * and discard the unrequested data in between. This helps reduce the number of API calls
-     * to remote storage services.
-     *
-     * This optimization is particularly useful when performing multiple small range reads
-     * that are close to each other, as it reduces the overhead of multiple network requests
-     * at the cost of transferring some additional data.
-     */
+    /// Each call to `read()` or `readSync()` reads a single byte range, so `gap` has no effect.
     pub gap: Option<BigInt>,
 
     /**
@@ -354,18 +343,7 @@ pub struct ReaderOptions {
      */
     pub prefetch: Option<u32>,
 
-    /**
-     * Controls the optimization strategy for range reads in [`Reader::fetch`].
-     *
-     * When performing range reads, if the gap between two requested ranges is smaller than
-     * the configured `gap` size, OpenDAL will merge these ranges into a single read request
-     * and discard the unrequested data in between. This helps reduce the number of API calls
-     * to remote storage services.
-     *
-     * This optimization is particularly useful when performing multiple small range reads
-     * that are close to each other, as it reduces the overhead of multiple network requests
-     * at the cost of transferring some additional data.
-     */
+    /// Readers returned by `reader()` and `readerSync()` read sequentially, so `gap` has no effect.
     pub gap: Option<BigInt>,
 
     /**

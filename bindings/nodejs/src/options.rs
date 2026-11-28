@@ -23,6 +23,9 @@ use std::collections::HashMap;
 
 use crate::validate::parse_count;
 
+mod list;
+pub use list::ListOptions;
+
 /// Convert a JavaScript `BigInt` into a `u64` offset or size.
 ///
 /// `BigInt::get_u64` only reports the lowest 64-bit word and returns the sign
@@ -409,69 +412,6 @@ impl TryFrom<ReaderOptions> for opendal::options::ReaderOptions {
 }
 
 #[napi(object)]
-#[derive(Debug, Default)]
-pub struct ListOptions {
-    /**
-     * The limit passed to underlying service to specify the max results
-     * that could return per-request.
-     *
-     * Users could use this to control the memory usage of list operation.
-     */
-    pub limit: Option<u32>,
-
-    /**
-     * The start_after passed to underlying service to specify the specified key
-     * to start listing from.
-     */
-    pub start_after: Option<String>,
-
-    /**
-     * The recursive is used to control whether the list operation is recursive.
-     *
-     * - If `false`, list operation will only list the entries under the given path.
-     * - If `true`, list operation will list all entries that starts with given path.
-     *
-     * Default to `false`.
-     */
-    pub recursive: Option<bool>,
-
-    /**
-     * The versions is used to control whether the object versions should be returned.
-     *
-     * - If `false`, list operation will not return with object versions
-     * - If `true`, list operation will return with object versions if object versioning is supported
-     *   by the underlying service
-     *
-     * Default to `false`
-     */
-    pub versions: Option<bool>,
-
-    /**
-     * The deleted is used to control whether the deleted objects should be returned.
-     *
-     * - If `false`, list operation will not return with deleted objects
-     * - If `true`, list operation will return with deleted objects if object versioning is supported
-     *   by the underlying service
-     *
-     * Default to `false`
-     */
-    pub deleted: Option<bool>,
-}
-
-impl From<ListOptions> for opendal::options::ListOptions {
-    fn from(value: ListOptions) -> Self {
-        Self {
-            limit: value.limit.map(|limit| limit as usize),
-            start_after: value.start_after,
-            recursive: value.recursive.unwrap_or_default(),
-            versions: value.versions.unwrap_or_default(),
-            deleted: value.deleted.unwrap_or_default(),
-            ..Default::default()
-        }
-    }
-}
-
-#[napi(object)]
 #[derive(Default, Debug)]
 pub struct WriteOptions {
     /// Append bytes into a path.
@@ -598,5 +538,28 @@ impl From<DeleteOptions> for opendal::options::DeleteOptions {
             if_match: value.if_match,
             ..Default::default()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ListOptions;
+
+    #[test]
+    fn test_list_options_pass_explicit_zero_limit() {
+        let options = opendal::options::ListOptions::from(ListOptions {
+            limit: Some(0),
+            ..Default::default()
+        });
+        assert_eq!(options.limit, Some(0));
+    }
+
+    #[test]
+    fn test_list_options_default_omitted_fields() {
+        let options = opendal::options::ListOptions::from(ListOptions::default());
+        assert_eq!(options.limit, None);
+        assert!(!options.recursive);
+        assert!(!options.versions);
+        assert!(!options.deleted);
     }
 }

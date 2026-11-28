@@ -1,0 +1,424 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Unified Operator Configuration"><title>opendal_core::docs::rfcs::rfc_9061_unified_operator_config - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="opendal_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0-nightly (1303417c4 2026-09-21)" data-channel="nightly" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js"><script src="../../../../static.files/storage-41dd4d93.js"></script><script defer="" src="../sidebar-items.js"></script><script defer="" src="../../../../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module rfc_9061_unified_operator_config</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../../../opendal_core/index.html"><img src="/img/logo.svg" alt="logo"></a><h2><a href="../../../../opendal_core/index.html">opendal_<wbr>core</a><span class="version">0.59.5</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module rfc_<wbr>9061_<wbr>unified_<wbr>operator_<wbr>config</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#summary" title="Summary">Summary</a></li><li><a href="#motivation" title="Motivation">Motivation</a></li><li><a href="#guide-level-explanation" title="Guide-level explanation">Guide-level explanation</a><ul><li><a href="#one-configuration-three-planes" title="One configuration, three planes">One configuration, three planes</a></li><li><a href="#examples" title="Examples">Examples</a></li><li><a href="#teaching-mental-model" title="Teaching mental model">Teaching mental model</a></li></ul></li><li><a href="#reference-level-explanation" title="Reference-level explanation">Reference-level explanation</a><ul><li><a href="#delta-from-current-behavior" title="Delta from current behavior">Delta from current behavior</a></li><li><a href="#configuration-grammar-and-partitioning" title="Configuration grammar and partitioning">Configuration grammar and partitioning</a></li><li><a href="#operatorregistry-api-and-assembly-path" title="`OperatorRegistry` API and assembly path"><code>OperatorRegistry</code> API and assembly path</a></li><li><a href="#facade-initialization-and-built-in-registrations" title="Facade initialization and built-in registrations">Facade initialization and built-in registrations</a></li><li><a href="#cross-language-binding-contracts" title="Cross-language binding contracts">Cross-language binding contracts</a></li><li><a href="#failure-semantics-and-security" title="Failure semantics and security">Failure semantics and security</a></li><li><a href="#validation" title="Validation">Validation</a></li></ul></li><li><a href="#drawbacks" title="Drawbacks">Drawbacks</a></li><li><a href="#rationale-and-alternatives" title="Rationale and alternatives">Rationale and alternatives</a><ul><li><a href="#why-register_context-instead-of-register_http_transport" title="Why `register_context` instead of `register_http_transport`?">Why <code>register_context</code> instead of <code>register_http_transport</code>?</a></li><li><a href="#why-no-httpconfig-struct-in-opendal-core" title="Why no `HttpConfig` struct in `opendal-core`?">Why no <code>HttpConfig</code> struct in <code>opendal-core</code>?</a></li><li><a href="#why-omit-load_with_context-register_executor-and-registry-listing-methods" title="Why omit `load_with_context`, `register_executor`, and registry listing methods?">Why omit <code>load_with_context</code>, <code>register_executor</code>, and registry listing methods?</a></li><li><a href="#why-not-httpconfiglayer-rfc-pr-8526" title="Why not `HttpConfigLayer` (RFC PR #8526)?">Why not <code>HttpConfigLayer</code> (RFC PR #8526)?</a></li><li><a href="#why-not-per-binding-native-httpconfig-ffi-apis" title="Why not per-binding native `HttpConfig` FFI APIs?">Why not per-binding native <code>HttpConfig</code> FFI APIs?</a></li><li><a href="#why-contextname-and-layername-instead-of-http-and-layer" title="Why `context.<name>.*` and `layer.<name>.*` instead of `http.*` and `<layer>.*`?">Why <code>context.&lt;name&gt;.*</code> and <code>layer.&lt;name&gt;.*</code> instead of <code>http.*</code> and <code>&lt;layer&gt;.*</code>?</a></li></ul></li><li><a href="#prior-art" title="Prior art">Prior art</a></li><li><a href="#unresolved-questions" title="Unresolved questions">Unresolved questions</a></li><li><a href="#future-possibilities" title="Future possibilities">Future possibilities</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In opendal_<wbr>core::<wbr>docs::<wbr>rfcs</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../../index.html">opendal_core</a>::<wbr><a href="../../index.html">docs</a>::<wbr><a href="../index.html">rfcs</a></div><h1>Module <span>rfc_<wbr>9061_<wbr>unified_<wbr>operator_<wbr>config</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../../src/opendal_core/docs/rfcs/mod.rs.html#366">Source</a> </span></div><details class="toggle top-doc" open=""><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Unified Operator Configuration</p>
+<ul>
+<li>Proposal Name: <code>unified_operator_config</code></li>
+<li>Start Date: 2026-11-25</li>
+<li>RFC PR: <a href="https://github.com/apache/opendal/pull/9061">apache/opendal#9061</a></li>
+<li>Tracking Issue: <a href="https://github.com/apache/opendal/issues/9163">apache/opendal#9163</a></li>
+</ul>
+<blockquote>
+<p>Status note: One design decision remains open before acceptance (see <a href="#unresolved-questions">Unresolved questions</a>): whether <code>Operator::from_iter::&lt;B&gt;</code> stays service-only.</p>
+</blockquote>
+<h2 id="summary"><a class="doc-anchor" href="#summary">§</a>Summary</h2>
+<p>Extend OpenDAL’s string-based operator configuration (<code>Operator::from_uri</code>, <code>Operator::via_iter</code>, and <code>OperatorRegistry::load</code>) so a single flat key-value configuration can assemble all three RFC 7740 planes of an <code>Operator</code>: the storage <code>Service</code>, the base <code>OperationContext</code>, and an ordered list of <code>Layer</code>s.</p>
+<p>Configuration keys are partitioned by namespace: unprefixed keys configure the service, <code>context.&lt;name&gt;.*</code> configures <code>OperationContext</code> (starting with <code>context.http.*</code>), <code>layers</code> declares the ordered layer list, and <code>layer.&lt;name&gt;.*</code> configures each layer. <code>OperatorRegistry</code> adds only two methods — <code>register_context</code> and <code>register_layer</code> — and zero new public types to <code>opendal-core</code>. Every service, context provider, and layer parses its own scoped <code>HashMap&lt;String, String&gt;</code>, and <code>OperatorRegistry::load</code> shares the same core default-layer stack and single-fold RFC 7740 replay path as <code>Operator::new</code>. Unconfigured context slots preserve their incoming <code>OperationContext</code> unchanged, so existing URIs and custom process-wide transports behave identically to today.</p>
+<h2 id="motivation"><a class="doc-anchor" href="#motivation">§</a>Motivation</h2>
+<p>RFC 7740 reorganized <code>Operator</code> into three explicit planes: a base <code>Service</code>, a base <code>OperationContext</code>, and an ordered <code>Vec&lt;Arc&lt;dyn Layer&gt;&gt;</code> replayed in a single fold. RFC 7749 decoupled <code>opendal-core</code> from concrete HTTP implementations behind <code>HttpTransport</code> and <code>HttpTransporter</code>.</p>
+<p>Configuration-driven construction has not caught up with that model:</p>
+<ol>
+<li><strong>Per-operator HTTP configuration is inaccessible outside Rust.</strong> Rust callers can build a custom <code>ReqwestTransport</code> and install it via <code>Operator::with_context</code>. Language bindings (Python, Node.js, Java, C, and others) construct operators from <code>(scheme, map)</code> or URIs via <code>Operator::via_iter</code> / <code>Operator::from_uri</code> and cannot configure a per-operator proxy, <code>no_proxy</code>, or HTTP timeout without relying on process-wide environment variables such as <code>HTTPS_PROXY</code> (see <a href="https://github.com/apache/opendal/issues/6871">apache/opendal#6871</a>).</li>
+<li><strong>Layers cannot be declared in configuration.</strong> Every layer must be wired in Rust or re-exposed individually through each binding’s FFI surface.</li>
+<li><strong>A transport-replacing layer would break RFC 7740’s composition invariant.</strong> Modeling HTTP configuration as a <code>Layer</code> that replaces <code>HttpTransporter</code> inside <code>apply_context</code> reintroduces hidden layer-order dependence: placing it after <code>ConcurrentLimitLayer</code> or <code>TracingLayer</code> silently drops their HTTP wrappers, and it overrides an explicit <code>Operator::with_context</code>. HTTP transport construction belongs in <code>base_ctx</code>, before layer replay.</li>
+</ol>
+<p>A unified configuration contract lets services, context providers, and layers each parse their own namespace while assembling an <code>Operator</code> through the exact RFC 7740 model across Rust and language bindings.</p>
+<h2 id="guide-level-explanation"><a class="doc-anchor" href="#guide-level-explanation">§</a>Guide-level explanation</h2><h3 id="one-configuration-three-planes"><a class="doc-anchor" href="#one-configuration-three-planes">§</a>One configuration, three planes</h3>
+<p>Every operator constructed from a URI or key-value map uses one flat, case-insensitive string namespace split across the three RFC 7740 planes:</p>
+<div class="table"><table><thead><tr><th>Plane</th><th>Keys</th><th>Purpose</th></tr></thead><tbody>
+<tr><td>Service</td><td><code>&lt;field&gt;</code> (unprefixed)</td><td>Storage backend configuration (unchanged from today).</td></tr>
+<tr><td>Context</td><td><code>context.&lt;name&gt;.&lt;field&gt;</code></td><td>Configures <code>OperationContext</code> runtime resources (initial built-in slot: <code>context.http.*</code>).</td></tr>
+<tr><td>Layers</td><td><code>layers</code>, <code>layer.&lt;name&gt;.&lt;field&gt;</code></td><td>Declares ordered user layers and their options.</td></tr>
+</tbody></table>
+</div>
+<p>Unconfigured planes keep their defaults: a URI with only service keys constructs the exact same operator as today, reusing the process-wide default HTTP transport and executor.</p>
+<h3 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h3><h4 id="rust-uri-and-key-value-construction"><a class="doc-anchor" href="#rust-uri-and-key-value-construction">§</a>Rust: URI and key-value construction</h4>
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>opendal::{Operator, <span class="prelude-ty">Result</span>};
+
+<span class="kw">fn </span>build() -&gt; <span class="prelude-ty">Result</span>&lt;Operator&gt; {
+    <span class="kw">let </span>op = Operator::from_uri(
+        <span class="string">"s3://my-bucket/data?region=us-east-1\
+         &amp;context.http.proxy=http://127.0.0.1:7890\
+         &amp;context.http.no_proxy=localhost,.internal\
+         &amp;context.http.connect_timeout=5s\
+         &amp;layers=concurrent_limit,timeout,retry\
+         &amp;layer.concurrent_limit.permits=64\
+         &amp;layer.concurrent_limit.http_permits=16\
+         &amp;layer.timeout.io_timeout=10s\
+         &amp;layer.retry.max_times=5"</span>,
+    )<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(op)
+}</code></pre></div>
+<p><code>layers</code> lists layers from inner to outer, matching chained Rust calls:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="comment">// Equivalent Rust layer order for `layers=concurrent_limit,timeout,retry`:
+</span>op.layer(concurrent_limit)
+    .layer(timeout)
+    .layer(retry)</code></pre></div>
+<p>Requests enter <code>retry</code> first, then <code>timeout</code>, then <code>concurrent_limit</code>, and finally reach the service. Because <code>context.http.*</code> transforms <code>base_ctx</code> before layer replay, <code>concurrent_limit</code> wraps the proxy-configured <code>HttpTransporter</code> automatically regardless of layer order.</p>
+<h4 id="rust-custom-context-or-layer-factory"><a class="doc-anchor" href="#rust-custom-context-or-layer-factory">§</a>Rust: Custom context or layer factory</h4>
+<p>Applications with a custom TLS stack, corporate CA bundle, or shared layer state can register factories directly on <code>OperatorRegistry</code>:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>opendal::{OperatorRegistry, <span class="prelude-ty">Result</span>};
+
+<span class="kw">let </span>registry = OperatorRegistry::get();
+registry.register_context(<span class="string">"http"</span>, <span class="kw">move </span>|ctx, cfg| {
+    <span class="kw">let </span><span class="prelude-val">Some</span>(transport) = build_corp_transport(<span class="kw-2">&amp;</span>corp_ca, cfg)<span class="question-mark">? </span><span class="kw">else </span>{
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(ctx);
+    };
+    <span class="prelude-val">Ok</span>(ctx.with_http_transport(transport))
+});
+
+<span class="kw">let </span>op = registry.load((
+    <span class="string">"s3://my-bucket/data"</span>,
+    [
+        (<span class="string">"region"</span>.into(), <span class="string">"us-east-1"</span>.into()),
+        (<span class="string">"context.http.proxy"</span>.into(), <span class="string">"http://proxy.corp:8080"</span>.into()),
+    ],
+))<span class="question-mark">?</span>;</code></pre></div><h4 id="python-and-nodejs"><a class="doc-anchor" href="#python-and-nodejs">§</a>Python and Node.js</h4>
+<p>This RFC defines the flat key-value contract at the core layer, analogous to how service options work today: raw URI/map constructors accept the keys immediately with zero new FFI APIs, and typed binding wrappers lower onto the exact same contract.</p>
+<p>In Python, <code>Operator.from_config</code> / <code>AsyncOperator.from_config</code> (<code>bindings/python/python/opendal/config.py</code>) already wraps <code>Operator::via_iter</code> with generated <code>TypedDict</code>s (<code>S3Config</code>, <code>ServiceConfig</code>). Extending <code>from_config</code> with typed <code>context</code> (and optional <code>layers</code>) parameters keeps full mypy/pyright type safety and native Python types (<code>timedelta</code>, <code>list[str]</code>, <code>bool</code>, <code>int</code>) while lowering into <code>context.http.*</code> / <code>layers</code> / <code>layer.*</code> in the same <code>HashMap&lt;String, String&gt;</code>:</p>
+<div class="example-wrap"><pre class="language-python"><code>from datetime import timedelta
+import opendal
+from opendal.config import ContextConfig, HttpContextConfig, S3Config
+from opendal.layers import RetryLayer, TimeoutLayer
+
+# Typed context + existing typed Layer API (RFC 7740 replay wraps the proxy transport)
+op = (
+    opendal.Operator.from_config(
+        S3Config(scheme="s3", bucket="my-bucket", region="us-east-1"),
+        context=ContextConfig(
+            http=HttpContextConfig(
+                proxy="http://127.0.0.1:7890",
+                no_proxy=["localhost", ".internal"],
+                connect_timeout=timedelta(seconds=5),
+            )
+        ),
+    )
+    .layer(TimeoutLayer(io_timeout=timedelta(seconds=10)))
+    .layer(RetryLayer(max_times=5))
+)</code></pre></div>
+<p>Declarative <code>layers</code> can also be passed as typed configs to <code>from_config</code> (which also preserves them across <code>pickle</code> via <code>Operator.__map</code>):</p>
+<div class="example-wrap"><pre class="language-python"><code>from datetime import timedelta
+import opendal
+from opendal.config import (
+    ContextConfig,
+    HttpContextConfig,
+    RetryLayerConfig,
+    S3Config,
+    TimeoutLayerConfig,
+)
+
+op = opendal.Operator.from_config(
+    S3Config(scheme="s3", bucket="my-bucket", region="us-east-1"),
+    context=ContextConfig(
+        http=HttpContextConfig(
+            proxy="http://127.0.0.1:7890",
+            no_proxy=["localhost", ".internal"],
+            connect_timeout=timedelta(seconds=5),
+        )
+    ),
+    layers=[
+        TimeoutLayerConfig(name="timeout", io_timeout=timedelta(seconds=10)),
+        RetryLayerConfig(name="retry", max_times=5),
+    ],
+)</code></pre></div>
+<p>Untyped map/URI constructors in Python and Node.js forward the same flat keys directly with zero new FFI APIs:</p>
+<div class="example-wrap"><pre class="language-python"><code>import opendal
+
+op = opendal.Operator(
+    "s3",
+    bucket="my-bucket",
+    region="us-east-1",
+    **{
+        "context.http.proxy": "http://127.0.0.1:7890",
+        "context.http.no_proxy": "localhost,.internal",
+        "layers": "timeout,retry",
+        "layer.timeout.io_timeout": "10s",
+        "layer.retry.max_times": "5",
+    },
+)</code></pre></div><div class="example-wrap"><pre class="language-ts"><code>const op = new Operator("s3", {
+  bucket: "my-bucket",
+  region: "us-east-1",
+  "context.http.proxy": "http://127.0.0.1:7890",
+  layers: "timeout,retry",
+  "layer.timeout.io_timeout": "10s",
+  "layer.retry.max_times": "5",
+});</code></pre></div><h3 id="teaching-mental-model"><a class="doc-anchor" href="#teaching-mental-model">§</a>Teaching mental model</h3>
+<ul>
+<li>The flat namespace is the portable core wire contract for URI/map loading and cross-language FFI, not a replacement for typed APIs. Rust code can keep using typed builders, <code>Operator::with_context</code>, and <code>.layer(...)</code>; bindings with typed config wrappers (such as Python’s <code>Operator.from_config</code>) lower typed configs onto this same namespace.</li>
+<li><code>layers</code> activates layers; <code>layer.&lt;name&gt;.*</code> supplies options for an active layer. Writing <code>layer.retry.max_times=5</code> without listing <code>retry</code> in <code>layers</code> does not enable retry.</li>
+<li><code>context.http.*</code> governs HTTP requests dispatched through <code>OperationContext::http_transport()</code>, including HTTP storage services and Reqsign credential fetches that share OpenDAL’s <code>HttpTransporter</code> (such as S3). It does not govern non-HTTP protocols (local filesystem, SFTP, Redis) or services whose RPC transport bypasses <code>HttpTransporter</code> (such as tonic gRPC channels in <code>gcs-grpc</code>).</li>
+<li><code>from_uri</code> treats the entire URI as trusted operator configuration. Never pass an untrusted external URL directly to <code>from_uri</code>.</li>
+</ul>
+<h2 id="reference-level-explanation"><a class="doc-anchor" href="#reference-level-explanation">§</a>Reference-level explanation</h2><h3 id="delta-from-current-behavior"><a class="doc-anchor" href="#delta-from-current-behavior">§</a>Delta from current behavior</h3>
+<p>Verified against <code>main</code> (<code>31b4558934</code>):</p>
+<div class="table"><table><thead><tr><th>Area</th><th>Current behavior</th><th>Behavior after this RFC</th></tr></thead><tbody>
+<tr><td><code>OperatorRegistry::load</code></td><td>Calls <code>OperatorFactory = fn(&amp;OperatorUri) -&gt; Result&lt;Operator&gt;</code>, which invokes <code>C::from_uri</code> and <code>Operator::from_config</code>.</td><td>Partitions keys across service, context, and layers; builds <code>Servicer</code>, folds <code>context.&lt;name&gt;.*</code> factories onto <code>OperationContext::default()</code>, constructs user layers in declared order, prepends core invariant layers, and folds once via <code>Operator::apply_layers</code>.</td></tr>
+<tr><td>Core default layers</td><td><code>Operator::from_builder</code> applies <code>ErrorContextLayer</code>, optional <code>SimulateLayer</code> (<code>auto-simulate</code>), optional <code>GlobLayer</code>, <code>CompleteLayer</code>, <code>CorrectnessCheckLayer</code>.</td><td><code>Operator::from_builder</code> and <code>OperatorRegistry::load</code> share one internal assembly helper so both produce the same core stack and replayable <code>layers</code> list.</td></tr>
+<tr><td><code>OperatorRegistry</code> public API</td><td><code>get</code>, <code>register</code>, <code>schemes</code>, <code>load</code>.</td><td>Adds <code>register_context</code> and <code>register_layer</code> (0 new public types in <code>opendal-core</code>, 0 new methods on <code>Operator</code>).</td></tr>
+<tr><td><code>OperationContext</code> &amp; <code>Layer</code> config</td><td>Rust-only via <code>Operator::with_context</code> / <code>.layer(...)</code> or binding-specific FFI types.</td><td>Configurable via <code>context.&lt;name&gt;.*</code>, <code>layers</code>, and <code>layer.&lt;name&gt;.*</code> across <code>Operator::from_uri</code>, <code>Operator::via_iter</code>, and <code>OperatorRegistry::load</code>.</td></tr>
+<tr><td><code>OperatorUri</code> diagnostics</td><td><code>OperatorUri</code> derives <code>Debug</code> and prints raw <code>password</code> and <code>options</code>.</td><td><code>OperatorUri</code> implements a redacting <code>Debug</code> that omits raw credentials and sensitive option values.</td></tr>
+</tbody></table>
+</div><h3 id="configuration-grammar-and-partitioning"><a class="doc-anchor" href="#configuration-grammar-and-partitioning">§</a>Configuration grammar and partitioning</h3><h4 id="normalization-and-precedence"><a class="doc-anchor" href="#normalization-and-precedence">§</a>Normalization and precedence</h4>
+<p>Input normalization follows existing <code>OperatorUri::new</code> semantics (<code>core/core/src/types/operator/uri.rs</code>):</p>
+<ol>
+<li>If the input contains <code>://</code>, parse it with <code>url::Url::parse</code>, percent-decode query pairs, and ASCII-lowercase every key. Duplicate query keys take the last value.</li>
+<li>Apply <code>extra_options</code> (keys ASCII-lowercased), overriding any query parameter with the same key.</li>
+<li>Because percent-decoding runs before list splitting, <code>%2C</code> in a query value decodes to <code>,</code> and acts as a separator in comma-delimited fields (<code>layers</code>, <code>context.http.no_proxy</code>).</li>
+</ol>
+<p>This RFC defines only the flat string key-value contract. Flattening nested formats (TOML, JSON, YAML) into this namespace is out of scope until explicitly specified.</p>
+<h4 id="namespace-partitioning"><a class="doc-anchor" href="#namespace-partitioning">§</a>Namespace partitioning</h4>
+<p>Partitioning scans the normalized options map once:</p>
+<ul>
+<li><code>layers</code>: extracted as the ordered layer list.</li>
+<li><code>context.&lt;name&gt;.&lt;rest&gt;</code>:
+<ul>
+<li><code>&lt;name&gt;</code> must be non-empty and contain only <code>[a-z0-9_-]</code>; <code>&lt;rest&gt;</code> must be non-empty (<code>context.</code>, <code>context..foo</code>, <code>context.http.</code> return <code>ErrorKind::ConfigInvalid</code>).</li>
+<li>Routed into a <code>BTreeMap&lt;String, HashMap&lt;String, String&gt;&gt;</code> keyed by <code>&lt;name&gt;</code>, with <code>&lt;rest&gt;</code> as the inner key. Storing slots in a <code>BTreeMap</code> guarantees deterministic fold order when multiple <code>context.&lt;name&gt;.*</code> slots are present.</li>
+</ul>
+</li>
+<li><code>layer.&lt;name&gt;.&lt;rest&gt;</code>:
+<ul>
+<li><code>&lt;name&gt;</code> must be non-empty and contain only <code>[a-z0-9_-]</code>; <code>&lt;rest&gt;</code> must be non-empty (<code>layer.</code>, <code>layer..foo</code>, <code>layer.retry.</code> return <code>ErrorKind::ConfigInvalid</code>).</li>
+<li>Routed into a per-layer <code>HashMap&lt;String, String&gt;</code> keyed by <code>&lt;name&gt;</code>, with <code>&lt;rest&gt;</code> as the inner key.</li>
+</ul>
+</li>
+<li>All remaining keys remain in a filtered <code>OperatorUri</code> that preserves <code>scheme</code>, <code>authority</code>, <code>name</code>, <code>username</code>, <code>password</code>, and <code>root</code> verbatim.</li>
+</ul>
+<p>Passing the filtered <code>OperatorUri</code> to <code>Configurator::from_uri(&amp;filtered_uri)</code> preserves every service’s URI precedence rules (for example, <code>S3Config::from_uri</code> lets the URI host/path override <code>bucket</code> and <code>root</code>). All existing service configs in <code>core/services/*/src/config.rs</code> have been audited and contain no <code>layers</code>, <code>context</code>, <code>layer</code>, or dotted field names, so no existing service key conflicts with this grammar.</p>
+<h4 id="layers-list-syntax"><a class="doc-anchor" href="#layers-list-syntax">§</a><code>layers</code> list syntax</h4>
+<p>When <code>layers</code> is present:</p>
+<ul>
+<li>Split on <code>,</code> and trim ASCII whitespace around each token.</li>
+<li>If <code>layers</code> is empty or whitespace-only, treat it as an empty layer list (zero user layers).</li>
+<li>If <code>layers</code> contains an empty token (e.g. <code>retry,,timeout</code> or trailing <code>,</code>), return <code>ErrorKind::ConfigInvalid</code>.</li>
+<li>Each token is a registered layer <code>&lt;name&gt;</code>:
+<ul>
+<li>Normalized to ASCII lowercase; must be non-empty and contain only <code>[a-z0-9_-]</code>.</li>
+<li>Duplicate names within <code>layers</code> (e.g. <code>layers=timeout,timeout</code>) return <code>ErrorKind::ConfigInvalid</code>.</li>
+</ul>
+</li>
+<li>For each <code>&lt;name&gt;</code> in left-to-right order, look up <code>&lt;name&gt;</code> in the registry’s layer factories (missing <code>&lt;name&gt;</code> returns <code>ErrorKind::Unsupported</code>) and invoke it with its owned scoped <code>HashMap&lt;String, String&gt;</code> (empty map if no <code>layer.&lt;name&gt;.*</code> keys were provided).</li>
+<li>Scoped maps for layer names not present in <code>layers</code> are ignored.</li>
+</ul>
+<h3 id="operatorregistry-api-and-assembly-path"><a class="doc-anchor" href="#operatorregistry-api-and-assembly-path">§</a><code>OperatorRegistry</code> API and assembly path</h3><h4 id="public-api"><a class="doc-anchor" href="#public-api">§</a>Public API</h4>
+<p><code>opendal-core</code> adds two methods to <code>OperatorRegistry</code> and zero new public types, matching RFC 7740’s three planes (<code>Service</code>, <code>OperationContext</code>, <code>Layer</code>):</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">impl </span>OperatorRegistry {
+    <span class="comment">// Existing APIs remain unchanged:
+    </span><span class="kw">pub fn </span>get() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span><span class="self">Self</span>;
+    <span class="kw">pub fn </span>register&lt;B: Builder&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, scheme: <span class="kw-2">&amp;</span>str);
+    <span class="kw">pub fn </span>schemes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; HashSet&lt;String&gt;;
+    <span class="kw">pub fn </span>load(<span class="kw-2">&amp;</span><span class="self">self</span>, uri: <span class="kw">impl </span>IntoOperatorUri) -&gt; <span class="prelude-ty">Result</span>&lt;Operator&gt;;
+
+    <span class="comment">// New APIs:
+    </span><span class="doccomment">/// Register a context factory for `context.&lt;name&gt;.*` options.
+    ///
+    /// The factory receives the current base [`OperationContext`] and the scoped
+    /// options map with the `context.&lt;name&gt;.` prefix stripped. If the options
+    /// map contains no keys recognized by this factory, it MUST return `Ok(ctx)`
+    /// unchanged so existing base resources are preserved.
+    </span><span class="kw">pub fn </span>register_context&lt;F&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str, factory: F)
+    <span class="kw">where
+        </span>F: Fn(OperationContext, HashMap&lt;String, String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;OperationContext&gt;
+            + Send
+            + Sync
+            + <span class="lifetime">'static</span>;
+
+    <span class="doccomment">/// Register a layer factory for `layer.&lt;name&gt;.*` options.
+    </span><span class="kw">pub fn </span>register_layer&lt;L, F&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, name: <span class="kw-2">&amp;</span>str, factory: F)
+    <span class="kw">where
+        </span>L: Layer,
+        F: Fn(HashMap&lt;String, String&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;L&gt; + Send + Sync + <span class="lifetime">'static</span>;
+}</code></pre></div><h4 id="assembly-sequence-and-invariants"><a class="doc-anchor" href="#assembly-sequence-and-invariants">§</a>Assembly sequence and invariants</h4>
+<p><code>OperatorRegistry::load</code> executes four steps:</p>
+<ol>
+<li><strong>Build <code>base_srv</code></strong>: Look up <code>parsed.scheme()</code> in the service map (missing returns <code>ErrorKind::Unsupported</code> listing available schemes). Internally, the service map stores <code>fn(&amp;OperatorUri) -&gt; Result&lt;Servicer&gt;</code> (<code>C::from_uri(&amp;filtered_uri)?.into_builder().build()</code>).</li>
+<li><strong>Assemble <code>base_ctx</code></strong>: Start from <code>OperationContext::default()</code>. For each <code>(name, scoped_map)</code> in the partitioned <code>BTreeMap</code>:
+<ul>
+<li>Look up <code>name</code> in the context factory map; if absent, return <code>ErrorKind::Unsupported</code> with <code>context</code> and <code>available</code> fields in the error context.</li>
+<li>Clone the factory <code>Arc</code> handle, release the mutex, and invoke <code>base_ctx = factory(base_ctx, scoped_map)?</code>.</li>
+<li>When no <code>context.*</code> keys are present, no context factory runs and <code>OperationContext::default()</code> is preserved at zero cost.</li>
+</ul>
+</li>
+<li><strong>Construct user layers</strong>: For each <code>&lt;name&gt;</code> in <code>layers</code> (left to right):
+<ul>
+<li>Look up <code>name</code> in the layer factory map; if absent, return <code>ErrorKind::Unsupported</code> with <code>layer</code> and <code>available</code> fields in the error context.</li>
+<li>Clone the factory <code>Arc</code> handle, release the mutex, and invoke <code>factory(scoped_map)?</code> (wrapped as <code>Arc&lt;dyn Layer&gt;</code>).</li>
+</ul>
+</li>
+<li><strong>Single-fold assembly</strong>: Call the shared internal constructor used by <code>Operator::from_builder</code> (<code>core/core/src/types/operator/builder.rs</code>): prepend the core default layers (<code>ErrorContextLayer</code>, optional <code>SimulateLayer</code> under <code>auto-simulate</code>, <code>GlobLayer</code>, <code>CompleteLayer</code>, <code>CorrectnessCheckLayer</code>), append the user layers in declared order, and execute <code>Operator::apply_layers(&amp;base_srv, &amp;base_ctx, &amp;layers)</code> once.</li>
+</ol>
+<p>Ownership, concurrency, and compatibility invariants:</p>
+<ul>
+<li><strong>Stateful closures</strong>: Factories accept <code>Fn(...) + Send + Sync + 'static</code> closures so host applications can capture CA bundles, shared semaphores, or runtime handles without global mutable statics.</li>
+<li><strong>Owned scoped maps</strong>: Passing owned <code>HashMap&lt;String, String&gt;</code> lets every factory feed the map directly into <code>ConfigDeserializer::new(map)</code> with zero extra cloning.</li>
+<li><strong>Lock discipline</strong>: <code>OperatorRegistry</code> never invokes a service, context, or layer factory while holding its internal mutex.</li>
+<li><strong>Snapshot isolation</strong>: The returned <code>Operator</code> owns its <code>base_srv</code>, <code>base_ctx</code>, and <code>layers</code>; later calls to <code>register*</code> affect only subsequent <code>load</code> calls. Overwrite semantics on <code>register_context</code> and <code>register_layer</code> match <code>register&lt;B&gt;</code>.</li>
+<li><strong>Replay and capability invariants</strong>: <code>CorrectnessCheckLayer</code> remains outermost among core layers so capability validation matches <code>Operator::new</code>. Replay history (<code>base_srv</code>, <code>base_ctx</code>, <code>layers</code>) is preserved on the returned <code>Operator</code>, so cloning and calling <code>.with_context(...)</code> or <code>.layer(...)</code> behaves identically to Rust-constructed operators. (<code>Operator::into_parts</code> continues to discard replay history as documented.)</li>
+<li><strong>Existing <code>OperatorFactory</code> alias</strong>: <code>opendal_core::OperatorFactory</code> (<code>fn(&amp;OperatorUri) -&gt; Result&lt;Operator&gt;</code>) is not accepted by any public registration method today; retain the type alias for source compatibility.</li>
+</ul>
+<h3 id="facade-initialization-and-built-in-registrations"><a class="doc-anchor" href="#facade-initialization-and-built-in-registrations">§</a>Facade initialization and built-in registrations</h3>
+<p><code>core/src/lib.rs</code> preserves the distinction between <code>init_default_registry()</code> and <code>install_default()</code>:</p>
+<ul>
+<li><strong><code>init_default_registry()</code></strong>:
+<ul>
+<li>Registers enabled services (<code>register&lt;B&gt;</code>, unchanged).</li>
+<li>Registers enabled config-constructible built-in layers (<code>register_layer</code>).</li>
+<li>Does <strong>not</strong> register <code>context.http</code> or install process-wide defaults. Applications that disable <code>auto-register-services</code>, call <code>init_default_registry()</code>, and install their own <code>HttpTransporter::install_default(custom)</code> will never have <code>custom</code> silently replaced by <code>reqwest</code>: URIs without <code>context.http.*</code> continue using <code>custom</code>, and URIs with <code>context.http.*</code> fail fast with <code>ErrorKind::Unsupported</code> unless the application registers its own <code>"http"</code> context factory.</li>
+</ul>
+</li>
+<li><strong><code>install_default()</code></strong>:
+<ul>
+<li>Calls <code>init_default_registry()</code>.</li>
+<li>Calls <code>opendal_executor_tokio::install_default()</code> and <code>opendal_http_transport_reqwest::install_default()</code> (unchanged; first installed wins).</li>
+<li>Registers <code>"http"</code> via <code>OperatorRegistry::get().register_context("http", ...)</code> when any <code>http-transport-reqwest*</code> feature is enabled.</li>
+</ul>
+</li>
+</ul>
+<h4 id="built-in-contexthttp-opendal-http-transport-reqwest"><a class="doc-anchor" href="#built-in-contexthttp-opendal-http-transport-reqwest">§</a>Built-in <code>context.http</code> (<code>opendal-http-transport-reqwest</code>)</h4>
+<p>Portable key conventions for <code>context.http.*</code> (parsed inside <code>opendal-http-transport-reqwest</code> into a <code>ReqwestConfig</code> struct via <code>ConfigDeserializer</code>, keeping <code>opendal-core</code> free of HTTP client config structs):</p>
+<div class="table"><table><thead><tr><th>Key</th><th>Format &amp; validation</th><th>Reqwest mapping</th></tr></thead><tbody>
+<tr><td><code>proxy</code></td><td>Non-empty URL validated with <code>url::Url::parse</code> (<code>ConfigInvalid</code> on empty/malformed; <code>Unsupported</code> for schemes requiring disabled features such as <code>socks5://</code> without <code>reqwest/socks</code>).</td><td><code>reqwest::Proxy::all(proxy)</code></td></tr>
+<tr><td><code>no_proxy</code></td><td>Non-empty comma-separated host/domain/CIDR bypass list (<code>ConfigInvalid</code> on empty).</td><td><code>reqwest::NoProxy::from_string(no_proxy)</code> attached to proxy</td></tr>
+<tr><td><code>connect_timeout</code></td><td>Positive <code>SignedDuration</code> (e.g. <code>500ms</code>, <code>5s</code>; negative or zero returns <code>ConfigInvalid</code>).</td><td><code>ClientBuilder::connect_timeout</code></td></tr>
+<tr><td><code>read_timeout</code></td><td>Positive <code>SignedDuration</code> (negative or zero returns <code>ConfigInvalid</code>).</td><td><code>ClientBuilder::read_timeout</code></td></tr>
+<tr><td><code>timeout</code></td><td>Positive <code>SignedDuration</code> (negative or zero returns <code>ConfigInvalid</code>).</td><td><code>ClientBuilder::timeout</code></td></tr>
+<tr><td><code>user_agent</code></td><td>Non-empty valid HTTP header value (<code>ConfigInvalid</code> otherwise).</td><td><code>ClientBuilder::user_agent</code></td></tr>
+</tbody></table>
+</div>
+<p>Factory contract for <code>"http"</code>:</p>
+<ul>
+<li><strong>Zero side effects on unknown keys</strong>: After deserializing <code>ReqwestConfig</code> from the scoped <code>HashMap&lt;String, String&gt;</code>, if all recognized fields are <code>None</code> (<code>reqwest_cfg.is_empty()</code>), the factory returns <code>Ok(ctx)</code> unchanged without building a <code>reqwest::Client</code> or replacing <code>ctx.http_transport()</code>.</li>
+<li><strong>Redaction</strong>: <code>ReqwestConfig</code> implements a custom <code>Debug</code> that redacts any userinfo/credentials embedded in <code>proxy</code> (e.g. <code>http://***:***@proxy.example.com:8080</code>).</li>
+</ul>
+<p>Other runtime crates are intentionally <strong>not</strong> auto-registered under <code>context.*</code>:</p>
+<ul>
+<li><code>tokio</code> (<code>opendal-executor-tokio</code>): has zero configuration parameters and is already installed by <code>install_default()</code>.</li>
+<li><code>compio</code> (<code>opendal-executor-compio</code>): <code>CompioExecutor::new(Arc&lt;Dispatcher&gt;)</code> requires a host-owned dispatcher that cannot be safely created from a config string.</li>
+<li><code>cyper</code> (<code>opendal-http-transport-cyper</code>): requires requests to run on a thread entered into a Compio runtime that outlives response consumption.</li>
+</ul>
+<h4 id="initial-built-in-layer-factories"><a class="doc-anchor" href="#initial-built-in-layer-factories">§</a>Initial built-in layer factories</h4>
+<p>Only layers that can be constructed safely from flat string values are registered by default. Every factory MUST validate ranges and required parameters before calling constructors that assert or panic (such as <code>ThrottleLayer::new</code> and <code>ChaosLayer::new</code>):</p>
+<div class="table"><table><thead><tr><th>Layer name</th><th>Crate / feature</th><th>Initial supported options</th></tr></thead><tbody>
+<tr><td><code>retry</code></td><td><code>layers-retry</code></td><td><code>jitter</code> (<code>bool</code>), <code>factor</code> (<code>f32</code>), <code>min_delay</code> (<code>SignedDuration</code>), <code>max_delay</code> (<code>SignedDuration</code>), <code>max_times</code> (<code>usize</code>)</td></tr>
+<tr><td><code>timeout</code></td><td><code>layers-timeout</code></td><td><code>timeout</code> (<code>SignedDuration</code>), <code>io_timeout</code> (<code>SignedDuration</code>)</td></tr>
+<tr><td><code>concurrent_limit</code></td><td><code>layers-concurrent-limit</code></td><td><code>permits</code> (required, <code>usize</code>, &gt; 0), <code>read_permits</code>, <code>write_permits</code>, <code>list_permits</code>, <code>http_permits</code> (optional, <code>usize</code>, &gt; 0)</td></tr>
+<tr><td><code>throttle</code></td><td><code>layers-throttle</code></td><td><code>bandwidth</code> (required, <code>u32</code>, &gt; 0), <code>burst</code> (required, <code>u32</code>, &gt; 0)</td></tr>
+<tr><td><code>logging</code></td><td><code>layers-logging</code></td><td>Default <code>LoggingLayer::default()</code></td></tr>
+<tr><td><code>tracing</code></td><td><code>layers-tracing</code></td><td>Default <code>TracingLayer</code></td></tr>
+<tr><td><code>mime_guess</code></td><td><code>layers-mime-guess</code></td><td>Default <code>MimeGuessLayer</code></td></tr>
+<tr><td><code>chaos</code></td><td><code>layers-chaos</code></td><td><code>error_ratio</code> (required, <code>f64</code>, <code>[0.0, 1.0]</code>)</td></tr>
+</tbody></table>
+</div>
+<p>Layers requiring Rust callbacks, caches, or external telemetry handles (<code>foyer</code>, <code>cache</code>, <code>metrics</code>, <code>prometheus</code>, <code>prometheus_client</code>, <code>fastmetrics</code>, <code>otelmetrics</code>, <code>oteltrace</code>, <code>fastrace</code>, <code>route</code>, <code>immutable_index</code>) are not auto-registered, though Rust applications can register custom factories for them via <code>OperatorRegistry::register_layer</code>.</p>
+<h3 id="cross-language-binding-contracts"><a class="doc-anchor" href="#cross-language-binding-contracts">§</a>Cross-language binding contracts</h3>
+<p>Unified configuration guarantees that <strong>any binding forwarding a URI or <code>(scheme, map)</code> to <code>OperatorRegistry</code> accepts the same configuration keys</strong> without adding binding-specific FFI APIs:</p>
+<ul>
+<li><strong>Direct map/URI bindings</strong> (<code>python</code>, <code>nodejs</code>, <code>cpp</code>, <code>php</code>, <code>ruby</code>, <code>lua</code>, <code>ocaml</code>, <code>haskell</code>, <code>dart</code>, <code>dotnet</code>): construct operators directly through <code>Operator::via_iter</code> / <code>Operator::from_uri</code> without post-construction <code>with_context</code> replacement. They inherit unified config support automatically.</li>
+<li><strong>Typed binding wrappers (e.g., Python <code>Operator.from_config</code> / <code>AsyncOperator.from_config</code>)</strong>:
+<ul>
+<li><code>bindings/python/python/opendal/config.py</code> (generated by <code>dev/src/generate/python.rs</code>) already provides <code>TypedDict</code> service configs (<code>S3Config</code>, <code>ServiceConfig</code>) that <code>extract_typed_config</code> lowers into a flat <code>HashMap&lt;String, String&gt;</code> for <code>Operator::via_iter</code> (converting <code>bool</code>, <code>int</code>, <code>datetime.timedelta</code>, <code>os.PathLike</code>, and <code>list</code> values).</li>
+<li>Keeping <code>ServiceConfig</code> focused on the service plane and adding optional keyword-only <code>context: ContextConfig | None = None</code> (and optional <code>layers: Sequence[LayerConfig] | None = None</code>) parameters to <code>from_config</code> gives Python callers full mypy/pyright type safety without polluting every <code>*Config</code> service dict or adding new <code>opendal-core</code> FFI types.</li>
+<li>PyO3 lowers <code>context["http"]</code> entries to <code>context.http.&lt;field&gt;</code> (and <code>layers</code> entries to <code>layers</code> + <code>layer.&lt;name&gt;.&lt;field&gt;</code>) using the existing <code>config_value_to_string</code> helper before calling <code>Operator::via_iter</code>. Because the lowered keys live in <code>Operator.__map</code>, <code>pickle</code> round-trips (<code>__reduce__</code>) preserve <code>context</code> and declarative <code>layers</code> automatically, and chained <code>.layer(...)</code> calls preserve RFC 7740 replay order over the configured <code>base_ctx</code>.</li>
+<li>Typed wrapper generation in bindings is decoupled from <code>opendal-core</code> and can land alongside or right after the core implementation.</li>
+</ul>
+</li>
+<li><strong>Java (<code>bindings/java/src/async_operator.rs</code>)</strong>:
+<ul>
+<li>Today Java calls <code>Operator::via_iter(scheme, map)?</code>, then executes <code>op.context().with_executor(jni_exec)</code> and <code>op.with_context(ctx)</code>. Passing the already-composed <code>op.context()</code> back as <code>base_ctx</code> would cause context-wrapping layers (such as <code>TracingLayer</code> or <code>ConcurrentLimitLayer</code>) to wrap the HTTP transport twice.</li>
+<li>Fixing Java requires only changing <code>op.context()</code> to <code>op.base_context().clone()</code> before <code>.with_executor(jni_exec)</code> and <code>op.with_context(ctx)</code>. Because <code>op.base_context()</code> holds the <code>HttpTransporter</code> assembled from <code>context.http.*</code> and RFC 7740 guarantees <code>apply_*</code> hooks are cheap, replayable projections, Java preserves <code>context.http.*</code>, installs its JNI executor, and wraps every layer exactly once with zero new core APIs.</li>
+</ul>
+</li>
+<li><strong>C (<code>bindings/c/src/operator.rs</code>)</strong>:
+<ul>
+<li><code>opendal_operator_new</code> keeps its current behavior unchanged: it calls <code>Operator::via_iter(schema, map)</code> and appends its historical default <code>RetryLayer::new()</code> and <code>LoggingLayer::default()</code>. Documentation notes that passing <code>layers=retry</code> to <code>opendal_operator_new</code> stacks an inner configured retry underneath that outer default retry.</li>
+<li><code>opendal_operator_new_with_layers</code> forwards <code>(scheme, map)</code> to <code>Operator::via_iter</code> and applies only explicit C layer handles (<code>NULL</code> applies none); C callers who want full control over <code>layers</code> from options use <code>opendal_operator_new_with_layers(scheme, options, NULL)</code>.</li>
+</ul>
+</li>
+<li><strong>MoonBit (<code>bindings/moonbit/native/lib.rs</code>)</strong>: currently constructs only a hard-coded memory operator; out of scope until it adopts scheme/map construction.</li>
+</ul>
+<h3 id="failure-semantics-and-security"><a class="doc-anchor" href="#failure-semantics-and-security">§</a>Failure semantics and security</h3><h4 id="error-kinds"><a class="doc-anchor" href="#error-kinds">§</a>Error kinds</h4>
+<p>All three planes share the same failure model:</p>
+<div class="table"><table><thead><tr><th>Condition</th><th>ErrorKind</th></tr></thead><tbody>
+<tr><td>Malformed URI, malformed <code>layers</code> syntax, duplicate layer name, invalid or empty <code>context.&lt;name&gt;.&lt;rest&gt;</code> / <code>layer.&lt;name&gt;.&lt;rest&gt;</code>, negative/zero/unparseable duration, invalid proxy URL, missing required layer option, invalid option type or out-of-range value (e.g. <code>throttle.bandwidth=0</code>, <code>chaos.error_ratio=1.5</code>)</td><td><code>ConfigInvalid</code></td></tr>
+<tr><td>Unregistered service <code>&lt;scheme&gt;</code>, unregistered <code>context.&lt;name&gt;</code>, unregistered layer <code>&lt;name&gt;</code> in <code>layers</code>, or unsupported option in the registered provider (e.g. <code>socks5://</code> proxy without <code>reqwest/socks</code>)</td><td><code>Unsupported</code></td></tr>
+<tr><td>Unknown <code>&lt;field&gt;</code> inside a registered service, context slot, or layer, or <code>layer.&lt;name&gt;.*</code> for a layer not listed in <code>layers</code></td><td>Ignored (zero side effects on <code>base_ctx</code>)</td></tr>
+</tbody></table>
+</div><h4 id="security-and-redaction"><a class="doc-anchor" href="#security-and-redaction">§</a>Security and redaction</h4>
+<ul>
+<li><strong>Trust boundary</strong> (aligned with <code>SECURITY-THREAT-MODEL.md</code>): The entire URI and options map passed to <code>Operator::from_uri</code>, <code>Operator::via_iter</code>, and <code>OperatorRegistry::load</code> is trusted operator configuration. Passing a trusted <code>extra_options</code> map does not neutralize attacker-controlled <code>context.http.proxy</code> or <code>layer.*</code> query parameters in an untrusted URI; hosts accepting external object URLs must parse and allowlist only scheme, bucket/host, and path before constructing an operator.</li>
+<li><strong>Credential redaction</strong>: <code>OperatorUri::fmt</code> (<code>Debug</code>) replaces its derived <code>Debug</code> implementation with a redacting implementation that omits raw <code>password</code> and redacts sensitive option values (including <code>context.http.proxy</code> userinfo and secret keys). <code>ReqwestConfig::fmt</code> (<code>Debug</code>) redacts credentials in <code>proxy</code>. Error context attached during config parsing must never include raw proxy passwords or secret values.</li>
+</ul>
+<h3 id="validation"><a class="doc-anchor" href="#validation">§</a>Validation</h3>
+<p>The implementation is verified against these observable acceptance scenarios (contract-derived; no runtime benchmarks are required because unconfigured slots incur zero allocations and configured transports build once at operator construction time):</p>
+<ol>
+<li><strong>Zero side effects on unknown HTTP keys</strong>: With <code>"http"</code> registered via <code>install_default()</code>, loading a URI containing only an unrecognized <code>context.http.unknown_key=1</code> leaves <code>op.base_context().http_transport()</code> as the default transport (does not construct a new <code>reqwest::Client</code>).</li>
+<li><strong>Fail fast when <code>"http"</code> context is unregistered</strong>: With <code>auto-register-services</code> disabled, <code>init_default_registry()</code> called, and a custom <code>HttpTransporter::install_default(custom)</code> installed (without calling <code>register_context("http", ...)</code>), a URI without <code>context.http.*</code> dispatches through <code>custom</code>, while a URI with <code>context.http.proxy=http://127.0.0.1:8080</code> returns <code>ErrorKind::Unsupported</code>.</li>
+<li><strong>RFC 7740 replay preserved with proxy and layers</strong>: Loading <code>context.http.proxy=...</code> together with <code>layers=concurrent_limit,tracing,retry</code> routes requests through the proxy while enforcing the HTTP concurrency limit and observing each HTTP request exactly once in <code>TracingLayer</code>; subsequently calling <code>.with_context(op.base_context().clone().with_executor(...))</code> still observes each HTTP request exactly once.</li>
+<li><strong>Layer ordering and validation</strong>: <code>layers=timeout,retry</code> places <code>timeout</code> inside <code>retry</code> (matching <code>.layer(timeout).layer(retry)</code>); duplicate layer names (<code>layers=retry,retry</code>), empty tokens (<code>layers=retry,</code>), unregistered layer or context names (<code>layers=nonexistent</code>, <code>context.unknown.k=v</code>), and invalid option ranges (<code>layer.throttle.bandwidth=0</code>, <code>layer.chaos.error_ratio=1.5</code>) return the documented <code>ConfigInvalid</code> / <code>Unsupported</code> errors without panicking.</li>
+<li><strong>Service URI precedence preserved</strong>: <code>s3://uri-bucket/uri-root?bucket=opt-bucket&amp;context.http.proxy=...</code> still resolves bucket <code>uri-bucket</code> and root <code>uri-root</code> via <code>S3Config::from_uri</code>.</li>
+<li><strong>Binding contracts</strong>: Java <code>AsyncOperator</code> constructed with <code>layers=tracing</code> and a custom JNI executor wraps HTTP tracing once (not twice) and preserves <code>context.http.proxy</code>; C <code>opendal_operator_new</code> preserves its existing default retry/logging behavior while <code>opendal_operator_new_with_layers(..., NULL)</code> applies only config-declared layers; Python and Node.js configure a per-operator proxy against a local loopback proxy without setting <code>HTTPS_PROXY</code>.</li>
+<li><strong>Redaction</strong>: Formatting <code>OperatorUri</code>, <code>ReqwestConfig</code>, and parse errors for <code>context.http.proxy=http://user:secret@proxy:8080</code> never emits <code>secret</code>.</li>
+</ol>
+<h2 id="drawbacks"><a class="doc-anchor" href="#drawbacks">§</a>Drawbacks</h2>
+<ul>
+<li><strong>Stringly-typed raw configuration surface</strong>: For raw URI and untyped map callers, typographical mistakes in optional keys inside a registered component (such as <code>context.http.proxi</code> or <code>layer.retry.max_time</code>) are ignored under OpenDAL’s permissive unknown-key model, consistent with existing service configs. Statically typed callers avoid this by using typed Rust builders / <code>.with_context</code> / <code>.layer</code> or typed binding wrappers such as Python’s <code>Operator.from_config</code>.</li>
+<li><strong>Registry maintenance surface</strong>: Built-in layer and transport crates gain small config-parsing adapters and validation tests, though each stays inside its own crate and decoupled from <code>opendal-core</code>.</li>
+<li><strong>Two ways to wire layers</strong>: Rust users now have both typed <code>.layer(...)</code> and string <code>layers=...</code>; documentation must make clear that statically typed Rust code should continue preferring <code>.layer(...)</code>, while unified config targets URI/map-driven construction and cross-language bindings.</li>
+</ul>
+<h2 id="rationale-and-alternatives"><a class="doc-anchor" href="#rationale-and-alternatives">§</a>Rationale and alternatives</h2><h3 id="why-register_context-instead-of-register_http_transport"><a class="doc-anchor" href="#why-register_context-instead-of-register_http_transport">§</a>Why <code>register_context</code> instead of <code>register_http_transport</code>?</h3>
+<p>In RFC 7740, <code>Operator</code> and <code>Layer</code> interact with runtime resources exclusively through <code>OperationContext</code> (<code>with_context</code>, <code>apply_context</code>), not per-resource methods. Exposing <code>register_http_transport</code> on <code>OperatorRegistry</code> would leak an internal <code>OperationContext</code> slot into the registry API and force a new method for every future runtime resource. <code>register_context(name, |ctx, cfg| -&gt; Result&lt;OperationContext&gt;)</code> aligns <code>OperatorRegistry</code> 1-to-1 with the three planes (<code>register</code>, <code>register_context</code>, <code>register_layer</code>), lets factories naturally preserve <code>ctx</code> by returning <code>Ok(ctx)</code> when no recognized key is set, and extends to future context slots with zero API additions.</p>
+<h3 id="why-no-httpconfig-struct-in-opendal-core"><a class="doc-anchor" href="#why-no-httpconfig-struct-in-opendal-core">§</a>Why no <code>HttpConfig</code> struct in <code>opendal-core</code>?</h3>
+<p>RFC 7749 removed HTTP client details from <code>opendal-core</code>. Defining <code>pub struct HttpConfig</code> in <code>opendal-core</code> would re-couple core semver to HTTP client options even though <code>opendal-http-transport-reqwest</code> is currently the only HTTP transport constructible from flat strings. Letting each context provider deserialize its own scoped <code>HashMap&lt;String, String&gt;</code> via <code>ConfigDeserializer</code> mirrors how services parse <code>S3Config</code> / <code>FsConfig</code>, avoids <code>#[serde(flatten)]</code> incompatibilities with <code>ConfigDeserializer</code>, and keeps <code>opendal-core</code> at zero new public types while documenting the <code>context.http.*</code> key names as the portable convention.</p>
+<h3 id="why-omit-load_with_context-register_executor-and-registry-listing-methods"><a class="doc-anchor" href="#why-omit-load_with_context-register_executor-and-registry-listing-methods">§</a>Why omit <code>load_with_context</code>, <code>register_executor</code>, and registry listing methods?</h3>
+<ul>
+<li><strong><code>load_with_context</code></strong>: Existing <code>Operator::base_context()</code> + <code>Operator::with_context()</code> already covers Java (by fixing <code>op.context()</code> to <code>op.base_context()</code>) and per-operator Rust overrides; <code>HttpTransporter::install_default</code> covers process-wide custom transports. Deferring <code>load_with_context</code> avoids adding a second load entry point until a non-global conditional-override use case appears.</li>
+<li><strong><code>register_executor</code></strong>: Neither built-in executor benefits from string configuration today (<code>tokio</code> has zero options and is already default; <code>compio</code> requires a host-owned <code>Arc&lt;Dispatcher&gt;</code>). <code>register_context("executor", ...)</code> can plug in later with zero API changes if a string-configurable executor is added.</li>
+<li><strong>Registry listing methods (<code>contexts()</code>, <code>layers()</code>) and factory type aliases</strong>: <code>register_context</code> and <code>register_layer</code> are generic over <code>Fn</code>, so public <code>Arc&lt;dyn Fn(...)&gt;</code> aliases are unnecessary; <code>Unsupported</code> errors already include the available names in error context.</li>
+</ul>
+<h3 id="why-not-httpconfiglayer-rfc-pr-8526"><a class="doc-anchor" href="#why-not-httpconfiglayer-rfc-pr-8526">§</a>Why not <code>HttpConfigLayer</code> (RFC PR #8526)?</h3>
+<p>Implementing HTTP configuration as a <code>Layer</code> that replaces <code>HttpTransporter</code> in <code>apply_context</code>:</p>
+<ul>
+<li>Breaks RFC 7740’s order-independence guarantee for base resources: applying <code>HttpConfigLayer</code> after <code>ConcurrentLimitLayer</code> or <code>TracingLayer</code> silently drops their HTTP wrappers.</li>
+<li>Silently overrides an explicit <code>Operator::with_context(...)</code> on the operator.</li>
+<li>Solves only HTTP transport options while still requiring per-binding FFI boilerplate for <code>HttpConfigLayer</code> and every future context option or layer.</li>
+</ul>
+<h3 id="why-not-per-binding-native-httpconfig-ffi-apis"><a class="doc-anchor" href="#why-not-per-binding-native-httpconfig-ffi-apis">§</a>Why not per-binding native <code>HttpConfig</code> FFI APIs?</h3>
+<p>Building and installing a <code>ReqwestTransport</code> through a bespoke native FFI <code>http_config</code> API in every binding (without a shared core configuration contract) preserves RFC 7740 replay order, but:</p>
+<ul>
+<li>Requires designing, maintaining, and releasing parallel native transport-construction code across 10+ language bindings.</li>
+<li>Leaves <code>Layer</code> composition and future context resources unaddressed, forcing another round of binding-specific FFI APIs later.</li>
+<li>Still does not let URI-driven callers (<code>Operator::from_uri</code>) configure proxies or layers from a single configuration string.</li>
+</ul>
+<p>With a unified flat core contract in place, bindings that want static typing (such as Python’s <code>Operator.from_config</code>) only need thin, generated typed wrappers that lower into the same <code>(scheme, map)</code> call.</p>
+<h3 id="why-contextname-and-layername-instead-of-http-and-layer"><a class="doc-anchor" href="#why-contextname-and-layername-instead-of-http-and-layer">§</a>Why <code>context.&lt;name&gt;.*</code> and <code>layer.&lt;name&gt;.*</code> instead of <code>http.*</code> and <code>&lt;layer&gt;.*</code>?</h3>
+<ul>
+<li>Flat top-level prefixes like <code>http.*</code> or <code>retry.*</code> claim a new service-key prefix every time OpenDAL adds a layer or context slot, risking collisions with future service options.</li>
+<li>Scoping under <code>context.&lt;name&gt;.*</code> and <code>layer.&lt;name&gt;.*</code> reserves only two namespace roots (<code>context.*</code>, <code>layer.*</code>) plus <code>layers</code>, mirrors RFC 7740’s exact three-plane model, and accommodates future <code>OperationContext</code> slots cleanly.</li>
+</ul>
+<h2 id="prior-art"><a class="doc-anchor" href="#prior-art">§</a>Prior art</h2>
+<ul>
+<li><strong>RFC 5444 (<code>operator_from_uri</code>)</strong>: Introduced <code>OperatorUri</code> and <code>OperatorRegistry</code> for scheme-driven service construction. This RFC extends the same registry from service-only to full <code>Operator</code> assembly.</li>
+<li><strong>RFC 7740 (<code>operator_composition</code>)</strong>: Established the three-plane <code>(base_srv, base_ctx, layers)</code> model and single-fold replay invariant that this RFC preserves.</li>
+<li><strong>RFC 7749 (<code>http_transporter</code>)</strong>: Decoupled <code>opendal-core</code> from <code>reqwest</code> and introduced <code>install_default()</code> in the facade crate.</li>
+<li><strong>JDBC / Go database/sql / Arrow Flight / SQLAlchemy connection URIs</strong>: Configure both endpoint parameters and transport/timeout options in one connection URI or flat options map.</li>
+</ul>
+<h2 id="unresolved-questions"><a class="doc-anchor" href="#unresolved-questions">§</a>Unresolved questions</h2>
+<ol>
+<li><strong>Should <code>Operator::from_iter::&lt;B&gt;</code> stay service-only or participate in unified config assembly?</strong>
+<ul>
+<li><em>Recommendation</em>: Keep <code>Operator::from_iter::&lt;B&gt;</code> as the statically typed service-config-only entry point (matching <code>Operator::from_config</code> and <code>Operator::new</code>) and route unified assembly through <code>OperatorRegistry::load</code> / <code>Operator::from_uri</code> / <code>Operator::via_iter</code>.</li>
+<li><em>Decisive reason</em>: <code>Operator::from_iter::&lt;B&gt;</code> currently calls <code>B::Config::from_iter(iter)</code> directly without touching <code>OperatorRegistry</code>, and <code>Configurator::from_uri</code> defaults to <code>Unsupported</code>. Mixing registry-driven context/layers into a typed, registry-free constructor blurs the boundary between static and registry-driven construction.</li>
+<li><em>To close</em>: Maintainer confirmation on whether any Rust caller expects <code>Operator::from_iter::&lt;S3&gt;(map)</code> to honor <code>context.http.*</code> / <code>layers</code>.</li>
+</ul>
+</li>
+</ol>
+<h2 id="future-possibilities"><a class="doc-anchor" href="#future-possibilities">§</a>Future possibilities</h2>
+<ul>
+<li><strong>Multi-instance layer aliases (<code>kind:alias</code>)</strong>: Because <code>:</code> is disallowed in layer names (<code>[a-z0-9_-]</code>), supporting multiple instances of the same layer in one config can be added backward-compatibly if a real use case emerges.</li>
+<li><strong>Additional <code>OperationContext</code> slots</strong>: Future runtime resources added to <code>OperationContext</code> (such as configurable executors, DNS resolvers, TLS roots, or clocks) can plug directly into <code>OperatorRegistry::register_context("&lt;slot&gt;", ...)</code> without adding any new registry APIs.</li>
+<li><strong>Additional HTTP options</strong>: Custom CA paths (<code>ca_cert_path</code>), HTTP/2 controls, or pool tuning can be added to <code>context.http.*</code> without changing <code>opendal-core</code>.</li>
+<li><strong>Conditional base-context loading (<code>OperatorRegistry::load_with_context</code>)</strong>: Can be added backward-compatibly if callers need a non-global base <code>OperationContext</code> overridden only when <code>context.*</code> keys appear in a URI.</li>
+<li><strong>Structured config ingestion (TOML / JSON / YAML)</strong>: A dedicated follow-up RFC can define deterministic flattening from nested tables (<code>[service]</code>, <code>[context.http]</code>, <code>[[layers]]</code>) into this contract once the flat semantics are stable.</li>
+<li><strong>Python dict ergonomics</strong>: Allowing <code>opendal.Operator("s3", {"bucket": ..., "context.http.proxy": ...})</code> as a positional options mapping alongside <code>**kwargs</code> avoids <code>**{...}</code> unpacking for dotted keys.</li>
+</ul>
+</div></details></section></div></main></body></html>

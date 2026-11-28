@@ -1,0 +1,85 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="The portable contract for registry-based operator configuration."><title>opendal_core::docs::specs::operator_configuration - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="opendal_core" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0-nightly (1303417c4 2026-09-21)" data-channel="nightly" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js"><script src="../../../../static.files/storage-41dd4d93.js"></script><script defer="" src="../sidebar-items.js"></script><script defer="" src="../../../../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module operator_configuration</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../../../opendal_core/index.html"><img src="/img/logo.svg" alt="logo"></a><h2><a href="../../../../opendal_core/index.html">opendal_<wbr>core</a><span class="version">0.59.5</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module operator_<wbr>configuration</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#operator-configuration" title="Operator configuration">Operator configuration</a><ul><li><a href="#keys-and-precedence" title="Keys and precedence">Keys and precedence</a></li><li><a href="#context-and-layer-order" title="Context and layer order">Context and layer order</a></li><li><a href="#option-values-and-errors" title="Option values and errors">Option values and errors</a></li><li><a href="#trusted-input" title="Trusted input">Trusted input</a></li><li><a href="#historical-decision" title="Historical decision">Historical decision</a></li></ul></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In opendal_<wbr>core::<wbr>docs::<wbr>specs</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../../index.html">opendal_core</a>::<wbr><a href="../../index.html">docs</a>::<wbr><a href="../index.html">specs</a></div><h1>Module <span>operator_<wbr>configuration</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../../src/opendal_core/docs/specs/mod.rs.html#34">Source</a> </span></div><details class="toggle top-doc" open=""><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>The portable contract for registry-based operator configuration.</p>
+<h2 id="operator-configuration"><a class="doc-anchor" href="#operator-configuration">§</a>Operator configuration</h2>
+<p>Registry-based operator creation accepts a storage scheme or URI and a flat
+set of string options. This specification applies to entry points that forward
+configuration to the operator registry. Each build and binding determines
+which entry points it exposes and which services, context providers, and layers
+it registers.</p>
+<h3 id="keys-and-precedence"><a class="doc-anchor" href="#keys-and-precedence">§</a>Keys and precedence</h3>
+<p>OpenDAL lowercases ASCII letters in option keys. It decodes URI query keys and
+values before normalizing keys or interpreting values. Extra options supplied
+alongside a URI are already strings and are used as supplied, apart from key
+normalization.</p>
+<p>For each normalized key, the last query occurrence wins. Extra options then
+override matching query keys, including when the overriding value is empty.
+If the entry point supplies an ordered sequence of extra options, the last
+entry for a normalized key wins there as well. Supply only one spelling of a
+key in an unordered map to get a predictable result.</p>
+<div class="table"><table><thead><tr><th>Key</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>context.&lt;name&gt;.&lt;field&gt;</code></td><td>Sets an option for a named provider of base runtime resources.</td></tr>
+<tr><td><code>layers</code></td><td>Lists the layers to add to the operator.</td></tr>
+<tr><td><code>layer.&lt;name&gt;.&lt;field&gt;</code></td><td>Sets an option for a layer named in <code>layers</code>.</td></tr>
+<tr><td>All other keys</td><td>Go to the service selected by the scheme.</td></tr>
+</tbody></table>
+</div>
+<p>A scoped key requires a name made of ASCII letters, digits, <code>_</code>, or <code>-</code> and a
+nonempty field suffix. The component receives the entire normalized suffix,
+including any dots. Malformed scoped keys fail with <code>ConfigInvalid</code>, even for
+inactive layers. The service receives the remaining options and the URI
+components, and decides how to resolve conflicts between them. For example,
+S3 uses the URI’s bucket and root path when present, even if extra options set
+<code>bucket</code> and <code>root</code>.</p>
+<h3 id="context-and-layer-order"><a class="doc-anchor" href="#context-and-layer-order">§</a>Context and layer order</h3>
+<p>OpenDAL applies configured context providers in ascending order of their
+normalized names to build the base context before applying layers. Omitted
+context scopes keep the incoming resources. A provider that recognizes none
+of its supplied fields preserves its input context.</p>
+<p>OpenDAL splits <code>layers</code> at commas, trims ASCII whitespace from each name, and
+lowercases ASCII letters. A missing, empty, or ASCII-whitespace-only list adds
+zero configured layers. Every name in a nonempty list follows the same rules
+as scoped names. Empty entries, trailing commas, and duplicate normalized
+names fail with <code>ConfigInvalid</code>. A comma encoded as <code>%2C</code> in a URI query acts
+as a separator after decoding.</p>
+<p>Layers are listed from innermost to outermost. With <code>layers=timeout,retry</code>,
+retry wraps timeout, and both wrap the core defaults. A listed layer with no
+scoped fields receives an empty options set. Well-formed options for an unlisted
+layer are ignored, including for an unregistered layer. A layer added after
+construction wraps the configured stack. An explicit replacement of the base
+context, where exposed, takes precedence over the configured base context and
+reapplies the layers to the replacement.</p>
+<h3 id="option-values-and-errors"><a class="doc-anchor" href="#option-values-and-errors">§</a>Option values and errors</h3>
+<p>OpenDAL returns <code>Unsupported</code> for an unregistered service scheme, a context
+scope with no registered provider, or an unregistered name in <code>layers</code>.
+Built-in context and layer factories ignore unrecognized fields. Service options
+and extensions follow their component’s own option contract.</p>
+<p>Omitting an optional field leaves its default or inherited behavior. A supplied
+empty string reaches the component as a value. For example, the reqwest HTTP
+provider rejects empty strings for its recognized fields. The built-in retry
+delays (<code>min_delay</code>, <code>max_delay</code>), timeout layer deadlines (<code>timeout</code>,
+<code>io_timeout</code>), and supported HTTP provider timeouts (<code>connect_timeout</code>,
+<code>read_timeout</code>, <code>timeout</code> for reqwest) accept positive durations such as <code>500ms</code>
+or <code>PT1S</code>. Empty, zero, negative, or otherwise invalid duration values fail with
+<code>ConfigInvalid</code> when the option is supported. Missing required fields and
+invalid values for other supported built-in options also fail with
+<code>ConfigInvalid</code>. Available transport options depend on the provider and runtime.</p>
+<p>An option that holds a map of strings takes a JSON object with unique keys and
+string values, such as <code>{"fs.defaultFS":"hdfs://ns"}</code>. OpenDAL keeps the case
+of the keys inside the object. An empty string leaves an optional map unset,
+and <code>{}</code> sets an explicit empty map. Any other value fails with
+<code>ConfigInvalid</code>, and the error names the option. This includes malformed JSON
+and JSON values other than an object. It also includes an object with a member
+value that is not a string, such as a number, <code>null</code>, an array, or a nested
+object, and an object that repeats a key, even when every occurrence has the
+same value.</p>
+<h3 id="trusted-input"><a class="doc-anchor" href="#trusted-input">§</a>Trusted input</h3>
+<p>Pass only trusted operator configuration, including the entire URI and any
+extra options. Extra options replace matching keys only, so all other URI
+query options still apply. When accepting external object URLs, construct the
+configuration from validated, allowlisted components such as the scheme,
+bucket or host, and path. Use application-controlled credentials, context
+options, and layers.</p>
+<h3 id="historical-decision"><a class="doc-anchor" href="#historical-decision">§</a>Historical decision</h3>
+<ul>
+<li><a href="https://github.com/apache/opendal/pull/9061">RFC 9061: Unified operator configuration</a></li>
+</ul>
+</div></details></section></div></main></body></html>

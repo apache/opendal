@@ -1,0 +1,354 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Checksum Intent and Layer"><title>opendal::docs::rfcs::rfc_9166_checksum_intent_and_layer - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="opendal" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0-nightly (1303417c4 2026-09-21)" data-channel="nightly" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js"><script src="../../../../static.files/storage-41dd4d93.js"></script><script defer="" src="../sidebar-items.js"></script><script defer="" src="../../../../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module rfc_9166_checksum_intent_and_layer</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../../../opendal/index.html"><img src="/img/logo.svg" alt="logo"></a><h2><a href="../../../../opendal/index.html">opendal</a><span class="version">0.59.5</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module rfc_<wbr>9166_<wbr>checksum_<wbr>intent_<wbr>and_<wbr>layer</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#summary" title="Summary">Summary</a></li><li><a href="#motivation" title="Motivation">Motivation</a></li><li><a href="#guide-level-explanation" title="Guide-level explanation">Guide-level explanation</a><ul><li><a href="#delta-from-current-main-unreleased-7830" title="Delta from current `main` (unreleased #7830)">Delta from current <code>main</code> (unreleased #7830)</a></li><li><a href="#new-and-updated-concepts" title="New and updated concepts">New and updated concepts</a></li><li><a href="#examples" title="Examples">Examples</a></li></ul></li><li><a href="#reference-level-explanation" title="Reference-level explanation">Reference-level explanation</a><ul><li><a href="#core-types-and-options-opendal-core" title="Core types and options (`opendal-core`)">Core types and options (<code>opendal-core</code>)</a></li><li><a href="#ownership-invariants-and-boundaries" title="Ownership, invariants, and boundaries">Ownership, invariants, and boundaries</a></li><li><a href="#failure-semantics" title="Failure semantics">Failure semantics</a></li></ul></li><li><a href="#compatibility-and-migration" title="Compatibility and Migration">Compatibility and Migration</a></li><li><a href="#drawbacks" title="Drawbacks">Drawbacks</a></li><li><a href="#rationale-and-alternatives" title="Rationale and alternatives">Rationale and alternatives</a></li><li><a href="#prior-art" title="Prior art">Prior art</a></li><li><a href="#validation" title="Validation">Validation</a></li><li><a href="#unresolved-questions" title="Unresolved questions">Unresolved questions</a></li><li><a href="#future-possibilities" title="Future possibilities">Future possibilities</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In opendal::<wbr>docs::<wbr>rfcs</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../../index.html">opendal</a>::<wbr><a href="../../index.html">docs</a>::<wbr><a href="../index.html">rfcs</a></div><h1>Module <span>rfc_<wbr>9166_<wbr>checksum_<wbr>intent_<wbr>and_<wbr>layer</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"></span></div><details class="toggle top-doc" open=""><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Checksum Intent and Layer</p>
+<ul>
+<li>Proposal Name: <code>checksum_intent_and_layer</code></li>
+<li>Start Date: 2026-11-26</li>
+<li>RFC PR: <a href="https://github.com/apache/opendal/pull/9166">apache/opendal#9166</a></li>
+<li>Tracking Issues: <a href="https://github.com/apache/opendal/issues/5549">apache/opendal#5549</a>, <a href="https://github.com/apache/opendal/issues/9182">apache/opendal#9182</a></li>
+<li>Supersedes: <code>Capability</code> and <code>ChecksumLayer</code> sections of <a href="6817_checksum.md">RFC-6817: Checksum</a></li>
+</ul>
+<h2 id="summary"><a class="doc-anchor" href="#summary">§</a>Summary</h2>
+<p>Replace the unreleased per-algorithm <code>Capability::checksum_*</code> booleans with a single <code>Capability::write_with_checksum: bool</code>, generalize <code>WriteOptions::checksum</code> to a four-variant <code>WriteChecksum</code> intent (<code>Any</code>, <code>Fast</code>, <code>Algo(ChecksumAlgo)</code>, <code>Expected(Checksum)</code>), add an opt-in <code>checksum: bool</code> metadata hint on <code>StatOptions</code>/<code>ReadOptions</code>/<code>ReaderOptions</code>, move zero-buffered streaming checksum calculation and synchronous validation into each <code>Service</code>, and scope <code>ChecksumLayer</code> to operator-level write policy injection (<code>WriteChecksumPolicy</code>) and full-object streaming read verification.</p>
+<p>This gives applications a portable way to enable native upload integrity across services (avoiding new per-service <code>checksum_algorithm</code> configs) without bloating <code>Capability</code> or binding FFI structs, without full-file buffering, and without fabricating local verification when a backend lacks checksum support.</p>
+<h2 id="motivation"><a class="doc-anchor" href="#motivation">§</a>Motivation</h2>
+<p>PR #7830 (<code>a22829178</code>, unreleased) landed the first slice of <a href="6817_checksum.md">RFC-6817</a>: <code>ChecksumAlgo</code>, <code>Checksum</code>, <code>ErrorKind::ChecksumMismatch</code>, <code>WriteOptions::checksum(Checksum)</code>, <code>Metadata::checksum()</code>, and AWS S3 write verification for caller-supplied <code>Crc32c</code> and <code>Crc64Nvme</code>. Extending that baseline across services and adding <code>ChecksumLayer</code> exposes three contract problems:</p>
+<ol>
+<li><strong>Per-algorithm <code>Capability</code> fields do not scale.</strong> Native fast checksums rarely overlap across cloud providers: AWS S3 uses <code>CRC64NVME</code>/<code>CRC32C</code>, GCS uses <code>CRC32C</code>, OSS uses <code>CRC64-ECMA</code>, Azure Blob uses per-block <code>CRC64</code> (transport-only), and B2 uses <code>SHA-1</code>. Adding a boolean per algorithm expands <code>Capability</code>, its Java/.NET FFI mirrors, and <code>website/data/capabilities.json</code> for provider-specific details most callers do not want to branch on.</li>
+<li><strong>Callers without a precomputed digest lack a portable write contract.</strong> Workloads such as data lakes and general object pipelines want native streaming upload protection (“use a service-supported CRC” or “use any native checksum”) without precomputing digests in application code or wiring per-service builder options.</li>
+<li><strong>RFC-6817’s <code>ChecksumLayer</code> design conflicts with streaming I/O and honest guarantees.</strong> Computing a full-file digest in a layer before <code>Service::write</code> requires buffering the entire file; computing a local checksum when a backend lacks write verification gives zero wire or storage protection while hiding <code>Unsupported</code>; computing a missing checksum on <code>stat()</code> turns a <code>HEAD</code> into a full download; and OpenDAL’s <code>oio::Read</code> is range-oriented, where full-file digests cannot verify partial ranges.</li>
+</ol>
+<p>This proposal supersedes the <code>Capability</code> and <code>ChecksumLayer</code> sections of <a href="6817_checksum.md">RFC-6817</a> before PR #7830’s unreleased capability fields ship in a release.</p>
+<h2 id="guide-level-explanation"><a class="doc-anchor" href="#guide-level-explanation">§</a>Guide-level explanation</h2><h3 id="delta-from-current-main-unreleased-7830"><a class="doc-anchor" href="#delta-from-current-main-unreleased-7830">§</a>Delta from current <code>main</code> (unreleased #7830)</h3><div class="table"><table><thead><tr><th>Area</th><th>Current <code>main</code> (unreleased #7830)</th><th>Proposed</th></tr></thead><tbody>
+<tr><td><code>Capability</code></td><td>4 booleans: <code>checksum_crc64_nvme</code>, <code>checksum_crc32c</code>, <code>checksum_md5</code>, <code>checksum_sha256</code></td><td>1 boolean: <code>write_with_checksum</code></td></tr>
+<tr><td><code>WriteOptions::checksum</code></td><td><code>Option&lt;Checksum&gt;</code> (caller-supplied digest only)</td><td><code>Option&lt;WriteChecksum&gt;</code> (<code>Any</code>, <code>Fast</code>, <code>Algo</code>, <code>Expected</code>)</td></tr>
+<tr><td><code>Service::write</code></td><td>Assumes <code>OpWrite::check</code> already checked exact algorithm</td><td>Synchronously validates class/algorithm support across all write paths and returns <code>Unsupported</code> before I/O</td></tr>
+<tr><td><code>StatOptions</code> / <code>ReadOptions</code> / <code>ReaderOptions</code></td><td>No checksum retrieval opt-in; <code>stat</code>/<code>read</code> do not populate <code>Metadata::checksum()</code></td><td>Add <code>checksum: bool</code> (default <code>false</code>) hint to request backend full-file checksum metadata when extra headers/permissions are required (e.g., S3 <code>x-amz-checksum-mode: ENABLED</code>); zero-cost services may always populate <code>Metadata::checksum()</code></td></tr>
+<tr><td><code>WriteState</code> streaming <code>copy_from</code></td><td>Resumes on read errors; does not poison writer on source <code>ChecksumMismatch</code></td><td>Requires <code>abort()</code> on a source <code>ChecksumMismatch</code> once that logical copy has accepted any bytes, including queued bytes and bytes accepted on an earlier attempt. At zero copy progress the writer remains usable.</td></tr>
+<tr><td><code>ChecksumLayer</code></td><td>Unimplemented (RFC-6817 specifies local fallback + <code>stat</code> read-compute)</td><td>Opt-in write policy injection (<code>WriteChecksumPolicy</code>, best-effort or strict) + full-object streaming read verification</td></tr>
+</tbody></table>
+</div><h3 id="new-and-updated-concepts"><a class="doc-anchor" href="#new-and-updated-concepts">§</a>New and updated concepts</h3>
+<ul>
+<li><strong><code>WriteChecksum</code></strong> describes what integrity check a write requests:
+<ul>
+<li><code>WriteChecksum::Any</code>: use any native write checksum the service supports (services prefer CRC-family algorithms over cryptographic hashes). May use transport-level per-part/per-block verification; populates <code>Metadata::checksum()</code> when the service produces a verified full-file digest, or leaves it <code>None</code> for transport-only paths (such as Azure Blob per-block CRC64 or B2 large-file per-part SHA-1).</li>
+<li><code>WriteChecksum::Fast</code>: use a service-supported CRC-family checksum (e.g., CRC32, CRC32C, CRC64-NVME, CRC64-ECMA, Azure CRC64). Rejects services that only offer cryptographic hashes (MD5/SHA-1/SHA-256). Same <code>Metadata::checksum()</code> rule as <code>Any</code>.</li>
+<li><code>WriteChecksum::Algo(ChecksumAlgo)</code>: compute and verify a <strong>full-file</strong> checksum with the specified algorithm before the object commits (across every supported non-append write path), and return it in <code>Metadata::checksum()</code>.</li>
+<li><code>WriteChecksum::Expected(Checksum)</code>: verify the written bytes against a caller-supplied <strong>full-file</strong> digest before the object commits (across every supported non-append write path), and return it in <code>Metadata::checksum()</code>.</li>
+</ul>
+</li>
+<li><strong><code>WriteChecksumPolicy</code></strong> is the subset valid for operator-wide injection in <code>ChecksumLayer</code>: <code>Any</code>, <code>Fast</code>, <code>Algo(ChecksumAlgo)</code> (a fixed <code>Expected(Checksum)</code> belongs to a single object and is only accepted per write).</li>
+<li><strong><code>Capability::write_with_checksum</code></strong> indicates whether the service supports native write checksums (at minimum <code>WriteChecksum::Any</code> on non-append writes).</li>
+<li><strong><code>StatOptions::checksum</code> / <code>ReadOptions::checksum</code> / <code>ReaderOptions::checksum</code></strong> (default <code>false</code>) is an opt-in metadata hint requesting backend full-file checksum headers when retrieving them requires extra headers or permissions (such as AWS S3 <code>x-amz-checksum-mode: ENABLED</code> on SSE-KMS objects).</li>
+<li><strong><code>ChecksumLayer</code></strong> (<code>opendal-layer-checksum</code>) injects a <code>WriteChecksumPolicy</code> on writes that did not specify a checksum and verifies recognizable single-response full-object reads against backend-returned full-file checksums.</li>
+</ul>
+<h3 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h3><h4 id="per-write-integrity-intowritechecksum-and-opt-in-stat-checksum"><a class="doc-anchor" href="#per-write-integrity-intowritechecksum-and-opt-in-stat-checksum">§</a>Per-write integrity (<code>Into&lt;WriteChecksum&gt;</code>) and opt-in stat checksum</h4>
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>opendal::{Checksum, ChecksumAlgo, Operator, <span class="prelude-ty">Result</span>, WriteChecksum};
+
+<span class="kw">async fn </span>example(op: Operator, data: Vec&lt;u8&gt;, expected: Checksum) -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+    <span class="comment">// 1. Caller-supplied full-file digest (source-compatible with PR #7830)
+    </span><span class="kw">let </span>meta = op.write_with(<span class="string">"a.bin"</span>, data.clone()).checksum(expected).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="macro">assert!</span>(meta.checksum().is_some());
+
+    <span class="comment">// 2. Service-computed specific full-file algorithm
+    </span><span class="kw">let </span>meta = op.write_with(<span class="string">"b.bin"</span>, data.clone()).checksum(ChecksumAlgo::Crc32c).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="macro">assert_eq!</span>(meta.checksum().map(|c| c.algo), <span class="prelude-val">Some</span>(ChecksumAlgo::Crc32c));
+
+    <span class="comment">// 3. Service-supported CRC-family checksum (full-file on S3/GCS/OSS; per-block on Azblob)
+    </span><span class="kw">let </span>_meta = op.write_with(<span class="string">"c.bin"</span>, data.clone()).checksum(WriteChecksum::Fast).<span class="kw">await</span><span class="question-mark">?</span>;
+
+    <span class="comment">// 4. Any native checksum (also covers SHA-1-only services such as B2)
+    </span><span class="kw">let </span>_meta = op.write_with(<span class="string">"d.bin"</span>, data).checksum(WriteChecksum::Any).<span class="kw">await</span><span class="question-mark">?</span>;
+
+    <span class="comment">// 5. Opt into retrieving full-file checksum metadata on stat (e.g., S3 checksum mode)
+    </span><span class="kw">let </span>stat = op.stat_with(<span class="string">"a.bin"</span>).checksum(<span class="bool-val">true</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let </span>_digest = stat.checksum();
+    <span class="prelude-val">Ok</span>(())
+}</code></pre></div><h4 id="operator-wide-protection-via-checksumlayer"><a class="doc-anchor" href="#operator-wide-protection-via-checksumlayer">§</a>Operator-wide protection via <code>ChecksumLayer</code></h4>
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>opendal::layers::{ChecksumLayer, RetryLayer};
+<span class="kw">use </span>opendal::{Operator, WriteChecksumPolicy};
+
+<span class="kw">fn </span>build(op: Operator) -&gt; Operator {
+    <span class="comment">// Place ChecksumLayer outside RetryLayer so mid-stream read retries resume
+    // transparently under the same digest state.
+    </span>op.layer(RetryLayer::new()).layer(
+        ChecksumLayer::new()
+            .write(WriteChecksumPolicy::Fast) <span class="comment">// default; best-effort when unsupported
+            </span>.verify_read(<span class="bool-val">true</span>),               <span class="comment">// default; verifies full-object reads when metadata has checksum
+    </span>)
+}</code></pre></div><h2 id="reference-level-explanation"><a class="doc-anchor" href="#reference-level-explanation">§</a>Reference-level explanation</h2><h3 id="core-types-and-options-opendal-core"><a class="doc-anchor" href="#core-types-and-options-opendal-core">§</a>Core types and options (<code>opendal-core</code>)</h3><h4 id="writechecksum-and-writechecksumpolicy"><a class="doc-anchor" href="#writechecksum-and-writechecksumpolicy">§</a><code>WriteChecksum</code> and <code>WriteChecksumPolicy</code></h4>
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+</span><span class="kw">pub enum </span>WriteChecksum {
+    Any,
+    Fast,
+    Algo(ChecksumAlgo),
+    Expected(Checksum),
+}
+
+<span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+</span><span class="kw">pub enum </span>WriteChecksumPolicy {
+    Any,
+    Fast,
+    Algo(ChecksumAlgo),
+}
+
+<span class="kw">impl </span>From&lt;Checksum&gt; <span class="kw">for </span>WriteChecksum {
+    <span class="kw">fn </span>from(v: Checksum) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Expected(v)
+    }
+}
+
+<span class="kw">impl </span>From&lt;ChecksumAlgo&gt; <span class="kw">for </span>WriteChecksum {
+    <span class="kw">fn </span>from(v: ChecksumAlgo) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::Algo(v)
+    }
+}
+
+<span class="kw">impl </span>From&lt;WriteChecksumPolicy&gt; <span class="kw">for </span>WriteChecksum {
+    <span class="kw">fn </span>from(v: WriteChecksumPolicy) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>v {
+            WriteChecksumPolicy::Any =&gt; <span class="self">Self</span>::Any,
+            WriteChecksumPolicy::Fast =&gt; <span class="self">Self</span>::Fast,
+            WriteChecksumPolicy::Algo(algo) =&gt; <span class="self">Self</span>::Algo(algo),
+        }
+    }
+}</code></pre></div>
+<ul>
+<li><code>WriteOptions::checksum</code> changes from <code>Option&lt;Checksum&gt;</code> to <code>Option&lt;WriteChecksum&gt;</code>. A single field makes conflicting intent (e.g., setting both <code>Algo</code> and <code>Expected</code>) unrepresentable.</li>
+<li><code>FutureWrite::checksum</code> and <code>FutureWriter::checksum</code> accept <code>impl Into&lt;WriteChecksum&gt;</code>.</li>
+<li><code>OpWrite</code> exposes <code>checksum(&amp;self) -&gt; Option&lt;WriteChecksum&gt;</code> and a validated helper <code>with_checksum(self, checksum: WriteChecksum, capability: &amp;Capability) -&gt; Result&lt;Self&gt;</code> so external layers (such as <code>ChecksumLayer</code>) inject write checksums through the exact same validation path as <code>OpWrite::from_options</code>.
+<ul>
+<li>Internally, <code>WriteField::Checksum</code> stores an explicit leading variant byte followed by an optional algorithm tag byte and optional raw digest bytes, while <code>Metadata</code> retains its pure <code>Checksum</code> encoding.</li>
+</ul>
+</li>
+<li><code>ChecksumAlgo</code> remains <code>#[non_exhaustive]</code> (<code>Crc64Nvme</code>, <code>Crc32c</code>, <code>Md5</code>, <code>Sha256</code>), extensible with additional algorithms (e.g., <code>Crc64Ecma</code>, <code>Crc32</code>, <code>Sha1</code>) without touching <code>Capability</code>.</li>
+</ul>
+<h4 id="statoptions-readoptions-and-readeroptions-checksum-metadata-hint"><a class="doc-anchor" href="#statoptions-readoptions-and-readeroptions-checksum-metadata-hint">§</a><code>StatOptions</code>, <code>ReadOptions</code>, and <code>ReaderOptions</code> checksum metadata hint</h4>
+<ul>
+<li>Add <code>pub checksum: bool</code> (default <code>false</code>) to <code>StatOptions</code>, <code>ReadOptions</code>, and <code>ReaderOptions</code>, with <code>.checksum(bool)</code> builders on <code>FutureStat</code>, <code>FutureRead</code>, and <code>FutureReader</code>.</li>
+<li>Expose <code>OpStat::checksum(&amp;self) -&gt; bool</code>, <code>OpRead::checksum(&amp;self) -&gt; bool</code>, and <code>OpRead::with_checksum(self, checksum: bool) -&gt; Self</code>.</li>
+<li><strong>Contract:</strong> <code>checksum: true</code> is a metadata-retrieval hint instructing the service to request full-file checksum metadata when doing so requires extra protocol headers or permissions (such as AWS S3 <code>x-amz-checksum-mode: ENABLED</code>).
+<ul>
+<li>It never returns <code>ErrorKind::Unsupported</code> on services that do not carry stored checksums.</li>
+<li>It never causes <code>stat()</code> to read object bytes.</li>
+<li>Services whose ordinary <code>stat</code>/<code>read</code> responses already carry a verified full-file checksum at zero extra cost or permission (e.g., GCS) may populate <code>Metadata::checksum()</code> regardless of this flag.</li>
+<li><code>ChecksumLayer</code> sets <code>OpRead::with_checksum(true)</code> automatically on eligible full-object reads when <code>verify_read</code> is enabled.</li>
+</ul>
+</li>
+</ul>
+<h4 id="capability"><a class="doc-anchor" href="#capability">§</a><code>Capability</code></h4>
+<ul>
+<li>Remove the four unreleased fields (<code>checksum_crc64_nvme</code>, <code>checksum_crc32c</code>, <code>checksum_md5</code>, <code>checksum_sha256</code>) from <code>Capability</code>, <code>bindings/java</code>, <code>bindings/dotnet</code>, <code>dev/src/generate/capabilities_docs.rs</code>, and <code>website/data/capabilities.json</code>.</li>
+<li>Add <code>pub write_with_checksum: bool</code> to <code>Capability</code> (default <code>false</code>).</li>
+<li><strong>Contract of <code>write_with_checksum: true</code>:</strong> The service natively verifies writes for at least <code>WriteChecksum::Any</code> on non-append writes and synchronously validates all <code>WriteChecksum</code> variants in <code>Service::write</code>.</li>
+<li><strong>No <code>stat_has_checksum</code> / <code>read_has_checksum</code> flag:</strong> Consistent with every other optional <code>Metadata</code> field (<code>etag</code>, <code>version</code>, <code>content_md5</code>), callers inspect <code>Metadata::checksum() -&gt; Option&lt;Checksum&gt;</code>.</li>
+</ul>
+<h4 id="validation-split-opwritecheck-vs-servicewrite"><a class="doc-anchor" href="#validation-split-opwritecheck-vs-servicewrite">§</a>Validation split (<code>OpWrite::check</code> vs <code>Service::write</code>)</h4>
+<ol>
+<li><strong><code>OpWrite::from_options</code> / <code>OpWrite::check(&amp;self, capability)</code></strong> (verified in <code>core/core/src/raw/ops.rs</code>):
+<ul>
+<li><code>Expected(cs)</code> with <code>cs.value.len() != cs.algo.digest_len()</code> -&gt; <code>ErrorKind::ConfigInvalid</code>.</li>
+<li>Any <code>Some(WriteChecksum)</code> when <code>!capability.write_with_checksum</code> -&gt; <code>ErrorKind::Unsupported</code>.</li>
+<li><code>Algo(_)</code> or <code>Expected(_)</code> combined with <code>append == true</code> -&gt; <code>ErrorKind::Unsupported</code>.</li>
+<li><code>Any</code> or <code>Fast</code> combined with <code>append == true</code> passes <code>OpWrite::check</code>; each service decides in <code>Service::write</code> whether its append path supports per-request transport checksums (otherwise returns <code>Unsupported</code>).</li>
+</ul>
+</li>
+<li><strong><code>Service::write(&amp;self, ctx, path, args) -&gt; Result&lt;Self::Writer&gt;</code></strong> (synchronous in <code>core/core/src/raw/service.rs</code>):
+<ul>
+<li><strong>Invariant 1 (Zero-I/O rejection):</strong> <code>Service::write</code> must validate <code>args.checksum()</code> against its supported classes, algorithms, and <code>args.append()</code> synchronously and return <code>ErrorKind::Unsupported</code> before performing network I/O or side effects.</li>
+<li><strong>Invariant 2 (All-write-path fulfillment):</strong> Because <code>Operator::write_with</code> and <code>Operator::writer_with</code> share <code>writer_inner</code> (<code>core/core/src/types/operator/operator.rs#L1021</code>), <code>Service::write</code> has neither payload length nor a single-shot guarantee. A service must only accept <code>Algo(a)</code> or <code>Expected(cs)</code> synchronously when <strong>every supported non-append write path</strong> (single-shot and multi-chunk/multipart) can fulfill the pre-commit full-file verification contract for <code>a</code>. Services that only verify single-PUT uploads for an algorithm must reject <code>Algo</code>/<code>Expected</code> for that algorithm in <code>Service::write</code>.</li>
+</ul>
+</li>
+</ol>
+<h3 id="ownership-invariants-and-boundaries"><a class="doc-anchor" href="#ownership-invariants-and-boundaries">§</a>Ownership, invariants, and boundaries</h3><h4 id="full-file-vs-transport-level-checksum-invariant"><a class="doc-anchor" href="#full-file-vs-transport-level-checksum-invariant">§</a>Full-file vs transport-level checksum invariant</h4>
+<ul>
+<li><code>Metadata::checksum()</code> <strong>must only</strong> contain a backend-verified <strong>full-file</strong> digest. Composite digests (e.g., S3 <code>ChecksumType=COMPOSITE</code> values suffixed with <code>-N</code>), per-part/per-block digests, or unverified local computations must never be stored in <code>Metadata::checksum()</code>.</li>
+<li>Outcome matrix by <code>WriteChecksum</code> variant:</li>
+</ul>
+<div class="table"><table><thead><tr><th>Variant</th><th>Pre-commit full-file verification required?</th><th>Transport-only per-part/block verification allowed?</th><th><code>Metadata::checksum()</code> on success</th></tr></thead><tbody>
+<tr><td><code>Expected(cs)</code></td><td>Yes (against <code>cs</code>, all write paths)</td><td>No</td><td><code>Some(cs)</code> (echoed/confirmed by backend)</td></tr>
+<tr><td><code>Algo(algo)</code></td><td>Yes (service computes streaming, all write paths)</td><td>No</td><td><code>Some(Checksum { algo, .. })</code> (confirmed by backend)</td></tr>
+<tr><td><code>Fast</code></td><td>Preferred when native</td><td>Yes (CRC-family only)</td><td><code>Some(full_file_cs)</code> if native full-file; <code>None</code> if transport-only</td></tr>
+<tr><td><code>Any</code></td><td>Preferred when native</td><td>Yes (any native algorithm)</td><td><code>Some(full_file_cs)</code> if native full-file; <code>None</code> if transport-only</td></tr>
+</tbody></table>
+</div><h4 id="service-layer-streaming-execution-zero-full-file-buffering"><a class="doc-anchor" href="#service-layer-streaming-execution-zero-full-file-buffering">§</a>Service-layer streaming execution (zero full-file buffering)</h4>
+<p>Services compute checksums directly over each in-flight <code>Buffer</code> (single-shot or multipart/block chunk) and combine part digests natively when their protocol supports full-object verification:</p>
+<ul>
+<li><strong>AWS S3 (<code>scheme == "s3" &amp;&amp; !is_s3_express</code>)</strong>:
+<ul>
+<li><em>Verified on live AWS S3 in #7830 (<code>a22829178</code>):</em> <code>Expected(Crc32c)</code> and <code>Expected(Crc64Nvme)</code> on single <code>PutObject</code> and uneven-part multipart uploads with <code>FULL_OBJECT</code>.</li>
+<li><em>Expected (to be live-verified on AWS S3):</em>
+<ul>
+<li><code>Any</code> / <code>Fast</code> select <code>CRC64NVME</code>; <code>Algo(Crc64Nvme | Crc32c)</code> uses the requested algorithm; <code>Algo</code>/<code>Expected</code> for <code>Md5</code>/<code>Sha256</code> synchronously return <code>Unsupported</code>.</li>
+<li>Multipart uploads populate <code>oio::MultipartPart::size</code> (currently <code>None</code> in <code>core/services/s3/src/writer.rs#L219</code>) alongside <code>checksum</code>, combine per-part CRCs in <code>part_number</code> order using <code>crc_fast::checksum_combine</code>, send the full-object digest on <code>CompleteMultipartUpload</code> with <code>x-amz-checksum-type: FULL_OBJECT</code>, verify the echoed digest, and populate <code>Metadata::checksum()</code>.</li>
+<li><strong>Read / Stat checksum mode (permission-safe opt-in):</strong> AWS <code>HeadObject</code> / <code>GetObject</code> with <code>x-amz-checksum-mode: ENABLED</code> requires KMS permissions on SSE-KMS encrypted objects and interacts with custom <code>s3://</code> endpoints and presigned requests (which share request builders in <code>core/services/s3/src/backend.rs#L1596</code>). Therefore, S3 sends <code>x-amz-checksum-mode: ENABLED</code> <strong>only</strong> when <code>args.checksum()</code> is <code>true</code> on <code>OpStat</code>/<code>OpRead</code> (never on presigned requests), and populates <code>Metadata::checksum()</code> only when <code>x-amz-checksum-type</code> is <code>FULL_OBJECT</code> (or an unsuffixed single-part checksum), ignoring <code>COMPOSITE</code>.</li>
+<li>S3-compatible presets (<code>minio</code>, <code>r2</code>, etc.) keep <code>write_with_checksum = false</code> until verified not to silently ignore checksum headers.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><strong>Other services (protocol mapping; all unverified — each requires live-service verification before enabling <code>write_with_checksum = true</code>):</strong>
+<ul>
+<li><strong>GCS:</strong> Official data validation supports full-object <code>X-Goog-Hash: crc32c=...</code> on single upload and on the <strong>final</strong> request of a JSON resumable upload (<code>GcsConditionalWriter</code>, <code>core/services/gcs/src/writer.rs#L422</code>). Both the final upload response and the session-query recovery exit (<code>Complete(metadata)</code>) must verify the same digest. XML multipart validates parts and returns whole-object <code>crc32c</code> on completion, so <code>Algo(Crc32c)</code>/<code>Expected(Crc32c)</code> must route through JSON resumable upload. On read (<code>core/services/gcs/src/reader.rs#L74</code>), stored-object <code>crc32c</code> applies only when the response body matches the stored byte representation (not transcoded gzip).</li>
+<li><strong>Azure Blob:</strong> <code>Any</code> / <code>Fast</code> send per-request <code>x-ms-content-crc64</code> on <code>PutBlob</code>, <code>PutBlock</code>, and <code>AppendBlock</code> for transport integrity and leave <code>Metadata::checksum()</code> as <code>None</code>. <code>Algo</code> and <code>Expected</code> return <code>Unsupported</code> synchronously in <code>Service::write</code> because <code>PutBlockList</code> does not verify full-blob CRC64 or MD5 across concatenated blocks.</li>
+<li><strong>Backblaze B2:</strong> <code>Any</code> sends <code>X-Bz-Content-Sha1</code> on single upload and per-part on large files (<code>b2_finish_large_file</code> accepts <code>partSha1Array</code>, not a backend-verified full-file SHA-1). <code>Fast</code>, <code>Algo</code>, and <code>Expected</code> return <code>Unsupported</code> synchronously in <code>Service::write</code>.</li>
+<li><strong>Alibaba Cloud OSS:</strong> <code>Any</code> / <code>Fast</code> compute streaming <code>CRC64-ECMA</code> per part and combine on completion. Because OSS reports <code>x-oss-hash-crc64ecma</code> in the <code>CompleteMultipartUpload</code> response (after completion rather than rejecting pre-commit), a mismatch on completion is a <strong>post-commit</strong> verification failure (not pre-commit atomic rollback), so OSS cannot claim pre-commit <code>Expected</code>/<code>Algo</code> unless the protocol supports pre-commit rejection. (COS and TOS require separate protocol verification before enabling <code>write_with_checksum</code>.)</li>
+</ul>
+</li>
+</ul>
+<h4 id="writercopy_from-interaction-both-native-and-streaming"><a class="doc-anchor" href="#writercopy_from-interaction-both-native-and-streaming">§</a><code>Writer::copy_from</code> interaction (both native and streaming)</h4>
+<ol>
+<li><strong>Disabling native <code>copy_from</code>:</strong>
+<ul>
+<li>Verified in <code>core/core/src/types/context/write.rs#L176</code>: <code>WriteState::create</code> disables native <code>copy_from</code> whenever <code>ctx.args().checksum().is_some()</code>.</li>
+<li>Because <code>WriteState::create</code> runs outside <code>Layer::apply_service</code>, <code>ChecksumService::capability()</code> <strong>must</strong> clear <code>write_can_copy_from = false</code> whenever write checksum injection is active and <code>inner.capability().write_with_checksum</code> is <code>true</code>.</li>
+<li>As defense in depth, any service writer created with <code>args.checksum().is_some()</code> must reject <code>oio::Write::copy_from</code> with <code>ErrorKind::Unsupported</code>.</li>
+</ul>
+</li>
+<li><strong>Preventing silent bypass of source <code>ChecksumMismatch</code> during streaming <code>copy_from</code>:</strong>
+<ul>
+<li><code>WriteState</code> advances the source offset as the writer accepts bytes. Resuming after a source checksum mismatch would skip verification of the accepted prefix. If the writer had already accepted the entire requested range, a retry could return success without opening the source again.</li>
+<li><strong>Invariant.</strong> Return the original source error. If the writer has accepted any bytes from that logical copy, set <code>requires_abort = true</code>. Count bytes queued in the writer and bytes accepted on earlier attempts of the same copy. Reject further <code>write</code>, <code>copy_from</code>, and <code>close</code>, and allow <code>abort()</code>.</li>
+<li>If the logical copy has accepted no bytes when the mismatch occurs, the writer remains usable. The caller can switch sources or continue writing. If the caller ignores the error and closes without appending anything else, a successful <code>close()</code> commits only the previously accepted prefix. Ordinary temporary source read errors continue to allow resuming from the accepted offset.</li>
+</ul>
+</li>
+</ol>
+<h4 id="checksumlayer-opendal-layer-checksum"><a class="doc-anchor" href="#checksumlayer-opendal-layer-checksum">§</a><code>ChecksumLayer</code> (<code>opendal-layer-checksum</code>)</h4>
+<p><code>ChecksumLayer</code> has two independent, configurable responsibilities and <strong>no local fake write fallback</strong>:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">pub struct </span>ChecksumLayer {
+    write: <span class="prelude-ty">Option</span>&lt;WriteChecksumPolicy&gt;, <span class="comment">// default: Some(WriteChecksumPolicy::Fast)
+    </span>require_write: bool,                <span class="comment">// default: false (best-effort)
+    </span>verify_read: bool,                  <span class="comment">// default: true
+    </span>require_read: bool,                 <span class="comment">// default: false (best-effort)
+</span>}</code></pre></div><h5 id="write-path"><a class="doc-anchor" href="#write-path">§</a>Write path</h5>
+<ol>
+<li>If <code>args.checksum().is_some()</code>, pass through untouched (caller’s explicit per-write option always takes precedence; <code>ChecksumLayer</code> never downgrades caller-supplied <code>Expected</code> or <code>Algo</code>).</li>
+<li>If <code>self.write</code> is <code>None</code>, pass through untouched.</li>
+<li>If <code>self.write</code> is <code>Some(policy)</code>:
+<ul>
+<li>If <code>!self.inner.capability().write_with_checksum</code>:
+<ul>
+<li><code>require_write == false</code>: pass <code>args</code> through unchanged.</li>
+<li><code>require_write == true</code>: return <code>ErrorKind::Unsupported</code>.</li>
+</ul>
+</li>
+<li>If <code>self.inner.capability().write_with_checksum</code>:
+<ul>
+<li>Build <code>injected = args.clone().with_checksum(policy.into(), &amp;self.inner.capability())?</code> and call <code>self.inner.write(ctx, path, injected)</code>.</li>
+<li>If <code>with_checksum</code> or <code>inner.write</code> synchronously returns <code>Err(e)</code> with <code>e.kind() == ErrorKind::Unsupported</code> and <code>!self.require_write</code>: retry <code>self.inner.write(ctx, path, args)</code> once without the injected checksum. Because <code>Service::write</code> is synchronous and validates before I/O, this has zero network cost, and any unrelated <code>Unsupported</code> (e.g., <code>append</code> or <code>CapabilityCheckLayer</code> rejecting <code>content_type</code>) still fails identically on <code>args</code>.</li>
+<li>Otherwise return the result directly.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+<h5 id="read-path"><a class="doc-anchor" href="#read-path">§</a>Read path</h5>
+<ol>
+<li>If <code>!self.verify_read</code>, pass through untouched.</li>
+<li>Verification (and <code>require_read(true)</code>) applies <strong>only to recognizable single-response full-object reads covering <code>[0, content_length)</code></strong>:
+<ul>
+<li><code>BytesRange::Range { offset: 0, size: None }</code>, or</li>
+<li><code>BytesRange::Range { offset: 0, size: Some(n) }</code> when <code>rp.metadata()</code> reports <code>content_length() &lt;= n</code>.</li>
+<li>Partial range reads and logical full-object reads that set <code>chunk</code> (which <code>BufferStream</code> splits into partial range requests at <code>core/core/src/types/read/buffer_stream.rs#L548</code>) pass through unverified even when <code>require_read(true)</code> is enabled, and are <strong>never</strong> upgraded to full-object downloads. This allows mixed full-object and range workloads (such as Parquet or Lance) to share a single operator.</li>
+</ul>
+</li>
+<li>On an eligible full-object read, <code>ChecksumLayer</code> sets <code>OpRead::with_checksum(true)</code> (enabling opt-in backend checksum headers such as S3 <code>x-amz-checksum-mode: ENABLED</code> without affecting operators without <code>ChecksumLayer</code>) and inspects <code>rp.metadata().and_then(Metadata::checksum)</code>:
+<ul>
+<li><strong>Checksum present and algorithm supported by <code>ChecksumLayer</code>:</strong>
+<ul>
+<li><code>oio::Read::read</code>: verify over the returned <code>Buffer</code>; on mismatch return <code>Err(ErrorKind::ChecksumMismatch)</code> instead of the buffer.</li>
+<li><code>oio::Read::open</code>: wrap <code>oio::ReadStreamDyn</code> in a streaming hasher (zero full-file buffering).
+<ul>
+<li><strong>Exact-length early finalization invariant:</strong> When <code>rp.metadata()</code> reports <code>content_length = n</code>, <code>BufferStream</code> stops polling immediately after receiving the <code>n</code>-th byte and does <strong>not</strong> poll for an empty EOF buffer (<code>core/core/src/types/read/buffer_stream.rs#L657</code>). Therefore, the streaming hasher <strong>must</strong> finalize and compare the digest as soon as <code>bytes_read == n</code> <strong>before</strong> yielding that final chunk (failing with <code>ChecksumMismatch</code> instead of delivering the final chunk). If <code>bytes_read &gt; n</code>, fail immediately.</li>
+<li>When <code>content_length</code> is unknown (or <code>n == 0</code>), finalize and compare upon observing the empty EOF buffer.</li>
+<li><strong>Terminal error latch:</strong> Once <code>ChecksumMismatch</code> is returned, latch the failed state so subsequent polls cannot return <code>Ok(Buffer::new())</code>.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><strong>Checksum absent or algorithm unknown to <code>ChecksumLayer</code>:</strong>
+<ul>
+<li><code>require_read == false</code>: pass through without hashing.</li>
+<li><code>require_read == true</code>: return <code>Err(ErrorKind::Unsupported)</code> before yielding bytes.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><code>stat()</code> is never intercepted to read object data.</li>
+</ol>
+<h5 id="layer-composition-retrylayer-routelayer-cachelayer-capabilitychecklayer"><a class="doc-anchor" href="#layer-composition-retrylayer-routelayer-cachelayer-capabilitychecklayer">§</a>Layer composition (<code>RetryLayer</code>, <code>RouteLayer</code>, <code>CacheLayer</code>, <code>CapabilityCheckLayer</code>)</h5>
+<ul>
+<li><strong><code>RetryLayer</code>:</strong> Place <code>ChecksumLayer</code> <strong>outside</strong> <code>RetryLayer</code> (<code>op.layer(RetryLayer::new()).layer(ChecksumLayer::new())</code>). When <code>RetryLayer</code> resumes a dropped full-object read from <code>offset &gt; 0</code> (<code>core/layers/retry/src/lib.rs#L950</code>), <code>ChecksumLayer</code> outside it sees the continuous logical <code>0..EOF</code> stream and keeps one digest state. Write retries depend on the inner writer’s replayability (see <a href="#failure-semantics">Failure semantics</a>).</li>
+<li><strong><code>RouteLayer</code>:</strong> <code>RouteLayer</code> advertises the default route’s <code>Capability</code> and re-runs <code>args.check(&amp;target_cap)</code> on the matched route (<code>core/layers/route/src/lib.rs#L35, L240</code>). Install <code>ChecksumLayer</code> inside each routed operator when routes have different <code>write_with_checksum</code> capabilities; note that explicit per-write <code>WriteChecksum</code> on the outer routed operator is still gated by <code>RouteLayer</code>’s advertised capability.</li>
+<li><strong><code>CacheLayer</code>:</strong> <code>CacheLayer</code> v1 persistent pointers (<code>core/layers/cache/src/record.rs#L33</code>) do not persist <code>Metadata::checksum()</code>. Placing <code>ChecksumLayer</code> outside <code>CacheLayer</code> verifies final bytes delivered to callers when metadata contains a checksum, but persisted v1 cache hits return <code>checksum() == None</code> (skipped in best-effort mode; <code>Unsupported</code> under <code>require_read(true)</code> until a future cache pointer version stores checksums). Placing <code>ChecksumLayer</code> inside <code>CacheLayer</code> verifies origin fills into the cache but does not re-verify cache hits.</li>
+</ul>
+<h3 id="failure-semantics"><a class="doc-anchor" href="#failure-semantics">§</a>Failure semantics</h3><h4 id="visibility-and-commit-outcomes"><a class="doc-anchor" href="#visibility-and-commit-outcomes">§</a>Visibility and commit outcomes</h4>
+<p>Services and callers must distinguish three distinct write failure outcomes:</p>
+<ol>
+<li><strong>Pre-commit rejection:</strong> The backend rejects a request before committing the object (e.g., S3 <code>BadDigest</code> on <code>PutObject</code> or <code>CompleteMultipartUpload</code>; GCS final resumable <code>PUT</code> mismatch). The previous object stays intact (or a new key stays absent). <code>Operator::write_with</code> attempts best-effort <code>abort()</code> and preserves the original error (<code>core/core/src/types/operator/operator.rs#L1021</code>); direct <code>Writer</code> callers remain responsible for calling <code>abort()</code> to clean up uncommitted multipart uploads.</li>
+<li><strong>Post-commit unconfirmed / verification failure:</strong> The backend returns HTTP 200 OK, and subsequent verification fails (e.g., S3 echoes a missing or mismatched checksum header -&gt; <code>ErrorKind::Unexpected</code>, <code>core/services/s3/src/writer.rs#L97</code>; or OSS returns a mismatched <code>x-oss-hash-crc64ecma</code> after <code>CompleteMultipartUpload</code>). The object <strong>may already be visible or replaced</strong>; OpenDAL cannot promise the previous object stayed intact.</li>
+<li><strong>Append partial commit:</strong> For chunked append paths under <code>Any</code>/<code>Fast</code> (e.g., Azblob <code>AppendBlock</code>), each request commits independently. If chunk 1 succeeds and chunk 2 fails with <code>ChecksumMismatch</code>, chunk 1 remains visible and <code>AppendWriter::abort()</code> does not roll it back (<code>core/core/src/raw/oio/write/append_write.rs#L102</code>).</li>
+</ol>
+<h4 id="error-classification-and-retryability-is_temporary"><a class="doc-anchor" href="#error-classification-and-retryability-is_temporary">§</a>Error classification and retryability (<code>is_temporary</code>)</h4>
+<p>Retryability is determined by the <strong>service at the failing protocol step</strong> — never blindly by the <code>WriteChecksum</code> variant:</p>
+<div class="table"><table><thead><tr><th>Failure case</th><th><code>ErrorKind</code></th><th>Temporary (<code>is_temporary</code>)?</th><th>Rationale / caller impact</th></tr></thead><tbody>
+<tr><td><code>Expected(cs)</code> wrong digest length</td><td><code>ConfigInvalid</code></td><td>No</td><td>Fails in <code>OpWrite::from_options</code> before I/O</td></tr>
+<tr><td>Unsupported capability, algorithm, class, or <code>append</code> + <code>Algo</code>/<code>Expected</code></td><td><code>Unsupported</code></td><td>No</td><td>Fails in <code>OpWrite::check</code> or synchronously in <code>Service::write</code> before I/O</td></tr>
+<tr><td>Single replayable upload request with client-computed buffer digest rejected (e.g., <code>PutObject</code> for <code>Any</code>/<code>Fast</code>/<code>Algo</code>, or <code>UploadPart</code> / <code>PutBlock</code> per-part checksum even during an <code>Expected</code> multipart upload)</td><td><code>ChecksumMismatch</code></td><td><strong>Yes</strong> (only when the failing step retains its input buffer and can be safely replayed)</td><td>Client computed the digest over the exact transmitted buffer; server rejection indicates in-transit corruption and replay can succeed</td></tr>
+<tr><td>Final full-object comparison mismatch against caller <code>Expected(cs)</code> (<code>PutObject</code> or <code>CompleteMultipartUpload</code>), or <code>CompleteMultipartUpload</code> rejection where replaying <code>close()</code> submits identical parts</td><td><code>ChecksumMismatch</code></td><td><strong>No</strong></td><td>Replaying the same request or parts cannot fix a wrong caller digest or deterministic combine mismatch (<code>RetryLayer</code> retrying <code>close()</code> would loop uselessly)</td></tr>
+<tr><td>Backend commits <code>Algo</code>/<code>Expected</code> write without echoing matching full-file checksum</td><td><code>Unexpected</code></td><td><strong>No</strong></td><td>Post-commit ambiguity; object may already be visible</td></tr>
+<tr><td>Full-object read mismatch in <code>ChecksumLayer</code></td><td><code>ChecksumMismatch</code></td><td><strong>No</strong></td><td>On <code>oio::Read::read</code>, corrupted buffer is discarded. On <code>oio::Read::open</code> with known <code>content_length</code>, error surfaces before yielding the final chunk; earlier chunks already yielded on a stream cannot be recalled</td></tr>
+<tr><td>Source checksum mismatch during streaming <code>copy_from</code></td><td><code>ChecksumMismatch</code></td><td>Preserves the source error’s status</td><td>Requires <code>abort()</code> if that logical copy accepted bytes across its attempts. At zero copy progress, a successful <code>close()</code> without appending anything else commits only the earlier prefix.</td></tr>
+</tbody></table>
+</div><h2 id="compatibility-and-migration"><a class="doc-anchor" href="#compatibility-and-migration">§</a>Compatibility and Migration</h2>
+<ol>
+<li><strong>Unreleased PR #7830 (<code>a22829178</code>):</strong> <code>Capability::checksum_{crc64_nvme,crc32c,md5,sha256}</code> has not shipped in any release. Replacing it with <code>Capability::write_with_checksum</code> before the next release avoids any semver break for released users. <code>.checksum(Checksum)</code> call sites remain source-compatible via <code>From&lt;Checksum&gt; for WriteChecksum</code>.</li>
+<li><strong>Bindings (<code>Java</code>, <code>.NET</code>, etc.):</strong> Replacing the four unreleased capability fields updates the Java/.NET capability mirrors and <code>website/data/capabilities.json</code>. Note that Java (<code>bindings/java/src/error.rs#L52</code>) and .NET (<code>bindings/dotnet/src/error.rs#L82</code>) currently map <code>ErrorKind::ChecksumMismatch</code> to <code>Unexpected</code>; error-kind mapping is a separate deliverable required whenever a binding exposes checksum options or <code>ChecksumLayer</code>.</li>
+<li><strong><code>Metadata::content_md5()</code>:</strong> Preserved unchanged.</li>
+<li><strong>Per-service <code>checksum_algorithm</code> configs:</strong>
+<ul>
+<li><strong>New services (GCS, OSS, Azblob, B2, COS, TOS, etc.):</strong> Must not add per-service <code>checksum_algorithm</code> config fields; implement <code>OpWrite::checksum()</code> instead.</li>
+<li><strong>Existing <code>S3Config::checksum_algorithm</code>:</strong> Currently accepts <code>"crc32c"</code> and <code>"md5"</code> (<code>core/services/s3/src/backend.rs#L1041</code>); <code>"md5"</code> disables <code>write_can_multi</code> and any configured value disables <code>write_can_copy_from</code> at build time (<code>backend.rs#L1191, L1228</code>). Retained <strong>without immediate deprecation</strong> until equivalent migration paths exist for <code>Content-MD5</code> single-PUT, explicit headers on custom endpoints, and declarative config / language-binding config maps (<code>ServiceConfig</code>), while updating S3 docs to recommend <code>WriteChecksum</code> / <code>ChecksumLayer</code> for AWS S3. When both are set, per-operation <code>OpWrite::checksum()</code> selects the wire checksum header, while build-time capability restrictions from <code>S3Config::checksum_algorithm</code> remain in effect.</li>
+</ul>
+</li>
+<li><strong>RFC / Specification lifecycle:</strong> <a href="6817_checksum.md">RFC-6817</a> remains immutable; upon implementation, this contract is codified in <code>core/core/src/docs/specs/checksum.md</code>.</li>
+</ol>
+<h2 id="drawbacks"><a class="doc-anchor" href="#drawbacks">§</a>Drawbacks</h2>
+<ul>
+<li><strong>No static per-algorithm discovery on <code>Capability</code>:</strong> Callers cannot inspect <code>Capability</code> to choose which algorithm to precompute locally before calling <code>write</code> (though callers without a digest should use streaming <code>WriteChecksum::Fast</code>/<code>Any</code>/<code>Algo</code>, and callers holding an external digest receive synchronous zero-I/O <code>Unsupported</code> from <code>Service::write</code>).</li>
+<li><strong>Chunked <code>Reader</code> reads bypass single-response <code>ChecksumLayer</code> verification:</strong> Logical full-object reads that set <code>chunk</code> issue partial range requests and are not verified at the <code>oio::Read</code> boundary.</li>
+<li><strong>Conservative <code>write_can_copy_from</code> clearing under <code>ChecksumLayer</code>:</strong> When <code>ChecksumLayer</code> runs in best-effort mode on a service with <code>write_with_checksum = true</code> that rejects the layer’s policy (e.g., <code>Fast</code> on B2), <code>ChecksumService::capability()</code> still clears <code>write_can_copy_from = false</code>.</li>
+</ul>
+<h2 id="rationale-and-alternatives"><a class="doc-anchor" href="#rationale-and-alternatives">§</a>Rationale and alternatives</h2>
+<ul>
+<li><strong>Per-algorithm booleans or bitmask in <code>Capability</code> (rejected):</strong> Forces <code>Capability</code> and Java/.NET <code>#[repr(C)]</code> mirrors to track every provider-specific algorithm (<code>CRC64-ECMA</code>, Azure <code>CRC64</code>, <code>CRC32</code>, <code>SHA-1</code>, etc.) and cannot express <code>Any</code>/<code>Fast</code> or transport-only paths cleanly. A single <code>write_with_checksum: bool</code> plus synchronous <code>Service::write</code> validation delivers the same zero-I/O rejection with one boolean.</li>
+<li><strong>Separate <code>WriteOptions</code> fields for <code>checksum</code> and <code>checksum_algo</code> (rejected):</strong> Allows mutually exclusive combinations to be constructed at compile time. A single <code>Option&lt;WriteChecksum&gt;</code> enum plus <code>WriteChecksumPolicy</code> for <code>ChecksumLayer</code> makes illegal states unrepresentable.</li>
+<li><strong>Require <code>Any</code>/<code>Fast</code> to always produce full-file <code>Metadata::checksum()</code> (rejected):</strong> Excludes Azure Blob per-block CRC64 and B2 large-file per-part SHA-1 from streaming transport protection.</li>
+<li><strong>Unconditional <code>x-amz-checksum-mode: ENABLED</code> on S3 <code>stat</code>/<code>read</code> (rejected):</strong> Breaks AWS SSE-KMS <code>HeadObject</code>/<code>GetObject</code> IAM permissions for callers without KMS access and leaks headers into custom <code>s3://</code> endpoints and presigned URLs. An explicit <code>checksum: bool</code> hint on <code>StatOptions</code>/<code>ReadOptions</code>/<code>ReaderOptions</code> keeps default operations safe while letting callers and <code>ChecksumLayer</code> opt in cleanly.</li>
+<li><strong>Operator-wide rejection of partial range reads under <code>ChecksumLayer::require_read(true)</code> (rejected):</strong> Makes <code>require_read(true)</code> unusable for Parquet/Lance-style workloads that mix full-object and partial range reads on one operator.</li>
+<li><strong>Local compute fallback in <code>ChecksumLayer</code> (rejected from RFC-6817):</strong> Hashing in-process without backend verification provides zero wire or storage protection and hides <code>Unsupported</code>.</li>
+</ul>
+<h2 id="prior-art"><a class="doc-anchor" href="#prior-art">§</a>Prior art</h2>
+<ul>
+<li><strong>AWS SDK Flexible Checksums:</strong> Defaults to streaming <code>CRC64NVME</code> (<code>WHEN_SUPPORTED</code>) with <code>FULL_OBJECT</code> multipart combination and opt-in <code>ChecksumMode=ENABLED</code> on reads. This proposal adapts that model to multi-cloud storage via <code>WriteChecksum::Fast</code>/<code>Any</code> and <code>ChecksumLayer</code> while preserving explicit per-operation <code>Unsupported</code> semantics and KMS-safe opt-in read checksum mode.</li>
+<li><strong>Google Cloud Storage / Alibaba Cloud OSS clients:</strong> Verify streaming <code>CRC32C</code> / <code>CRC64-ECMA</code> during upload and download without requiring application-side precomputation.</li>
+</ul>
+<h2 id="validation"><a class="doc-anchor" href="#validation">§</a>Validation</h2>
+<p>Observable acceptance contracts (implementation plan tracked separately in #5549):</p>
+<ol>
+<li><strong>Core, <code>OpWrite</code>/<code>OpRead</code>/<code>OpStat</code>, and <code>WriteState</code> unit tests:</strong> <code>Capability::write_with_checksum</code> gates all <code>WriteChecksum</code> variants; <code>Expected</code> wrong digest length returns <code>ConfigInvalid</code>; <code>append</code> rejects <code>Algo</code>/<code>Expected</code> and delegates <code>Any</code>/<code>Fast</code> to <code>Service::write</code>; <code>OpWrite::with_checksum</code> enforces identical checks for layer injection; <code>StatOptions</code>/<code>ReadOptions</code>/<code>ReaderOptions</code> propagate <code>checksum: bool</code> without returning <code>Unsupported</code> on services without checksum metadata; <code>WriteState::create</code> disables native <code>copy_from</code> for direct <code>OpWrite::checksum()</code> and <code>ChecksumLayer</code>-injected writes. A streaming copy that receives a source <code>ChecksumMismatch</code> after accepting bytes from that logical copy returns the original error and requires <code>abort()</code>. Cover bytes queued in the writer and bytes accepted on earlier attempts. With zero copy progress, verify that switching sources preserves the earlier prefix and that closing without appending commits only that prefix. Verify that an ordinary temporary source read error can resume without duplicating bytes.</li>
+<li><strong>AWS S3 live behavior tests:</strong> Single PUT and concurrent uneven-part multipart uploads for <code>Any</code>, <code>Fast</code>, <code>Algo(Crc64Nvme|Crc32c)</code>, and <code>Expected(Crc64Nvme|Crc32c)</code> return verified <code>FULL_OBJECT</code> checksums matching independent computation; opt-in <code>stat_with(...).checksum(true)</code> and <code>read_with(...).checksum(true)</code> return <code>Metadata::checksum()</code> for <code>FULL_OBJECT</code> and <code>None</code> for <code>COMPOSITE</code>; default <code>stat</code>/<code>read</code> without <code>checksum(true)</code> and presigned requests send no <code>x-amz-checksum-mode</code> header (preserving SSE-KMS IAM permissions and custom <code>s3://</code> endpoints); <code>Expected</code> mismatch returns non-temporary <code>ChecksumMismatch</code> without committing; <code>Algo(Sha256)</code>/<code>Expected(Sha256)</code> fails synchronously with <code>Unsupported</code> before I/O. Rust behavior tests retain explicit S3 <code>Crc32c</code>/<code>Crc64Nvme</code> coverage plus generic <code>WriteChecksum::Any</code> tests for any service with <code>write_with_checksum = true</code>.</li>
+<li><strong><code>ChecksumLayer</code> tests:</strong> Best-effort fallback on <code>write_with_checksum = false</code> and on synchronous service <code>Unsupported</code> (zero I/O, non-checksum <code>Unsupported</code> preserved); strict mode returns <code>Unsupported</code>; full-object <code>op.read(path)</code> AND <code>op.read_with(path).limit(n)</code> (exact file size) detect corrupted payloads with <code>ChecksumMismatch</code> before delivering the final chunk; terminal mismatch stays latched on repeated poll; partial range reads and chunked <code>Reader</code> reads pass through unverified even under <code>require_read(true)</code> without full-file download; <code>stat</code> never triggers <code>read</code>; <code>ChecksumLayer</code> outside <code>RetryLayer</code> verifies resumed streams; <code>RouteLayer</code> tested in both directions (default lacks checksum -&gt; routed supports, and vice versa).</li>
+<li><strong>Bindings &amp; follow-up services:</strong> Any binding exposing checksum options or <code>ChecksumLayer</code> verifies <code>ErrorKind::ChecksumMismatch</code> error mapping (not <code>Unexpected</code>). Each follow-up service (GCS, Azblob, B2, OSS, etc.) must verify its claimed <code>WriteChecksum</code> paths against the actual service before setting <code>write_with_checksum = true</code>.</li>
+</ol>
+<h2 id="unresolved-questions"><a class="doc-anchor" href="#unresolved-questions">§</a>Unresolved questions</h2>
+<p>None.</p>
+<h2 id="future-possibilities"><a class="doc-anchor" href="#future-possibilities">§</a>Future possibilities</h2>
+<ul>
+<li><strong>Chunked/concurrent full-object read verification:</strong> Verify logical full-object reads performed via chunked <code>Reader</code> when the backend checksum algorithm is combinable (CRC32C, CRC64-NVME, CRC64-ECMA).</li>
+<li><strong>CacheLayer checksum persistence:</strong> Extend <code>CacheLayer</code>’s persistent pointer format (v2) to store <code>Metadata::checksum()</code> so persisted cache hits can be verified by an outer <code>ChecksumLayer</code>.</li>
+<li><strong>Native <code>copy_from</code> with checksum:</strong> Support <code>UploadPartCopy</code> / server-side copy when source and destination preserve combinable part checksums.</li>
+<li><strong>Explicit preset opt-in for S3-compatible services:</strong> Allow user-verified S3-compatible endpoints to opt into <code>write_with_checksum = true</code> once echo verification guarantees are confirmed against those services.</li>
+</ul>
+</div></details></section></div></main></body></html>

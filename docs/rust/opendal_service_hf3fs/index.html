@@ -1,0 +1,68 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Apache OpenDAL™ DeepSeek 3FS Service"><title>opendal_service_hf3fs - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="opendal_service_hf3fs" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0-nightly (1303417c4 2026-09-21)" data-channel="nightly" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate opendal_service_hf3fs</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../opendal_service_hf3fs/index.html">opendal_<wbr>service_<wbr>hf3fs</a><span class="version">0.59.5</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#apache-opendal-deepseek-3fs-service" title="Apache OpenDAL™ DeepSeek 3FS Service">Apache OpenDAL™ DeepSeek 3FS Service</a><ul><li><a href="#memory-and-concurrency" title="Memory and concurrency">Memory and concurrency</a></li><li><a href="#testing-on-3fs" title="Testing on 3FS">Testing on 3FS</a></li></ul></li></ul><h3><a href="#structs">Crate Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#constants" title="Constants">Constants</a></li><li><a href="#functions" title="Functions">Functions</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1>Crate <span>opendal_<wbr>service_<wbr>hf3fs</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/opendal_service_hf3fs/lib.rs.html#18-39">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="apache-opendal-deepseek-3fs-service"><a class="doc-anchor" href="#apache-opendal-deepseek-3fs-service">§</a>Apache OpenDAL™ DeepSeek 3FS Service</h2>
+<p><code>Hf3fs</code> accesses DeepSeek’s 3FS (Fire-Flyer File System) by reading and writing
+through the 3FS USRBIO shared-memory interface while using the mounted
+filesystem for metadata operations. It requires Linux, a running 3FS FUSE
+client, and a compatible <code>libhf3fs_api_shared.so</code> implementing the public
+<a href="https://github.com/deepseek-ai/3FS/blob/main/src/lib/api/hf3fs_usrbio.h"><code>hf3fs_usrbio.h</code> API</a>.
+The library is loaded at runtime; building OpenDAL does not require a 3FS SDK.</p>
+<p>Enable <code>services-hf3fs</code> in <code>opendal</code>, or use the split crates:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>opendal_core::{Operator, <span class="prelude-ty">Result</span>};
+<span class="kw">use </span>opendal_service_hf3fs::Hf3fs;
+
+<span class="kw">fn </span>operator() -&gt; <span class="prelude-ty">Result</span>&lt;Operator&gt; {
+    Operator::new(Hf3fs::default()
+        .root(<span class="string">"/mnt/3fs/data"</span>)
+        .library_path(<span class="string">"/opt/3fs/lib/libhf3fs_api_shared.so"</span>))
+}</code></pre></div>
+<p>The root must be an existing absolute directory on 3FS. The service discovers
+its mount point. By default, the dynamic loader searches for
+<code>libhf3fs_api_shared.so</code>; <code>library_path</code> selects a specific installation.
+Use the client library distributed with your 3FS deployment.</p>
+<p>The service supports stat, range reads, streaming writes, create directory,
+list, delete, recursive delete, and rename. Writes create parent directories
+and replace existing files. Conditional writes with <code>if_not_exists</code> are
+unsupported.
+Closing a writer waits for writes and synchronizes the file. Writes are not
+atomic, and failed or aborted writes can leave partial files. Append, native
+copy, presign, and rollback on abort are unsupported. Operations require a
+Tokio runtime. The operation context supplies the executor for concurrent writes.</p>
+<h3 id="memory-and-concurrency"><a class="doc-anchor" href="#memory-and-concurrency">§</a>Memory and concurrency</h3>
+<p>Each operator owns a read driver and a write driver. Each driver submits and
+reaps completions on its own thread. Requests complete independently so a slow
+request does not delay the rest of a batch. <code>queue_depth</code> defaults to 32 requests per ring;
+<code>block_size</code> defaults to 1 MiB. Shared memory uses approximately
+<code>3 * queue_depth * block_size</code>, plus the rings, and request queues are bounded.
+The submission rings have extra entries for out-of-order completions; the number
+of in-flight requests remains bounded by <code>queue_depth</code>.
+Cloned operators share these resources.</p>
+<p>After read completions, the driver briefly polls for follow-up requests before
+blocking again. This reduces submission latency at the cost of some additional
+CPU time while reads are active. Idle drivers block on their request queues.</p>
+<p>Reads return shared-memory-backed buffers without copying while fewer than
+<code>queue_depth</code> slots remain retained by callers. Additional completions copy to
+ordinary buffers on the calling task so copying does not block the driver.
+The driver waits for a free slot if completed reads awaiting their callers fill
+the pool. Collecting large files still progresses because retained buffers
+remain bounded by <code>queue_depth</code>. Buffer clones retain their slot until the last clone is dropped,
+even after the operator is dropped. Writes reserve a shared-memory slot and copy
+their input on the calling task before submitting it to the driver. Concurrent
+tasks can copy in parallel on a multithreaded runtime; the write pool remains
+bounded by <code>queue_depth</code>.</p>
+<p>Cancelling an awaiting future does not cancel submitted native I/O. The driver
+retains the file and buffer until completion. If submission or completion
+collection fails fatally, the driver stops and reports errors. Since USRBIO
+provides no cancellation fence, resources still involved in native I/O remain
+allocated until process exit. Rebuild the operator after a driver failure.
+A stalled client can also keep its driver and in-flight resources alive;
+operation timeouts do not release native buffers.</p>
+<h3 id="testing-on-3fs"><a class="doc-anchor" href="#testing-on-3fs">§</a>Testing on 3FS</h3>
+<p>Set <code>OPENDAL_HF3FS_ROOT</code> to an existing, writable test directory on a real 3FS
+mount. Optionally set <code>OPENDAL_HF3FS_LIBRARY_PATH</code>. From <code>core/</code>, run:</p>
+<div class="example-wrap"><pre class="language-shell"><code>cargo test -p opendal-service-hf3fs --test real_service -- --ignored
+OPENDAL_TEST=hf3fs OPENDAL_DISABLE_RANDOM_ROOT=true cargo test --test behavior --features tests,services-hf3fs</code></pre></div>
+<p>The focused tests create and remove their own subdirectories. Use a dedicated
+test root for the behavior suite. Neither test command needs a mock service.</p>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Hf3fs.html" title="struct opendal_service_hf3fs::Hf3fs">Hf3fs</a></dt><dd>Access DeepSeek’s 3FS (Fire-Flyer File System) through USRBIO for data and
+the mounted filesystem for metadata.</dd><dt><a class="struct" href="struct.Hf3fsConfig.html" title="struct opendal_service_hf3fs::Hf3fsConfig">Hf3fs<wbr>Config</a></dt><dd>Configuration for DeepSeek’s 3FS (Fire-Flyer File System) USRBIO access on Linux.</dd></dl><h2 id="constants" class="section-header">Constants<a href="#constants" class="anchor">§</a></h2><dl class="item-table"><dt><a class="constant" href="constant.HF3FS_SCHEME.html" title="constant opendal_service_hf3fs::HF3FS_SCHEME">HF3FS_<wbr>SCHEME</a></dt><dd>URI scheme for the DeepSeek 3FS (Fire-Flyer File System) USRBIO service.</dd></dl><h2 id="functions" class="section-header">Functions<a href="#functions" class="anchor">§</a></h2><dl class="item-table"><dt><a class="fn" href="fn.register_hf3fs_service.html" title="fn opendal_service_hf3fs::register_hf3fs_service">register_<wbr>hf3fs_<wbr>service</a></dt><dd>Register DeepSeek 3FS (Fire-Flyer File System) for
+[<code>opendal_core::Operator::from_uri</code>] and [<code>opendal_core::Operator::via_iter</code>].</dd></dl></section></div></main></body></html>

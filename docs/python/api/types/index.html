@@ -1,0 +1,823 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" data-theme="auto">
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Types &#8212; Apache OpenDAL™ Python</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "auto";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "auto";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=6a604523" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../../_static/documentation_options.js?v=1f7c75a4"></script>
+    <script src="../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script data-sd-tabs-storage-prefix="sphinx-design-tab-id-" src="../../_static/design-tabs.js?v=fcb327ea"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'api/types';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <script src="../../_static/scroll-page-toc.js?v=67cdcd07"></script>
+    <link rel="canonical" href="https://opendal.apache.org/docs/python/api/types/" />
+    <link rel="index" title="Index" href="../../genindex/" />
+    <link rel="search" title="Search" href="../../search/" />
+    <link rel="prev" title="Operator" href="../operator/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.47.12" />
+  
+    
+    <script src="../../_static/searchtools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script src="../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="auto">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search/"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">Apache OpenDAL™ Python</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-external" href="https://opendal.apache.org/docs/">
+    OpenDAL documentation
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/apache/opendal" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-external" href="https://opendal.apache.org/docs/">
+    OpenDAL documentation
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/apache/opendal" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar">
+  <svg class="pst-icon" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../async_file/">AsyncFile</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../async_operator/">AsyncOperator</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../capability/">Capability</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../config/">Config</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../exceptions/">Exceptions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../file/">File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../layers/">Layers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../operator/">Operator</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Types</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../" class="nav-link">API reference</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Types</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="types">
+<h1>Types<a class="headerlink" href="#types" title="Link to this heading">#</a></h1>
+<p>This page documents all types in OpenDAL.</p>
+<span class="target" id="module-opendal.types"></span><dl class="py class">
+<dt class="sig sig-object py" id="opendal.types.Entry">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">opendal.types.</span></span><span class="sig-name descname"><span class="pre">Entry</span></span><a class="headerlink" href="#opendal.types.Entry" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#object" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>An entry representing a path and its associated metadata.</p>
+<p class="rubric">Notes</p>
+<p>If this entry is a directory, <code class="docutils literal notranslate"><span class="pre">path</span></code> <strong>must</strong> end with <code class="docutils literal notranslate"><span class="pre">/</span></code>.
+Otherwise, <code class="docutils literal notranslate"><span class="pre">path</span></code> <strong>must not</strong> end with <code class="docutils literal notranslate"><span class="pre">/</span></code>.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Entry.metadata">
+<span class="sig-name descname"><span class="pre">metadata</span></span><a class="headerlink" href="#opendal.types.Entry.metadata" title="Link to this definition">#</a></dt>
+<dd><p>The metadata of this entry.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Entry.name">
+<span class="sig-name descname"><span class="pre">name</span></span><a class="headerlink" href="#opendal.types.Entry.name" title="Link to this definition">#</a></dt>
+<dd><p>The name of entry, representing the last segment of the path.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Entry.path">
+<span class="sig-name descname"><span class="pre">path</span></span><a class="headerlink" href="#opendal.types.Entry.path" title="Link to this definition">#</a></dt>
+<dd><p>The path of entry relative to the operator’s root.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="opendal.types.Metadata">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">opendal.types.</span></span><span class="sig-name descname"><span class="pre">Metadata</span></span><a class="headerlink" href="#opendal.types.Metadata" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#object" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>The metadata of an <code class="docutils literal notranslate"><span class="pre">Entry</span></code>.</p>
+<p>The metadata is always tied to a specific context and is not a global
+state. For example, two versions of the same path might have different
+content lengths.</p>
+<p class="rubric">Notes</p>
+<p>In systems that support versioning, such as AWS S3, the metadata may
+represent a specific version of a file. Use <a class="reference internal" href="#opendal.types.Metadata.version" title="opendal.types.Metadata.version"><code class="xref py py-attr docutils literal notranslate"><span class="pre">version</span></code></a> to get
+the version of a file if it is available.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Metadata.cache_control">
+<span class="sig-name descname"><span class="pre">cache_control</span></span><a class="headerlink" href="#opendal.types.Metadata.cache_control" title="Link to this definition">#</a></dt>
+<dd><p>Return this entry’s Cache-Control value.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Metadata.checksum">
+<span class="sig-name descname"><span class="pre">checksum</span></span><a class="headerlink" href="#opendal.types.Metadata.checksum" title="Link to this definition">#</a></dt>
+<dd><p>Return the full-object checksum as (algorithm, raw digest bytes), or None.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Metadata.content_disposition">
+<span class="sig-name descname"><span class="pre">content_disposition</span></span><a class="headerlink" href="#opendal.types.Metadata.content_disposition" title="Link to this definition">#</a></dt>
+<dd><p>Return this entry’s Content-Disposition value.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Metadata.content_encoding">
+<span class="sig-name descname"><span class="pre">content_encoding</span></span><a class="headerlink" href="#opendal.types.Metadata.content_encoding" title="Link to this definition">#</a></dt>
+<dd><p>Return this entry’s Content-Encoding value.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Metadata.content_language">
+<span class="sig-name descname"><span class="pre">content_language</span></span><a class="headerlink" href="#opendal.types.Metadata.content_language" title="Link to this definition">#</a></dt>
+<dd><p>Return this entry’s Content-Language value, if available.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Metadata.content_length">
+<span class="sig-name descname"><span class="pre">content_length</span></span><a class="headerlink" href="#opendal.types.Metadata.content_length" title="Link to this definition">#</a></dt>
+<dd><p>Return the full content length of this entry.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Metadata.content_md5">
+<span class="sig-name descname"><span class="pre">content_md5</span></span><a class="headerlink" href="#opendal.types.Metadata.content_md5" title="Link to this definition">#</a></dt>
+<dd><p>Return this entry’s Content-MD5 value.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Metadata.content_type">
+<span class="sig-name descname"><span class="pre">content_type</span></span><a class="headerlink" href="#opendal.types.Metadata.content_type" title="Link to this definition">#</a></dt>
+<dd><p>Return this entry’s Content-Type value.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Metadata.etag">
+<span class="sig-name descname"><span class="pre">etag</span></span><a class="headerlink" href="#opendal.types.Metadata.etag" title="Link to this definition">#</a></dt>
+<dd><p>Return this entry’s service-provided ETag as-is.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Metadata.is_current">
+<span class="sig-name descname"><span class="pre">is_current</span></span><a class="headerlink" href="#opendal.types.Metadata.is_current" title="Link to this definition">#</a></dt>
+<dd><p>Return whether this metadata describes the current object version.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Metadata.is_deleted">
+<span class="sig-name descname"><span class="pre">is_deleted</span></span><a class="headerlink" href="#opendal.types.Metadata.is_deleted" title="Link to this definition">#</a></dt>
+<dd><p>Return whether this metadata describes a deleted object or delete marker.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Metadata.is_dir">
+<span class="sig-name descname"><span class="pre">is_dir</span></span><a class="headerlink" href="#opendal.types.Metadata.is_dir" title="Link to this definition">#</a></dt>
+<dd><p>Whether this entry is a directory.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Metadata.is_file">
+<span class="sig-name descname"><span class="pre">is_file</span></span><a class="headerlink" href="#opendal.types.Metadata.is_file" title="Link to this definition">#</a></dt>
+<dd><p>Whether this entry is a file.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Metadata.last_modified">
+<span class="sig-name descname"><span class="pre">last_modified</span></span><a class="headerlink" href="#opendal.types.Metadata.last_modified" title="Link to this definition">#</a></dt>
+<dd><p>Return this entry’s Last-Modified timestamp.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Metadata.mode">
+<span class="sig-name descname"><span class="pre">mode</span></span><a class="headerlink" href="#opendal.types.Metadata.mode" title="Link to this definition">#</a></dt>
+<dd><p>Return this entry’s mode.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Metadata.user_metadata">
+<span class="sig-name descname"><span class="pre">user_metadata</span></span><a class="headerlink" href="#opendal.types.Metadata.user_metadata" title="Link to this definition">#</a></dt>
+<dd><p>Return a copy of this entry’s user metadata as a dict.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.Metadata.version">
+<span class="sig-name descname"><span class="pre">version</span></span><a class="headerlink" href="#opendal.types.Metadata.version" title="Link to this definition">#</a></dt>
+<dd><p>Return this entry’s service-specific version identifier.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="opendal.types.PresignedRequest">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">opendal.types.</span></span><span class="sig-name descname"><span class="pre">PresignedRequest</span></span><a class="headerlink" href="#opendal.types.PresignedRequest" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#object" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>A presigned request.</p>
+<p>This contains the information required to make a request to the
+underlying service, including the URL, method, and headers.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.PresignedRequest.headers">
+<span class="sig-name descname"><span class="pre">headers</span></span><a class="headerlink" href="#opendal.types.PresignedRequest.headers" title="Link to this definition">#</a></dt>
+<dd><p>The HTTP headers of this request.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>dict</dt><dd><p>The HTTP headers of this request.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.PresignedRequest.method">
+<span class="sig-name descname"><span class="pre">method</span></span><a class="headerlink" href="#opendal.types.PresignedRequest.method" title="Link to this definition">#</a></dt>
+<dd><p>The HTTP method of this request.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.PresignedRequest.url">
+<span class="sig-name descname"><span class="pre">url</span></span><a class="headerlink" href="#opendal.types.PresignedRequest.url" title="Link to this definition">#</a></dt>
+<dd><p>The URL of this request.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="opendal.types.EntryMode">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">opendal.types.</span></span><span class="sig-name descname"><span class="pre">EntryMode</span></span><a class="headerlink" href="#opendal.types.EntryMode" title="Link to this definition">#</a></dt>
+<dd><p>The mode of an entry, indicating if it is a file or a directory.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.EntryMode.Dir">
+<span class="sig-name descname"><span class="pre">Dir</span></span><a class="headerlink" href="#opendal.types.EntryMode.Dir" title="Link to this definition">#</a></dt>
+<dd><p>The entry is a directory and can be listed.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.EntryMode.File">
+<span class="sig-name descname"><span class="pre">File</span></span><a class="headerlink" href="#opendal.types.EntryMode.File" title="Link to this definition">#</a></dt>
+<dd><p>The entry is a file and has data to read.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="opendal.types.EntryMode.Unknown">
+<span class="sig-name descname"><span class="pre">Unknown</span></span><a class="headerlink" href="#opendal.types.EntryMode.Unknown" title="Link to this definition">#</a></dt>
+<dd><p>The mode of the entry is unknown.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="opendal.types.EntryMode.is_dir">
+<span class="sig-name descname"><span class="pre">is_dir</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#opendal.types.EntryMode.is_dir" title="Link to this definition">#</a></dt>
+<dd><p>Check if the entry mode is <cite>Dir</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>bool</dt><dd><p>True if the entry is a directory.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="opendal.types.EntryMode.is_file">
+<span class="sig-name descname"><span class="pre">is_file</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#opendal.types.EntryMode.is_file" title="Link to this definition">#</a></dt>
+<dd><p>Check if the entry mode is <cite>File</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><dl class="simple">
+<dt>bool</dt><dd><p>True if the entry is a file.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="opendal.options.ChecksumAlgorithm">
+<span class="sig-prename descclassname"><span class="pre">opendal.options.</span></span><span class="sig-name descname"><span class="pre">ChecksumAlgorithm</span></span><a class="headerlink" href="#opendal.options.ChecksumAlgorithm" title="Link to this definition">#</a></dt>
+<dd><p>Full-object checksum algorithms. Each service defines the algorithms it supports.</p>
+<p>alias of <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Literal</span></code></a>[‘crc32c’, ‘crc64nvme’, ‘crc64ecma’, ‘md5’, ‘sha1’, ‘sha256’]</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="opendal.options.OpenKwargs">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">opendal.options.</span></span><span class="sig-name descname"><span class="pre">OpenKwargs</span></span><a class="headerlink" href="#opendal.options.OpenKwargs" title="Link to this definition">#</a></dt>
+<dd><p>Keyword arguments for <cite>Operator.open</cite> and <cite>AsyncOperator.open</cite>.</p>
+<p>Accepted keys depend on <cite>mode</cite>: read modes (<cite>“r”</cite>, <cite>“rb”</cite>, <cite>“br”</cite>) accept
+reader options only, while write, append, and create modes (<cite>“w”</cite>, <cite>“wb”</cite>,
+<cite>“ab”</cite>, <cite>“xb”</cite>, etc.) accept writer options only.</p>
+<p>The <cite>content_type</cite>, <cite>cache_control</cite>, and <cite>content_disposition</cite> options
+apply only when writing, appending, or creating and raise <cite>TypeError</cite> in
+read mode. Use the operator’s <cite>read()</cite> method to supply response header
+overrides.</p>
+</dd></dl>
+
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../operator/"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Operator</p>
+      </div>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Entry"><code class="docutils literal notranslate"><span class="pre">Entry</span></code></a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Entry.metadata"><code class="docutils literal notranslate"><span class="pre">Entry.metadata</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Entry.name"><code class="docutils literal notranslate"><span class="pre">Entry.name</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Entry.path"><code class="docutils literal notranslate"><span class="pre">Entry.path</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Metadata"><code class="docutils literal notranslate"><span class="pre">Metadata</span></code></a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Metadata.cache_control"><code class="docutils literal notranslate"><span class="pre">Metadata.cache_control</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Metadata.checksum"><code class="docutils literal notranslate"><span class="pre">Metadata.checksum</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Metadata.content_disposition"><code class="docutils literal notranslate"><span class="pre">Metadata.content_disposition</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Metadata.content_encoding"><code class="docutils literal notranslate"><span class="pre">Metadata.content_encoding</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Metadata.content_language"><code class="docutils literal notranslate"><span class="pre">Metadata.content_language</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Metadata.content_length"><code class="docutils literal notranslate"><span class="pre">Metadata.content_length</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Metadata.content_md5"><code class="docutils literal notranslate"><span class="pre">Metadata.content_md5</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Metadata.content_type"><code class="docutils literal notranslate"><span class="pre">Metadata.content_type</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Metadata.etag"><code class="docutils literal notranslate"><span class="pre">Metadata.etag</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Metadata.is_current"><code class="docutils literal notranslate"><span class="pre">Metadata.is_current</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Metadata.is_deleted"><code class="docutils literal notranslate"><span class="pre">Metadata.is_deleted</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Metadata.is_dir"><code class="docutils literal notranslate"><span class="pre">Metadata.is_dir</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Metadata.is_file"><code class="docutils literal notranslate"><span class="pre">Metadata.is_file</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Metadata.last_modified"><code class="docutils literal notranslate"><span class="pre">Metadata.last_modified</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Metadata.mode"><code class="docutils literal notranslate"><span class="pre">Metadata.mode</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Metadata.user_metadata"><code class="docutils literal notranslate"><span class="pre">Metadata.user_metadata</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.Metadata.version"><code class="docutils literal notranslate"><span class="pre">Metadata.version</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.PresignedRequest"><code class="docutils literal notranslate"><span class="pre">PresignedRequest</span></code></a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.PresignedRequest.headers"><code class="docutils literal notranslate"><span class="pre">PresignedRequest.headers</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.PresignedRequest.method"><code class="docutils literal notranslate"><span class="pre">PresignedRequest.method</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.PresignedRequest.url"><code class="docutils literal notranslate"><span class="pre">PresignedRequest.url</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.EntryMode"><code class="docutils literal notranslate"><span class="pre">EntryMode</span></code></a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.EntryMode.Dir"><code class="docutils literal notranslate"><span class="pre">EntryMode.Dir</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.EntryMode.File"><code class="docutils literal notranslate"><span class="pre">EntryMode.File</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.EntryMode.Unknown"><code class="docutils literal notranslate"><span class="pre">EntryMode.Unknown</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.EntryMode.is_dir"><code class="docutils literal notranslate"><span class="pre">EntryMode.is_dir()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.types.EntryMode.is_file"><code class="docutils literal notranslate"><span class="pre">EntryMode.is_file()</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.options.ChecksumAlgorithm"><code class="docutils literal notranslate"><span class="pre">ChecksumAlgorithm</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#opendal.options.OpenKwargs"><code class="docutils literal notranslate"><span class="pre">OpenKwargs</span></code></a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  
+  <div class="tocsection editthispage">
+    <a href="https://github.com/apache/opendal/edit/main/bindings/python/docs/api/types.md">
+      <i class="fa-solid fa-pencil"></i>
+      
+      
+        
+          Edit on GitHub
+        
+      
+    </a>
+  </div>
+</div>
+
+  <div class="sidebar-secondary-item">
+
+  <div class="tocsection sourcelink">
+    <a href="../../_sources/api/types.md.txt">
+      <i class="fa-solid fa-file-lines"></i> Show Source
+    </a>
+  </div>
+</div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright The Apache Software Foundation.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.2.3.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

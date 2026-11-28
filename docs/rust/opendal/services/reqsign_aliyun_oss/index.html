@@ -1,0 +1,180 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Re-export of the [`reqsign_aliyun_oss`] crate that this service signs requests with."><title>opendal::services::reqsign_aliyun_oss - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="opendal" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0-nightly (1303417c4 2026-09-21)" data-channel="nightly" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js"><script src="../../../static.files/storage-41dd4d93.js"></script><script defer="" src="../../../crates.js"></script><script defer="" src="../../../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate reqsign_aliyun_oss</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../../opendal/index.html"><img src="/img/logo.svg" alt="logo"></a><h2><a href="../../../opendal/index.html">opendal</a><span class="version">0.59.5</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#overview" title="Overview">Overview</a></li><li><a href="#quick-start" title="Quick Start">Quick Start</a></li><li><a href="#credential-sources" title="Credential Sources">Credential Sources</a><ul><li><a href="#environment-variables" title="Environment Variables">Environment Variables</a></li><li><a href="#oss-profile-file" title="OSS Profile File">OSS Profile File</a></li><li><a href="#credentials-uri" title="Credentials URI">Credentials URI</a></li><li><a href="#ecs-ram-role" title="ECS RAM Role">ECS RAM Role</a></li><li><a href="#alibaba-shared-credential-and-config-files" title="Alibaba Shared Credential and Config Files">Alibaba Shared Credential and Config Files</a></li></ul></li><li><a href="#oss-operations" title="OSS Operations">OSS Operations</a><ul><li><a href="#object-operations" title="Object Operations">Object Operations</a></li><li><a href="#bucket-operations" title="Bucket Operations">Bucket Operations</a></li></ul></li><li><a href="#advanced-features" title="Advanced Features">Advanced Features</a><ul><li><a href="#sts-assumerole" title="STS AssumeRole">STS AssumeRole</a></li><li><a href="#sts-assumerole-with-oidc" title="STS AssumeRole with OIDC">STS AssumeRole with OIDC</a></li><li><a href="#custom-endpoints" title="Custom Endpoints">Custom Endpoints</a></li></ul></li><li><a href="#examples" title="Examples">Examples</a></li></ul><h3><a href="#structs">Crate Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In opendal::<wbr>services</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../index.html">opendal</a>::<wbr><a href="../index.html">services</a></div><h1>Crate <span>reqsign_<wbr>aliyun_<wbr>oss</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"></span></div><span class="item-info"><div class="stab portability">Available on <strong>crate feature <code>services-oss</code></strong> only.</div></span><details class="toggle top-doc" open=""><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Re-export of the <a href="index.html" title="mod opendal::services::reqsign_aliyun_oss"><code>reqsign_aliyun_oss</code></a> crate that this service signs
+requests with.</p>
+<p><a href="../struct.Oss.html#method.credential_provider_chain" title="method opendal::services::Oss::credential_provider_chain"><code>Oss::credential_provider_chain</code></a> takes a chain of providers for
+<a href="struct.Credential.html" title="struct opendal::services::reqsign_aliyun_oss::Credential"><code>reqsign_aliyun_oss::Credential</code></a>. Implement providers against this
+re-export and <a href="../../reqsign_core/index.html" title="mod opendal::reqsign_core"><code>opendal_core::reqsign_core</code></a> rather than depending on the
+<code>reqsign</code> crates directly, so that the types always match the ones this
+service is built with.
+Aliyun OSS signing implementation for reqsign.</p>
+<p>This crate provides signing support for Alibaba Cloud Object Storage Service (OSS),
+enabling secure authentication for all OSS operations.</p>
+<h3 id="overview"><a class="doc-anchor" href="#overview">§</a>Overview</h3>
+<p>Aliyun OSS supports multiple signature generations. This crate keeps V1 as the
+default and also supports V2 and V4 signing for callers that need stronger hashing
+or modern region-aware signing.</p>
+<p><code>RequestSigner</code> defaults to V1 signing and supports opting into V2 or V4 signing.
+V4 additionally requires a configured region.</p>
+<h3 id="quick-start"><a class="doc-anchor" href="#quick-start">§</a>Quick Start</h3>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>reqsign_aliyun_oss::{
+    AssumeRoleCredentialProvider, AssumeRoleWithOidcCredentialProvider,
+    ConfigFileCredentialProvider, CredentialsFileCredentialProvider,
+    CredentialsUriCredentialProvider, DefaultCredentialProvider,
+    EcsRamRoleCredentialProvider, EnvCredentialProvider, OssProfileCredentialProvider,
+    RequestSigner, SigningVersion, StaticCredentialProvider,
+};
+<span class="kw">use </span>reqsign_core::{Context, Signer, <span class="prelude-ty">Result</span>};
+<span class="kw">use </span>reqsign_file_read_tokio::TokioFileRead;
+<span class="kw">use </span>reqsign_http_send_reqwest::ReqwestHttpSend;
+
+<span class="attr">#[tokio::main]
+</span><span class="kw">async fn </span>main() -&gt; <span class="prelude-ty">Result</span>&lt;()&gt; {
+    <span class="comment">// Create context
+    </span><span class="kw">let </span>ctx = Context::new()
+        .with_file_read(TokioFileRead::default())
+        .with_http_send(ReqwestHttpSend::default());
+
+    <span class="comment">// Create credential loader with the default assume_role -&gt; env -&gt;
+    // OSS profile -&gt; shared credentials file -&gt; config file -&gt;
+    // credentials URI -&gt; ECS RAM role -&gt; oidc chain.
+    </span><span class="kw">let </span>loader = DefaultCredentialProvider::builder()
+        .assume_role(AssumeRoleCredentialProvider::new())
+        .env(EnvCredentialProvider::new())
+        .oss_profile(OssProfileCredentialProvider::new())
+        .credentials_file(CredentialsFileCredentialProvider::new())
+        .config_file(ConfigFileCredentialProvider::new())
+        .credentials_uri(CredentialsUriCredentialProvider::new())
+        .ecs_ram_role(EcsRamRoleCredentialProvider::new())
+        .oidc(AssumeRoleWithOidcCredentialProvider::new())
+        .build();
+
+    <span class="comment">// Or use static credentials
+    // let loader = StaticCredentialProvider::new(
+    //     "your-access-key-id",
+    //     "your-access-key-secret",
+    // );
+
+    // Create request builder
+    </span><span class="kw">let </span>builder = RequestSigner::new(<span class="string">"bucket"</span>);
+    <span class="comment">// Or opt into V2/V4:
+    // let builder = RequestSigner::new("bucket")
+    //     .with_signing_version(SigningVersion::V2);
+
+    // let builder = RequestSigner::new("bucket")
+    //     .with_region("cn-beijing")
+    //     .with_signing_version(SigningVersion::V4);
+
+    // Create the signer
+    </span><span class="kw">let </span>signer = Signer::new(ctx, loader, builder);
+
+    <span class="comment">// Sign requests
+    </span><span class="kw">let </span><span class="kw-2">mut </span>req = http::Request::get(<span class="string">"https://bucket.oss-cn-beijing.aliyuncs.com/object.txt"</span>)
+        .body(())
+        .unwrap()
+        .into_parts()
+        .<span class="number">0</span>;
+
+    signer.sign(<span class="kw-2">&amp;mut </span>req, <span class="prelude-val">None</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(())
+}</code></pre></div><h3 id="credential-sources"><a class="doc-anchor" href="#credential-sources">§</a>Credential Sources</h3><h4 id="environment-variables"><a class="doc-anchor" href="#environment-variables">§</a>Environment Variables</h4><div class="example-wrap"><pre class="language-bash"><code>export ALIBABA_CLOUD_ACCESS_KEY_ID=your-access-key-id
+export ALIBABA_CLOUD_ACCESS_KEY_SECRET=your-access-key-secret
+export ALIBABA_CLOUD_SECURITY_TOKEN=your-sts-token  # Optional, for STS
+export OSS_ACCESS_KEY_ID=your-access-key-id         # Alias
+export OSS_ACCESS_KEY_SECRET=your-access-key-secret # Alias
+export OSS_SESSION_TOKEN=your-sts-token             # Alias</code></pre></div><h4 id="oss-profile-file"><a class="doc-anchor" href="#oss-profile-file">§</a>OSS Profile File</h4>
+<p>The crate can load credentials from the OSS profile file
+(typically <code>~/.oss/credentials</code>).</p>
+<h4 id="credentials-uri"><a class="doc-anchor" href="#credentials-uri">§</a>Credentials URI</h4>
+<p>The crate can load temporary credentials from
+<code>ALIBABA_CLOUD_CREDENTIALS_URI</code>.</p>
+<h4 id="ecs-ram-role"><a class="doc-anchor" href="#ecs-ram-role">§</a>ECS RAM Role</h4>
+<p>The crate can load temporary credentials from the ECS metadata service.</p>
+<h4 id="alibaba-shared-credential-and-config-files"><a class="doc-anchor" href="#alibaba-shared-credential-and-config-files">§</a>Alibaba Shared Credential and Config Files</h4>
+<p>The crate can also load static credentials from Alibaba shared SDK files
+(<code>~/.alibabacloud/credentials.ini</code>, <code>~/.aliyun/credentials.ini</code>) and the
+Alibaba CLI config file (<code>~/.aliyun/config.json</code>).</p>
+<h3 id="oss-operations"><a class="doc-anchor" href="#oss-operations">§</a>OSS Operations</h3><h4 id="object-operations"><a class="doc-anchor" href="#object-operations">§</a>Object Operations</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Get object
+</span><span class="kw">let </span>req = Request::get(<span class="string">"https://bucket.oss-cn-beijing.aliyuncs.com/object.txt"</span>)
+    .body(())
+    .unwrap();
+
+<span class="comment">// Put object
+</span><span class="kw">let </span>req = Request::put(<span class="string">"https://bucket.oss-cn-beijing.aliyuncs.com/object.txt"</span>)
+    .header(<span class="string">"Content-Type"</span>, <span class="string">"text/plain"</span>)
+    .body(<span class="string">b"Hello, OSS!"</span>)
+    .unwrap();
+
+<span class="comment">// Delete object
+</span><span class="kw">let </span>req = Request::delete(<span class="string">"https://bucket.oss-cn-beijing.aliyuncs.com/object.txt"</span>)
+    .body(())
+    .unwrap();</code></pre></div><h4 id="bucket-operations"><a class="doc-anchor" href="#bucket-operations">§</a>Bucket Operations</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// List objects
+</span><span class="kw">let </span>req = Request::get(<span class="string">"https://bucket.oss-cn-beijing.aliyuncs.com/?prefix=photos/"</span>)
+    .body(())
+    .unwrap();
+
+<span class="comment">// Get bucket info
+</span><span class="kw">let </span>req = Request::get(<span class="string">"https://bucket.oss-cn-beijing.aliyuncs.com/?bucketInfo"</span>)
+    .body(())
+    .unwrap();</code></pre></div><h3 id="advanced-features"><a class="doc-anchor" href="#advanced-features">§</a>Advanced Features</h3><h4 id="sts-assumerole"><a class="doc-anchor" href="#sts-assumerole">§</a>STS AssumeRole</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>reqsign_aliyun_oss::{
+    AssumeRoleCredentialProvider, DefaultCredentialProvider, StaticCredentialProvider,
+};
+
+<span class="comment">// Use an explicit base access key source to call STS AssumeRole.
+</span><span class="kw">let </span>loader = DefaultCredentialProvider::builder()
+    .no_env()
+    .no_oss_profile()
+    .no_credentials_uri()
+    .no_ecs_ram_role()
+    .no_credentials_file()
+    .no_config_file()
+    .assume_role(
+        AssumeRoleCredentialProvider::new()
+            .with_base_provider(StaticCredentialProvider::new(
+                <span class="string">"your-access-key-id"</span>,
+                <span class="string">"your-access-key-secret"</span>,
+            ))
+            .with_role_arn(<span class="string">"acs:ram::123456789012:role/example"</span>)
+            .with_role_session_name(<span class="string">"my-session"</span>),
+    )
+    .no_oidc()
+    .build();</code></pre></div>
+<p>Or rely on the default static base chain by setting
+<code>ALIBABA_CLOUD_ACCESS_KEY_ID</code>, <code>ALIBABA_CLOUD_ACCESS_KEY_SECRET</code>,
+<code>ALIBABA_CLOUD_ROLE_ARN</code>, and optionally <code>ALIBABA_CLOUD_EXTERNAL_ID</code>.</p>
+<h4 id="sts-assumerole-with-oidc"><a class="doc-anchor" href="#sts-assumerole-with-oidc">§</a>STS AssumeRole with OIDC</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>reqsign_aliyun_oss::{AssumeRoleWithOidcCredentialProvider, DefaultCredentialProvider};
+
+<span class="kw">let </span>loader = DefaultCredentialProvider::builder()
+    .no_env()
+    .no_oss_profile()
+    .no_credentials_uri()
+    .no_ecs_ram_role()
+    .no_credentials_file()
+    .no_config_file()
+    .oidc(
+        AssumeRoleWithOidcCredentialProvider::new()
+            .with_role_arn(<span class="string">"acs:ram::123456789012:role/example"</span>)
+            .with_oidc_provider_arn(<span class="string">"acs:ram::123456789012:oidc-provider/example"</span>)
+            .with_oidc_token_file(<span class="string">"/var/run/secrets/tokens/oidc-token"</span>)
+            .with_role_session_name(<span class="string">"my-session"</span>),
+    )
+    .build();</code></pre></div>
+<p>Or rely on environment variables by setting <code>ALIBABA_CLOUD_ROLE_ARN</code>,
+<code>ALIBABA_CLOUD_OIDC_PROVIDER_ARN</code>, and <code>ALIBABA_CLOUD_OIDC_TOKEN_FILE</code>.</p>
+<h4 id="custom-endpoints"><a class="doc-anchor" href="#custom-endpoints">§</a>Custom Endpoints</h4>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Internal endpoint (VPC)
+</span><span class="kw">let </span>req = Request::get(<span class="string">"https://bucket.oss-cn-beijing-internal.aliyuncs.com/object.txt"</span>)
+    .body(())
+    .unwrap();
+
+<span class="comment">// Accelerate endpoint
+</span><span class="kw">let </span>req = Request::get(<span class="string">"https://bucket.oss-accelerate.aliyuncs.com/object.txt"</span>)
+    .body(())
+    .unwrap();</code></pre></div><h3 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h3>
+<p>Check out the examples directory:</p>
+<ul>
+<li><a href="examples/oss_operations.rs">Basic OSS operations</a></li>
+</ul>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.AssumeRoleCredentialProvider.html" title="struct opendal::services::reqsign_aliyun_oss::AssumeRoleCredentialProvider">Assume<wbr>Role<wbr>Credential<wbr>Provider</a></dt><dd>AssumeRoleCredentialProvider loads credentials via Alibaba Cloud STS AssumeRole.</dd><dt><a class="struct" href="struct.AssumeRoleGrant.html" title="struct opendal::services::reqsign_aliyun_oss::AssumeRoleGrant">Assume<wbr>Role<wbr>Grant</a></dt><dd>A typed, explicitly bound Alibaba Cloud RAM STS <code>AssumeRole</code> grant.</dd><dt><a class="struct" href="struct.AssumeRoleGranter.html" title="struct opendal::services::reqsign_aliyun_oss::AssumeRoleGranter">Assume<wbr>Role<wbr>Granter</a></dt><dd>Explicitly grants an Alibaba Cloud RAM STS <code>AssumeRole</code> credential.</dd><dt><a class="struct" href="struct.AssumeRoleWithOidcCredentialProvider.html" title="struct opendal::services::reqsign_aliyun_oss::AssumeRoleWithOidcCredentialProvider">Assume<wbr>Role<wbr>With<wbr>Oidc<wbr>Credential<wbr>Provider</a></dt><dd>AssumeRoleWithOidcCredentialProvider loads credential via assume role with OIDC.</dd><dt><a class="struct" href="struct.ConfigFileCredentialProvider.html" title="struct opendal::services::reqsign_aliyun_oss::ConfigFileCredentialProvider">Config<wbr>File<wbr>Credential<wbr>Provider</a></dt><dd>ConfigFileCredentialProvider loads credentials from Alibaba Cloud CLI config files.</dd><dt><a class="struct" href="struct.Credential.html" title="struct opendal::services::reqsign_aliyun_oss::Credential">Credential</a></dt><dd>Credential that holds the access_key and secret_key.</dd><dt><a class="struct" href="struct.CredentialsFileCredentialProvider.html" title="struct opendal::services::reqsign_aliyun_oss::CredentialsFileCredentialProvider">Credentials<wbr>File<wbr>Credential<wbr>Provider</a></dt><dd>CredentialsFileCredentialProvider loads credentials from Alibaba Cloud shared credential files.</dd><dt><a class="struct" href="struct.CredentialsUriCredentialProvider.html" title="struct opendal::services::reqsign_aliyun_oss::CredentialsUriCredentialProvider">Credentials<wbr>UriCredential<wbr>Provider</a></dt><dd>CredentialsUriCredentialProvider loads temporary credentials from a custom URI.</dd><dt><a class="struct" href="struct.DefaultCredentialProvider.html" title="struct opendal::services::reqsign_aliyun_oss::DefaultCredentialProvider">Default<wbr>Credential<wbr>Provider</a></dt><dd>DefaultCredentialProvider is a loader that will try to load credential via default chains.</dd><dt><a class="struct" href="struct.DefaultCredentialProviderBuilder.html" title="struct opendal::services::reqsign_aliyun_oss::DefaultCredentialProviderBuilder">Default<wbr>Credential<wbr>Provider<wbr>Builder</a></dt><dd>Builder for <code>DefaultCredentialProvider</code>.</dd><dt><a class="struct" href="struct.EcsRamRoleCredentialProvider.html" title="struct opendal::services::reqsign_aliyun_oss::EcsRamRoleCredentialProvider">EcsRam<wbr>Role<wbr>Credential<wbr>Provider</a></dt><dd>EcsRamRoleCredentialProvider loads temporary credentials from the ECS metadata service.</dd><dt><a class="struct" href="struct.EnvCredentialProvider.html" title="struct opendal::services::reqsign_aliyun_oss::EnvCredentialProvider">EnvCredential<wbr>Provider</a></dt><dd>EnvCredentialProvider loads Aliyun credentials from environment variables.</dd><dt><a class="struct" href="struct.OssProfileCredentialProvider.html" title="struct opendal::services::reqsign_aliyun_oss::OssProfileCredentialProvider">OssProfile<wbr>Credential<wbr>Provider</a></dt><dd>OssProfileCredentialProvider loads credentials from OSS profile files.</dd><dt><a class="struct" href="struct.RequestSigner.html" title="struct opendal::services::reqsign_aliyun_oss::RequestSigner">Request<wbr>Signer</a></dt><dd>RequestSigner for Aliyun OSS signature.</dd><dt><a class="struct" href="struct.StaticCredentialProvider.html" title="struct opendal::services::reqsign_aliyun_oss::StaticCredentialProvider">Static<wbr>Credential<wbr>Provider</a></dt><dd>StaticCredentialProvider provides static Aliyun credentials.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.SigningVersion.html" title="enum opendal::services::reqsign_aliyun_oss::SigningVersion">Signing<wbr>Version</a></dt><dd>SigningVersion controls which OSS signing algorithm the signer uses.</dd></dl></section></div></main></body></html>

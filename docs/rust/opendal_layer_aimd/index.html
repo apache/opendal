@@ -1,0 +1,91 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Apache OpenDAL™ AIMD Layer"><title>opendal_layer_aimd - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="opendal_layer_aimd" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0-nightly (1303417c4 2026-09-21)" data-channel="nightly" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate opendal_layer_aimd</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../opendal_layer_aimd/index.html">opendal_<wbr>layer_<wbr>aimd</a><span class="version">0.59.5</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#apache-opendal-aimd-layer" title="Apache OpenDAL™ AIMD Layer">Apache OpenDAL™ AIMD Layer</a><ul><li><a href="#usage" title="Usage">Usage</a></li><li><a href="#admission-and-feedback" title="Admission and feedback">Admission and feedback</a></li><li><a href="#license" title="License">License</a></li></ul></li></ul><h3><a href="#structs">Crate Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1>Crate <span>opendal_<wbr>layer_<wbr>aimd</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/opendal_layer_aimd/lib.rs.html#18-213">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="apache-opendal-aimd-layer"><a class="doc-anchor" href="#apache-opendal-aimd-layer">§</a>Apache OpenDAL™ AIMD Layer</h2>
+<p><code>AimdLayer</code> adapts HTTP request rates to storage-service throttling. It combines
+an additive-increase/multiplicative-decrease controller with a token bucket for
+each of four independent categories: read (including stat), write (including
+copy, compose, create_dir, rename, and restore), delete, and list.</p>
+<h3 id="usage"><a class="doc-anchor" href="#usage">§</a>Usage</h3>
+<p>Enable the facade feature <code>layers-aimd</code> and use
+<code>opendal::layers::AimdLayer</code>. With split crates, add
+<code>opendal-layer-aimd</code> alongside <code>opendal-core</code>:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>opendal_core::{Operator, <span class="prelude-ty">Result</span>};
+<span class="kw">use </span>opendal_layer_aimd::AimdLayer;
+
+<span class="kw">fn </span>configure(operator: Operator) -&gt; <span class="prelude-ty">Result</span>&lt;Operator&gt; {
+    <span class="kw">let </span>aimd = AimdLayer::builder()
+        .max_rate(<span class="number">10.0</span>)
+        .initial_rate(<span class="number">2.0</span>)
+        .additive_increment(<span class="number">1.0</span>)
+        .burst(<span class="number">1</span>)
+        .build()<span class="question-mark">?</span>;
+
+    <span class="prelude-val">Ok</span>(operator.layer(aimd))
+}</code></pre></div>
+<p>This example starts each category at 2 requests/s and grows by 1 request/s per
+active, unthrottled window up to 10 requests/s. A burst of 1 admits one request
+immediately. If you set only the rate bounds, the initial rate defaults to 2000
+clamped to those bounds. Burst capacity and additive increment have independent
+defaults.</p>
+<p>Add AIMD before retry so it observes each attempt’s errors. AIMD does not own
+retries, modify errors, or replace bandwidth and concurrency limits. Place a
+bandwidth throttle outside AIMD so locally generated <code>RateLimited</code> errors do
+not reduce the backend budget.</p>
+<p>When using an HTTP concurrency limit, add <code>ConcurrentLimitLayer</code> first, then
+<code>AimdLayer</code>, then <code>RetryLayer</code>. Requests then wait for AIMD admission before
+acquiring an HTTP concurrency permit. To exclude this wait from HTTP latency
+metrics, also add the HTTP metrics layer before AIMD.</p>
+<p>One layer represents one shared quota. Clones share the budgets and cooldown
+across operators. Build separate layers for separate accounts, credentials, or
+operation-specific quotas, and install them in the HTTP transports used by the
+corresponding requests. Each category receives its own configured rate and
+burst.</p>
+<h3 id="admission-and-feedback"><a class="doc-anchor" href="#admission-and-feedback">§</a>Admission and feedback</h3>
+<p>The HTTP wrapper takes one token before forwarding each request with an OpenDAL
+<code>Operation</code> extension. Pages, multipart parts, and batch-delete requests each
+consume their own tokens. Response chunks and entries buffered from a page do
+not consume extra tokens. Requests without this extension, presigning, and
+non-HTTP I/O bypass admission. Requests hidden inside a custom transport, such
+as automatic retries or redirects, are outside this boundary.</p>
+<p>Parsed <code>ErrorKind::RateLimited</code> errors observed by the service and I/O wrappers
+mark a feedback window as throttled. At the next window transition, its rate is
+multiplied by <code>decrease_factor</code>, bounded by <code>min_rate</code>. Otherwise, a window with
+HTTP responses adds <code>additive_increment</code>, bounded by <code>max_rate</code>. Empty windows
+do not change the rate. Defaults are 2000 requests/s initially, a range of
+1–5000 requests/s, a one-second window, an increment of 300 requests/s, a
+multiplier of 0.5, and a burst of 100 requests per category.</p>
+<p>HTTP completion and parsed errors occur at different boundaries. Feedback may
+be delayed until an operation propagates its error, and errors consumed by an
+inner layer are not visible. The controller uses the presence of a throttle
+signal, not a ratio of HTTP requests to operation errors. Other errors do not
+reduce the rate; an HTTP error response still establishes activity. A failed
+connection alone does not establish activity.</p>
+<p>Feedback belongs to the enclosing storage operation’s budget. A composite
+operation may send requests in other categories, such as stat requests during
+a copy. Admission follows each request’s marker, while semantic feedback follows
+the enclosing operation; errors are not correlated with individual HTTP requests.</p>
+<p>A marked HTTP 429 or 503 response with a usable <code>Retry-After</code> pauses new
+admissions across all four categories. The value may be a delay in seconds or
+an HTTP date. For an HTTP date, AIMD uses the response’s <code>Date</code> header when
+available and valid, and the local clock otherwise. An overlapping response can
+extend the deadline. AIMD returns each response as soon as it arrives and lets
+already admitted requests finish.</p>
+<p>Waiters use a FIFO queue within each category, including when the cooldown
+ends. Cancelling a waiter removes its queue position without leaving token
+debt, and rate changes update pending waits. Buckets start full;
+only a request admitted to the next transport consumes a token. The layer does
+not spawn background tasks. Admission waits use the context executor. If the
+executor does not provide a timer, the layer uses Tokio and requires an active
+Tokio runtime with time enabled. Use <code>with_sleep</code> on the builder to override
+the timer with a function that accepts a <code>Duration</code> and returns a future
+completing after that duration. Rate calculations use the platform’s monotonic
+clock independently of the timer.</p>
+<p>Services sign requests before transport admission. Bound operation duration
+when a queue could outlive the service’s signature validity period. Configure
+transport wrappers to forward to their inner transport, preserving this layer.
+This mechanism provides local adaptive pacing, not a distributed quota or a
+promise of fair sharing between processes.</p>
+<h3 id="license"><a class="doc-anchor" href="#license">§</a>License</h3>
+<p>Licensed under the Apache License, Version 2.0.</p>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.AimdLayer.html" title="struct opendal_layer_aimd::AimdLayer">Aimd<wbr>Layer</a></dt><dd>Adaptively pace HTTP storage requests using additive increase and
+multiplicative decrease (AIMD).</dd><dt><a class="struct" href="struct.AimdLayerBuilder.html" title="struct opendal_layer_aimd::AimdLayerBuilder">Aimd<wbr>Layer<wbr>Builder</a></dt><dd>Configures the four independent request budgets of an <a href="struct.AimdLayer.html" title="struct opendal_layer_aimd::AimdLayer"><code>AimdLayer</code></a>.
+Each budget receives the same settings and tracks its own rate.</dd></dl></section></div></main></body></html>

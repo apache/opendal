@@ -1,0 +1,2869 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" data-theme="auto">
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Index &#8212; Apache OpenDAL™ Python</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "auto";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "auto";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=6a604523" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../_static/documentation_options.js?v=1f7c75a4"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script data-sd-tabs-storage-prefix="sphinx-design-tab-id-" src="../_static/design-tabs.js?v=fcb327ea"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'genindex';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <script src="../_static/scroll-page-toc.js?v=67cdcd07"></script>
+    <link rel="canonical" href="https://opendal.apache.org/docs/python/genindex/" />
+    <link rel="index" title="Index" href="#" />
+    <link rel="search" title="Search" href="../search/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.47.12" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="auto">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search/"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">Apache OpenDAL™ Python</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../api/">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-external" href="https://opendal.apache.org/docs/">
+    OpenDAL documentation
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/apache/opendal" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../api/">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-external" href="https://opendal.apache.org/docs/">
+    OpenDAL documentation
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/apache/opendal" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none"></div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+
+<h1 id="index">Index</h1>
+
+<div class="genindex-jumpbox">
+ <a href="#_"><strong>_</strong></a>
+ | <a href="#A"><strong>A</strong></a>
+ | <a href="#B"><strong>B</strong></a>
+ | <a href="#C"><strong>C</strong></a>
+ | <a href="#D"><strong>D</strong></a>
+ | <a href="#E"><strong>E</strong></a>
+ | <a href="#F"><strong>F</strong></a>
+ | <a href="#G"><strong>G</strong></a>
+ | <a href="#H"><strong>H</strong></a>
+ | <a href="#I"><strong>I</strong></a>
+ | <a href="#J"><strong>J</strong></a>
+ | <a href="#K"><strong>K</strong></a>
+ | <a href="#L"><strong>L</strong></a>
+ | <a href="#M"><strong>M</strong></a>
+ | <a href="#N"><strong>N</strong></a>
+ | <a href="#O"><strong>O</strong></a>
+ | <a href="#P"><strong>P</strong></a>
+ | <a href="#Q"><strong>Q</strong></a>
+ | <a href="#R"><strong>R</strong></a>
+ | <a href="#S"><strong>S</strong></a>
+ | <a href="#T"><strong>T</strong></a>
+ | <a href="#U"><strong>U</strong></a>
+ | <a href="#V"><strong>V</strong></a>
+ | <a href="#W"><strong>W</strong></a>
+ | <a href="#Y"><strong>Y</strong></a>
+ | <a href="#Z"><strong>Z</strong></a>
+ 
+</div>
+<h2 id="_">_</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.__new__">__new__() (opendal.AsyncOperator static method)</a>
+
+      <ul>
+        <li><a href="../api/layers/#opendal.layers.ConcurrentLimitLayer.__new__">(opendal.layers.ConcurrentLimitLayer static method)</a>
+</li>
+        <li><a href="../api/layers/#opendal.layers.MimeGuessLayer.__new__">(opendal.layers.MimeGuessLayer static method)</a>
+</li>
+        <li><a href="../api/layers/#opendal.layers.RetryLayer.__new__">(opendal.layers.RetryLayer static method)</a>
+</li>
+        <li><a href="../api/layers/#opendal.layers.TimeoutLayer.__new__">(opendal.layers.TimeoutLayer static method)</a>
+</li>
+        <li><a href="../api/operator/#opendal.Operator.__new__">(opendal.Operator static method)</a>
+</li>
+      </ul></li>
+  </ul></td>
+</tr></table>
+
+<h2 id="A">A</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.AkamaiConfig.access_key_id">access_key_id (opendal.config.AkamaiConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.B2S3Config.access_key_id">(opendal.config.B2S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CephRgwConfig.access_key_id">(opendal.config.CephRgwConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CosS3Config.access_key_id">(opendal.config.CosS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ExoscaleConfig.access_key_id">(opendal.config.ExoscaleConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GarageConfig.access_key_id">(opendal.config.GarageConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsS3Config.access_key_id">(opendal.config.GcsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HetznerConfig.access_key_id">(opendal.config.HetznerConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IbmCosConfig.access_key_id">(opendal.config.IbmCosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IdriveE2Config.access_key_id">(opendal.config.IdriveE2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IonosConfig.access_key_id">(opendal.config.IonosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.LakefsS3Config.access_key_id">(opendal.config.LakefsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MinioConfig.access_key_id">(opendal.config.MinioConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.NeonConfig.access_key_id">(opendal.config.NeonConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ObsConfig.access_key_id">(opendal.config.ObsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ObsS3Config.access_key_id">(opendal.config.ObsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OciConfig.access_key_id">(opendal.config.OciConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OssConfig.access_key_id">(opendal.config.OssConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OssS3Config.access_key_id">(opendal.config.OssS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OvhcloudConfig.access_key_id">(opendal.config.OvhcloudConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.QingstorConfig.access_key_id">(opendal.config.QingstorConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.R2Config.access_key_id">(opendal.config.R2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.RustfsConfig.access_key_id">(opendal.config.RustfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.S3Config.access_key_id">(opendal.config.S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ScalewayConfig.access_key_id">(opendal.config.ScalewayConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SeaweedfsConfig.access_key_id">(opendal.config.SeaweedfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SpacesConfig.access_key_id">(opendal.config.SpacesConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.StorjConfig.access_key_id">(opendal.config.StorjConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SupabaseConfig.access_key_id">(opendal.config.SupabaseConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SwiftS3apiConfig.access_key_id">(opendal.config.SwiftS3apiConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TigrisConfig.access_key_id">(opendal.config.TigrisConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TosConfig.access_key_id">(opendal.config.TosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TosS3Config.access_key_id">(opendal.config.TosS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WasabiConfig.access_key_id">(opendal.config.WasabiConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.OssConfig.access_key_secret">access_key_secret (opendal.config.OssConfig attribute)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.AliyunDriveConfig.access_token">access_token (opendal.config.AliyunDriveConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.DropboxConfig.access_token">(opendal.config.DropboxConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GdriveConfig.access_token">(opendal.config.GdriveConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OnedriveConfig.access_token">(opendal.config.OnedriveConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.VercelArtifactsConfig.access_token">(opendal.config.VercelArtifactsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.YandexDiskConfig.access_token">(opendal.config.YandexDiskConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.R2Config.account_id">account_id (opendal.config.R2Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AzblobConfig.account_key">account_key (opendal.config.AzblobConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.AzdlsConfig.account_key">(opendal.config.AzdlsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AzfileConfig.account_key">(opendal.config.AzfileConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.AzblobConfig.account_name">account_name (opendal.config.AzblobConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.AzdlsConfig.account_name">(opendal.config.AzdlsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AzfileConfig.account_name">(opendal.config.AzfileConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.SftpConfig.acquire_timeout">acquire_timeout (opendal.config.SftpConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.OssConfig.addressing_style">addressing_style (opendal.config.OssConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AkamaiConfig">AkamaiConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AliyunDriveConfig">AliyunDriveConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.GcsConfig.allow_anonymous">allow_anonymous (opendal.config.GcsConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.OssConfig.allow_anonymous">(opendal.config.OssConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.S3Config.allow_anonymous">(opendal.config.S3Config attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.AlluxioConfig">AlluxioConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/exceptions/#opendal.exceptions.AlreadyExists">AlreadyExists</a>
+</li>
+      <li><a href="../api/config/#opendal.config.B2Config.application_key">application_key (opendal.config.B2Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.B2Config.application_key_id">application_key_id (opendal.config.B2Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.S3Config.assume_role_duration_seconds">assume_role_duration_seconds (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.S3Config.assume_role_session_tags">assume_role_session_tags (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/async_file/#opendal.file.AsyncFile">AsyncFile (class in opendal.file)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator">AsyncOperator (class in opendal)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.FsConfig.atomic_write_dir">atomic_write_dir (opendal.config.FsConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.WebhdfsConfig.atomic_write_dir">(opendal.config.WebhdfsConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.AzblobConfig.authority_host">authority_host (opendal.config.AzblobConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.AzdlsConfig.authority_host">(opendal.config.AzdlsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AzfileConfig.authority_host">(opendal.config.AzfileConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.AzblobConfig">AzblobConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AzdlsConfig">AzdlsConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AzfileConfig">AzfileConfig (class in opendal.config)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="B">B</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.B2Config">B2Config (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.B2S3Config">B2S3Config (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AzblobConfig.batch_max_operations">batch_max_operations (opendal.config.AzblobConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.OssConfig.batch_max_operations">(opendal.config.OssConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.S3Config.batch_max_operations">(opendal.config.S3Config attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.AkamaiConfig.bucket">bucket (opendal.config.AkamaiConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.B2Config.bucket">(opendal.config.B2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.B2S3Config.bucket">(opendal.config.B2S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CephRgwConfig.bucket">(opendal.config.CephRgwConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CosConfig.bucket">(opendal.config.CosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CosS3Config.bucket">(opendal.config.CosS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ExoscaleConfig.bucket">(opendal.config.ExoscaleConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GarageConfig.bucket">(opendal.config.GarageConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsConfig.bucket">(opendal.config.GcsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsGrpcConfig.bucket">(opendal.config.GcsGrpcConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsS3Config.bucket">(opendal.config.GcsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GridfsConfig.bucket">(opendal.config.GridfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HetznerConfig.bucket">(opendal.config.HetznerConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IbmCosConfig.bucket">(opendal.config.IbmCosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IdriveE2Config.bucket">(opendal.config.IdriveE2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IonosConfig.bucket">(opendal.config.IonosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.LakefsS3Config.bucket">(opendal.config.LakefsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MinioConfig.bucket">(opendal.config.MinioConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.NeonConfig.bucket">(opendal.config.NeonConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ObsConfig.bucket">(opendal.config.ObsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ObsS3Config.bucket">(opendal.config.ObsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OciConfig.bucket">(opendal.config.OciConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OssConfig.bucket">(opendal.config.OssConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OssS3Config.bucket">(opendal.config.OssS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OvhcloudConfig.bucket">(opendal.config.OvhcloudConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.QingstorConfig.bucket">(opendal.config.QingstorConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.R2Config.bucket">(opendal.config.R2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.RustfsConfig.bucket">(opendal.config.RustfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.S3Config.bucket">(opendal.config.S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ScalewayConfig.bucket">(opendal.config.ScalewayConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SeaweedfsConfig.bucket">(opendal.config.SeaweedfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SpacesConfig.bucket">(opendal.config.SpacesConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.StorjConfig.bucket">(opendal.config.StorjConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SupabaseConfig.bucket">(opendal.config.SupabaseConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SwiftS3apiConfig.bucket">(opendal.config.SwiftS3apiConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TigrisConfig.bucket">(opendal.config.TigrisConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TosConfig.bucket">(opendal.config.TosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TosS3Config.bucket">(opendal.config.TosS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.UpyunConfig.bucket">(opendal.config.UpyunConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WasabiConfig.bucket">(opendal.config.WasabiConfig attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.B2Config.bucket_id">bucket_id (opendal.config.B2Config attribute)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="C">C</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.CacacheConfig">CacacheConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.Metadata.cache_control">cache_control (opendal.types.Metadata attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability">Capability (class in opendal.capability)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.capability">capability() (opendal.AsyncOperator method)</a>
+
+      <ul>
+        <li><a href="../api/operator/#opendal.Operator.capability">(opendal.Operator method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/layers/#opendal.layers.CapabilityOverrideLayer">CapabilityOverrideLayer (class in opendal.layers)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.CephRgwConfig">CephRgwConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.check">check() (opendal.AsyncOperator method)</a>
+
+      <ul>
+        <li><a href="../api/operator/#opendal.Operator.check">(opendal.Operator method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/types/#opendal.types.Metadata.checksum">checksum (opendal.types.Metadata attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.S3Config.checksum_algorithm">checksum_algorithm (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/types/#opendal.options.ChecksumAlgorithm">ChecksumAlgorithm (in module opendal.options)</a>
+</li>
+      <li><a href="../api/exceptions/#opendal.exceptions.ChecksumMismatch">ChecksumMismatch</a>
+</li>
+      <li><a href="../api/config/#opendal.config.GridfsConfig.chunk_size">chunk_size (opendal.config.GridfsConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AliyunDriveConfig.client_id">client_id (opendal.config.AliyunDriveConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.AzblobConfig.client_id">(opendal.config.AzblobConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AzdlsConfig.client_id">(opendal.config.AzdlsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AzfileConfig.client_id">(opendal.config.AzfileConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.DropboxConfig.client_id">(opendal.config.DropboxConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GdriveConfig.client_id">(opendal.config.GdriveConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OnedriveConfig.client_id">(opendal.config.OnedriveConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.AliyunDriveConfig.client_secret">client_secret (opendal.config.AliyunDriveConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.AzblobConfig.client_secret">(opendal.config.AzblobConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AzdlsConfig.client_secret">(opendal.config.AzdlsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AzfileConfig.client_secret">(opendal.config.AzfileConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.DropboxConfig.client_secret">(opendal.config.DropboxConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GdriveConfig.client_secret">(opendal.config.GdriveConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OnedriveConfig.client_secret">(opendal.config.OnedriveConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/async_file/#opendal.file.AsyncFile.close">close() (opendal.file.AsyncFile method)</a>
+
+      <ul>
+        <li><a href="../api/file/#opendal.file.File.close">(opendal.file.File method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/async_file/#opendal.file.AsyncFile.closed">closed (opendal.file.AsyncFile attribute)</a>
+
+      <ul>
+        <li><a href="../api/file/#opendal.file.File.closed">(opendal.file.File attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.RedisConfig.cluster_endpoints">cluster_endpoints (opendal.config.RedisConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.MongodbConfig.collection">collection (opendal.config.MongodbConfig attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.compose">compose (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.compose_with_cache_control">compose_with_cache_control (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.compose_with_content_disposition">compose_with_content_disposition (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.compose_with_content_encoding">compose_with_content_encoding (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.compose_with_content_type">compose_with_content_type (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.compose_with_if_match">compose_with_if_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.compose_with_if_none_match">compose_with_if_none_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.compose_with_if_not_exists">compose_with_if_not_exists (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.compose_with_if_version_match">compose_with_if_version_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.compose_with_if_version_not_match">compose_with_if_version_not_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.compose_with_source_if_match">compose_with_source_if_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.compose_with_source_version">compose_with_source_version (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.compose_with_user_metadata">compose_with_user_metadata (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/layers/#opendal.layers.ConcurrentLimitLayer">ConcurrentLimitLayer (class in opendal.layers)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.ConcurrentLimitLayerConfig">ConcurrentLimitLayerConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/exceptions/#opendal.exceptions.ConditionNotMatch">ConditionNotMatch</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/exceptions/#opendal.exceptions.ConfigInvalid">ConfigInvalid</a>
+</li>
+      <li><a href="../api/exceptions/#opendal.exceptions.Conflict">Conflict</a>
+</li>
+      <li><a href="../api/config/#opendal.config.HttpContextConfig.connect_timeout">connect_timeout (opendal.config.HttpContextConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.SftpConfig.connect_timeout">(opendal.config.SftpConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.MemcachedConfig.connection_pool_max_size">connection_pool_max_size (opendal.config.MemcachedConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.RedisConfig.connection_pool_max_size">(opendal.config.RedisConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.GridfsConfig.connection_string">connection_string (opendal.config.GridfsConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.MongodbConfig.connection_string">(opendal.config.MongodbConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MysqlConfig.connection_string">(opendal.config.MysqlConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.PostgresqlConfig.connection_string">(opendal.config.PostgresqlConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SqliteConfig.connection_string">(opendal.config.SqliteConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.AzblobConfig.container">container (opendal.config.AzblobConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.SwiftConfig.container">(opendal.config.SwiftConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.S3Config.container_authorization_token">container_authorization_token (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.S3Config.container_authorization_token_file">container_authorization_token_file (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.S3Config.container_credentials_endpoint">container_credentials_endpoint (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.S3Config.container_credentials_relative_uri">container_credentials_relative_uri (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.S3Config.container_metadata_uri_override">container_metadata_uri_override (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.Metadata.content_disposition">content_disposition (opendal.types.Metadata attribute)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.Metadata.content_encoding">content_encoding (opendal.types.Metadata attribute)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.Metadata.content_language">content_language (opendal.types.Metadata attribute)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.Metadata.content_length">content_length (opendal.types.Metadata attribute)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.Metadata.content_md5">content_md5 (opendal.types.Metadata attribute)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.Metadata.content_type">content_type (opendal.types.Metadata attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.ContextConfig">ContextConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.SftpConfig.control_directory">control_directory (opendal.config.SftpConfig attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.copy">copy (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.copy">copy() (opendal.AsyncOperator method)</a>
+
+      <ul>
+        <li><a href="../api/operator/#opendal.Operator.copy">(opendal.Operator method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/capability/#opendal.capability.Capability.copy_can_multi">copy_can_multi (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.copy_multi_max_size">copy_multi_max_size (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.copy_multi_min_size">copy_multi_min_size (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.copy_with_content_language">copy_with_content_language (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.copy_with_content_type">copy_with_content_type (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.copy_with_if_match">copy_with_if_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.copy_with_if_none_match">copy_with_if_none_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.copy_with_if_not_exists">copy_with_if_not_exists (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.copy_with_if_version_match">copy_with_if_version_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.copy_with_if_version_not_match">copy_with_if_version_not_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.copy_with_source_version">copy_with_source_version (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.copy_with_user_metadata">copy_with_user_metadata (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.CosConfig">CosConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.CosS3Config">CosS3Config (class in opendal.config)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.create_dir">create_dir (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.create_dir">create_dir() (opendal.AsyncOperator method)</a>
+
+      <ul>
+        <li><a href="../api/operator/#opendal.Operator.create_dir">(opendal.Operator method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.GcsConfig.credential">credential (opendal.config.GcsConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.GcsGrpcConfig.credential">(opendal.config.GcsGrpcConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.GcsConfig.credential_path">credential_path (opendal.config.GcsConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.GcsGrpcConfig.credential_path">(opendal.config.GcsGrpcConfig attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+</tr></table>
+
+<h2 id="D">D</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.DashmapConfig">DashmapConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.GridfsConfig.database">database (opendal.config.GridfsConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.MongodbConfig.database">(opendal.config.MongodbConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.SpacesConfig.datacenter">datacenter (opendal.config.SpacesConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.CacacheConfig.datadir">datadir (opendal.config.CacacheConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.RedbConfig.datadir">(opendal.config.RedbConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SledConfig.datadir">(opendal.config.SledConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.PersyConfig.datafile">datafile (opendal.config.PersyConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.RedisConfig.db">db (opendal.config.RedisConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.S3Config.default_acl">default_acl (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.S3Config.default_region">default_region (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.GcsConfig.default_storage_class">default_storage_class (opendal.config.GcsConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.S3Config.default_storage_class">(opendal.config.S3Config attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.MemcachedConfig.default_ttl">default_ttl (opendal.config.MemcachedConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.RedisConfig.default_ttl">(opendal.config.RedisConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.WebhdfsConfig.delegation">delegation (opendal.config.WebhdfsConfig attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.delete">delete (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.delete">delete() (opendal.AsyncOperator method)</a>
+
+      <ul>
+        <li><a href="../api/operator/#opendal.Operator.delete">(opendal.Operator method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.delete_many">delete_many() (opendal.AsyncOperator method)</a>
+
+      <ul>
+        <li><a href="../api/operator/#opendal.Operator.delete_many">(opendal.Operator method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/capability/#opendal.capability.Capability.delete_max_size">delete_max_size (opendal.capability.Capability attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.OssConfig.delete_max_size">(opendal.config.OssConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.S3Config.delete_max_size">(opendal.config.S3Config attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/capability/#opendal.capability.Capability.delete_with_if_match">delete_with_if_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.delete_with_if_none_match">delete_with_if_none_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.delete_with_if_version_match">delete_with_if_version_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.delete_with_if_version_not_match">delete_with_if_version_not_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.delete_with_recursive">delete_with_recursive (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.delete_with_version">delete_with_version (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.EntryMode.Dir">Dir (opendal.types.EntryMode attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.FsConfig.direct_io">direct_io (opendal.config.FsConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AkamaiConfig.disable_config_load">disable_config_load (opendal.config.AkamaiConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.B2S3Config.disable_config_load">(opendal.config.B2S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CephRgwConfig.disable_config_load">(opendal.config.CephRgwConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CosConfig.disable_config_load">(opendal.config.CosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CosS3Config.disable_config_load">(opendal.config.CosS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ExoscaleConfig.disable_config_load">(opendal.config.ExoscaleConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GarageConfig.disable_config_load">(opendal.config.GarageConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsConfig.disable_config_load">(opendal.config.GcsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsGrpcConfig.disable_config_load">(opendal.config.GcsGrpcConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsS3Config.disable_config_load">(opendal.config.GcsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HetznerConfig.disable_config_load">(opendal.config.HetznerConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HfConfig.disable_config_load">(opendal.config.HfConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IbmCosConfig.disable_config_load">(opendal.config.IbmCosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IdriveE2Config.disable_config_load">(opendal.config.IdriveE2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IonosConfig.disable_config_load">(opendal.config.IonosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.LakefsS3Config.disable_config_load">(opendal.config.LakefsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MinioConfig.disable_config_load">(opendal.config.MinioConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.NeonConfig.disable_config_load">(opendal.config.NeonConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ObsConfig.disable_config_load">(opendal.config.ObsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ObsS3Config.disable_config_load">(opendal.config.ObsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OciConfig.disable_config_load">(opendal.config.OciConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OssConfig.disable_config_load">(opendal.config.OssConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OssS3Config.disable_config_load">(opendal.config.OssS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OvhcloudConfig.disable_config_load">(opendal.config.OvhcloudConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.QingstorConfig.disable_config_load">(opendal.config.QingstorConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.R2Config.disable_config_load">(opendal.config.R2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.RustfsConfig.disable_config_load">(opendal.config.RustfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.S3Config.disable_config_load">(opendal.config.S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ScalewayConfig.disable_config_load">(opendal.config.ScalewayConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SeaweedfsConfig.disable_config_load">(opendal.config.SeaweedfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SpacesConfig.disable_config_load">(opendal.config.SpacesConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.StorjConfig.disable_config_load">(opendal.config.StorjConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SupabaseConfig.disable_config_load">(opendal.config.SupabaseConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SwiftS3apiConfig.disable_config_load">(opendal.config.SwiftS3apiConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TigrisConfig.disable_config_load">(opendal.config.TigrisConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TosConfig.disable_config_load">(opendal.config.TosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TosS3Config.disable_config_load">(opendal.config.TosS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WasabiConfig.disable_config_load">(opendal.config.WasabiConfig attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.WebdavConfig.disable_copy">disable_copy (opendal.config.WebdavConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.WebdavConfig.disable_create_dir">disable_create_dir (opendal.config.WebdavConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.WebdavConfig.disable_depth_infinity">disable_depth_infinity (opendal.config.WebdavConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.S3Config.disable_ec2_metadata">disable_ec2_metadata (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.WebhdfsConfig.disable_list_batch">disable_list_batch (opendal.config.WebhdfsConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.S3Config.disable_list_objects_v2">disable_list_objects_v2 (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.S3Config.disable_stat_with_override">disable_stat_with_override (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.GcsConfig.disable_vm_metadata">disable_vm_metadata (opendal.config.GcsConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.GcsGrpcConfig.disable_vm_metadata">(opendal.config.GcsGrpcConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.S3Config.disable_write_with_if_match">disable_write_with_if_match (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.FoyerConfig.disk_capacity">disk_capacity (opendal.config.FoyerConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.FoyerConfig.disk_file_size">disk_file_size (opendal.config.FoyerConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.FoyerConfig.disk_path">disk_path (opendal.config.FoyerConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.HfConfig.download_mode">download_mode (opendal.config.HfConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.GdriveConfig.drive_id">drive_id (opendal.config.GdriveConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AliyunDriveConfig.drive_type">drive_type (opendal.config.AliyunDriveConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.DropboxConfig">DropboxConfig (class in opendal.config)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="E">E</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.KoofrConfig.email">email (opendal.config.KoofrConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.HdfsNativeConfig.enable_append">enable_append (opendal.config.HdfsNativeConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.WebdavConfig.enable_conditional_read">enable_conditional_read (opendal.config.WebdavConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.SftpConfig.enable_copy">enable_copy (opendal.config.SftpConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AzdlsConfig.enable_hns">enable_hns (opendal.config.AzdlsConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.S3Config.enable_request_payer">enable_request_payer (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.HfConfig.enable_resolve_cache">enable_resolve_cache (opendal.config.HfConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.MemcachedConfig.enable_tls">enable_tls (opendal.config.MemcachedConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.WebdavConfig.enable_user_metadata">enable_user_metadata (opendal.config.WebdavConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.CosConfig.enable_versioning">enable_versioning (opendal.config.CosConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.ObsConfig.enable_versioning">(opendal.config.ObsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OnedriveConfig.enable_versioning">(opendal.config.OnedriveConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OssConfig.enable_versioning">(opendal.config.OssConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.S3Config.enable_versioning">(opendal.config.S3Config attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.AkamaiConfig.enable_virtual_host_style">enable_virtual_host_style (opendal.config.AkamaiConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.B2S3Config.enable_virtual_host_style">(opendal.config.B2S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CephRgwConfig.enable_virtual_host_style">(opendal.config.CephRgwConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ExoscaleConfig.enable_virtual_host_style">(opendal.config.ExoscaleConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GarageConfig.enable_virtual_host_style">(opendal.config.GarageConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsS3Config.enable_virtual_host_style">(opendal.config.GcsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HetznerConfig.enable_virtual_host_style">(opendal.config.HetznerConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IbmCosConfig.enable_virtual_host_style">(opendal.config.IbmCosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.LakefsS3Config.enable_virtual_host_style">(opendal.config.LakefsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OvhcloudConfig.enable_virtual_host_style">(opendal.config.OvhcloudConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.QingstorConfig.enable_virtual_host_style">(opendal.config.QingstorConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.RustfsConfig.enable_virtual_host_style">(opendal.config.RustfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.S3Config.enable_virtual_host_style">(opendal.config.S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ScalewayConfig.enable_virtual_host_style">(opendal.config.ScalewayConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SeaweedfsConfig.enable_virtual_host_style">(opendal.config.SeaweedfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SpacesConfig.enable_virtual_host_style">(opendal.config.SpacesConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SwiftS3apiConfig.enable_virtual_host_style">(opendal.config.SwiftS3apiConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TigrisConfig.enable_virtual_host_style">(opendal.config.TigrisConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WasabiConfig.enable_virtual_host_style">(opendal.config.WasabiConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.S3Config.enable_write_with_append">enable_write_with_append (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AzblobConfig.encryption_algorithm">encryption_algorithm (opendal.config.AzblobConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AzblobConfig.encryption_key">encryption_key (opendal.config.AzblobConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AzblobConfig.encryption_key_sha256">encryption_key_sha256 (opendal.config.AzblobConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AkamaiConfig.endpoint">endpoint (opendal.config.AkamaiConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.AlluxioConfig.endpoint">(opendal.config.AlluxioConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AzblobConfig.endpoint">(opendal.config.AzblobConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AzdlsConfig.endpoint">(opendal.config.AzdlsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AzfileConfig.endpoint">(opendal.config.AzfileConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.B2S3Config.endpoint">(opendal.config.B2S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CephRgwConfig.endpoint">(opendal.config.CephRgwConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CosConfig.endpoint">(opendal.config.CosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CosS3Config.endpoint">(opendal.config.CosS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ExoscaleConfig.endpoint">(opendal.config.ExoscaleConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.FtpConfig.endpoint">(opendal.config.FtpConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GarageConfig.endpoint">(opendal.config.GarageConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsConfig.endpoint">(opendal.config.GcsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsGrpcConfig.endpoint">(opendal.config.GcsGrpcConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsS3Config.endpoint">(opendal.config.GcsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GhacConfig.endpoint">(opendal.config.GhacConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HetznerConfig.endpoint">(opendal.config.HetznerConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HfConfig.endpoint">(opendal.config.HfConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HttpConfig.endpoint">(opendal.config.HttpConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IbmCosConfig.endpoint">(opendal.config.IbmCosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IdriveE2Config.endpoint">(opendal.config.IdriveE2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IonosConfig.endpoint">(opendal.config.IonosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IpfsConfig.endpoint">(opendal.config.IpfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IpmfsConfig.endpoint">(opendal.config.IpmfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.KoofrConfig.endpoint">(opendal.config.KoofrConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.LakefsS3Config.endpoint">(opendal.config.LakefsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MemcachedConfig.endpoint">(opendal.config.MemcachedConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MinioConfig.endpoint">(opendal.config.MinioConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.NeonConfig.endpoint">(opendal.config.NeonConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ObsConfig.endpoint">(opendal.config.ObsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ObsS3Config.endpoint">(opendal.config.ObsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OciConfig.endpoint">(opendal.config.OciConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OssConfig.endpoint">(opendal.config.OssConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OssS3Config.endpoint">(opendal.config.OssS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OvhcloudConfig.endpoint">(opendal.config.OvhcloudConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.QingstorConfig.endpoint">(opendal.config.QingstorConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.R2Config.endpoint">(opendal.config.R2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.RedisConfig.endpoint">(opendal.config.RedisConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.RustfsConfig.endpoint">(opendal.config.RustfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.S3Config.endpoint">(opendal.config.S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ScalewayConfig.endpoint">(opendal.config.ScalewayConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SeafileConfig.endpoint">(opendal.config.SeafileConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SeaweedfsConfig.endpoint">(opendal.config.SeaweedfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SftpConfig.endpoint">(opendal.config.SftpConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SpacesConfig.endpoint">(opendal.config.SpacesConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.StorjConfig.endpoint">(opendal.config.StorjConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SupabaseConfig.endpoint">(opendal.config.SupabaseConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SwiftConfig.endpoint">(opendal.config.SwiftConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SwiftS3apiConfig.endpoint">(opendal.config.SwiftS3apiConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TigrisConfig.endpoint">(opendal.config.TigrisConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TosConfig.endpoint">(opendal.config.TosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TosS3Config.endpoint">(opendal.config.TosS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.VercelArtifactsConfig.endpoint">(opendal.config.VercelArtifactsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WasabiConfig.endpoint">(opendal.config.WasabiConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WebdavConfig.endpoint">(opendal.config.WebdavConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WebhdfsConfig.endpoint">(opendal.config.WebhdfsConfig attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/types/#opendal.types.Entry">Entry (class in opendal.types)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.EntryMode">EntryMode (class in opendal.types)</a>
+</li>
+      <li><a href="../api/exceptions/#opendal.exceptions.Error">Error</a>
+</li>
+      <li><a href="../api/types/#opendal.types.Metadata.etag">etag (opendal.types.Metadata attribute)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.exists">exists() (opendal.AsyncOperator method)</a>
+
+      <ul>
+        <li><a href="../api/operator/#opendal.Operator.exists">(opendal.Operator method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.ExoscaleConfig">ExoscaleConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.OssConfig.external_id">external_id (opendal.config.OssConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.S3Config.external_id">(opendal.config.S3Config attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+</tr></table>
+
+<h2 id="F">F</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.RetryLayerConfig.factor">factor (opendal.config.RetryLayerConfig attribute)</a>
+</li>
+      <li><a href="../api/file/#opendal.file.File">File (class in opendal.file)</a>
+
+      <ul>
+        <li><a href="../api/types/#opendal.types.EntryMode.File">(opendal.types.EntryMode attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.AzdlsConfig.filesystem">filesystem (opendal.config.AzdlsConfig attribute)</a>
+</li>
+      <li><a href="../api/file/#opendal.file.File.flush">flush() (opendal.file.File method)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.FoyerConfig">FoyerConfig (class in opendal.config)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.from_config">from_config() (opendal.AsyncOperator class method)</a>
+
+      <ul>
+        <li><a href="../api/operator/#opendal.Operator.from_config">(opendal.Operator class method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.from_uri">from_uri() (opendal.AsyncOperator class method)</a>
+
+      <ul>
+        <li><a href="../api/operator/#opendal.Operator.from_uri">(opendal.Operator class method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.FsConfig">FsConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.FtpConfig">FtpConfig (class in opendal.config)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="G">G</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.GarageConfig">GarageConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.GcsConfig">GcsConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.GcsGrpcConfig">GcsGrpcConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.GcsS3Config">GcsS3Config (class in opendal.config)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.GdriveConfig">GdriveConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.GhacConfig">GhacConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.GithubConfig">GithubConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.GridfsConfig">GridfsConfig (class in opendal.config)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="H">H</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.HdfsNativeConfig">HdfsNativeConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.PresignedRequest.headers">headers (opendal.types.PresignedRequest attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.HetznerConfig">HetznerConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.HfConfig">HfConfig (class in opendal.config)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.ContextConfig.http">http (opendal.config.ContextConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.ConcurrentLimitLayerConfig.http_permits">http_permits (opendal.config.ConcurrentLimitLayerConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.HttpConfig">HttpConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.HttpContextConfig">HttpContextConfig (class in opendal.config)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="I">I</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.IbmCosConfig">IbmCosConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.IdriveE2Config">IdriveE2Config (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.PersyConfig.index">index (opendal.config.PersyConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.TimeoutLayerConfig.io_timeout">io_timeout (opendal.config.TimeoutLayerConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.IonosConfig">IonosConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.IpfsConfig">IpfsConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.IpmfsConfig">IpmfsConfig (class in opendal.config)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/types/#opendal.types.Metadata.is_current">is_current (opendal.types.Metadata attribute)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.Metadata.is_deleted">is_deleted (opendal.types.Metadata attribute)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.Metadata.is_dir">is_dir (opendal.types.Metadata attribute)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.EntryMode.is_dir">is_dir() (opendal.types.EntryMode method)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.Metadata.is_file">is_file (opendal.types.Metadata attribute)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.EntryMode.is_file">is_file() (opendal.types.EntryMode method)</a>
+</li>
+      <li><a href="../api/exceptions/#opendal.exceptions.IsADirectory">IsADirectory</a>
+</li>
+      <li><a href="../api/exceptions/#opendal.exceptions.IsSameFile">IsSameFile</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="J">J</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.RetryLayerConfig.jitter">jitter (opendal.config.RetryLayerConfig attribute)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.R2Config.jurisdiction">jurisdiction (opendal.config.R2Config attribute)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="K">K</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.SftpConfig.key">key (opendal.config.SftpConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.MongodbConfig.key_field">key_field (opendal.config.MongodbConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.MysqlConfig.key_field">(opendal.config.MysqlConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.PostgresqlConfig.key_field">(opendal.config.PostgresqlConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SqliteConfig.key_field">(opendal.config.SqliteConfig attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.SftpConfig.known_hosts_strategy">known_hosts_strategy (opendal.config.SftpConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.KoofrConfig">KoofrConfig (class in opendal.config)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="L">L</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.LakefsS3Config">LakefsS3Config (class in opendal.config)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.Metadata.last_modified">last_modified (opendal.types.Metadata attribute)</a>
+</li>
+      <li><a href="../api/layers/#opendal.layers.Layer">Layer (class in opendal.layers)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.layer">layer() (opendal.AsyncOperator method)</a>
+
+      <ul>
+        <li><a href="../api/operator/#opendal.Operator.layer">(opendal.Operator method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.LayerConfig">LayerConfig (in module opendal.config)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.list">list (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.list">list() (opendal.AsyncOperator method)</a>
+
+      <ul>
+        <li><a href="../api/operator/#opendal.Operator.list">(opendal.Operator method)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.ConcurrentLimitLayerConfig.list_permits">list_permits (opendal.config.ConcurrentLimitLayerConfig attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.list_with_deleted">list_with_deleted (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.list_with_glob">list_with_glob (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.list_with_limit">list_with_limit (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.list_with_recursive">list_with_recursive (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.list_with_start_after">list_with_start_after (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.list_with_versions">list_with_versions (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.HetznerConfig.location">location (opendal.config.HetznerConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.LoggingLayerConfig">LoggingLayerConfig (class in opendal.config)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="M">M</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.MiniMokaConfig.max_capacity">max_capacity (opendal.config.MiniMokaConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.MokaConfig.max_capacity">(opendal.config.MokaConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.RetryLayerConfig.max_delay">max_delay (opendal.config.RetryLayerConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.RetryLayerConfig.max_times">max_times (opendal.config.RetryLayerConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.MemcachedConfig">MemcachedConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.FoyerConfig.memory">memory (opendal.config.FoyerConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.MemoryConfig">MemoryConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.Metadata">Metadata (class in opendal.types)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.Entry.metadata">metadata (opendal.types.Entry attribute)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.PresignedRequest.method">method (opendal.types.PresignedRequest attribute)</a>
+</li>
+      <li><a href="../api/layers/#opendal.layers.MimeGuessLayer">MimeGuessLayer (class in opendal.layers)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.MimeGuessLayerConfig">MimeGuessLayerConfig (class in opendal.config)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.RetryLayerConfig.min_delay">min_delay (opendal.config.RetryLayerConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.MiniMokaConfig">MiniMokaConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.MinioConfig">MinioConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.Metadata.mode">mode (opendal.types.Metadata attribute)</a>
+</li>
+      <li>
+    module
+
+      <ul>
+        <li><a href="../api/config/#module-opendal.config">opendal.config</a>
+</li>
+        <li><a href="../api/exceptions/#module-opendal.exceptions">opendal.exceptions</a>
+</li>
+        <li><a href="../api/layers/#module-opendal.layers">opendal.layers</a>
+</li>
+        <li><a href="../api/types/#module-opendal.types">opendal.types</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.MokaConfig">MokaConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.MongodbConfig">MongodbConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.MysqlConfig">MysqlConfig (class in opendal.config)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="N">N</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.ConcurrentLimitLayerConfig.name">name (opendal.config.ConcurrentLimitLayerConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.FoyerConfig.name">(opendal.config.FoyerConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.LoggingLayerConfig.name">(opendal.config.LoggingLayerConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MimeGuessLayerConfig.name">(opendal.config.MimeGuessLayerConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MokaConfig.name">(opendal.config.MokaConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.RetryLayerConfig.name">(opendal.config.RetryLayerConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TimeoutLayerConfig.name">(opendal.config.TimeoutLayerConfig attribute)</a>
+</li>
+        <li><a href="../api/types/#opendal.types.Entry.name">(opendal.types.Entry attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.HdfsNativeConfig.name_node">name_node (opendal.config.HdfsNativeConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.OciConfig.namespace">namespace (opendal.config.OciConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.NeonConfig">NeonConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.HttpContextConfig.no_proxy">no_proxy (opendal.config.HttpContextConfig attribute)</a>
+</li>
+      <li><a href="../api/exceptions/#opendal.exceptions.NotADirectory">NotADirectory</a>
+</li>
+      <li><a href="../api/exceptions/#opendal.exceptions.NotFound">NotFound</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="O">O</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.ObsConfig">ObsConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.ObsS3Config">ObsS3Config (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.OciConfig">OciConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.OssConfig.oidc_provider_arn">oidc_provider_arn (opendal.config.OssConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.OssConfig.oidc_token_file">oidc_token_file (opendal.config.OssConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.OnedriveConfig">OnedriveConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.open">open() (opendal.AsyncOperator method)</a>
+
+      <ul>
+        <li><a href="../api/operator/#opendal.Operator.open">(opendal.Operator method)</a>
+</li>
+      </ul></li>
+      <li>
+    opendal.config
+
+      <ul>
+        <li><a href="../api/config/#module-opendal.config">module</a>
+</li>
+      </ul></li>
+      <li>
+    opendal.exceptions
+
+      <ul>
+        <li><a href="../api/exceptions/#module-opendal.exceptions">module</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li>
+    opendal.layers
+
+      <ul>
+        <li><a href="../api/layers/#module-opendal.layers">module</a>
+</li>
+      </ul></li>
+      <li>
+    opendal.types
+
+      <ul>
+        <li><a href="../api/types/#module-opendal.types">module</a>
+</li>
+      </ul></li>
+      <li><a href="../api/types/#opendal.options.OpenKwargs">OpenKwargs (class in opendal.options)</a>
+</li>
+      <li><a href="../api/operator/#opendal.Operator">Operator (class in opendal)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.UpyunConfig.operator">operator (opendal.config.UpyunConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.HdfsNativeConfig.options">options (opendal.config.HdfsNativeConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.OssConfig">OssConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.OssS3Config">OssS3Config (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.OvhcloudConfig">OvhcloudConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.GithubConfig.owner">owner (opendal.config.GithubConfig attribute)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="P">P</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.FtpConfig.password">password (opendal.config.FtpConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.HttpConfig.password">(opendal.config.HttpConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.KoofrConfig.password">(opendal.config.KoofrConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MemcachedConfig.password">(opendal.config.MemcachedConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.RedisConfig.password">(opendal.config.RedisConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SeafileConfig.password">(opendal.config.SeafileConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.UpyunConfig.password">(opendal.config.UpyunConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WebdavConfig.password">(opendal.config.WebdavConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/types/#opendal.types.Entry.path">path (opendal.types.Entry attribute)</a>
+</li>
+      <li><a href="../api/exceptions/#opendal.exceptions.PermissionDenied">PermissionDenied</a>
+</li>
+      <li><a href="../api/config/#opendal.config.ConcurrentLimitLayerConfig.permits">permits (opendal.config.ConcurrentLimitLayerConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.PersyConfig">PersyConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.PostgresqlConfig">PostgresqlConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.GcsConfig.predefined_acl">predefined_acl (opendal.config.GcsConfig attribute)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/capability/#opendal.capability.Capability.presign">presign (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.OssConfig.presign_addressing_style">presign_addressing_style (opendal.config.OssConfig attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.presign_delete">presign_delete (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.presign_delete">presign_delete() (opendal.AsyncOperator method)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.OssConfig.presign_endpoint">presign_endpoint (opendal.config.OssConfig attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.presign_read">presign_read (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.presign_read">presign_read() (opendal.AsyncOperator method)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.presign_stat">presign_stat (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.presign_stat">presign_stat() (opendal.AsyncOperator method)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.presign_write">presign_write (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.presign_write">presign_write() (opendal.AsyncOperator method)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.PresignedRequest">PresignedRequest (class in opendal.types)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.S3Config.profile">profile (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.SupabaseConfig.project_ref">project_ref (opendal.config.SupabaseConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.HttpContextConfig.proxy">proxy (opendal.config.HttpContextConfig attribute)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="Q">Q</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.QingstorConfig">QingstorConfig (class in opendal.config)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="R">R</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.R2Config">R2Config (class in opendal.config)</a>
+</li>
+      <li><a href="../api/exceptions/#opendal.exceptions.RangeNotSatisfied">RangeNotSatisfied</a>
+</li>
+      <li><a href="../api/exceptions/#opendal.exceptions.RateLimited">RateLimited</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.read">read (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.read">read() (opendal.AsyncOperator method)</a>
+
+      <ul>
+        <li><a href="../api/async_file/#opendal.file.AsyncFile.read">(opendal.file.AsyncFile method)</a>
+</li>
+        <li><a href="../api/file/#opendal.file.File.read">(opendal.file.File method)</a>
+</li>
+        <li><a href="../api/operator/#opendal.Operator.read">(opendal.Operator method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/async_file/#opendal.file.AsyncFile.read_buffered">read_buffered() (opendal.file.AsyncFile method)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.RedisConfig.read_from_replicas">read_from_replicas (opendal.config.RedisConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.ConcurrentLimitLayerConfig.read_permits">read_permits (opendal.config.ConcurrentLimitLayerConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.HttpContextConfig.read_timeout">read_timeout (opendal.config.HttpContextConfig attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.read_with_checksum">read_with_checksum (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.read_with_if_match">read_with_if_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.read_with_if_modified_since">read_with_if_modified_since (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.read_with_if_none_match">read_with_if_none_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.read_with_if_unmodified_since">read_with_if_unmodified_since (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.read_with_if_version_match">read_with_if_version_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.read_with_if_version_not_match">read_with_if_version_not_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.read_with_override_cache_control">read_with_override_cache_control (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.read_with_override_content_disposition">read_with_override_content_disposition (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.read_with_override_content_type">read_with_override_content_type (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.read_with_suffix">read_with_suffix (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.read_with_version">read_with_version (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/async_file/#opendal.file.AsyncFile.readable">readable() (opendal.file.AsyncFile method)</a>
+
+      <ul>
+        <li><a href="../api/file/#opendal.file.File.readable">(opendal.file.File method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/file/#opendal.file.File.readinto">readinto() (opendal.file.File method)</a>
+</li>
+      <li><a href="../api/file/#opendal.file.File.readline">readline() (opendal.file.File method)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.FoyerConfig.recover_mode">recover_mode (opendal.config.FoyerConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.RedbConfig">RedbConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.RedisConfig">RedisConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AliyunDriveConfig.refresh_token">refresh_token (opendal.config.AliyunDriveConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.DropboxConfig.refresh_token">(opendal.config.DropboxConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GdriveConfig.refresh_token">(opendal.config.GdriveConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OnedriveConfig.refresh_token">(opendal.config.OnedriveConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.AkamaiConfig.region">region (opendal.config.AkamaiConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.B2S3Config.region">(opendal.config.B2S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CephRgwConfig.region">(opendal.config.CephRgwConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CosS3Config.region">(opendal.config.CosS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GarageConfig.region">(opendal.config.GarageConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsS3Config.region">(opendal.config.GcsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HetznerConfig.region">(opendal.config.HetznerConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IbmCosConfig.region">(opendal.config.IbmCosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IdriveE2Config.region">(opendal.config.IdriveE2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IonosConfig.region">(opendal.config.IonosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.LakefsS3Config.region">(opendal.config.LakefsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MinioConfig.region">(opendal.config.MinioConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.NeonConfig.region">(opendal.config.NeonConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ObsS3Config.region">(opendal.config.ObsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OciConfig.region">(opendal.config.OciConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OssS3Config.region">(opendal.config.OssS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OvhcloudConfig.region">(opendal.config.OvhcloudConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.RustfsConfig.region">(opendal.config.RustfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.S3Config.region">(opendal.config.S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ScalewayConfig.region">(opendal.config.ScalewayConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SeaweedfsConfig.region">(opendal.config.SeaweedfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SpacesConfig.region">(opendal.config.SpacesConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.StorjConfig.region">(opendal.config.StorjConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SupabaseConfig.region">(opendal.config.SupabaseConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SwiftS3apiConfig.region">(opendal.config.SwiftS3apiConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TigrisConfig.region">(opendal.config.TigrisConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TosConfig.region">(opendal.config.TosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TosS3Config.region">(opendal.config.TosS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WasabiConfig.region">(opendal.config.WasabiConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.remove_all">remove_all() (opendal.AsyncOperator method)</a>
+
+      <ul>
+        <li><a href="../api/operator/#opendal.Operator.remove_all">(opendal.Operator method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/capability/#opendal.capability.Capability.rename">rename (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.rename">rename() (opendal.AsyncOperator method)</a>
+
+      <ul>
+        <li><a href="../api/operator/#opendal.Operator.rename">(opendal.Operator method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/capability/#opendal.capability.Capability.rename_with_if_not_exists">rename_with_if_not_exists (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.GithubConfig.repo">repo (opendal.config.GithubConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.HfConfig.repo_id">repo_id (opendal.config.HfConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.SeafileConfig.repo_name">repo_name (opendal.config.SeafileConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.HfConfig.repo_type">repo_type (opendal.config.HfConfig attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.restore">restore (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.restore_with_if_not_exists">restore_with_if_not_exists (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.restore_with_version">restore_with_version (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/layers/#opendal.layers.RetryLayer">RetryLayer (class in opendal.layers)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.RetryLayerConfig">RetryLayerConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.HfConfig.revision">revision (opendal.config.HfConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.OssConfig.role_arn">role_arn (opendal.config.OssConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.S3Config.role_arn">(opendal.config.S3Config attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.OssConfig.role_session_name">role_session_name (opendal.config.OssConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.S3Config.role_session_name">(opendal.config.S3Config attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.AkamaiConfig.root">root (opendal.config.AkamaiConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.AliyunDriveConfig.root">(opendal.config.AliyunDriveConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AlluxioConfig.root">(opendal.config.AlluxioConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AzblobConfig.root">(opendal.config.AzblobConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AzdlsConfig.root">(opendal.config.AzdlsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AzfileConfig.root">(opendal.config.AzfileConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.B2Config.root">(opendal.config.B2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.B2S3Config.root">(opendal.config.B2S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CephRgwConfig.root">(opendal.config.CephRgwConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CosConfig.root">(opendal.config.CosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CosS3Config.root">(opendal.config.CosS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.DashmapConfig.root">(opendal.config.DashmapConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.DropboxConfig.root">(opendal.config.DropboxConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ExoscaleConfig.root">(opendal.config.ExoscaleConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.FoyerConfig.root">(opendal.config.FoyerConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.FsConfig.root">(opendal.config.FsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.FtpConfig.root">(opendal.config.FtpConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GarageConfig.root">(opendal.config.GarageConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsConfig.root">(opendal.config.GcsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsGrpcConfig.root">(opendal.config.GcsGrpcConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsS3Config.root">(opendal.config.GcsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GdriveConfig.root">(opendal.config.GdriveConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GhacConfig.root">(opendal.config.GhacConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GithubConfig.root">(opendal.config.GithubConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GridfsConfig.root">(opendal.config.GridfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HdfsNativeConfig.root">(opendal.config.HdfsNativeConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HetznerConfig.root">(opendal.config.HetznerConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HfConfig.root">(opendal.config.HfConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HttpConfig.root">(opendal.config.HttpConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IbmCosConfig.root">(opendal.config.IbmCosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IdriveE2Config.root">(opendal.config.IdriveE2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IonosConfig.root">(opendal.config.IonosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IpfsConfig.root">(opendal.config.IpfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IpmfsConfig.root">(opendal.config.IpmfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.KoofrConfig.root">(opendal.config.KoofrConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.LakefsS3Config.root">(opendal.config.LakefsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MemcachedConfig.root">(opendal.config.MemcachedConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MemoryConfig.root">(opendal.config.MemoryConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MiniMokaConfig.root">(opendal.config.MiniMokaConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MinioConfig.root">(opendal.config.MinioConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MokaConfig.root">(opendal.config.MokaConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MongodbConfig.root">(opendal.config.MongodbConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MysqlConfig.root">(opendal.config.MysqlConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.NeonConfig.root">(opendal.config.NeonConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ObsConfig.root">(opendal.config.ObsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ObsS3Config.root">(opendal.config.ObsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OciConfig.root">(opendal.config.OciConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OnedriveConfig.root">(opendal.config.OnedriveConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OssConfig.root">(opendal.config.OssConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OssS3Config.root">(opendal.config.OssS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OvhcloudConfig.root">(opendal.config.OvhcloudConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.PostgresqlConfig.root">(opendal.config.PostgresqlConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.QingstorConfig.root">(opendal.config.QingstorConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.R2Config.root">(opendal.config.R2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.RedbConfig.root">(opendal.config.RedbConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.RedisConfig.root">(opendal.config.RedisConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.RustfsConfig.root">(opendal.config.RustfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.S3Config.root">(opendal.config.S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ScalewayConfig.root">(opendal.config.ScalewayConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SeafileConfig.root">(opendal.config.SeafileConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SeaweedfsConfig.root">(opendal.config.SeaweedfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SftpConfig.root">(opendal.config.SftpConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SledConfig.root">(opendal.config.SledConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SpacesConfig.root">(opendal.config.SpacesConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SqliteConfig.root">(opendal.config.SqliteConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.StorjConfig.root">(opendal.config.StorjConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SupabaseConfig.root">(opendal.config.SupabaseConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SwiftConfig.root">(opendal.config.SwiftConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SwiftS3apiConfig.root">(opendal.config.SwiftS3apiConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TigrisConfig.root">(opendal.config.TigrisConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TosConfig.root">(opendal.config.TosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TosS3Config.root">(opendal.config.TosS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.UpyunConfig.root">(opendal.config.UpyunConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WasabiConfig.root">(opendal.config.WasabiConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WebdavConfig.root">(opendal.config.WebdavConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WebhdfsConfig.root">(opendal.config.WebhdfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.YandexDiskConfig.root">(opendal.config.YandexDiskConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.GhacConfig.runtime_token">runtime_token (opendal.config.GhacConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.RustfsConfig">RustfsConfig (class in opendal.config)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="S">S</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.S3Config">S3Config (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AzblobConfig.sas_token">sas_token (opendal.config.AzblobConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.AzdlsConfig.sas_token">(opendal.config.AzdlsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AzfileConfig.sas_token">(opendal.config.AzfileConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.ScalewayConfig">ScalewayConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.scan">scan() (opendal.AsyncOperator method)</a>
+
+      <ul>
+        <li><a href="../api/operator/#opendal.Operator.scan">(opendal.Operator method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.AkamaiConfig.scheme">scheme (opendal.config.AkamaiConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.AliyunDriveConfig.scheme">(opendal.config.AliyunDriveConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AlluxioConfig.scheme">(opendal.config.AlluxioConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AzblobConfig.scheme">(opendal.config.AzblobConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AzdlsConfig.scheme">(opendal.config.AzdlsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AzfileConfig.scheme">(opendal.config.AzfileConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.B2Config.scheme">(opendal.config.B2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.B2S3Config.scheme">(opendal.config.B2S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CacacheConfig.scheme">(opendal.config.CacacheConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CephRgwConfig.scheme">(opendal.config.CephRgwConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CosConfig.scheme">(opendal.config.CosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CosS3Config.scheme">(opendal.config.CosS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.DashmapConfig.scheme">(opendal.config.DashmapConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.DropboxConfig.scheme">(opendal.config.DropboxConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ExoscaleConfig.scheme">(opendal.config.ExoscaleConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.FoyerConfig.scheme">(opendal.config.FoyerConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.FsConfig.scheme">(opendal.config.FsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.FtpConfig.scheme">(opendal.config.FtpConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GarageConfig.scheme">(opendal.config.GarageConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsConfig.scheme">(opendal.config.GcsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsGrpcConfig.scheme">(opendal.config.GcsGrpcConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsS3Config.scheme">(opendal.config.GcsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GdriveConfig.scheme">(opendal.config.GdriveConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GhacConfig.scheme">(opendal.config.GhacConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GithubConfig.scheme">(opendal.config.GithubConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GridfsConfig.scheme">(opendal.config.GridfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HdfsNativeConfig.scheme">(opendal.config.HdfsNativeConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HetznerConfig.scheme">(opendal.config.HetznerConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HfConfig.scheme">(opendal.config.HfConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HttpConfig.scheme">(opendal.config.HttpConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IbmCosConfig.scheme">(opendal.config.IbmCosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IdriveE2Config.scheme">(opendal.config.IdriveE2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IonosConfig.scheme">(opendal.config.IonosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IpfsConfig.scheme">(opendal.config.IpfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IpmfsConfig.scheme">(opendal.config.IpmfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.KoofrConfig.scheme">(opendal.config.KoofrConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.LakefsS3Config.scheme">(opendal.config.LakefsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MemcachedConfig.scheme">(opendal.config.MemcachedConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MemoryConfig.scheme">(opendal.config.MemoryConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MiniMokaConfig.scheme">(opendal.config.MiniMokaConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MinioConfig.scheme">(opendal.config.MinioConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MokaConfig.scheme">(opendal.config.MokaConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MongodbConfig.scheme">(opendal.config.MongodbConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MysqlConfig.scheme">(opendal.config.MysqlConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.NeonConfig.scheme">(opendal.config.NeonConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ObsConfig.scheme">(opendal.config.ObsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ObsS3Config.scheme">(opendal.config.ObsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OciConfig.scheme">(opendal.config.OciConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OnedriveConfig.scheme">(opendal.config.OnedriveConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OssConfig.scheme">(opendal.config.OssConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OssS3Config.scheme">(opendal.config.OssS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OvhcloudConfig.scheme">(opendal.config.OvhcloudConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.PersyConfig.scheme">(opendal.config.PersyConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.PostgresqlConfig.scheme">(opendal.config.PostgresqlConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.QingstorConfig.scheme">(opendal.config.QingstorConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.R2Config.scheme">(opendal.config.R2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.RedbConfig.scheme">(opendal.config.RedbConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.RedisConfig.scheme">(opendal.config.RedisConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.RustfsConfig.scheme">(opendal.config.RustfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.S3Config.scheme">(opendal.config.S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ScalewayConfig.scheme">(opendal.config.ScalewayConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SeafileConfig.scheme">(opendal.config.SeafileConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SeaweedfsConfig.scheme">(opendal.config.SeaweedfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SftpConfig.scheme">(opendal.config.SftpConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SledConfig.scheme">(opendal.config.SledConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SpacesConfig.scheme">(opendal.config.SpacesConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SqliteConfig.scheme">(opendal.config.SqliteConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.StorjConfig.scheme">(opendal.config.StorjConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SupabaseConfig.scheme">(opendal.config.SupabaseConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SwiftConfig.scheme">(opendal.config.SwiftConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SwiftS3apiConfig.scheme">(opendal.config.SwiftS3apiConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TigrisConfig.scheme">(opendal.config.TigrisConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TosConfig.scheme">(opendal.config.TosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TosS3Config.scheme">(opendal.config.TosS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.UpyunConfig.scheme">(opendal.config.UpyunConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.VercelArtifactsConfig.scheme">(opendal.config.VercelArtifactsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WasabiConfig.scheme">(opendal.config.WasabiConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WebdavConfig.scheme">(opendal.config.WebdavConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WebhdfsConfig.scheme">(opendal.config.WebhdfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.YandexDiskConfig.scheme">(opendal.config.YandexDiskConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.GcsConfig.scope">scope (opendal.config.GcsConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.GcsGrpcConfig.scope">(opendal.config.GcsGrpcConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.SeafileConfig">SeafileConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.SeaweedfsConfig">SeaweedfsConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AkamaiConfig.secret_access_key">secret_access_key (opendal.config.AkamaiConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.B2S3Config.secret_access_key">(opendal.config.B2S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CephRgwConfig.secret_access_key">(opendal.config.CephRgwConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.CosS3Config.secret_access_key">(opendal.config.CosS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ExoscaleConfig.secret_access_key">(opendal.config.ExoscaleConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GarageConfig.secret_access_key">(opendal.config.GarageConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsS3Config.secret_access_key">(opendal.config.GcsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HetznerConfig.secret_access_key">(opendal.config.HetznerConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IbmCosConfig.secret_access_key">(opendal.config.IbmCosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IdriveE2Config.secret_access_key">(opendal.config.IdriveE2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.IonosConfig.secret_access_key">(opendal.config.IonosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.LakefsS3Config.secret_access_key">(opendal.config.LakefsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MinioConfig.secret_access_key">(opendal.config.MinioConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.NeonConfig.secret_access_key">(opendal.config.NeonConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ObsConfig.secret_access_key">(opendal.config.ObsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ObsS3Config.secret_access_key">(opendal.config.ObsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OciConfig.secret_access_key">(opendal.config.OciConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OssS3Config.secret_access_key">(opendal.config.OssS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OvhcloudConfig.secret_access_key">(opendal.config.OvhcloudConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.QingstorConfig.secret_access_key">(opendal.config.QingstorConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.R2Config.secret_access_key">(opendal.config.R2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.RustfsConfig.secret_access_key">(opendal.config.RustfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.S3Config.secret_access_key">(opendal.config.S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ScalewayConfig.secret_access_key">(opendal.config.ScalewayConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SeaweedfsConfig.secret_access_key">(opendal.config.SeaweedfsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SpacesConfig.secret_access_key">(opendal.config.SpacesConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.StorjConfig.secret_access_key">(opendal.config.StorjConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SupabaseConfig.secret_access_key">(opendal.config.SupabaseConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SwiftS3apiConfig.secret_access_key">(opendal.config.SwiftS3apiConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TigrisConfig.secret_access_key">(opendal.config.TigrisConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TosConfig.secret_access_key">(opendal.config.TosConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TosS3Config.secret_access_key">(opendal.config.TosS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WasabiConfig.secret_access_key">(opendal.config.WasabiConfig attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.CosConfig.secret_id">secret_id (opendal.config.CosConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.CosConfig.secret_key">secret_key (opendal.config.CosConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.CosConfig.security_token">security_token (opendal.config.CosConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.ObsConfig.security_token">(opendal.config.ObsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OssConfig.security_token">(opendal.config.OssConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TosConfig.security_token">(opendal.config.TosConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/async_file/#opendal.file.AsyncFile.seek">seek() (opendal.file.AsyncFile method)</a>
+
+      <ul>
+        <li><a href="../api/file/#opendal.file.File.seek">(opendal.file.File method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/async_file/#opendal.file.AsyncFile.seekable">seekable() (opendal.file.AsyncFile method)</a>
+
+      <ul>
+        <li><a href="../api/file/#opendal.file.File.seekable">(opendal.file.File method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.PersyConfig.segment">segment (opendal.config.PersyConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.OssConfig.server_side_encryption">server_side_encryption (opendal.config.OssConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.S3Config.server_side_encryption">(opendal.config.S3Config attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.S3Config.server_side_encryption_aws_kms_key_id">server_side_encryption_aws_kms_key_id (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.S3Config.server_side_encryption_bucket_key_enabled">server_side_encryption_bucket_key_enabled (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.S3Config.server_side_encryption_customer_algorithm">server_side_encryption_customer_algorithm (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.S3Config.server_side_encryption_customer_key">server_side_encryption_customer_key (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.S3Config.server_side_encryption_customer_key_md5">server_side_encryption_customer_key_md5 (opendal.config.S3Config attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.OssConfig.server_side_encryption_key_id">server_side_encryption_key_id (opendal.config.OssConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.GcsConfig.service_account">service_account (opendal.config.GcsConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.GcsGrpcConfig.service_account">(opendal.config.GcsGrpcConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.ServiceConfig">ServiceConfig (in module opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.CosS3Config.session_token">session_token (opendal.config.CosS3Config attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.LakefsS3Config.session_token">(opendal.config.LakefsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MinioConfig.session_token">(opendal.config.MinioConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ObsS3Config.session_token">(opendal.config.ObsS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OssS3Config.session_token">(opendal.config.OssS3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.R2Config.session_token">(opendal.config.R2Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.S3Config.session_token">(opendal.config.S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SupabaseConfig.session_token">(opendal.config.SupabaseConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TigrisConfig.session_token">(opendal.config.TigrisConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WasabiConfig.session_token">(opendal.config.WasabiConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.SftpConfig">SftpConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.FoyerConfig.shards">shards (opendal.config.FoyerConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AzfileConfig.share_name">share_name (opendal.config.AzfileConfig attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.shared">shared (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AzblobConfig.skip_signature">skip_signature (opendal.config.AzblobConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.AzfileConfig.skip_signature">(opendal.config.AzfileConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsConfig.skip_signature">(opendal.config.GcsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GcsGrpcConfig.skip_signature">(opendal.config.GcsGrpcConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.MinioConfig.skip_signature">(opendal.config.MinioConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.ObsConfig.skip_signature">(opendal.config.ObsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.OssConfig.skip_signature">(opendal.config.OssConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.S3Config.skip_signature">(opendal.config.S3Config attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.TosConfig.skip_signature">(opendal.config.TosConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.SledConfig">SledConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.SpacesConfig">SpacesConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.SqliteConfig">SqliteConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.stat">stat (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.stat">stat() (opendal.AsyncOperator method)</a>
+
+      <ul>
+        <li><a href="../api/operator/#opendal.Operator.stat">(opendal.Operator method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/capability/#opendal.capability.Capability.stat_with_if_match">stat_with_if_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.stat_with_if_modified_since">stat_with_if_modified_since (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.stat_with_if_none_match">stat_with_if_none_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.stat_with_if_unmodified_since">stat_with_if_unmodified_since (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.stat_with_if_version_match">stat_with_if_version_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.stat_with_if_version_not_match">stat_with_if_version_not_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.stat_with_override_cache_control">stat_with_override_cache_control (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.stat_with_override_content_disposition">stat_with_override_content_disposition (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.stat_with_override_content_type">stat_with_override_content_type (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.stat_with_version">stat_with_version (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.StorjConfig">StorjConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.OssConfig.sts_endpoint">sts_endpoint (opendal.config.OssConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.SupabaseConfig">SupabaseConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.SwiftConfig">SwiftConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.SwiftS3apiConfig">SwiftS3apiConfig (class in opendal.config)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="T">T</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.MysqlConfig.table">table (opendal.config.MysqlConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.PostgresqlConfig.table">(opendal.config.PostgresqlConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.RedbConfig.table">(opendal.config.RedbConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SqliteConfig.table">(opendal.config.SqliteConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.VercelArtifactsConfig.team_id">team_id (opendal.config.VercelArtifactsConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.VercelArtifactsConfig.team_slug">team_slug (opendal.config.VercelArtifactsConfig attribute)</a>
+</li>
+      <li><a href="../api/async_file/#opendal.file.AsyncFile.tell">tell() (opendal.file.AsyncFile method)</a>
+
+      <ul>
+        <li><a href="../api/file/#opendal.file.File.tell">(opendal.file.File method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.SwiftConfig.temp_url_hash_algorithm">temp_url_hash_algorithm (opendal.config.SwiftConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.SwiftConfig.temp_url_key">temp_url_key (opendal.config.SwiftConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.AzblobConfig.tenant_id">tenant_id (opendal.config.AzblobConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.AzdlsConfig.tenant_id">(opendal.config.AzdlsConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.AzfileConfig.tenant_id">(opendal.config.AzfileConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.TigrisConfig">TigrisConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.MiniMokaConfig.time_to_idle">time_to_idle (opendal.config.MiniMokaConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.MokaConfig.time_to_idle">(opendal.config.MokaConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.MiniMokaConfig.time_to_live">time_to_live (opendal.config.MiniMokaConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.MokaConfig.time_to_live">(opendal.config.MokaConfig attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.HttpContextConfig.timeout">timeout (opendal.config.HttpContextConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.TimeoutLayerConfig.timeout">(opendal.config.TimeoutLayerConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/layers/#opendal.layers.TimeoutLayer">TimeoutLayer (class in opendal.layers)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.TimeoutLayerConfig">TimeoutLayerConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/operator/#opendal.Operator.to_async_operator">to_async_operator() (opendal.Operator method)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.to_operator">to_operator() (opendal.AsyncOperator method)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.GcsConfig.token">token (opendal.config.GcsConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.GcsGrpcConfig.token">(opendal.config.GcsGrpcConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.GithubConfig.token">(opendal.config.GithubConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HfConfig.token">(opendal.config.HfConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.HttpConfig.token">(opendal.config.HttpConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SwiftConfig.token">(opendal.config.SwiftConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WebdavConfig.token">(opendal.config.WebdavConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.TosConfig">TosConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.TosS3Config">TosS3Config (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.SledConfig.tree">tree (opendal.config.SledConfig attribute)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="U">U</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/exceptions/#opendal.exceptions.Unexpected">Unexpected</a>
+</li>
+      <li><a href="../api/types/#opendal.types.EntryMode.Unknown">Unknown (opendal.types.EntryMode attribute)</a>
+</li>
+      <li><a href="../api/exceptions/#opendal.exceptions.Unsupported">Unsupported</a>
+</li>
+      <li><a href="../api/config/#opendal.config.UpyunConfig">UpyunConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/types/#opendal.types.PresignedRequest.url">url (opendal.types.PresignedRequest attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.FtpConfig.user">user (opendal.config.FtpConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.SftpConfig.user">(opendal.config.SftpConfig attribute)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/config/#opendal.config.HttpContextConfig.user_agent">user_agent (opendal.config.HttpContextConfig attribute)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/types/#opendal.types.Metadata.user_metadata">user_metadata (opendal.types.Metadata attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.WebdavConfig.user_metadata_prefix">user_metadata_prefix (opendal.config.WebdavConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.WebdavConfig.user_metadata_uri">user_metadata_uri (opendal.config.WebdavConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.WebhdfsConfig.user_name">user_name (opendal.config.WebhdfsConfig attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.HttpConfig.username">username (opendal.config.HttpConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.MemcachedConfig.username">(opendal.config.MemcachedConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.RedisConfig.username">(opendal.config.RedisConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SeafileConfig.username">(opendal.config.SeafileConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.WebdavConfig.username">(opendal.config.WebdavConfig attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+</tr></table>
+
+<h2 id="V">V</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.MongodbConfig.value_field">value_field (opendal.config.MongodbConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.MysqlConfig.value_field">(opendal.config.MysqlConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.PostgresqlConfig.value_field">(opendal.config.PostgresqlConfig attribute)</a>
+</li>
+        <li><a href="../api/config/#opendal.config.SqliteConfig.value_field">(opendal.config.SqliteConfig attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.VercelArtifactsConfig">VercelArtifactsConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.GhacConfig.version">version (opendal.config.GhacConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/types/#opendal.types.Metadata.version">(opendal.types.Metadata attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+</tr></table>
+
+<h2 id="W">W</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.WasabiConfig">WasabiConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.WebdavConfig">WebdavConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.WebhdfsConfig">WebhdfsConfig (class in opendal.config)</a>
+</li>
+      <li><a href="../api/async_file/#opendal.file.AsyncFile.writable">writable() (opendal.file.AsyncFile method)</a>
+
+      <ul>
+        <li><a href="../api/file/#opendal.file.File.writable">(opendal.file.File method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write">write (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/async_operator/#opendal.AsyncOperator.write">write() (opendal.AsyncOperator method)</a>
+
+      <ul>
+        <li><a href="../api/async_file/#opendal.file.AsyncFile.write">(opendal.file.AsyncFile method)</a>
+</li>
+        <li><a href="../api/file/#opendal.file.File.write">(opendal.file.File method)</a>
+</li>
+        <li><a href="../api/operator/#opendal.Operator.write">(opendal.Operator method)</a>
+</li>
+      </ul></li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_can_append">write_can_append (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_can_copy_from">write_can_copy_from (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_can_empty">write_can_empty (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_can_multi">write_can_multi (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_multi_max_size">write_multi_max_size (opendal.capability.Capability attribute)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_multi_min_size">write_multi_min_size (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/config/#opendal.config.ConcurrentLimitLayerConfig.write_permits">write_permits (opendal.config.ConcurrentLimitLayerConfig attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_total_max_size">write_total_max_size (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_with_cache_control">write_with_cache_control (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_with_checksum">write_with_checksum (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_with_content_disposition">write_with_content_disposition (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_with_content_encoding">write_with_content_encoding (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_with_content_language">write_with_content_language (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_with_content_type">write_with_content_type (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_with_expires">write_with_expires (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_with_if_match">write_with_if_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_with_if_none_match">write_with_if_none_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_with_if_not_exists">write_with_if_not_exists (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_with_if_version_match">write_with_if_version_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_with_if_version_not_match">write_with_if_version_not_match (opendal.capability.Capability attribute)</a>
+</li>
+      <li><a href="../api/capability/#opendal.capability.Capability.write_with_user_metadata">write_with_user_metadata (opendal.capability.Capability attribute)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="Y">Y</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.YandexDiskConfig">YandexDiskConfig (class in opendal.config)</a>
+</li>
+  </ul></td>
+</tr></table>
+
+<h2 id="Z">Z</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="../api/config/#opendal.config.ExoscaleConfig.zone">zone (opendal.config.ExoscaleConfig attribute)</a>
+
+      <ul>
+        <li><a href="../api/config/#opendal.config.QingstorConfig.zone">(opendal.config.QingstorConfig attribute)</a>
+</li>
+      </ul></li>
+  </ul></td>
+</tr></table>
+
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright The Apache Software Foundation.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.2.3.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

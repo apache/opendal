@@ -1,0 +1,23 @@
+var searchData=
+[
+  ['range_0',['range',['../structopendal_1_1ReadOptions.html#afac155c51ef6263d90ad4df87186797e',1,'opendal::ReadOptions']]],
+  ['read_1',['read',['../classopendal_1_1Capability.html#a462342a099f542e657218e95d2406fc6',1,'opendal::Capability']]],
+  ['read_5fwith_5fchecksum_2',['read_with_checksum',['../classopendal_1_1Capability.html#a00e4796ca5166f6dc64538f68c81f1a8',1,'opendal::Capability']]],
+  ['read_5fwith_5fif_5fmatch_3',['read_with_if_match',['../classopendal_1_1Capability.html#a4e97d361dea280f4b092134560656c88',1,'opendal::Capability']]],
+  ['read_5fwith_5fif_5fmodified_5fsince_4',['read_with_if_modified_since',['../classopendal_1_1Capability.html#a5ebfb1e2297ec8f0b89296a020e7e8d3',1,'opendal::Capability']]],
+  ['read_5fwith_5fif_5fnone_5fmatch_5',['read_with_if_none_match',['../classopendal_1_1Capability.html#a5e4becf99350cc1df5e9325d3161a939',1,'opendal::Capability']]],
+  ['read_5fwith_5fif_5funmodified_5fsince_6',['read_with_if_unmodified_since',['../classopendal_1_1Capability.html#aee3db8d1b267280c0ae9f1129ebdf46d',1,'opendal::Capability']]],
+  ['read_5fwith_5fif_5fversion_5fmatch_7',['read_with_if_version_match',['../classopendal_1_1Capability.html#a12811359f2989361e76b36c50ecf6d20',1,'opendal::Capability']]],
+  ['read_5fwith_5fif_5fversion_5fnot_5fmatch_8',['read_with_if_version_not_match',['../classopendal_1_1Capability.html#acf45782b5ae46505a4aa4c8a9a5fd93c',1,'opendal::Capability']]],
+  ['read_5fwith_5foverride_5fcache_5fcontrol_9',['read_with_override_cache_control',['../classopendal_1_1Capability.html#a78383ce8c952d71613a4f10d1f4b7331',1,'opendal::Capability']]],
+  ['read_5fwith_5foverride_5fcontent_5fdisposition_10',['read_with_override_content_disposition',['../classopendal_1_1Capability.html#ad18704923b6e15cb5b7ca481b7c81207',1,'opendal::Capability']]],
+  ['read_5fwith_5foverride_5fcontent_5ftype_11',['read_with_override_content_type',['../classopendal_1_1Capability.html#ae159fb6945ba27f786c2db3df601af41',1,'opendal::Capability']]],
+  ['read_5fwith_5fsuffix_12',['read_with_suffix',['../classopendal_1_1Capability.html#afca4c576aeea259d7130d2763fc3203a',1,'opendal::Capability']]],
+  ['read_5fwith_5fversion_13',['read_with_version',['../classopendal_1_1Capability.html#a5adb3a1b8da9a364523f2d3ae9c1c9e6',1,'opendal::Capability']]],
+  ['recursive_14',['recursive',['../structopendal_1_1DeleteOptions.html#a05593dd3b270ba81f51aeb1fe025ac0d',1,'opendal::DeleteOptions::recursive'],['../structopendal_1_1ListOptions.html#a52e0079780c2cbaaa0aef4ce986a99e6',1,'opendal::ListOptions::recursive']]],
+  ['rename_15',['rename',['../classopendal_1_1Capability.html#a87c3cabecf92e203acf6511c2e84fbaf',1,'opendal::Capability']]],
+  ['rename_5fwith_5fif_5fnot_5fexists_16',['rename_with_if_not_exists',['../classopendal_1_1Capability.html#a48dc1e0225d2c967f0523ddd356e42dd',1,'opendal::Capability']]],
+  ['restore_17',['restore',['../classopendal_1_1Capability.html#a09185e524c063a00a865aac35c08140d',1,'opendal::Capability']]],
+  ['restore_5fwith_5fif_5fnot_5fexists_18',['restore_with_if_not_exists',['../classopendal_1_1Capability.html#a34922acc38a4c3b327a2a553db7a5501',1,'opendal::Capability']]],
+  ['restore_5fwith_5fversion_19',['restore_with_version',['../classopendal_1_1Capability.html#aabd5d4ef001e1d6bd5caab1b3264928d',1,'opendal::Capability']]]
+];

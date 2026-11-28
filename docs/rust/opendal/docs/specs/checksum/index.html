@@ -1,0 +1,94 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="The portable contract for checksum metadata and verification."><title>opendal::docs::specs::checksum - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="opendal" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0-nightly (1303417c4 2026-09-21)" data-channel="nightly" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js"><script src="../../../../static.files/storage-41dd4d93.js"></script><script defer="" src="../sidebar-items.js"></script><script defer="" src="../../../../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module checksum</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../../../opendal/index.html"><img src="/img/logo.svg" alt="logo"></a><h2><a href="../../../../opendal/index.html">opendal</a><span class="version">0.59.5</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module checksum</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#checksums" title="Checksums">Checksums</a><ul><li><a href="#write-intents" title="Write intents">Write intents</a></li><li><a href="#write-failures-and-visibility" title="Write failures and visibility">Write failures and visibility</a></li><li><a href="#retrieving-checksum-metadata" title="Retrieving checksum metadata">Retrieving checksum metadata</a></li><li><a href="#verifying-reads" title="Verifying reads">Verifying reads</a></li><li><a href="#copying-through-a-writer" title="Copying through a writer">Copying through a writer</a></li><li><a href="#historical-decisions" title="Historical decisions">Historical decisions</a></li></ul></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In opendal::<wbr>docs::<wbr>specs</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../../index.html">opendal</a>::<wbr><a href="../../index.html">docs</a>::<wbr><a href="../index.html">specs</a></div><h1>Module <span>checksum</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"></span></div><details class="toggle top-doc" open=""><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>The portable contract for checksum metadata and verification.</p>
+<h2 id="checksums"><a class="doc-anchor" href="#checksums">§</a>Checksums</h2>
+<p>A full-object checksum identifies an algorithm and the raw digest of the
+object’s complete byte sequence. CRC digests use big-endian byte order. The
+checksum field in metadata is reserved for full-object digests. Option and
+capability availability depends on the service and language binding.</p>
+<h3 id="write-intents"><a class="doc-anchor" href="#write-intents">§</a>Write intents</h3>
+<p>An explicit write checksum requires verification by the service.</p>
+<div class="table"><table><thead><tr><th>Intent</th><th>Required verification</th></tr></thead><tbody>
+<tr><td><code>Any</code></td><td>Use a native write checksum, preferring a CRC when available.</td></tr>
+<tr><td><code>Fast</code></td><td>Use a native CRC checksum.</td></tr>
+<tr><td><code>Algo(algorithm)</code></td><td>Compute a full-object digest with the requested algorithm and verify it before commit.</td></tr>
+<tr><td><code>Expected(checksum)</code></td><td>Verify the complete object against the caller’s digest before commit.</td></tr>
+</tbody></table>
+</div>
+<p><code>Any</code> and <code>Fast</code> allow the service to verify each upload request, part, or
+block independently. The successful write result carries a checksum when the
+service verified a full-object digest. It can have no checksum when every
+request was verified independently. <code>Algo</code> and <code>Expected</code> always return the
+verified full-object digest on success.</p>
+<p><code>write_with_checksum</code> guarantees support for at least <code>Any</code> on supported
+non-append writes. Other intents, algorithms, and combinations depend on the
+service. Append can use <code>Any</code> or <code>Fast</code> where supported. OpenDAL rejects an
+unsupported explicit intent, including <code>Algo</code> or <code>Expected</code> on append, with
+<code>Unsupported</code> before I/O. An <code>Expected</code> digest of the wrong length fails with
+<code>ConfigInvalid</code> before I/O.</p>
+<h3 id="write-failures-and-visibility"><a class="doc-anchor" href="#write-failures-and-visibility">§</a>Write failures and visibility</h3>
+<ul>
+<li>A checksum rejection before commit leaves the previous object intact for a
+replacement and the key absent for a creation. OpenDAL returns
+<code>ChecksumMismatch</code> when it recognizes a pre-commit checksum rejection. An
+HTTP success status can carry such a rejection in the response body. A
+rejection of a computed digest can be temporary when OpenDAL can safely
+replay the request with the original bytes. A final mismatch against the
+caller’s <code>Expected</code> digest or a deterministic completion rejection is
+non-temporary.</li>
+<li>OpenDAL propagates a service failure it cannot identify as a checksum
+rejection. The resulting error may be a non-temporary <code>Unexpected</code>.</li>
+<li>A missing, invalid, or mismatched receipt can prevent OpenDAL from confirming
+required verification after commit. This returns a non-temporary <code>Unexpected</code>.
+The new or replacement data may already be visible.</li>
+<li>When an append commits each block independently, a pre-commit rejection
+prevents that block from being appended. Earlier successful blocks stay
+committed after a later failure or an abort. A block with an unconfirmed
+post-commit receipt may also be visible.</li>
+</ul>
+<p>An <code>Unexpected</code> error alone leaves the commit status unknown.</p>
+<h3 id="retrieving-checksum-metadata"><a class="doc-anchor" href="#retrieving-checksum-metadata">§</a>Retrieving checksum metadata</h3>
+<p>The <code>checksum</code> option on stat, read, and reader operations requests stored
+full-object checksum metadata. It defaults to <code>false</code>. Services can supply the
+metadata by default or complete the operation without a digest, including
+when they cannot honor the hint. Stat retrieves metadata without reading
+object data to calculate a digest.</p>
+<p>A digest returned on a read describes the complete object in the byte
+representation being read. A range response can carry that same full-object
+metadata. Retrieving the digest alone leaves verification of the bytes to a
+separate step.</p>
+<h3 id="verifying-reads"><a class="doc-anchor" href="#verifying-reads">§</a>Verifying reads</h3>
+<p>When enabled, <code>ChecksumLayer</code> verifies a supported stored checksum when a
+single response covers the whole object. An unbounded read from offset zero
+qualifies. A bounded read from zero or a suffix read also qualifies when its
+response reports the complete object length and the requested size covers
+that length. For example, an HTTP partial-content response can cover the
+entire object.</p>
+<p>On services advertising <code>read_with_checksum</code>, the layer requests the digest
+for unbounded and nonempty bounded reads from offset zero. Prefix reads and
+the first request of a chunked read can therefore request the digest. The
+layer preserves the range and any caller-requested checksum hint.</p>
+<p>By default, a whole-object read can succeed without a supported checksum.
+With <code>require_read(true)</code>, it fails with <code>Unsupported</code> before returning bytes
+if the digest is absent or unsupported. Partial ranges, reads of unknown
+coverage, and reads assembled from multiple partial responses are exempt
+from verification and this requirement.</p>
+<p>A digest mismatch during verification returns a non-temporary
+<code>ChecksumMismatch</code>. A verifying stream checks the digest before yielding the
+buffer that completes the known object length, or at end of stream if the
+length is unknown. Earlier buffers can already have reached the caller.
+The verifier returns the same failure on subsequent polls of that stream.</p>
+<h3 id="copying-through-a-writer"><a class="doc-anchor" href="#copying-through-a-writer">§</a>Copying through a writer</h3>
+<p>An explicit write checksum makes <code>Writer::copy_from</code> stream the source bytes
+through the client and upload them as part of the write. The destination
+verification covers those bytes alongside any other data in the write.</p>
+<p>If a streaming copy reports a source <code>ChecksumMismatch</code> after the writer has
+accepted any bytes from that logical copy, the writer requires <code>abort()</code>.
+Progress includes queued bytes and bytes accepted on earlier attempts of the
+same copy. Further writes, copies, and close fail. With zero progress on that
+copy, the writer remains usable. A successful close without more input commits
+only the previously accepted data. Ordinary temporary read errors can still
+resume the same copy.</p>
+<h3 id="historical-decisions"><a class="doc-anchor" href="#historical-decisions">§</a>Historical decisions</h3>
+<ul>
+<li><a href="https://github.com/apache/opendal/blob/main/core/core/src/docs/rfcs/9166_checksum_intent_and_layer.md">RFC 9166: Checksum Intent and Layer</a></li>
+</ul>
+</div></details></section></div></main></body></html>

@@ -1,0 +1,24 @@
+# Read a CSV with pandas
+
+Pass the file object returned by `Operator.open` to `pandas.read_csv`. The example stores the CSV in memory.
+
+Run `pip install opendal pandas` in the environment that runs this notebook before executing the example.
+
+
+```python
+import pandas as pd
+
+import opendal
+
+op = opendal.Operator("memory")
+op.write("people.csv", b"name,age\nAlice,25\nBob,30\nCharlie,35\n")
+
+with op.open("people.csv", mode="rb") as file:
+    df = pd.read_csv(file)
+
+assert df.to_dict(orient="list") == {
+    "name": ["Alice", "Bob", "Charlie"],
+    "age": [25, 30, 35],
+}
+df
+```

@@ -1,0 +1,24 @@
+# Write, read, and inspect a file
+
+Use an OpenDAL operator to store a file in a temporary local directory.
+
+Run `pip install opendal` in the environment that runs this notebook before executing the example.
+
+
+```python
+from tempfile import TemporaryDirectory
+
+import opendal
+
+with TemporaryDirectory() as root:
+    op = opendal.Operator("fs", root=root)
+    path = "hello.txt"
+    message = b"Hello, World!"
+    op.write(path, message)
+
+    content = op.read(path)
+    metadata = op.stat(path)
+    assert content == message
+    assert metadata.content_length == len(message)
+    print(f"{content.decode()} ({metadata.content_length} bytes)")
+```

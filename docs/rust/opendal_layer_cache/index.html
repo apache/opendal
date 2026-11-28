@@ -1,0 +1,83 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Apache OpenDAL Chunked Cache Layer"><title>opendal_layer_cache - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="opendal_layer_cache" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0-nightly (1303417c4 2026-09-21)" data-channel="nightly" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate opendal_layer_cache</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../opendal_layer_cache/index.html">opendal_<wbr>layer_<wbr>cache</a><span class="version">0.59.5</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#apache-opendal-chunked-cache-layer" title="Apache OpenDAL Chunked Cache Layer">Apache OpenDAL Chunked Cache Layer</a></li></ul><h3><a href="#structs">Crate Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#traits" title="Traits">Traits</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1>Crate <span>opendal_<wbr>layer_<wbr>cache</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/opendal_layer_cache/lib.rs.html#18-201">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><!--
+  Licensed to the Apache Software Foundation (ASF) under one
+  contributor license agreements.  See the NOTICE file distributed with
+  this work for additional information regarding copyright ownership.
+  The ASF licenses this file to You under the Apache License, Version 2.0
+  (the "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<h2 id="apache-opendal-chunked-cache-layer"><a class="doc-anchor" href="#apache-opendal-chunked-cache-layer">§</a>Apache OpenDAL Chunked Cache Layer</h2>
+<p><code>CacheLayer</code> caches aligned chunks of object reads in an OpenDAL operator.
+It preserves the source operator’s capabilities and leaves conditional reads,
+response overrides, and other operations to the source.</p>
+<p>Caching requires a verifiable source identity: an immutable <code>version</code> (excluding
+non-immutable placeholders such as <code>"null"</code>), a strong <code>etag</code>, or
+<code>last_modified</code> + <code>content_length</code>. Reads from sources that provide none of
+these pass through directly to the source without caching. Note that
+<code>last_modified</code> + <code>content_length</code> is a weak identity: on backends with coarse
+timestamp granularity (for example, 1-second mtime precision on SFTP), an
+equal-length overwrite with the same timestamp produces the same identity and
+can continue serving cached chunks across <code>ttl</code> boundaries.</p>
+<p>Single-path mutations (<code>write</code>, <code>copy</code>, <code>compose</code>, <code>rename</code>, <code>restore</code>, and
+non-recursive <code>delete</code>) invalidate cached metadata for the affected paths on
+completion, including when an origin error leaves the outcome uncertain.
+Reads explicitly selecting a non-immutable placeholder version such as <code>"null"</code>
+bypass the cache so local and external overwrites remain immediately visible.
+For unversioned reads, external mutations, recursive deletes, cancelled
+in-flight mutations, and concurrent cross-instance read/write races are bounded
+by <code>ttl</code> (subject to weak <code>last_modified</code> granularity above). Reads selecting
+an explicit immutable <code>version</code> skip <code>ttl</code> revalidation once cached until
+invalidated or evicted, even if that version is deleted externally. A reused <code>Reader</code> caches its
+resolved metadata pointer locally for up to <code>min(ttl, 1s)</code> across range reads,
+so a completed cross-instance invalidation becomes visible to an already-reused
+<code>Reader</code> within <code>min(ttl, 1s)</code> and immediately to a newly opened <code>Reader</code> (or
+immediately when <code>ttl</code> is zero).</p>
+<p>Attach a source retry layer before adding the cache. Retrying a cached stream
+by reopening it after a partial read can mix bytes from different versions.
+When the cache detects a change after returning bytes, discard the partial
+result and restart the whole read. Shared fills run on the <code>OperationContext</code>
+executor when configured, fall back to the current Tokio runtime on native
+targets, and run inline otherwise.</p>
+<p>The cache operator must support read, write, and delete. Use a backend with
+capacity eviction in production. Identity changes can leave old chunks in the
+cache until the backend evicts them. Use a dedicated cache root or a separate
+cache instance for each tenant, endpoint, or credential boundary. Hot reads
+reuse cached metadata and do not re-authorize against the source.</p>
+<p>The default chunk size is 1 MiB. Use <code>with_chunk_size</code> to set an exact size in
+bytes, or pass <code>0</code> to restore the default. The cache operator’s advertised
+maximum total write size caps both the default and explicit sizes. The layer
+uses this effective size to align source ranges and key cached chunks. The
+last chunk of an object can be shorter.</p>
+<p>Enable <code>layers-cache</code> to use <code>opendal::layers::CacheLayer</code> through the facade.
+When using <code>opendal-core</code> directly, add <code>opendal-layer-cache</code>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>opendal_core::{Operator, <span class="prelude-ty">Result</span>};
+<span class="kw">use </span>opendal_layer_cache::CacheLayer;
+
+<span class="kw">fn </span>cached(source: Operator, cache: Operator) -&gt; <span class="prelude-ty">Result</span>&lt;Operator&gt; {
+    <span class="prelude-val">Ok</span>(source.layer(CacheLayer::new(cache)<span class="question-mark">?</span>))
+}</code></pre></div>
+<p>Use <code>with_policy</code> to bypass caching or override the metadata TTL for a source
+path. The policy receives the normalized path when the reader is created.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>opendal_core::{Operator, <span class="prelude-ty">Result</span>};
+<span class="kw">use </span>opendal_layer_cache::{CacheDecision, CacheLayer, CacheReadRequest};
+
+<span class="kw">fn </span>cached(source: Operator, cache: Operator) -&gt; <span class="prelude-ty">Result</span>&lt;Operator&gt; {
+    <span class="kw">let </span>layer = CacheLayer::new(cache)<span class="question-mark">?</span>.with_policy(|request: <span class="kw-2">&amp;</span>CacheReadRequest&lt;<span class="lifetime">'_</span>&gt;| {
+        <span class="kw">if </span>request.path().starts_with(<span class="string">"temporary/"</span>) {
+            CacheDecision::Bypass
+        } <span class="kw">else </span>{
+            CacheDecision::Cache
+        }
+    });
+    <span class="prelude-val">Ok</span>(source.layer(layer))
+}</code></pre></div></div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.CacheLayer.html" title="struct opendal_layer_cache::CacheLayer">Cache<wbr>Layer</a></dt><dd>Cache aligned source read chunks in another OpenDAL operator.</dd><dt><a class="struct" href="struct.CacheReadRequest.html" title="struct opendal_layer_cache::CacheReadRequest">Cache<wbr>Read<wbr>Request</a></dt><dd>The source path supplied to the read cache policy.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.CacheDecision.html" title="enum opendal_layer_cache::CacheDecision">Cache<wbr>Decision</a></dt><dd>Select how the cache handles a reader.</dd></dl><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.CachePolicy.html" title="trait opendal_layer_cache::CachePolicy">Cache<wbr>Policy</a></dt><dd>Decide by source path whether to cache reads and how long their metadata remains fresh.</dd></dl></section></div></main></body></html>

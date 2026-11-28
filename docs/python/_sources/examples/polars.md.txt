@@ -1,0 +1,24 @@
+# Write and read a CSV with Polars
+
+Use the file objects returned by `Operator.open` to write a DataFrame to a CSV and read it back. The example stores the CSV in memory.
+
+Run `pip install opendal polars` in the environment that runs this notebook before executing the example.
+
+
+```python
+import polars as pl
+
+import opendal
+
+op = opendal.Operator("memory")
+df = pl.DataFrame({"name": ["Alice", "Bob"], "age": [20, 30]})
+
+with op.open("people.csv", mode="wb") as file:
+    df.write_csv(file)
+
+with op.open("people.csv", mode="rb") as file:
+    read_df = pl.read_csv(file)
+
+assert read_df.equals(df)
+read_df
+```

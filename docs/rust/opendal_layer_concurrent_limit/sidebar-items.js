@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["register_concurrent_limit_layer"],"struct":["ConcurrentLimitLayer"],"trait":["ConcurrentLimitSemaphore"]};

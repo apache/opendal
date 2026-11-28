@@ -363,10 +363,12 @@ fn friendly_type(ty: ConfigType) -> &'static str {
 /// falls back to a per-type placeholder. Every binding here passes config as a
 /// `String -> String` map, so even non-string types are quoted strings that
 /// OpenDAL's `ConfigDeserializer` parses (e.g. `"true"`, `"10s"`, `"a,b"`).
+/// Map options take a JSON object string such as `{"key":"value"}`.
 fn value_of<'a>(f: &Field<'a>) -> &'a str {
     let placeholder = match f.value {
         ConfigType::Bool => "true",
-        ConfigType::String | ConfigType::HashMap => "...",
+        ConfigType::String => "...",
+        ConfigType::HashMap => r#"{"key":"value"}"#,
         ConfigType::Duration => "10s",
         ConfigType::Usize
         | ConfigType::U64
@@ -376,6 +378,12 @@ fn value_of<'a>(f: &Field<'a>) -> &'a str {
         ConfigType::Vec => "value1,value2",
     };
     f.default.or(f.example).unwrap_or(placeholder)
+}
+
+/// Double-quoted string literal for `value`, escaping `\` and `"`. The result
+/// is valid in every binding's double-quoted string syntax.
+fn string_literal(value: &str) -> String {
+    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
 /// Per-binding syntax used by the generic snippet builder.
@@ -463,9 +471,9 @@ fn render_examples(
             comment: "// ",
             assign: |f| {
                 format!(
-                    "(\"{}\".to_string(), \"{}\".to_string()),",
+                    "(\"{}\".to_string(), {}.to_string()),",
                     f.name,
-                    value_of(f)
+                    string_literal(value_of(f))
                 )
             },
         },
@@ -474,7 +482,7 @@ fn render_examples(
             close: ")".to_string(),
             indent: "    ",
             comment: "# ",
-            assign: |f| format!("{}=\"{}\",", f.name, value_of(f)),
+            assign: |f| format!("{}={},", f.name, string_literal(value_of(f))),
         },
         "nodejs" => Syntax {
             open: format!(
@@ -483,14 +491,14 @@ fn render_examples(
             close: "});".to_string(),
             indent: "  ",
             comment: "// ",
-            assign: |f| format!("{}: \"{}\",", f.name, value_of(f)),
+            assign: |f| format!("{}: {},", f.name, string_literal(value_of(f))),
         },
         "java" => Syntax {
             open: "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n".to_string(),
             close: format!("Operator operator = Operator.of(\"{scheme}\", config);"),
             indent: "",
             comment: "// ",
-            assign: |f| format!("config.put(\"{}\", \"{}\");", f.name, value_of(f)),
+            assign: |f| format!("config.put(\"{}\", {});", f.name, string_literal(value_of(f))),
         },
         "go" => Syntax {
             open: format!(
@@ -499,7 +507,7 @@ fn render_examples(
             close: "})".to_string(),
             indent: "	",
             comment: "// ",
-            assign: |f| format!("\"{}\": \"{}\",", f.name, value_of(f)),
+            assign: |f| format!("\"{}\": {},", f.name, string_literal(value_of(f))),
         },
         "c" => Syntax {
             open: "#include \"opendal.h\"\n\nopendal_operator_options *options = opendal_operator_options_new();\n".to_string(),
@@ -510,9 +518,9 @@ fn render_examples(
             comment: "// ",
             assign: |f| {
                 format!(
-                    "opendal_operator_options_set(options, \"{}\", \"{}\");",
+                    "opendal_operator_options_set(options, \"{}\", {});",
                     f.name,
-                    value_of(f)
+                    string_literal(value_of(f))
                 )
             },
         },
@@ -521,7 +529,7 @@ fn render_examples(
             close: format!("}};\nopendal::Operator operator(\"{scheme}\", config);"),
             indent: "    ",
             comment: "// ",
-            assign: |f| format!("{{\"{}\", \"{}\"}},", f.name, value_of(f)),
+            assign: |f| format!("{{\"{}\", {}}},", f.name, string_literal(value_of(f))),
         },
         "ruby" => Syntax {
             open: format!(
@@ -530,7 +538,14 @@ fn render_examples(
             close: "})".to_string(),
             indent: "  ",
             comment: "# ",
-            assign: |f| format!("\"{}\" => \"{}\",", f.name, value_of(f)),
+            // `\#` is a literal `#` in Ruby and prevents `#{...}` interpolation.
+            assign: |f| {
+                format!(
+                    "\"{}\" => {},",
+                    f.name,
+                    string_literal(value_of(f)).replace('#', "\\#")
+                )
+            },
         },
         other => unreachable!("no renderer for binding {other}"),
     };
@@ -563,5 +578,92 @@ mod tests {
         assert!(minimal.contains(assignment));
         assert!(full.contains(&format!("    {assignment}")));
         assert!(!full.contains(&format!("// {assignment}")));
+    }
+
+    fn map_field() -> Field<'static> {
+        Field {
+            name: "options",
+            value: ConfigType::HashMap,
+            required: false,
+            minimal: false,
+            comments: "Extra options.",
+            group: DEFAULT_GROUP,
+            default: None,
+            example: None,
+        }
+    }
+
+    fn render_full(binding: &str, field: &Field) -> String {
+        let grouped = vec![(DEFAULT_GROUP, vec![field])];
+        render_examples(binding, "demo", &[], &grouped).1
+    }
+
+    #[test]
+    fn map_fields_render_json_object_literals() {
+        let field = map_field();
+        let cases = [
+            (
+                "rust",
+                r#"    // ("options".to_string(), "{\"key\":\"value\"}".to_string()),"#,
+            ),
+            (
+                "java",
+                r#"// config.put("options", "{\"key\":\"value\"}");"#,
+            ),
+            ("python", r#"    # options="{\"key\":\"value\"}","#),
+            ("nodejs", r#"  // options: "{\"key\":\"value\"}","#),
+            ("go", "\t// \"options\": \"{\\\"key\\\":\\\"value\\\"}\","),
+            (
+                "c",
+                r#"// opendal_operator_options_set(options, "options", "{\"key\":\"value\"}");"#,
+            ),
+            ("cpp", r#"    // {"options", "{\"key\":\"value\"}"},"#),
+            ("ruby", r#"  # "options" => "{\"key\":\"value\"}","#),
+        ];
+        for (binding, line) in cases {
+            let full = render_full(binding, &field);
+            assert!(
+                full.lines().any(|l| l == line),
+                "{binding}: expected line {line:?} in:\n{full}"
+            );
+        }
+    }
+
+    #[test]
+    fn rust_map_example_is_a_valid_json_object() {
+        let full = render_full("rust", &map_field());
+        let line = full
+            .lines()
+            .find(|l| l.contains("\"options\""))
+            .expect("options line");
+        let start = line.find(", ").expect("value separator") + 2;
+        let end = line.rfind(".to_string()").expect("value end");
+        let lit: syn::LitStr =
+            syn::parse_str(&line[start..end]).expect("valid Rust string literal");
+        let value: std::collections::HashMap<String, String> =
+            serde_json::from_str(&lit.value()).expect("JSON object of strings");
+        assert_eq!(
+            value,
+            std::collections::HashMap::from([("key".to_string(), "value".to_string())])
+        );
+    }
+
+    #[test]
+    fn ruby_literal_escapes_interpolation() {
+        let field = Field {
+            name: "prefix",
+            value: ConfigType::String,
+            required: true,
+            minimal: false,
+            comments: "",
+            group: DEFAULT_GROUP,
+            default: Some("a#{b}"),
+            example: None,
+        };
+        let full = render_full("ruby", &field);
+        assert!(
+            full.lines().any(|l| l == r#"  "prefix" => "a\#{b}","#),
+            "{full}"
+        );
     }
 }

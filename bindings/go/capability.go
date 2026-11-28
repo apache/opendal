@@ -25,8 +25,6 @@ type opendalCapability struct {
 	stat                               uint8
 	statWithIfMatch                    uint8
 	statWithIfNoneMatch                uint8
-	statWithIfVersionMatch             uint8
-	statWithIfVersionNotMatch          uint8
 	statWithIfModifiedSince            uint8
 	statWithIfUnmodifiedSince          uint8
 	statWithOverrideCacheControl       uint8
@@ -36,34 +34,24 @@ type opendalCapability struct {
 	read                               uint8
 	readWithIfMatch                    uint8
 	readWithIfNoneMatch                uint8
-	readWithIfVersionMatch             uint8
-	readWithIfVersionNotMatch          uint8
-	readWithIfModifiedSince            uint8
-	readWithIfUnmodifiedSince          uint8
 	readWithOverrideCacheControl       uint8
 	readWithOverrideContentDisposition uint8
 	readWithOverrideContentType        uint8
+	readWithIfModifiedSince            uint8
+	readWithIfUnmodifiedSince          uint8
 	readWithVersion                    uint8
-	readWithSuffix                     uint8
-	readWithChecksum                   uint8
 	write                              uint8
 	writeCanMulti                      uint8
 	writeCanEmpty                      uint8
 	writeCanAppend                     uint8
-	writeCanCopyFrom                   uint8
 	writeWithContentType               uint8
 	writeWithContentDisposition        uint8
 	writeWithContentEncoding           uint8
-	writeWithContentLanguage           uint8
 	writeWithCacheControl              uint8
 	writeWithIfMatch                   uint8
 	writeWithIfNoneMatch               uint8
-	writeWithIfVersionMatch            uint8
-	writeWithIfVersionNotMatch         uint8
 	writeWithIfNotExists               uint8
 	writeWithUserMetadata              uint8
-	writeWithExpires                   uint8
-	writeWithChecksum                  uint8
 	writeMultiMaxSize                  uint
 	writeMultiMinSize                  uint
 	writeTotalMaxSize                  uint
@@ -71,24 +59,49 @@ type opendalCapability struct {
 	delete                             uint8
 	deleteWithVersion                  uint8
 	deleteWithRecursive                uint8
+	copy                               uint8
+	copyWithIfNotExists                uint8
+	copyWithIfMatch                    uint8
+	copyWithSourceVersion              uint8
+	copyCanMulti                       uint8
+	copyMultiMaxSize                   uint
+	copyMultiMinSize                   uint
+	rename                             uint8
+	list                               uint8
+	listWithLimit                      uint8
+	listWithStartAfter                 uint8
+	listWithRecursive                  uint8
+	listWithVersions                   uint8
+	listWithDeleted                    uint8
+	presign                            uint8
+	presignRead                        uint8
+	presignStat                        uint8
+	presignWrite                       uint8
+	presignDelete                      uint8
+	shared                             uint8
+	statWithIfVersionMatch             uint8
+	statWithIfVersionNotMatch          uint8
+	readWithIfVersionMatch             uint8
+	readWithIfVersionNotMatch          uint8
+	readWithSuffix                     uint8
+	readWithChecksum                   uint8
+	writeCanCopyFrom                   uint8
+	writeWithContentLanguage           uint8
+	writeWithIfVersionMatch            uint8
+	writeWithIfVersionNotMatch         uint8
+	writeWithExpires                   uint8
+	writeWithChecksum                  uint8
 	deleteWithIfMatch                  uint8
 	deleteWithIfNoneMatch              uint8
 	deleteWithIfVersionMatch           uint8
 	deleteWithIfVersionNotMatch        uint8
 	deleteMaxSize                      uint
-	copy                               uint8
-	copyWithIfNotExists                uint8
-	copyWithIfMatch                    uint8
 	copyWithIfNoneMatch                uint8
 	copyWithIfVersionMatch             uint8
 	copyWithIfVersionNotMatch          uint8
-	copyWithSourceVersion              uint8
 	copyWithUserMetadata               uint8
 	copyWithContentType                uint8
 	copyWithContentLanguage            uint8
-	copyCanMulti                       uint8
-	copyMultiMaxSize                   uint
-	copyMultiMinSize                   uint
 	compose                            uint8
 	composeWithContentType             uint8
 	composeWithContentDisposition      uint8
@@ -105,21 +118,8 @@ type opendalCapability struct {
 	restore                            uint8
 	restoreWithVersion                 uint8
 	restoreWithIfNotExists             uint8
-	rename                             uint8
 	renameWithIfNotExists              uint8
-	list                               uint8
-	listWithLimit                      uint8
-	listWithStartAfter                 uint8
-	listWithRecursive                  uint8
-	listWithVersions                   uint8
-	listWithDeleted                    uint8
 	listWithGlob                       uint8
-	presign                            uint8
-	presignRead                        uint8
-	presignStat                        uint8
-	presignWrite                       uint8
-	presignDelete                      uint8
-	shared                             uint8
 }
 
 // Capability represents the set of operations and features supported by an Operator.
@@ -152,16 +152,6 @@ func (c *Capability) StatWithIfMatch() bool {
 // StatWithIfNoneMatch reports: Indicates if conditional stat operations using If-None-Match are supported.
 func (c *Capability) StatWithIfNoneMatch() bool {
 	return c.inner.statWithIfNoneMatch == 1
-}
-
-// StatWithIfVersionMatch reports: Indicates if conditional stat operations using version match are supported.
-func (c *Capability) StatWithIfVersionMatch() bool {
-	return c.inner.statWithIfVersionMatch == 1
-}
-
-// StatWithIfVersionNotMatch reports: Indicates if conditional stat operations using version non-match are supported.
-func (c *Capability) StatWithIfVersionNotMatch() bool {
-	return c.inner.statWithIfVersionNotMatch == 1
 }
 
 // StatWithIfModifiedSince reports: Indicates if conditional stat operations using If-Modified-Since are supported.
@@ -209,26 +199,6 @@ func (c *Capability) ReadWithIfNoneMatch() bool {
 	return c.inner.readWithIfNoneMatch == 1
 }
 
-// ReadWithIfVersionMatch reports: Indicates if conditional read operations using version match are supported.
-func (c *Capability) ReadWithIfVersionMatch() bool {
-	return c.inner.readWithIfVersionMatch == 1
-}
-
-// ReadWithIfVersionNotMatch reports: Indicates if conditional read operations using version non-match are supported.
-func (c *Capability) ReadWithIfVersionNotMatch() bool {
-	return c.inner.readWithIfVersionNotMatch == 1
-}
-
-// ReadWithIfModifiedSince reports: Indicates if conditional read operations using If-Modified-Since are supported.
-func (c *Capability) ReadWithIfModifiedSince() bool {
-	return c.inner.readWithIfModifiedSince == 1
-}
-
-// ReadWithIfUnmodifiedSince reports: Indicates if conditional read operations using If-Unmodified-Since are supported.
-func (c *Capability) ReadWithIfUnmodifiedSince() bool {
-	return c.inner.readWithIfUnmodifiedSince == 1
-}
-
 // ReadWithOverrideCacheControl reports: Indicates if Cache-Control header override is supported during read operations.
 func (c *Capability) ReadWithOverrideCacheControl() bool {
 	return c.inner.readWithOverrideCacheControl == 1
@@ -244,19 +214,19 @@ func (c *Capability) ReadWithOverrideContentType() bool {
 	return c.inner.readWithOverrideContentType == 1
 }
 
+// ReadWithIfModifiedSince reports: Indicates if conditional read operations using If-Modified-Since are supported.
+func (c *Capability) ReadWithIfModifiedSince() bool {
+	return c.inner.readWithIfModifiedSince == 1
+}
+
+// ReadWithIfUnmodifiedSince reports: Indicates if conditional read operations using If-Unmodified-Since are supported.
+func (c *Capability) ReadWithIfUnmodifiedSince() bool {
+	return c.inner.readWithIfUnmodifiedSince == 1
+}
+
 // ReadWithVersion reports: Indicates if versions read operations are supported.
 func (c *Capability) ReadWithVersion() bool {
 	return c.inner.readWithVersion == 1
-}
-
-// ReadWithSuffix reports: Indicates if suffix read operations are supported.
-func (c *Capability) ReadWithSuffix() bool {
-	return c.inner.readWithSuffix == 1
-}
-
-// ReadWithChecksum reports: Indicates if the operator supports requesting stored full-file checksum metadata. Stat and read responses may include that metadata when requested.
-func (c *Capability) ReadWithChecksum() bool {
-	return c.inner.readWithChecksum == 1
 }
 
 // Write reports: Indicates if the operator supports write operations.
@@ -279,11 +249,6 @@ func (c *Capability) WriteCanAppend() bool {
 	return c.inner.writeCanAppend == 1
 }
 
-// WriteCanCopyFrom reports: Indicates if an open, non-append writer can copy eligible byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability.
-func (c *Capability) WriteCanCopyFrom() bool {
-	return c.inner.writeCanCopyFrom == 1
-}
-
 // WriteWithContentType reports: Indicates if Content-Type can be specified during write operations.
 func (c *Capability) WriteWithContentType() bool {
 	return c.inner.writeWithContentType == 1
@@ -297,11 +262,6 @@ func (c *Capability) WriteWithContentDisposition() bool {
 // WriteWithContentEncoding reports: Indicates if Content-Encoding can be specified during write operations.
 func (c *Capability) WriteWithContentEncoding() bool {
 	return c.inner.writeWithContentEncoding == 1
-}
-
-// WriteWithContentLanguage reports: Indicates if a write can store Content-Language and a subsequent stat can retrieve it.
-func (c *Capability) WriteWithContentLanguage() bool {
-	return c.inner.writeWithContentLanguage == 1
 }
 
 // WriteWithCacheControl reports: Indicates if Cache-Control can be specified during write operations.
@@ -319,16 +279,6 @@ func (c *Capability) WriteWithIfNoneMatch() bool {
 	return c.inner.writeWithIfNoneMatch == 1
 }
 
-// WriteWithIfVersionMatch reports: Indicates if conditional write operations using version match are supported.
-func (c *Capability) WriteWithIfVersionMatch() bool {
-	return c.inner.writeWithIfVersionMatch == 1
-}
-
-// WriteWithIfVersionNotMatch reports: Indicates if conditional write operations using version non-match are supported.
-func (c *Capability) WriteWithIfVersionNotMatch() bool {
-	return c.inner.writeWithIfVersionNotMatch == 1
-}
-
 // WriteWithIfNotExists reports: Indicates if write operations can be conditional on object non-existence.
 func (c *Capability) WriteWithIfNotExists() bool {
 	return c.inner.writeWithIfNotExists == 1
@@ -337,16 +287,6 @@ func (c *Capability) WriteWithIfNotExists() bool {
 // WriteWithUserMetadata reports: Indicates if custom user metadata can be attached during write operations.
 func (c *Capability) WriteWithUserMetadata() bool {
 	return c.inner.writeWithUserMetadata == 1
-}
-
-// WriteWithExpires reports: Indicates if writes can set a lifetime for the new file.
-func (c *Capability) WriteWithExpires() bool {
-	return c.inner.writeWithExpires == 1
-}
-
-// WriteWithChecksum reports: Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode. OpenDAL rejects unsupported explicit checksum requests before performing I/O.
-func (c *Capability) WriteWithChecksum() bool {
-	return c.inner.writeWithChecksum == 1
 }
 
 // WriteMultiMaxSize reports: Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads.
@@ -384,6 +324,166 @@ func (c *Capability) DeleteWithRecursive() bool {
 	return c.inner.deleteWithRecursive == 1
 }
 
+// Copy reports: Indicates if copy operations are supported.
+func (c *Capability) Copy() bool {
+	return c.inner.copy == 1
+}
+
+// CopyWithIfNotExists reports: Indicates if conditional copy operations with if-not-exists are supported.
+func (c *Capability) CopyWithIfNotExists() bool {
+	return c.inner.copyWithIfNotExists == 1
+}
+
+// CopyWithIfMatch reports: Indicates if conditional copy operations with if-match are supported.
+func (c *Capability) CopyWithIfMatch() bool {
+	return c.inner.copyWithIfMatch == 1
+}
+
+// CopyWithSourceVersion reports: Indicates if copy operations from a specific source version are supported.
+func (c *Capability) CopyWithSourceVersion() bool {
+	return c.inner.copyWithSourceVersion == 1
+}
+
+// CopyCanMulti reports: Indicates if copy operations can be split into multiple server-side tasks.
+func (c *Capability) CopyCanMulti() bool {
+	return c.inner.copyCanMulti == 1
+}
+
+// CopyMultiMaxSize reports: Maximum size supported for segmented copy tasks.
+func (c *Capability) CopyMultiMaxSize() uint {
+	return c.inner.copyMultiMaxSize
+}
+
+// CopyMultiMinSize reports: Minimum size required for segmented copy tasks.
+func (c *Capability) CopyMultiMinSize() uint {
+	return c.inner.copyMultiMinSize
+}
+
+// Rename reports: Indicates if rename operations are supported.
+func (c *Capability) Rename() bool {
+	return c.inner.rename == 1
+}
+
+// List reports: Indicates if list operations are supported.
+func (c *Capability) List() bool {
+	return c.inner.list == 1
+}
+
+// ListWithLimit reports: Indicates if list operations support result limiting.
+func (c *Capability) ListWithLimit() bool {
+	return c.inner.listWithLimit == 1
+}
+
+// ListWithStartAfter reports: Indicates if list operations support continuation from a specific point.
+func (c *Capability) ListWithStartAfter() bool {
+	return c.inner.listWithStartAfter == 1
+}
+
+// ListWithRecursive reports: Indicates if recursive listing is supported.
+func (c *Capability) ListWithRecursive() bool {
+	return c.inner.listWithRecursive == 1
+}
+
+// ListWithVersions reports: Indicates if listing with versions included is supported.
+func (c *Capability) ListWithVersions() bool {
+	return c.inner.listWithVersions == 1
+}
+
+// ListWithDeleted reports: Indicates if listing with deleted files included is supported.
+func (c *Capability) ListWithDeleted() bool {
+	return c.inner.listWithDeleted == 1
+}
+
+// Presign reports: Indicates if presigned URL generation is supported.
+func (c *Capability) Presign() bool {
+	return c.inner.presign == 1
+}
+
+// PresignRead reports: Indicates if presigned URLs for read operations are supported.
+func (c *Capability) PresignRead() bool {
+	return c.inner.presignRead == 1
+}
+
+// PresignStat reports: Indicates if presigned URLs for stat operations are supported.
+func (c *Capability) PresignStat() bool {
+	return c.inner.presignStat == 1
+}
+
+// PresignWrite reports: Indicates if presigned URLs for write operations are supported.
+func (c *Capability) PresignWrite() bool {
+	return c.inner.presignWrite == 1
+}
+
+// PresignDelete reports: Indicates if presigned URLs for delete operations are supported.
+func (c *Capability) PresignDelete() bool {
+	return c.inner.presignDelete == 1
+}
+
+// Shared reports: Indicate if the operator supports shared access.
+func (c *Capability) Shared() bool {
+	return c.inner.shared == 1
+}
+
+// StatWithIfVersionMatch reports: Indicates if conditional stat operations using version match are supported.
+func (c *Capability) StatWithIfVersionMatch() bool {
+	return c.inner.statWithIfVersionMatch == 1
+}
+
+// StatWithIfVersionNotMatch reports: Indicates if conditional stat operations using version non-match are supported.
+func (c *Capability) StatWithIfVersionNotMatch() bool {
+	return c.inner.statWithIfVersionNotMatch == 1
+}
+
+// ReadWithIfVersionMatch reports: Indicates if conditional read operations using version match are supported.
+func (c *Capability) ReadWithIfVersionMatch() bool {
+	return c.inner.readWithIfVersionMatch == 1
+}
+
+// ReadWithIfVersionNotMatch reports: Indicates if conditional read operations using version non-match are supported.
+func (c *Capability) ReadWithIfVersionNotMatch() bool {
+	return c.inner.readWithIfVersionNotMatch == 1
+}
+
+// ReadWithSuffix reports: Indicates if suffix read operations are supported.
+func (c *Capability) ReadWithSuffix() bool {
+	return c.inner.readWithSuffix == 1
+}
+
+// ReadWithChecksum reports: Indicates if the operator supports requesting stored full-file checksum metadata. Stat and read responses may include that metadata when requested.
+func (c *Capability) ReadWithChecksum() bool {
+	return c.inner.readWithChecksum == 1
+}
+
+// WriteCanCopyFrom reports: Indicates if an open, non-append writer can copy eligible byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability.
+func (c *Capability) WriteCanCopyFrom() bool {
+	return c.inner.writeCanCopyFrom == 1
+}
+
+// WriteWithContentLanguage reports: Indicates if a write can store Content-Language and a subsequent stat can retrieve it.
+func (c *Capability) WriteWithContentLanguage() bool {
+	return c.inner.writeWithContentLanguage == 1
+}
+
+// WriteWithIfVersionMatch reports: Indicates if conditional write operations using version match are supported.
+func (c *Capability) WriteWithIfVersionMatch() bool {
+	return c.inner.writeWithIfVersionMatch == 1
+}
+
+// WriteWithIfVersionNotMatch reports: Indicates if conditional write operations using version non-match are supported.
+func (c *Capability) WriteWithIfVersionNotMatch() bool {
+	return c.inner.writeWithIfVersionNotMatch == 1
+}
+
+// WriteWithExpires reports: Indicates if writes can set a lifetime for the new file.
+func (c *Capability) WriteWithExpires() bool {
+	return c.inner.writeWithExpires == 1
+}
+
+// WriteWithChecksum reports: Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode. OpenDAL rejects unsupported explicit checksum requests before performing I/O.
+func (c *Capability) WriteWithChecksum() bool {
+	return c.inner.writeWithChecksum == 1
+}
+
 // DeleteWithIfMatch reports: Indicates if conditional delete operations using If-Match are supported.
 func (c *Capability) DeleteWithIfMatch() bool {
 	return c.inner.deleteWithIfMatch == 1
@@ -409,21 +509,6 @@ func (c *Capability) DeleteMaxSize() uint {
 	return c.inner.deleteMaxSize
 }
 
-// Copy reports: Indicates if copy operations are supported.
-func (c *Capability) Copy() bool {
-	return c.inner.copy == 1
-}
-
-// CopyWithIfNotExists reports: Indicates if conditional copy operations with if-not-exists are supported.
-func (c *Capability) CopyWithIfNotExists() bool {
-	return c.inner.copyWithIfNotExists == 1
-}
-
-// CopyWithIfMatch reports: Indicates if conditional copy operations with if-match are supported.
-func (c *Capability) CopyWithIfMatch() bool {
-	return c.inner.copyWithIfMatch == 1
-}
-
 // CopyWithIfNoneMatch reports: Indicates if conditional copy operations with if-none-match are supported.
 func (c *Capability) CopyWithIfNoneMatch() bool {
 	return c.inner.copyWithIfNoneMatch == 1
@@ -439,11 +524,6 @@ func (c *Capability) CopyWithIfVersionNotMatch() bool {
 	return c.inner.copyWithIfVersionNotMatch == 1
 }
 
-// CopyWithSourceVersion reports: Indicates if copy operations from a specific source version are supported.
-func (c *Capability) CopyWithSourceVersion() bool {
-	return c.inner.copyWithSourceVersion == 1
-}
-
 // CopyWithUserMetadata reports: Indicates if copy operations can replace the destination's user metadata.
 func (c *Capability) CopyWithUserMetadata() bool {
 	return c.inner.copyWithUserMetadata == 1
@@ -457,21 +537,6 @@ func (c *Capability) CopyWithContentType() bool {
 // CopyWithContentLanguage reports: Indicates if copy operations can replace the destination's Content-Language.
 func (c *Capability) CopyWithContentLanguage() bool {
 	return c.inner.copyWithContentLanguage == 1
-}
-
-// CopyCanMulti reports: Indicates if copy operations can be split into multiple server-side tasks.
-func (c *Capability) CopyCanMulti() bool {
-	return c.inner.copyCanMulti == 1
-}
-
-// CopyMultiMaxSize reports: Maximum size supported for segmented copy tasks.
-func (c *Capability) CopyMultiMaxSize() uint {
-	return c.inner.copyMultiMaxSize
-}
-
-// CopyMultiMinSize reports: Minimum size required for segmented copy tasks.
-func (c *Capability) CopyMultiMinSize() uint {
-	return c.inner.copyMultiMinSize
 }
 
 // Compose reports: Indicates if the operator supports composing complete source objects.
@@ -554,77 +619,12 @@ func (c *Capability) RestoreWithIfNotExists() bool {
 	return c.inner.restoreWithIfNotExists == 1
 }
 
-// Rename reports: Indicates if rename operations are supported.
-func (c *Capability) Rename() bool {
-	return c.inner.rename == 1
-}
-
 // RenameWithIfNotExists reports: Indicates if conditional rename operations with if-not-exists are supported.
 func (c *Capability) RenameWithIfNotExists() bool {
 	return c.inner.renameWithIfNotExists == 1
 }
 
-// List reports: Indicates if list operations are supported.
-func (c *Capability) List() bool {
-	return c.inner.list == 1
-}
-
-// ListWithLimit reports: Indicates if list operations support result limiting.
-func (c *Capability) ListWithLimit() bool {
-	return c.inner.listWithLimit == 1
-}
-
-// ListWithStartAfter reports: Indicates if list operations support continuation from a specific point.
-func (c *Capability) ListWithStartAfter() bool {
-	return c.inner.listWithStartAfter == 1
-}
-
-// ListWithRecursive reports: Indicates if recursive listing is supported.
-func (c *Capability) ListWithRecursive() bool {
-	return c.inner.listWithRecursive == 1
-}
-
-// ListWithVersions reports: Indicates if listing with versions included is supported.
-func (c *Capability) ListWithVersions() bool {
-	return c.inner.listWithVersions == 1
-}
-
-// ListWithDeleted reports: Indicates if listing with deleted files included is supported.
-func (c *Capability) ListWithDeleted() bool {
-	return c.inner.listWithDeleted == 1
-}
-
 // ListWithGlob reports: Indicates if listing with a glob pattern is supported by this service stack.
 func (c *Capability) ListWithGlob() bool {
 	return c.inner.listWithGlob == 1
-}
-
-// Presign reports: Indicates if presigned URL generation is supported.
-func (c *Capability) Presign() bool {
-	return c.inner.presign == 1
-}
-
-// PresignRead reports: Indicates if presigned URLs for read operations are supported.
-func (c *Capability) PresignRead() bool {
-	return c.inner.presignRead == 1
-}
-
-// PresignStat reports: Indicates if presigned URLs for stat operations are supported.
-func (c *Capability) PresignStat() bool {
-	return c.inner.presignStat == 1
-}
-
-// PresignWrite reports: Indicates if presigned URLs for write operations are supported.
-func (c *Capability) PresignWrite() bool {
-	return c.inner.presignWrite == 1
-}
-
-// PresignDelete reports: Indicates if presigned URLs for delete operations are supported.
-func (c *Capability) PresignDelete() bool {
-	return c.inner.presignDelete == 1
-}
-
-// Shared reports: Indicate if the operator supports shared access.
-func (c *Capability) Shared() bool {
-	return c.inner.shared == 1
 }

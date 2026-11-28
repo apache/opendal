@@ -35,10 +35,6 @@ pub struct opendal_capability {
     pub stat_with_if_match: bool,
     /// Indicates if conditional stat operations using If-None-Match are supported.
     pub stat_with_if_none_match: bool,
-    /// Indicates if conditional stat operations using version match are supported.
-    pub stat_with_if_version_match: bool,
-    /// Indicates if conditional stat operations using version non-match are supported.
-    pub stat_with_if_version_not_match: bool,
     /// Indicates if conditional stat operations using If-Modified-Since are supported.
     pub stat_with_if_modified_since: bool,
     /// Indicates if conditional stat operations using If-Unmodified-Since are supported.
@@ -57,26 +53,18 @@ pub struct opendal_capability {
     pub read_with_if_match: bool,
     /// Indicates if conditional read operations using If-None-Match are supported.
     pub read_with_if_none_match: bool,
-    /// Indicates if conditional read operations using version match are supported.
-    pub read_with_if_version_match: bool,
-    /// Indicates if conditional read operations using version non-match are supported.
-    pub read_with_if_version_not_match: bool,
-    /// Indicates if conditional read operations using If-Modified-Since are supported.
-    pub read_with_if_modified_since: bool,
-    /// Indicates if conditional read operations using If-Unmodified-Since are supported.
-    pub read_with_if_unmodified_since: bool,
     /// Indicates if Cache-Control header override is supported during read operations.
     pub read_with_override_cache_control: bool,
     /// Indicates if Content-Disposition header override is supported during read operations.
     pub read_with_override_content_disposition: bool,
     /// Indicates if Content-Type header override is supported during read operations.
     pub read_with_override_content_type: bool,
+    /// Indicates if conditional read operations using If-Modified-Since are supported.
+    pub read_with_if_modified_since: bool,
+    /// Indicates if conditional read operations using If-Unmodified-Since are supported.
+    pub read_with_if_unmodified_since: bool,
     /// Indicates if versions read operations are supported.
     pub read_with_version: bool,
-    /// Indicates if suffix read operations are supported.
-    pub read_with_suffix: bool,
-    /// Indicates if the operator supports requesting stored full-file checksum metadata. Stat and read responses may include that metadata when requested.
-    pub read_with_checksum: bool,
     /// Indicates if the operator supports write operations.
     pub write: bool,
     /// Indicates if multiple write operations can be performed on the same object.
@@ -85,34 +73,22 @@ pub struct opendal_capability {
     pub write_can_empty: bool,
     /// Indicates if append operations are supported.
     pub write_can_append: bool,
-    /// Indicates if an open, non-append writer can copy eligible byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability.
-    pub write_can_copy_from: bool,
     /// Indicates if Content-Type can be specified during write operations.
     pub write_with_content_type: bool,
     /// Indicates if Content-Disposition can be specified during write operations.
     pub write_with_content_disposition: bool,
     /// Indicates if Content-Encoding can be specified during write operations.
     pub write_with_content_encoding: bool,
-    /// Indicates if a write can store Content-Language and a subsequent stat can retrieve it.
-    pub write_with_content_language: bool,
     /// Indicates if Cache-Control can be specified during write operations.
     pub write_with_cache_control: bool,
     /// Indicates if conditional write operations using If-Match are supported.
     pub write_with_if_match: bool,
     /// Indicates if conditional write operations using If-None-Match are supported.
     pub write_with_if_none_match: bool,
-    /// Indicates if conditional write operations using version match are supported.
-    pub write_with_if_version_match: bool,
-    /// Indicates if conditional write operations using version non-match are supported.
-    pub write_with_if_version_not_match: bool,
     /// Indicates if write operations can be conditional on object non-existence.
     pub write_with_if_not_exists: bool,
     /// Indicates if custom user metadata can be attached during write operations.
     pub write_with_user_metadata: bool,
-    /// Indicates if writes can set a lifetime for the new file.
-    pub write_with_expires: bool,
-    /// Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode. OpenDAL rejects unsupported explicit checksum requests before performing I/O.
-    pub write_with_checksum: bool,
     /// Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads.
     ///
     /// If it is not set, this will be zero.
@@ -133,6 +109,74 @@ pub struct opendal_capability {
     pub delete_with_version: bool,
     /// Indicates if recursive delete operations are supported.
     pub delete_with_recursive: bool,
+    /// Indicates if copy operations are supported.
+    pub copy: bool,
+    /// Indicates if conditional copy operations with if-not-exists are supported.
+    pub copy_with_if_not_exists: bool,
+    /// Indicates if conditional copy operations with if-match are supported.
+    pub copy_with_if_match: bool,
+    /// Indicates if copy operations from a specific source version are supported.
+    pub copy_with_source_version: bool,
+    /// Indicates if copy operations can be split into multiple server-side tasks.
+    pub copy_can_multi: bool,
+    /// Maximum size supported for segmented copy tasks.
+    ///
+    /// If it is not set, this will be zero.
+    pub copy_multi_max_size: usize,
+    /// Minimum size required for segmented copy tasks.
+    ///
+    /// If it is not set, this will be zero.
+    pub copy_multi_min_size: usize,
+    /// Indicates if rename operations are supported.
+    pub rename: bool,
+    /// Indicates if list operations are supported.
+    pub list: bool,
+    /// Indicates if list operations support result limiting.
+    pub list_with_limit: bool,
+    /// Indicates if list operations support continuation from a specific point.
+    pub list_with_start_after: bool,
+    /// Indicates if recursive listing is supported.
+    pub list_with_recursive: bool,
+    /// Indicates if listing with versions included is supported.
+    pub list_with_versions: bool,
+    /// Indicates if listing with deleted files included is supported.
+    pub list_with_deleted: bool,
+    /// Indicates if presigned URL generation is supported.
+    pub presign: bool,
+    /// Indicates if presigned URLs for read operations are supported.
+    pub presign_read: bool,
+    /// Indicates if presigned URLs for stat operations are supported.
+    pub presign_stat: bool,
+    /// Indicates if presigned URLs for write operations are supported.
+    pub presign_write: bool,
+    /// Indicates if presigned URLs for delete operations are supported.
+    pub presign_delete: bool,
+    /// Indicate if the operator supports shared access.
+    pub shared: bool,
+    /// Indicates if conditional stat operations using version match are supported.
+    pub stat_with_if_version_match: bool,
+    /// Indicates if conditional stat operations using version non-match are supported.
+    pub stat_with_if_version_not_match: bool,
+    /// Indicates if conditional read operations using version match are supported.
+    pub read_with_if_version_match: bool,
+    /// Indicates if conditional read operations using version non-match are supported.
+    pub read_with_if_version_not_match: bool,
+    /// Indicates if suffix read operations are supported.
+    pub read_with_suffix: bool,
+    /// Indicates if the operator supports requesting stored full-file checksum metadata. Stat and read responses may include that metadata when requested.
+    pub read_with_checksum: bool,
+    /// Indicates if an open, non-append writer can copy eligible byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability.
+    pub write_can_copy_from: bool,
+    /// Indicates if a write can store Content-Language and a subsequent stat can retrieve it.
+    pub write_with_content_language: bool,
+    /// Indicates if conditional write operations using version match are supported.
+    pub write_with_if_version_match: bool,
+    /// Indicates if conditional write operations using version non-match are supported.
+    pub write_with_if_version_not_match: bool,
+    /// Indicates if writes can set a lifetime for the new file.
+    pub write_with_expires: bool,
+    /// Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode. OpenDAL rejects unsupported explicit checksum requests before performing I/O.
+    pub write_with_checksum: bool,
     /// Indicates if conditional delete operations using If-Match are supported.
     pub delete_with_if_match: bool,
     /// Indicates if conditional delete operations using If-None-Match are supported.
@@ -145,36 +189,18 @@ pub struct opendal_capability {
     ///
     /// If it is not set, this will be zero.
     pub delete_max_size: usize,
-    /// Indicates if copy operations are supported.
-    pub copy: bool,
-    /// Indicates if conditional copy operations with if-not-exists are supported.
-    pub copy_with_if_not_exists: bool,
-    /// Indicates if conditional copy operations with if-match are supported.
-    pub copy_with_if_match: bool,
     /// Indicates if conditional copy operations with if-none-match are supported.
     pub copy_with_if_none_match: bool,
     /// Indicates if conditional copy operations using version match are supported.
     pub copy_with_if_version_match: bool,
     /// Indicates if conditional copy operations using version non-match are supported.
     pub copy_with_if_version_not_match: bool,
-    /// Indicates if copy operations from a specific source version are supported.
-    pub copy_with_source_version: bool,
     /// Indicates if copy operations can replace the destination's user metadata.
     pub copy_with_user_metadata: bool,
     /// Indicates if copy operations can replace the destination's Content-Type.
     pub copy_with_content_type: bool,
     /// Indicates if copy operations can replace the destination's Content-Language.
     pub copy_with_content_language: bool,
-    /// Indicates if copy operations can be split into multiple server-side tasks.
-    pub copy_can_multi: bool,
-    /// Maximum size supported for segmented copy tasks.
-    ///
-    /// If it is not set, this will be zero.
-    pub copy_multi_max_size: usize,
-    /// Minimum size required for segmented copy tasks.
-    ///
-    /// If it is not set, this will be zero.
-    pub copy_multi_min_size: usize,
     /// Indicates if the operator supports composing complete source objects.
     pub compose: bool,
     /// Indicates if Content-Type can be specified during composition.
@@ -207,36 +233,10 @@ pub struct opendal_capability {
     pub restore_with_version: bool,
     /// Indicates if conditional restore operations using if-not-exists are supported.
     pub restore_with_if_not_exists: bool,
-    /// Indicates if rename operations are supported.
-    pub rename: bool,
     /// Indicates if conditional rename operations with if-not-exists are supported.
     pub rename_with_if_not_exists: bool,
-    /// Indicates if list operations are supported.
-    pub list: bool,
-    /// Indicates if list operations support result limiting.
-    pub list_with_limit: bool,
-    /// Indicates if list operations support continuation from a specific point.
-    pub list_with_start_after: bool,
-    /// Indicates if recursive listing is supported.
-    pub list_with_recursive: bool,
-    /// Indicates if listing with versions included is supported.
-    pub list_with_versions: bool,
-    /// Indicates if listing with deleted files included is supported.
-    pub list_with_deleted: bool,
     /// Indicates if listing with a glob pattern is supported by this service stack.
     pub list_with_glob: bool,
-    /// Indicates if presigned URL generation is supported.
-    pub presign: bool,
-    /// Indicates if presigned URLs for read operations are supported.
-    pub presign_read: bool,
-    /// Indicates if presigned URLs for stat operations are supported.
-    pub presign_stat: bool,
-    /// Indicates if presigned URLs for write operations are supported.
-    pub presign_write: bool,
-    /// Indicates if presigned URLs for delete operations are supported.
-    pub presign_delete: bool,
-    /// Indicate if the operator supports shared access.
-    pub shared: bool,
 }
 
 impl From<core::Capability> for opendal_capability {
@@ -245,8 +245,6 @@ impl From<core::Capability> for opendal_capability {
             stat: value.stat,
             stat_with_if_match: value.stat_with_if_match,
             stat_with_if_none_match: value.stat_with_if_none_match,
-            stat_with_if_version_match: value.stat_with_if_version_match,
-            stat_with_if_version_not_match: value.stat_with_if_version_not_match,
             stat_with_if_modified_since: value.stat_with_if_modified_since,
             stat_with_if_unmodified_since: value.stat_with_if_unmodified_since,
             stat_with_override_cache_control: value.stat_with_override_cache_control,
@@ -256,34 +254,24 @@ impl From<core::Capability> for opendal_capability {
             read: value.read,
             read_with_if_match: value.read_with_if_match,
             read_with_if_none_match: value.read_with_if_none_match,
-            read_with_if_version_match: value.read_with_if_version_match,
-            read_with_if_version_not_match: value.read_with_if_version_not_match,
-            read_with_if_modified_since: value.read_with_if_modified_since,
-            read_with_if_unmodified_since: value.read_with_if_unmodified_since,
             read_with_override_cache_control: value.read_with_override_cache_control,
             read_with_override_content_disposition: value.read_with_override_content_disposition,
             read_with_override_content_type: value.read_with_override_content_type,
+            read_with_if_modified_since: value.read_with_if_modified_since,
+            read_with_if_unmodified_since: value.read_with_if_unmodified_since,
             read_with_version: value.read_with_version,
-            read_with_suffix: value.read_with_suffix,
-            read_with_checksum: value.read_with_checksum,
             write: value.write,
             write_can_multi: value.write_can_multi,
             write_can_empty: value.write_can_empty,
             write_can_append: value.write_can_append,
-            write_can_copy_from: value.write_can_copy_from,
             write_with_content_type: value.write_with_content_type,
             write_with_content_disposition: value.write_with_content_disposition,
             write_with_content_encoding: value.write_with_content_encoding,
-            write_with_content_language: value.write_with_content_language,
             write_with_cache_control: value.write_with_cache_control,
             write_with_if_match: value.write_with_if_match,
             write_with_if_none_match: value.write_with_if_none_match,
-            write_with_if_version_match: value.write_with_if_version_match,
-            write_with_if_version_not_match: value.write_with_if_version_not_match,
             write_with_if_not_exists: value.write_with_if_not_exists,
             write_with_user_metadata: value.write_with_user_metadata,
-            write_with_expires: value.write_with_expires,
-            write_with_checksum: value.write_with_checksum,
             write_multi_max_size: value.write_multi_max_size.unwrap_or(0),
             write_multi_min_size: value.write_multi_min_size.unwrap_or(0),
             write_total_max_size: value.write_total_max_size.unwrap_or(0),
@@ -291,24 +279,49 @@ impl From<core::Capability> for opendal_capability {
             delete: value.delete,
             delete_with_version: value.delete_with_version,
             delete_with_recursive: value.delete_with_recursive,
+            copy: value.copy,
+            copy_with_if_not_exists: value.copy_with_if_not_exists,
+            copy_with_if_match: value.copy_with_if_match,
+            copy_with_source_version: value.copy_with_source_version,
+            copy_can_multi: value.copy_can_multi,
+            copy_multi_max_size: value.copy_multi_max_size.unwrap_or(0),
+            copy_multi_min_size: value.copy_multi_min_size.unwrap_or(0),
+            rename: value.rename,
+            list: value.list,
+            list_with_limit: value.list_with_limit,
+            list_with_start_after: value.list_with_start_after,
+            list_with_recursive: value.list_with_recursive,
+            list_with_versions: value.list_with_versions,
+            list_with_deleted: value.list_with_deleted,
+            presign: value.presign,
+            presign_read: value.presign_read,
+            presign_stat: value.presign_stat,
+            presign_write: value.presign_write,
+            presign_delete: value.presign_delete,
+            shared: value.shared,
+            stat_with_if_version_match: value.stat_with_if_version_match,
+            stat_with_if_version_not_match: value.stat_with_if_version_not_match,
+            read_with_if_version_match: value.read_with_if_version_match,
+            read_with_if_version_not_match: value.read_with_if_version_not_match,
+            read_with_suffix: value.read_with_suffix,
+            read_with_checksum: value.read_with_checksum,
+            write_can_copy_from: value.write_can_copy_from,
+            write_with_content_language: value.write_with_content_language,
+            write_with_if_version_match: value.write_with_if_version_match,
+            write_with_if_version_not_match: value.write_with_if_version_not_match,
+            write_with_expires: value.write_with_expires,
+            write_with_checksum: value.write_with_checksum,
             delete_with_if_match: value.delete_with_if_match,
             delete_with_if_none_match: value.delete_with_if_none_match,
             delete_with_if_version_match: value.delete_with_if_version_match,
             delete_with_if_version_not_match: value.delete_with_if_version_not_match,
             delete_max_size: value.delete_max_size.unwrap_or(0),
-            copy: value.copy,
-            copy_with_if_not_exists: value.copy_with_if_not_exists,
-            copy_with_if_match: value.copy_with_if_match,
             copy_with_if_none_match: value.copy_with_if_none_match,
             copy_with_if_version_match: value.copy_with_if_version_match,
             copy_with_if_version_not_match: value.copy_with_if_version_not_match,
-            copy_with_source_version: value.copy_with_source_version,
             copy_with_user_metadata: value.copy_with_user_metadata,
             copy_with_content_type: value.copy_with_content_type,
             copy_with_content_language: value.copy_with_content_language,
-            copy_can_multi: value.copy_can_multi,
-            copy_multi_max_size: value.copy_multi_max_size.unwrap_or(0),
-            copy_multi_min_size: value.copy_multi_min_size.unwrap_or(0),
             compose: value.compose,
             compose_with_content_type: value.compose_with_content_type,
             compose_with_content_disposition: value.compose_with_content_disposition,
@@ -325,21 +338,8 @@ impl From<core::Capability> for opendal_capability {
             restore: value.restore,
             restore_with_version: value.restore_with_version,
             restore_with_if_not_exists: value.restore_with_if_not_exists,
-            rename: value.rename,
             rename_with_if_not_exists: value.rename_with_if_not_exists,
-            list: value.list,
-            list_with_limit: value.list_with_limit,
-            list_with_start_after: value.list_with_start_after,
-            list_with_recursive: value.list_with_recursive,
-            list_with_versions: value.list_with_versions,
-            list_with_deleted: value.list_with_deleted,
             list_with_glob: value.list_with_glob,
-            presign: value.presign,
-            presign_read: value.presign_read,
-            presign_stat: value.presign_stat,
-            presign_write: value.presign_write,
-            presign_delete: value.presign_delete,
-            shared: value.shared,
         }
     }
 }

@@ -861,14 +861,6 @@ typedef struct opendal_capability {
    */
   bool stat_with_if_none_match;
   /**
-   * Indicates if conditional stat operations using version match are supported.
-   */
-  bool stat_with_if_version_match;
-  /**
-   * Indicates if conditional stat operations using version non-match are supported.
-   */
-  bool stat_with_if_version_not_match;
-  /**
    * Indicates if conditional stat operations using If-Modified-Since are supported.
    */
   bool stat_with_if_modified_since;
@@ -905,22 +897,6 @@ typedef struct opendal_capability {
    */
   bool read_with_if_none_match;
   /**
-   * Indicates if conditional read operations using version match are supported.
-   */
-  bool read_with_if_version_match;
-  /**
-   * Indicates if conditional read operations using version non-match are supported.
-   */
-  bool read_with_if_version_not_match;
-  /**
-   * Indicates if conditional read operations using If-Modified-Since are supported.
-   */
-  bool read_with_if_modified_since;
-  /**
-   * Indicates if conditional read operations using If-Unmodified-Since are supported.
-   */
-  bool read_with_if_unmodified_since;
-  /**
    * Indicates if Cache-Control header override is supported during read operations.
    */
   bool read_with_override_cache_control;
@@ -933,17 +909,17 @@ typedef struct opendal_capability {
    */
   bool read_with_override_content_type;
   /**
+   * Indicates if conditional read operations using If-Modified-Since are supported.
+   */
+  bool read_with_if_modified_since;
+  /**
+   * Indicates if conditional read operations using If-Unmodified-Since are supported.
+   */
+  bool read_with_if_unmodified_since;
+  /**
    * Indicates if versions read operations are supported.
    */
   bool read_with_version;
-  /**
-   * Indicates if suffix read operations are supported.
-   */
-  bool read_with_suffix;
-  /**
-   * Indicates if the operator supports requesting stored full-file checksum metadata. Stat and read responses may include that metadata when requested.
-   */
-  bool read_with_checksum;
   /**
    * Indicates if the operator supports write operations.
    */
@@ -961,10 +937,6 @@ typedef struct opendal_capability {
    */
   bool write_can_append;
   /**
-   * Indicates if an open, non-append writer can copy eligible byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability.
-   */
-  bool write_can_copy_from;
-  /**
    * Indicates if Content-Type can be specified during write operations.
    */
   bool write_with_content_type;
@@ -976,10 +948,6 @@ typedef struct opendal_capability {
    * Indicates if Content-Encoding can be specified during write operations.
    */
   bool write_with_content_encoding;
-  /**
-   * Indicates if a write can store Content-Language and a subsequent stat can retrieve it.
-   */
-  bool write_with_content_language;
   /**
    * Indicates if Cache-Control can be specified during write operations.
    */
@@ -993,14 +961,6 @@ typedef struct opendal_capability {
    */
   bool write_with_if_none_match;
   /**
-   * Indicates if conditional write operations using version match are supported.
-   */
-  bool write_with_if_version_match;
-  /**
-   * Indicates if conditional write operations using version non-match are supported.
-   */
-  bool write_with_if_version_not_match;
-  /**
    * Indicates if write operations can be conditional on object non-existence.
    */
   bool write_with_if_not_exists;
@@ -1008,14 +968,6 @@ typedef struct opendal_capability {
    * Indicates if custom user metadata can be attached during write operations.
    */
   bool write_with_user_metadata;
-  /**
-   * Indicates if writes can set a lifetime for the new file.
-   */
-  bool write_with_expires;
-  /**
-   * Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode. OpenDAL rejects unsupported explicit checksum requests before performing I/O.
-   */
-  bool write_with_checksum;
   /**
    * Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads.
    *
@@ -1051,6 +1003,138 @@ typedef struct opendal_capability {
    */
   bool delete_with_recursive;
   /**
+   * Indicates if copy operations are supported.
+   */
+  bool copy;
+  /**
+   * Indicates if conditional copy operations with if-not-exists are supported.
+   */
+  bool copy_with_if_not_exists;
+  /**
+   * Indicates if conditional copy operations with if-match are supported.
+   */
+  bool copy_with_if_match;
+  /**
+   * Indicates if copy operations from a specific source version are supported.
+   */
+  bool copy_with_source_version;
+  /**
+   * Indicates if copy operations can be split into multiple server-side tasks.
+   */
+  bool copy_can_multi;
+  /**
+   * Maximum size supported for segmented copy tasks.
+   *
+   * If it is not set, this will be zero.
+   */
+  uintptr_t copy_multi_max_size;
+  /**
+   * Minimum size required for segmented copy tasks.
+   *
+   * If it is not set, this will be zero.
+   */
+  uintptr_t copy_multi_min_size;
+  /**
+   * Indicates if rename operations are supported.
+   */
+  bool rename;
+  /**
+   * Indicates if list operations are supported.
+   */
+  bool list;
+  /**
+   * Indicates if list operations support result limiting.
+   */
+  bool list_with_limit;
+  /**
+   * Indicates if list operations support continuation from a specific point.
+   */
+  bool list_with_start_after;
+  /**
+   * Indicates if recursive listing is supported.
+   */
+  bool list_with_recursive;
+  /**
+   * Indicates if listing with versions included is supported.
+   */
+  bool list_with_versions;
+  /**
+   * Indicates if listing with deleted files included is supported.
+   */
+  bool list_with_deleted;
+  /**
+   * Indicates if presigned URL generation is supported.
+   */
+  bool presign;
+  /**
+   * Indicates if presigned URLs for read operations are supported.
+   */
+  bool presign_read;
+  /**
+   * Indicates if presigned URLs for stat operations are supported.
+   */
+  bool presign_stat;
+  /**
+   * Indicates if presigned URLs for write operations are supported.
+   */
+  bool presign_write;
+  /**
+   * Indicates if presigned URLs for delete operations are supported.
+   */
+  bool presign_delete;
+  /**
+   * Indicate if the operator supports shared access.
+   */
+  bool shared;
+  /**
+   * Indicates if conditional stat operations using version match are supported.
+   */
+  bool stat_with_if_version_match;
+  /**
+   * Indicates if conditional stat operations using version non-match are supported.
+   */
+  bool stat_with_if_version_not_match;
+  /**
+   * Indicates if conditional read operations using version match are supported.
+   */
+  bool read_with_if_version_match;
+  /**
+   * Indicates if conditional read operations using version non-match are supported.
+   */
+  bool read_with_if_version_not_match;
+  /**
+   * Indicates if suffix read operations are supported.
+   */
+  bool read_with_suffix;
+  /**
+   * Indicates if the operator supports requesting stored full-file checksum metadata. Stat and read responses may include that metadata when requested.
+   */
+  bool read_with_checksum;
+  /**
+   * Indicates if an open, non-append writer can copy eligible byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability.
+   */
+  bool write_can_copy_from;
+  /**
+   * Indicates if a write can store Content-Language and a subsequent stat can retrieve it.
+   */
+  bool write_with_content_language;
+  /**
+   * Indicates if conditional write operations using version match are supported.
+   */
+  bool write_with_if_version_match;
+  /**
+   * Indicates if conditional write operations using version non-match are supported.
+   */
+  bool write_with_if_version_not_match;
+  /**
+   * Indicates if writes can set a lifetime for the new file.
+   */
+  bool write_with_expires;
+  /**
+   * Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode. OpenDAL rejects unsupported explicit checksum requests before performing I/O.
+   */
+  bool write_with_checksum;
+  /**
    * Indicates if conditional delete operations using If-Match are supported.
    */
   bool delete_with_if_match;
@@ -1073,18 +1157,6 @@ typedef struct opendal_capability {
    */
   uintptr_t delete_max_size;
   /**
-   * Indicates if copy operations are supported.
-   */
-  bool copy;
-  /**
-   * Indicates if conditional copy operations with if-not-exists are supported.
-   */
-  bool copy_with_if_not_exists;
-  /**
-   * Indicates if conditional copy operations with if-match are supported.
-   */
-  bool copy_with_if_match;
-  /**
    * Indicates if conditional copy operations with if-none-match are supported.
    */
   bool copy_with_if_none_match;
@@ -1097,10 +1169,6 @@ typedef struct opendal_capability {
    */
   bool copy_with_if_version_not_match;
   /**
-   * Indicates if copy operations from a specific source version are supported.
-   */
-  bool copy_with_source_version;
-  /**
    * Indicates if copy operations can replace the destination's user metadata.
    */
   bool copy_with_user_metadata;
@@ -1112,22 +1180,6 @@ typedef struct opendal_capability {
    * Indicates if copy operations can replace the destination's Content-Language.
    */
   bool copy_with_content_language;
-  /**
-   * Indicates if copy operations can be split into multiple server-side tasks.
-   */
-  bool copy_can_multi;
-  /**
-   * Maximum size supported for segmented copy tasks.
-   *
-   * If it is not set, this will be zero.
-   */
-  uintptr_t copy_multi_max_size;
-  /**
-   * Minimum size required for segmented copy tasks.
-   *
-   * If it is not set, this will be zero.
-   */
-  uintptr_t copy_multi_min_size;
   /**
    * Indicates if the operator supports composing complete source objects.
    */
@@ -1193,65 +1245,13 @@ typedef struct opendal_capability {
    */
   bool restore_with_if_not_exists;
   /**
-   * Indicates if rename operations are supported.
-   */
-  bool rename;
-  /**
    * Indicates if conditional rename operations with if-not-exists are supported.
    */
   bool rename_with_if_not_exists;
   /**
-   * Indicates if list operations are supported.
-   */
-  bool list;
-  /**
-   * Indicates if list operations support result limiting.
-   */
-  bool list_with_limit;
-  /**
-   * Indicates if list operations support continuation from a specific point.
-   */
-  bool list_with_start_after;
-  /**
-   * Indicates if recursive listing is supported.
-   */
-  bool list_with_recursive;
-  /**
-   * Indicates if listing with versions included is supported.
-   */
-  bool list_with_versions;
-  /**
-   * Indicates if listing with deleted files included is supported.
-   */
-  bool list_with_deleted;
-  /**
    * Indicates if listing with a glob pattern is supported by this service stack.
    */
   bool list_with_glob;
-  /**
-   * Indicates if presigned URL generation is supported.
-   */
-  bool presign;
-  /**
-   * Indicates if presigned URLs for read operations are supported.
-   */
-  bool presign_read;
-  /**
-   * Indicates if presigned URLs for stat operations are supported.
-   */
-  bool presign_stat;
-  /**
-   * Indicates if presigned URLs for write operations are supported.
-   */
-  bool presign_write;
-  /**
-   * Indicates if presigned URLs for delete operations are supported.
-   */
-  bool presign_delete;
-  /**
-   * Indicate if the operator supports shared access.
-   */
-  bool shared;
 } opendal_capability;
 
 /**

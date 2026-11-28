@@ -6,10 +6,13 @@
 
 #### `opendal_capability` layout and `opendal-go-services` companions
 
-The Go binding mirrors the native `opendal_capability` struct, whose layout
-changed in this release. Existing `Capability` methods keep their names and
-signatures. See the [C upgrade guide](../c/upgrade.md#opendal_capability-abi-change)
-for the layout change.
+The Go binding mirrors the native `opendal_capability` struct and reads it
+through `opendal_operator_info_get_capability`. In this release the struct
+appends new fields after the released ones and grows in size, and the function
+writes it into caller-provided storage instead of returning it by value.
+Existing `Capability` methods keep their names and signatures. See the
+[C upgrade guide](../c/upgrade.md#opendal_capability-abi-change) for the
+layout change.
 
 **Migration:**
 
@@ -17,6 +20,11 @@ Upgrade the Go binding and every `opendal-go-services` companion module you use
 together. Each companion ships a `libopendal_c` that must match the ABI expected
 by the Go binding. If you build the library yourself, use the matching OpenDAL
 sources. Mixing old and new layouts is unsupported.
+
+Later releases can append fields and grow `opendal_capability` again. The Go
+binding allocates the struct from its own mirror, so a companion `libopendal_c`
+that is newer than the binding may write past it. Upgrade the binding and its
+companions together in every release.
 
 #### `context.Context` parameter on I/O operations
 

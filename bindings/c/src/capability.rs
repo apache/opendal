@@ -165,7 +165,7 @@ pub struct opendal_capability {
     pub read_with_suffix: bool,
     /// Indicates if the operator supports requesting stored full-file checksum metadata. Stat and read responses may include that metadata when requested.
     pub read_with_checksum: bool,
-    /// Indicates if a non-append writer can natively copy source ranges into an in-progress write. `Writer::copy_from` remains available through streaming fallback when false or when appending.
+    /// Indicates if an open, non-append writer can copy eligible byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability.
     pub write_can_copy_from: bool,
     /// Indicates if a write can store Content-Language and a subsequent stat can retrieve it.
     pub write_with_content_language: bool,
@@ -175,7 +175,7 @@ pub struct opendal_capability {
     pub write_with_if_version_not_match: bool,
     /// Indicates if writes can set a lifetime for the new file.
     pub write_with_expires: bool,
-    /// Indicates if non-append writes support native checksum verification. A service with this capability supports at least [`crate::WriteChecksum::Any`] and validates each requested intent before performing I/O.
+    /// Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode. OpenDAL rejects unsupported explicit checksum requests before performing I/O.
     pub write_with_checksum: bool,
     /// Indicates if conditional delete operations using If-Match are supported.
     pub delete_with_if_match: bool,

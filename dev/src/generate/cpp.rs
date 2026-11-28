@@ -570,6 +570,9 @@ struct OptionsModel {
 struct OptionMember {
     /// Field name in core, the bridge struct, and the public C++ struct.
     name: String,
+    /// First paragraph of the core field doc, wrapped for the header's `///`
+    /// comments.
+    hpp_doc_lines: Vec<String>,
     /// Declaration of the public C++ member.
     hpp_member: String,
     /// Field type in the cxx bridge struct.
@@ -585,31 +588,38 @@ struct OptionMember {
 ///
 /// Fails for a kind the bridge cannot carry yet, so such a field cannot be
 /// listed in `OPTIONS` by mistake.
-fn option_member(options: &str, name: &str, kind: OptionKind) -> Result<OptionMember> {
+fn option_member(
+    options: &str,
+    field: &core_options::OptionField,
+    kind: OptionKind,
+) -> Result<OptionMember> {
+    let name = field.name.as_str();
+    let doc = metadata::first_paragraph(&field.doc);
     let member = format!("options.{name}");
-    let field = format!("opts.{name}");
+    let bridge_field = format!("opts.{name}");
     // (public type, member initializer, bridge type, C++ conversion, Rust
     // conversion)
     let (cpp_type, cpp_init, bridge_type, cpp_value, rust_value) = match kind {
-        OptionKind::Bool => ("bool", "{false}", "bool", member, field),
+        OptionKind::Bool => ("bool", "{false}", "bool", member, bridge_field),
         OptionKind::OptionUsize => (
             "std::optional<std::size_t>",
             "",
             "OptionalUsize",
             format!("ToFfiOptionalUsize({member})"),
-            format!("optional_usize({field})"),
+            format!("optional_usize({bridge_field})"),
         ),
         OptionKind::OptionString => (
             "std::optional<std::string>",
             "",
             "OptionalString",
             format!("ToFfiOptionalString({member})"),
-            format!("optional_string({field})"),
+            format!("optional_string({bridge_field})"),
         ),
         _ => bail!("the C++ bridge cannot carry `{options}::{name}` of kind {kind:?} yet"),
     };
     Ok(OptionMember {
         name: name.to_string(),
+        hpp_doc_lines: wrap_doc(&doc, HPP_DOC_PREFIX, HPP_COLUMN_LIMIT),
         hpp_member: format!("{cpp_type} {name}{cpp_init};"),
         bridge_type,
         cpp_value,
@@ -656,7 +666,7 @@ fn options_models(
                     field.kind
                 );
             }
-            members.push(option_member(spec.name, name, kind)?);
+            members.push(option_member(spec.name, field, kind)?);
         }
         let unexposed: Vec<String> = core
             .fields
@@ -852,7 +862,8 @@ mod tests {
 
     /// `ListOptions` as `bindings/cpp/include/data_structure.hpp` declared it on
     /// `main` before it was generated, copied verbatim. Callers depend on each
-    /// member's name, type, default member initializer, and position.
+    /// member's name, type, default member initializer, and position. The
+    /// generated header adds member doc comments, which this text omits.
     const MAIN_LIST_OPTIONS: &str = r#"/**
  * @struct ListOptions
  * @brief Options for list and lister operations.
@@ -882,11 +893,58 @@ struct ListOptions {
     #[test]
     fn test_rendered_options_header_keeps_main_list_options() {
         let header = rendered_options("bindings/cpp/include/options.hpp");
+        let declarations: String = header
+            .lines()
+            .filter(|line| !line.starts_with("  /// "))
+            .map(|line| format!("{line}\n"))
+            .collect();
         assert!(
-            header.contains(MAIN_LIST_OPTIONS),
+            declarations.contains(MAIN_LIST_OPTIONS),
             "header no longer declares:\n{MAIN_LIST_OPTIONS}\n\nheader:\n{header}"
         );
         assert_eq!(header.matches("\nstruct ").count(), 1);
+    }
+
+    #[test]
+    fn test_rendered_options_header_documents_members_with_core_docs() {
+        let header = rendered_options("bindings/cpp/include/options.hpp");
+        let lines: Vec<&str> = header.lines().collect();
+        let list = parsed_options()
+            .into_iter()
+            .find(|s| s.name == "ListOptions")
+            .unwrap();
+        for (name, _) in OPTIONS[0].fields {
+            let expected = list
+                .fields
+                .iter()
+                .find(|f| f.name == *name)
+                .unwrap()
+                .doc
+                .iter()
+                .map(|line| line.trim())
+                .take_while(|line| !line.is_empty())
+                .collect::<Vec<_>>()
+                .join(" ");
+            assert!(
+                !expected.is_empty(),
+                "core `ListOptions::{name}` has no doc"
+            );
+            let decl = lines
+                .iter()
+                .position(|line| {
+                    !line.starts_with("  /// ")
+                        && (line.ends_with(&format!(" {name};"))
+                            || line.ends_with(&format!(" {name}{{false}};")))
+                })
+                .unwrap_or_else(|| panic!("header lacks `{name}`"));
+            let comment: Vec<&str> = lines[..decl]
+                .iter()
+                .rev()
+                .map_while(|line| line.strip_prefix("  /// "))
+                .collect();
+            let actual = comment.into_iter().rev().collect::<Vec<_>>().join(" ");
+            assert_eq!(actual, expected, "doc of `ListOptions::{name}`");
+        }
     }
 
     #[test]

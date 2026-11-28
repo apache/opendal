@@ -33,10 +33,16 @@ namespace opendal {
  * @brief Options for list and lister operations.
  */
 struct ListOptions {
+  /// Maximum results per request (backend hint) to control memory and
+  /// throttling.
   std::optional<std::size_t> limit;
+  /// Start listing after this key, excluding the key itself.
   std::optional<std::string> start_after;
+  /// Whether to list recursively under the prefix; default `false`.
   bool recursive{false};
+  /// Include object versions; default `false`.
   bool versions{false};
+  /// Include delete markers; default `false`.
   bool deleted{false};
 };
 

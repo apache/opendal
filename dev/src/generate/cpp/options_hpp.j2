@@ -35,6 +35,9 @@ namespace opendal {
  */
 struct {{ s.name }} {
 {%- for m in s.members %}
+{%- for line in m.hpp_doc_lines %}
+  /// {{ line }}
+{%- endfor %}
   {{ m.hpp_member }}
 {%- endfor %}
 };

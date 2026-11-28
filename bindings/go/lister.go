@@ -27,68 +27,6 @@ import (
 // ErrListerClosed reports that a Lister is used after Close released it.
 var ErrListerClosed = errors.New("opendal: lister is closed")
 
-// List returns a Lister to iterate over entries that start with the given path in the parent directory.
-//
-// WithListFn is a functional option for the List operation.
-type WithListFn func(*listOptions)
-
-// ListWithRecursive sets the recursive flag for the list operation.
-//
-// When recursive is true, the list operation will descend into sub-directories.
-func ListWithRecursive(recursive bool) WithListFn {
-	return func(o *listOptions) {
-		o.recursive = recursive
-	}
-}
-
-// ListWithLimit sets the maximum number of results per request hint for the list operation.
-//
-// This is a hint to the backend; the actual number of results may differ.
-// A value of 0 means no limit is set.
-func ListWithLimit(limit uint) WithListFn {
-	return func(o *listOptions) {
-		o.limit = limit
-	}
-}
-
-// ListWithStartAfter sets the start-after key for the list operation.
-//
-// Passes the specified key to the underlying service to start listing from.
-func ListWithStartAfter(startAfter string) WithListFn {
-	return func(o *listOptions) {
-		o.startAfter = &startAfter
-	}
-}
-
-// ListWithVersions sets the versions flag for the list operation.
-//
-// When versions is true, the list operation will include all object versions.
-// This option is only meaningful on version-aware backends.
-func ListWithVersions(versions bool) WithListFn {
-	return func(o *listOptions) {
-		o.versions = versions
-	}
-}
-
-// ListWithDeleted sets the deleted flag for the list operation.
-//
-// When deleted is true, the list operation will include delete markers.
-// This option is only meaningful on version-aware backends.
-func ListWithDeleted(deleted bool) WithListFn {
-	return func(o *listOptions) {
-		o.deleted = deleted
-	}
-}
-
-// listOptions holds the options for a list operation.
-type listOptions struct {
-	recursive  bool
-	limit      uint
-	startAfter *string
-	versions   bool
-	deleted    bool
-}
-
 // List returns a Lister to iterate over entries that start with the given path.
 //
 // # Parameters
@@ -142,26 +80,11 @@ func (op *Operator) List(ctx context.Context, path string, opts ...WithListFn) (
 
 	var cOpts *opendalListOptions
 	if len(opts) > 0 {
-		o := &listOptions{}
-		for _, opt := range opts {
-			if opt == nil {
-				continue
-			}
-			opt(o)
+		cOpts, err = newOpendalListOptions(op.ctx, parseListOptions(opts...))
+		if err != nil {
+			return nil, err
 		}
-		cOpts = ffiListOptionsNew.symbol(op.ctx)()
 		defer ffiListOptionsFree.symbol(op.ctx)(cOpts)
-		ffiListOptionsSetRecursive.symbol(op.ctx)(cOpts, o.recursive)
-		if o.limit > 0 {
-			ffiListOptionsSetLimit.symbol(op.ctx)(cOpts, o.limit)
-		}
-		if o.startAfter != nil {
-			if err := ffiListOptionsSetStartAfter.symbol(op.ctx)(cOpts, *o.startAfter); err != nil {
-				return nil, err
-			}
-		}
-		ffiListOptionsSetVersions.symbol(op.ctx)(cOpts, o.versions)
-		ffiListOptionsSetDeleted.symbol(op.ctx)(cOpts, o.deleted)
 	}
 	listerInner, err := withCancelTokenValue(op.ctx, ctx, func(token *opendalCancelToken) (*opendalLister, error) {
 		return ffiOperatorListWith.symbol(op.ctx)(opInner, path, cOpts, token)
@@ -388,33 +311,6 @@ func (e *Entry) Path() string {
 func (e *Entry) Metadata() *Metadata {
 	return e.meta
 }
-
-var ffiListOptionsNew = newDirectFFI[func() *opendalListOptions]("opendal_list_options_new")
-
-var ffiListOptionsSetRecursive = newDirectFFI[func(opts *opendalListOptions, recursive bool)]("opendal_list_options_set_recursive")
-
-var ffiListOptionsSetLimit = newDirectFFI[func(opts *opendalListOptions, limit uint)]("opendal_list_options_set_limit")
-
-var ffiListOptionsSetStartAfter = newFFI(
-	"opendal_list_options_set_start_after",
-	func(_ context.Context, cFunc func(opts *opendalListOptions, startAfter *byte)) func(opts *opendalListOptions, startAfter string) error {
-		return func(opts *opendalListOptions, startAfter string) error {
-			bytePtr, err := BytePtrFromString(startAfter)
-			if err != nil {
-				return err
-			}
-			cFunc(opts, bytePtr)
-			runtime.KeepAlive(bytePtr)
-			return nil
-		}
-	},
-)
-
-var ffiListOptionsSetVersions = newDirectFFI[func(opts *opendalListOptions, versions bool)]("opendal_list_options_set_versions")
-
-var ffiListOptionsSetDeleted = newDirectFFI[func(opts *opendalListOptions, deleted bool)]("opendal_list_options_set_deleted")
-
-var ffiListOptionsFree = newDirectFFI[func(opts *opendalListOptions)]("opendal_list_options_free")
 
 var ffiOperatorListWith = newFFI(
 	"opendal_operator_list_with_cancel",

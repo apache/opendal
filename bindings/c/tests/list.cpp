@@ -19,11 +19,47 @@
 
 #include "common.hpp"
 #include "gtest/gtest.h"
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
+#include <type_traits>
 
 extern "C" {
 #include "opendal.h"
 }
+
+// opendal_list_options as released before options.rs was generated from core.
+// Its members are C ABI, so the generator must keep their order, types, and
+// offsets, and these functions with these exact prototypes.
+#define ASSERT_SIGNATURE(fn, type) \
+    static_assert(std::is_same<decltype(&fn), type>::value, #fn " changed its signature")
+#define ASSERT_MEMBER_TYPE(member, type)                                             \
+    static_assert(std::is_same<decltype(opendal_list_options::member), type>::value, \
+        "opendal_list_options." #member " changed its type")
+
+ASSERT_MEMBER_TYPE(recursive, bool);
+ASSERT_MEMBER_TYPE(limit, uintptr_t);
+ASSERT_MEMBER_TYPE(start_after, char*);
+ASSERT_MEMBER_TYPE(versions, bool);
+ASSERT_MEMBER_TYPE(deleted, bool);
+
+#if UINTPTR_MAX == UINT64_MAX
+static_assert(sizeof(opendal_list_options) == 32, "opendal_list_options changed its size");
+static_assert(offsetof(opendal_list_options, recursive) == 0, "recursive moved");
+static_assert(offsetof(opendal_list_options, limit) == 8, "limit moved");
+static_assert(offsetof(opendal_list_options, start_after) == 16, "start_after moved");
+static_assert(offsetof(opendal_list_options, versions) == 24, "versions moved");
+static_assert(offsetof(opendal_list_options, deleted) == 25, "deleted moved");
+#endif
+
+ASSERT_SIGNATURE(opendal_list_options_new, struct opendal_list_options* (*)(void));
+ASSERT_SIGNATURE(opendal_list_options_set_recursive, void (*)(struct opendal_list_options*, bool));
+ASSERT_SIGNATURE(opendal_list_options_set_limit, void (*)(struct opendal_list_options*, uintptr_t));
+ASSERT_SIGNATURE(opendal_list_options_set_start_after,
+    void (*)(struct opendal_list_options*, const char*));
+ASSERT_SIGNATURE(opendal_list_options_set_versions, void (*)(struct opendal_list_options*, bool));
+ASSERT_SIGNATURE(opendal_list_options_set_deleted, void (*)(struct opendal_list_options*, bool));
+ASSERT_SIGNATURE(opendal_list_options_free, void (*)(struct opendal_list_options*));
 
 class OpendalListTest : public ::testing::Test {
 protected:

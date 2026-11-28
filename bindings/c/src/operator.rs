@@ -1270,26 +1270,7 @@ pub unsafe extern "C" fn opendal_operator_list_with_cancel(
     let list_opts = if opts.is_null() {
         core::options::ListOptions::default()
     } else {
-        let o = &*opts;
-        let limit = if o.limit == 0 { None } else { Some(o.limit) };
-        let start_after = if o.start_after.is_null() {
-            None
-        } else {
-            Some(
-                std::ffi::CStr::from_ptr(o.start_after)
-                    .to_str()
-                    .expect("malformed start_after")
-                    .to_owned(),
-            )
-        };
-        core::options::ListOptions {
-            recursive: o.recursive,
-            limit,
-            start_after,
-            versions: o.versions,
-            deleted: o.deleted,
-            glob: None,
-        }
+        (&*opts).into()
     };
     let cancel_token = opendal_cancel_token::as_inner(cancel);
     match block_on_cancellable(

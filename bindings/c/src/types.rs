@@ -22,250 +22,7 @@ use std::os::raw::c_char;
 use opendal::options;
 use opendal::raw::Timestamp;
 use opendal::BytesRange;
-use opendal::{Buffer, Error, ErrorKind};
-
-/// \brief Frees a heap-allocated string returned by OpenDAL C APIs.
-///
-/// \note Only pass pointers returned from OpenDAL APIs that transfer string ownership.
-#[no_mangle]
-pub unsafe extern "C" fn opendal_string_free(ptr: *mut c_char) {
-    if !ptr.is_null() {
-        drop(unsafe { CString::from_raw(ptr) });
-    }
-}
-
-/// \brief opendal_bytes carries raw-bytes with its length
-///
-/// The opendal_bytes type is a C-compatible substitute for Vec type in Rust.
-/// For buffers returned by OpenDAL C APIs, call opendal_bytes_free() to free
-/// the heap memory and avoid memory leaks. If you reuse an `opendal_bytes`
-/// output variable across multiple read calls, call `opendal_bytes_free()`
-/// on the previous result before passing it again as an output parameter.
-/// For caller-owned input buffers passed to OpenDAL C APIs, the caller keeps
-/// ownership and must not call opendal_bytes_free() on them.
-///
-/// @see opendal_bytes_free
-#[repr(C)]
-pub struct opendal_bytes {
-    /// Pointing to the byte array on heap
-    pub data: *mut u8,
-    /// The length of the byte array
-    pub len: usize,
-    /// The capacity of the byte array
-    pub capacity: usize,
-}
-
-impl opendal_bytes {
-    pub(crate) fn empty() -> Self {
-        Self {
-            data: std::ptr::null_mut(),
-            len: 0,
-            capacity: 0,
-        }
-    }
-
-    /// Construct a [`opendal_bytes`] from the Rust [`Vec`] of bytes
-    pub(crate) fn new(b: Buffer) -> Self {
-        if b.is_empty() {
-            return Self::empty();
-        }
-
-        let mut b = std::mem::ManuallyDrop::new(b.to_vec());
-        Self {
-            data: b.as_mut_ptr(),
-            len: b.len(),
-            capacity: b.capacity(),
-        }
-    }
-
-    /// \brief Frees the heap memory used by the opendal_bytes
-    #[no_mangle]
-    pub unsafe extern "C" fn opendal_bytes_free(ptr: *mut opendal_bytes) {
-        unsafe {
-            if !ptr.is_null() {
-                let bs = &mut *ptr;
-                if !bs.data.is_null() {
-                    drop(Vec::from_raw_parts(bs.data, bs.len, bs.capacity));
-                }
-                bs.data = std::ptr::null_mut();
-                bs.len = 0;
-                bs.capacity = 0;
-            }
-        }
-    }
-
-    pub(crate) fn to_buffer(&self) -> opendal::Result<Buffer> {
-        if self.len == 0 {
-            if self.data.is_null() {
-                return Ok(Buffer::new());
-            }
-
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "empty opendal_bytes must have null data",
-            ));
-        }
-
-        if self.data.is_null() {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "non-empty opendal_bytes has null data",
-            ));
-        }
-
-        let slice = unsafe { std::slice::from_raw_parts(self.data, self.len) };
-        Ok(Buffer::from(bytes::Bytes::copy_from_slice(slice)))
-    }
-}
-
-/// \brief The options for the list operation.
-///
-/// This struct carries the options for the list operation, including whether to
-/// list recursively, an optional result limit, and an optional start-after key.
-/// Use `opendal_list_options_new()` to construct and `opendal_list_options_free()` to free.
-///
-/// @see opendal_operator_list_with
-/// @see opendal_list_options_new
-/// @see opendal_list_options_free
-/// @see opendal_list_options_set_recursive
-/// @see opendal_list_options_set_limit
-/// @see opendal_list_options_set_start_after
-/// @see opendal_list_options_set_versions
-/// @see opendal_list_options_set_deleted
-#[repr(C)]
-pub struct opendal_list_options {
-    /// Whether to list recursively under the prefix; default false.
-    pub recursive: bool,
-    /// Optional hint for maximum results per request; 0 means unset.
-    pub limit: usize,
-    /// Optional key to start listing from; NULL means unset.
-    pub start_after: *mut c_char,
-    /// Include object versions when supported by version-aware backends; default false.
-    pub versions: bool,
-    /// Include delete markers when supported by version-aware backends; default false.
-    pub deleted: bool,
-}
-
-impl opendal_list_options {
-    /// \brief Construct a heap-allocated opendal_list_options with default values.
-    ///
-    /// @return A new opendal_list_options with all options set to their defaults.
-    ///
-    /// @see opendal_list_options_free
-    #[no_mangle]
-    pub extern "C" fn opendal_list_options_new() -> *mut Self {
-        Box::into_raw(Box::new(Self {
-            recursive: false,
-            limit: 0,
-            start_after: std::ptr::null_mut(),
-            versions: false,
-            deleted: false,
-        }))
-    }
-
-    /// \brief Set the recursive option.
-    ///
-    /// @param opts The opendal_list_options to modify.
-    /// @param recursive Whether to list recursively.
-    #[no_mangle]
-    pub unsafe extern "C" fn opendal_list_options_set_recursive(
-        opts: *mut opendal_list_options,
-        recursive: bool,
-    ) {
-        if !opts.is_null() {
-            (*opts).recursive = recursive;
-        }
-    }
-
-    /// \brief Set the limit option.
-    ///
-    /// @param opts The opendal_list_options to modify.
-    /// @param limit Maximum number of results per request; 0 means unset.
-    #[no_mangle]
-    pub unsafe extern "C" fn opendal_list_options_set_limit(
-        opts: *mut opendal_list_options,
-        limit: usize,
-    ) {
-        if !opts.is_null() {
-            (*opts).limit = limit;
-        }
-    }
-
-    /// \brief Set the start_after option.
-    ///
-    /// Passes the specified key to the underlying service to start listing from.
-    ///
-    /// @param opts The opendal_list_options to modify.
-    /// @param start_after The key to start listing from; NULL to unset.
-    #[no_mangle]
-    pub unsafe extern "C" fn opendal_list_options_set_start_after(
-        opts: *mut opendal_list_options,
-        start_after: *const c_char,
-    ) {
-        if opts.is_null() {
-            return;
-        }
-
-        // Allocate before freeing the old value so self-aliasing or substring
-        // pointers into `opts->start_after` remain valid while reading.
-        let new_ptr = if start_after.is_null() {
-            std::ptr::null_mut()
-        } else {
-            let s = CStr::from_ptr(start_after)
-                .to_str()
-                .expect("malformed start_after");
-            CString::new(s).unwrap().into_raw()
-        };
-        let o = &mut *opts;
-        let old_ptr = std::mem::replace(&mut o.start_after, new_ptr);
-        if !old_ptr.is_null() {
-            drop(CString::from_raw(old_ptr));
-        }
-    }
-
-    /// \brief Set the versions option.
-    ///
-    /// @param opts The opendal_list_options to modify.
-    /// @param versions Whether to include object versions.
-    #[no_mangle]
-    pub unsafe extern "C" fn opendal_list_options_set_versions(
-        opts: *mut opendal_list_options,
-        versions: bool,
-    ) {
-        if !opts.is_null() {
-            (*opts).versions = versions;
-        }
-    }
-
-    /// \brief Set the deleted option.
-    ///
-    /// @param opts The opendal_list_options to modify.
-    /// @param deleted Whether to include delete markers.
-    #[no_mangle]
-    pub unsafe extern "C" fn opendal_list_options_set_deleted(
-        opts: *mut opendal_list_options,
-        deleted: bool,
-    ) {
-        if !opts.is_null() {
-            (*opts).deleted = deleted;
-        }
-    }
-
-    /// \brief Free the heap memory used by opendal_list_options.
-    ///
-    /// @param opts The opendal_list_options to free.
-    #[no_mangle]
-    pub unsafe extern "C" fn opendal_list_options_free(opts: *mut opendal_list_options) {
-        if !opts.is_null() {
-            let o = &mut *opts;
-            if !o.start_after.is_null() {
-                drop(CString::from_raw(o.start_after));
-                o.start_after = std::ptr::null_mut();
-            }
-            drop(Box::from_raw(opts));
-        }
-    }
-}
+use opendal::{Error, ErrorKind};
 
 /// \brief The options for the delete operation.
 ///
@@ -1492,15 +1249,6 @@ impl From<&opendal_copy_options> for options::CopyOptions {
     }
 }
 
-impl Drop for opendal_bytes {
-    fn drop(&mut self) {
-        unsafe {
-            // Safety: the pointer is always valid
-            Self::opendal_bytes_free(self);
-        }
-    }
-}
-
 /// \brief The configuration for the initialization of opendal_operator.
 ///
 /// \note This is also a heap-allocated struct, please free it after you use it
@@ -1596,46 +1344,6 @@ impl opendal_operator_options {
 }
 
 #[cfg(test)]
-mod bytes_tests {
-    use super::*;
-
-    #[test]
-    fn test_empty_buffer_has_null_data() {
-        let mut bytes = opendal_bytes::new(Buffer::new());
-
-        assert!(bytes.data.is_null());
-        assert_eq!(bytes.len, 0);
-        assert_eq!(bytes.capacity, 0);
-
-        let buffer = bytes.to_buffer().expect("empty bytes should convert");
-        assert!(buffer.is_empty());
-
-        unsafe { opendal_bytes::opendal_bytes_free(&mut bytes) };
-        assert!(bytes.data.is_null());
-        assert_eq!(bytes.len, 0);
-        assert_eq!(bytes.capacity, 0);
-    }
-
-    #[test]
-    fn test_non_empty_buffer_round_trips() {
-        let mut bytes = opendal_bytes::new(Buffer::from("hello"));
-
-        assert!(!bytes.data.is_null());
-        assert_eq!(bytes.len, 5);
-        assert_eq!(
-            unsafe { std::slice::from_raw_parts(bytes.data, bytes.len) },
-            b"hello"
-        );
-        assert_eq!(bytes.to_buffer().unwrap().to_vec(), b"hello");
-
-        unsafe { opendal_bytes::opendal_bytes_free(&mut bytes) };
-        assert!(bytes.data.is_null());
-        assert_eq!(bytes.len, 0);
-        assert_eq!(bytes.capacity, 0);
-    }
-}
-
-#[cfg(test)]
 mod option_tests {
     use super::*;
     use crate::error::{opendal_code, opendal_error};
@@ -1643,6 +1351,7 @@ mod option_tests {
         opendal_operator, opendal_operator_read_with, opendal_operator_reader_with,
         opendal_operator_stat_with,
     };
+    use crate::{opendal_bytes, opendal_list_options};
 
     #[test]
     fn test_list_options_set_start_after_self_alias_and_substring() {
@@ -1680,6 +1389,41 @@ mod option_tests {
             // NULL unsets the value.
             opendal_list_options::opendal_list_options_set_start_after(opts, std::ptr::null());
             assert!((*opts).start_after.is_null());
+
+            opendal_list_options::opendal_list_options_free(opts);
+        }
+    }
+
+    #[test]
+    fn test_list_options_into_core() {
+        unsafe {
+            let opts = opendal_list_options::opendal_list_options_new();
+            assert_eq!(
+                options::ListOptions::from(&*opts),
+                options::ListOptions::default()
+            );
+
+            // A limit of 0 means unset, also when it is set explicitly.
+            opendal_list_options::opendal_list_options_set_limit(opts, 0);
+            assert_eq!(options::ListOptions::from(&*opts).limit, None);
+
+            let start_after = CString::new("dir/a").unwrap();
+            opendal_list_options::opendal_list_options_set_recursive(opts, true);
+            opendal_list_options::opendal_list_options_set_limit(opts, 2);
+            opendal_list_options::opendal_list_options_set_start_after(opts, start_after.as_ptr());
+            opendal_list_options::opendal_list_options_set_versions(opts, true);
+            opendal_list_options::opendal_list_options_set_deleted(opts, true);
+            assert_eq!(
+                options::ListOptions::from(&*opts),
+                options::ListOptions {
+                    recursive: true,
+                    limit: Some(2),
+                    start_after: Some("dir/a".to_string()),
+                    versions: true,
+                    deleted: true,
+                    glob: None,
+                }
+            );
 
             opendal_list_options::opendal_list_options_free(opts);
         }

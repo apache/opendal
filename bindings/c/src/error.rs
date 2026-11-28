@@ -18,7 +18,7 @@
 use ::opendal as core;
 use opendal::Buffer;
 
-use crate::types::opendal_bytes;
+use crate::buffer::opendal_bytes;
 
 /// \brief The error code for all opendal APIs in C binding.
 /// \todo The error handling is not complete, the error with error message will be

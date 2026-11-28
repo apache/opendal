@@ -66,11 +66,17 @@ mod presign;
 pub use presign::opendal_http_header_pair;
 pub use presign::opendal_presigned_request;
 
+// cbindgen writes functions in module order, so `buffer`, the generated
+// `options`, and `types` stay in this order to keep the order of opendal.h.
+mod buffer;
+pub use buffer::opendal_bytes;
+
+mod options;
+pub use options::opendal_list_options;
+
 mod types;
-pub use types::opendal_bytes;
 pub use types::opendal_copy_options;
 pub use types::opendal_delete_options;
-pub use types::opendal_list_options;
 pub use types::opendal_operator_options;
 pub use types::opendal_read_options;
 pub use types::opendal_reader_options;

@@ -1,0 +1,506 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+//! Operation options for the C binding and the Go options that fill them.
+//!
+//! Released option structs are C ABI: `opendal.h` fixes their member order
+//! and types, and C and Zig callers may read or set members directly.
+//! [`RELEASED_OPTIONS`] records that surface. Docs come from the core doc
+//! comments, plus how C and Go encode an unset option. Core fields it does not list keep their core default in the
+//! conversion and stay out of C and Go.
+//!
+//! Only `ListOptions` is generated so far. The other option structs are still
+//! written by hand in `bindings/c/src/types.rs` and the Go operation files.
+
+use std::path::Path;
+
+use anyhow::{Result, bail};
+use minijinja::value::Serde;
+use minijinja::{Environment, context};
+use serde::Serialize;
+
+use crate::generate::core_options::{self, OptionField, OptionKind, OptionsStruct};
+
+/// How a released C struct stores one core field, and how Go fills it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum Repr {
+    /// `bool`. Go always calls the setter.
+    Bool,
+    /// `Option<usize>` as `usize`, where `0` means unset. Go skips `0`.
+    UsizeZeroUnset,
+    /// `Option<String>` as a `char *` that the setter copies and `_free`
+    /// releases. Go passes any string the caller set, including an empty one.
+    OwnedString,
+}
+
+impl Repr {
+    /// The core field shape this representation carries.
+    fn kind(self) -> OptionKind {
+        match self {
+            Repr::Bool => OptionKind::Bool,
+            Repr::UsizeZeroUnset => OptionKind::OptionUsize,
+            Repr::OwnedString => OptionKind::OptionString,
+        }
+    }
+}
+
+/// One released C option struct and the Go options that fill it.
+struct OptionsSpec {
+    /// Core struct name, e.g. `ListOptions`.
+    core: &'static str,
+    /// Released core fields in C member order.
+    fields: &'static [(&'static str, Repr)],
+}
+
+/// The released C option structs, in `opendal.h` order.
+const RELEASED_OPTIONS: &[OptionsSpec] = &[OptionsSpec {
+    core: "ListOptions",
+    fields: &[
+        ("recursive", Repr::Bool),
+        ("limit", Repr::UsizeZeroUnset),
+        ("start_after", Repr::OwnedString),
+        ("versions", Repr::Bool),
+        ("deleted", Repr::Bool),
+    ],
+}];
+
+/// Render model of one C option struct and the Go options that fill it.
+#[derive(Serialize)]
+struct OptionsModel {
+    /// Core struct name, e.g. `ListOptions`.
+    core: &'static str,
+    /// C struct name, e.g. `opendal_list_options`.
+    c_name: String,
+    c_doc: Vec<String>,
+    new_doc: Vec<String>,
+    free_doc: Vec<String>,
+    /// Go operation prefix, e.g. `List` in `ListWithLimit`.
+    go_prefix: &'static str,
+    go_fn_doc: Vec<String>,
+    /// Go private options struct, e.g. `listOptions`.
+    go_private: String,
+    fields: Vec<FieldModel>,
+    /// Conversion struct literal fields in core order, defaults included.
+    conversion: Vec<String>,
+}
+
+#[derive(Serialize)]
+struct FieldModel {
+    /// C member and core field name.
+    name: &'static str,
+    repr: Repr,
+    c_type: &'static str,
+    c_default: &'static str,
+    c_doc: Vec<String>,
+    setter_doc: Vec<String>,
+    /// Go option function, e.g. `ListWithLimit`.
+    go_option: String,
+    /// Field of the Go private options struct, e.g. `startAfter`.
+    go_field: String,
+    /// `go_field` padded so that gofmt column alignment is already satisfied.
+    go_field_padded: String,
+    /// Type of `go_field`.
+    go_type: &'static str,
+    /// FFI variable of the C setter, e.g. `ffiListOptionsSetLimit`.
+    go_ffi: String,
+    go_doc: Vec<String>,
+}
+
+pub(super) fn generate(workspace_dir: &Path) -> Result<()> {
+    let source = workspace_dir.join("core/core/src/types/options.rs");
+    let models = build(&core_options::parse(&source)?)?;
+
+    let mut env = Environment::new();
+    env.add_template("options_rs", include_str!("options_rs.j2"))?;
+    env.add_template("options_go", include_str!("options_go.j2"))?;
+    let outputs = [
+        ("options_rs", "bindings/c/src/options.rs"),
+        ("options_go", "bindings/go/options.go"),
+    ];
+    for (template, relative) in outputs {
+        let rendered = env
+            .get_template(template)?
+            .render(context! { options => Serde(&models) })?;
+        std::fs::write(workspace_dir.join(relative), format!("{rendered}\n"))?;
+    }
+    Ok(())
+}
+
+fn build(parsed: &[OptionsStruct]) -> Result<Vec<OptionsModel>> {
+    RELEASED_OPTIONS
+        .iter()
+        .map(|spec| {
+            let Some(core) = parsed.iter().find(|options| options.name == spec.core) else {
+                bail!("core options are missing `{}`, which C releases", spec.core);
+            };
+            options_model(core, spec)
+        })
+        .collect()
+}
+
+fn options_model(core: &OptionsStruct, spec: &OptionsSpec) -> Result<OptionsModel> {
+    let go_prefix = spec.core.strip_suffix("Options").unwrap_or(spec.core);
+    let base = heck::AsSnakeCase(go_prefix).to_string();
+    let c_name = format!("opendal_{base}_options");
+
+    let mut fields = Vec::new();
+    for &(name, repr) in spec.fields {
+        let core_field = core_field(core, name, repr)?;
+        let doc = plain_doc(&core_field.doc);
+        let (c_type, c_default, go_type) = match repr {
+            Repr::Bool => ("bool", "false", "bool"),
+            Repr::UsizeZeroUnset => ("usize", "0", "uint"),
+            Repr::OwnedString => ("*mut c_char", "std::ptr::null_mut()", "*string"),
+        };
+        // Core options have no C or Go encoding of "unset", so the binding
+        // states its own.
+        let (c_unset, c_param, go_unset) = match repr {
+            Repr::Bool => (None, "The value to set.", None),
+            Repr::UsizeZeroUnset => (
+                Some("`0` means unset."),
+                "The value to set; `0` unsets it.",
+                Some("A value of 0 leaves it unset."),
+            ),
+            Repr::OwnedString => (
+                Some("NULL means unset."),
+                "The string to copy; NULL unsets it.",
+                None,
+            ),
+        };
+        let pascal = super::to_pascal(name);
+        let go_option = format!("{go_prefix}With{pascal}");
+        fields.push(FieldModel {
+            name,
+            repr,
+            c_type,
+            c_default,
+            c_doc: with_note(&doc, c_unset),
+            setter_doc: [format!("\\brief Set `{name}`."), String::new()]
+                .into_iter()
+                .chain(doc.iter().cloned())
+                .chain([
+                    String::new(),
+                    format!("@param opts The {c_name} to modify."),
+                    format!("@param {name} {c_param}"),
+                ])
+                .collect(),
+            go_doc: with_note(
+                &[
+                    format!("{go_option} sets the {name} option."),
+                    String::new(),
+                ]
+                .into_iter()
+                .chain(doc.iter().cloned())
+                .collect::<Vec<_>>(),
+                go_unset,
+            ),
+            go_option,
+            go_field: super::lower_first(&pascal),
+            go_field_padded: String::new(),
+            go_type,
+            go_ffi: format!("ffi{go_prefix}OptionsSet{pascal}"),
+        });
+    }
+    // Pad the Go struct fields as gofmt aligns them.
+    let width = fields.iter().map(|f| f.go_field.len()).max().unwrap_or(0);
+    for field in &mut fields {
+        field.go_field_padded = format!("{:<width$} ", field.go_field);
+    }
+
+    let summary = plain_doc(&core.doc);
+    let mut c_doc = summary.clone();
+    if let Some(first) = c_doc.first_mut() {
+        *first = format!("\\brief {first}");
+    }
+    c_doc.extend([
+        String::new(),
+        format!("Use `{c_name}_new()` to construct and `{c_name}_free()` to free."),
+        String::new(),
+        format!("@see opendal_operator_{base}_with"),
+        format!("@see {c_name}_new"),
+        format!("@see {c_name}_free"),
+    ]);
+    c_doc.extend(
+        fields
+            .iter()
+            .map(|f| format!("@see {c_name}_set_{}", f.name)),
+    );
+
+    let mut go_fn_doc = summary;
+    if let Some(first) = go_fn_doc.first_mut() {
+        let purpose = first.strip_prefix("Options for ").unwrap_or(first);
+        *first = format!("With{go_prefix}Fn is a functional option for {purpose}");
+    }
+
+    Ok(OptionsModel {
+        conversion: conversion(core, &fields)?,
+        core: spec.core,
+        new_doc: vec![
+            format!("\\brief Construct a heap-allocated {c_name} with default values."),
+            String::new(),
+            format!("@return A new {c_name} with all options set to their defaults."),
+            String::new(),
+            format!("@see {c_name}_free"),
+        ],
+        free_doc: vec![
+            format!("\\brief Free the heap memory used by {c_name}."),
+            String::new(),
+            format!("@param opts The {c_name} to free."),
+        ],
+        c_name,
+        c_doc,
+        go_prefix,
+        go_fn_doc,
+        go_private: format!("{}Options", super::lower_first(go_prefix)),
+        fields,
+    })
+}
+
+/// The core field of a released C member. Fail when it is gone from core or
+/// changed its shape, since the member and its setter are ABI.
+fn core_field<'a>(core: &'a OptionsStruct, name: &str, repr: Repr) -> Result<&'a OptionField> {
+    let Some(field) = core.fields.iter().find(|f| f.name == name) else {
+        bail!("core {} is missing released C field `{name}`", core.name);
+    };
+    if field.kind != repr.kind() {
+        bail!(
+            "core {} field `{name}` has kind {:?}; its released C member needs {:?}",
+            core.name,
+            field.kind,
+            repr.kind()
+        );
+    }
+    Ok(field)
+}
+
+/// The core doc comment as C and Go show it, one entry per line.
+///
+/// Rustdoc links become plain code spans, as in the Node.js generator,
+/// because C and Go documentation cannot resolve Rust paths:
+/// ``[`Capability::list_with_limit`](crate::Capability::list_with_limit)``
+/// and ``[`crate::layers::SimulateLayer`]`` keep only their code span.
+fn plain_doc(lines: &[String]) -> Vec<String> {
+    lines
+        .iter()
+        .map(|line| {
+            let mut out = String::with_capacity(line.len());
+            let mut rest = line.as_str();
+            while let Some(start) = rest.find("[`") {
+                let Some(len) = rest[start + 1..].find("`]") else {
+                    break;
+                };
+                out.push_str(&rest[..start]);
+                out.push_str(&rest[start + 1..start + len + 2]);
+                rest = &rest[start + len + 3..];
+                if let Some(target) = rest.strip_prefix('(')
+                    && let Some(end) = target.find(')')
+                {
+                    rest = &target[end + 1..];
+                }
+            }
+            out.push_str(rest);
+            out
+        })
+        .collect()
+}
+
+/// `doc` followed by `note` as its own paragraph.
+fn with_note(doc: &[String], note: Option<&str>) -> Vec<String> {
+    let mut lines = doc.to_vec();
+    if let Some(note) = note {
+        lines.extend([String::new(), note.to_owned()]);
+    }
+    lines
+}
+
+/// Width limits of rustfmt's default configuration.
+const MAX_WIDTH: usize = 100;
+const CHAIN_WIDTH: usize = 60;
+/// Indent of the fields of the conversion struct literal.
+const FIELD_INDENT: usize = 12;
+
+/// The conversion struct literal fields in core order. Fields without a C
+/// member keep their core default.
+fn conversion(core: &OptionsStruct, fields: &[FieldModel]) -> Result<Vec<String>> {
+    core.fields
+        .iter()
+        .map(|core_field| {
+            let name = &core_field.name;
+            let line = match fields.iter().find(|f| f.name == name) {
+                Some(field) => match field.repr {
+                    Repr::Bool => format!("{name}: value.{name},"),
+                    Repr::UsizeZeroUnset => {
+                        let chain = format!("(value.{name} != 0).then_some(value.{name})");
+                        if chain.len() > CHAIN_WIDTH {
+                            bail!("conversion of `{name}` would be rewrapped by rustfmt");
+                        }
+                        format!("{name}: {chain},")
+                    }
+                    Repr::OwnedString => {
+                        format!("{name}: unsafe {{ optional_string(value.{name}, \"{name}\") }},")
+                    }
+                },
+                None => format!("{name}: {},", default_value(core_field.kind)),
+            };
+            if FIELD_INDENT + line.len() > MAX_WIDTH {
+                bail!("conversion of `{name}` would be rewrapped by rustfmt");
+            }
+            Ok(line)
+        })
+        .collect()
+}
+
+fn default_value(kind: OptionKind) -> &'static str {
+    match kind {
+        OptionKind::Bool => "false",
+        OptionKind::Usize => "0",
+        OptionKind::BytesRange => "Default::default()",
+        OptionKind::OptionUsize
+        | OptionKind::OptionU64
+        | OptionKind::OptionString
+        | OptionKind::OptionTimestamp
+        | OptionKind::OptionDuration
+        | OptionKind::OptionStringMap
+        | OptionKind::OptionMetadata => "None",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn core_options() -> Vec<OptionsStruct> {
+        let source = crate::workspace_dir().join("core/core/src/types/options.rs");
+        core_options::parse(&source).expect("core options must parse")
+    }
+
+    fn render_rs(parsed: &[OptionsStruct]) -> String {
+        Environment::new()
+            .render_str(
+                include_str!("options_rs.j2"),
+                context! { options => Serde(&build(parsed).unwrap()) },
+            )
+            .unwrap()
+    }
+
+    /// The doc comment lines directly above the first line that starts with
+    /// `item`, without their comment prefix.
+    fn doc_above<'a>(rendered: &'a str, prefix: &str, item: &str) -> Vec<&'a str> {
+        let lines: Vec<&str> = rendered.lines().collect();
+        let at = lines
+            .iter()
+            .position(|line| line.starts_with(item))
+            .unwrap_or_else(|| panic!("`{item}` must be rendered"));
+        let mut doc: Vec<&str> = lines[..at]
+            .iter()
+            .rev()
+            .map_while(|line| line.strip_prefix(prefix))
+            .map(str::trim)
+            .collect();
+        doc.reverse();
+        doc
+    }
+
+    #[test]
+    fn test_docs_come_from_core() {
+        let parsed = core_options();
+        let models = context! { options => Serde(&build(&parsed).unwrap()) };
+        let env = Environment::new();
+        let c = env
+            .render_str(include_str!("options_rs.j2"), models.clone())
+            .unwrap();
+        let go = env
+            .render_str(include_str!("options_go.j2"), models)
+            .unwrap();
+        let list = parsed.iter().find(|o| o.name == "ListOptions").unwrap();
+        for &(name, _) in RELEASED_OPTIONS[0].fields {
+            let core_field = list.fields.iter().find(|f| f.name == name).unwrap();
+            let doc = plain_doc(&core_field.doc);
+            let doc: Vec<&str> = doc.iter().map(String::as_str).collect();
+
+            let member = doc_above(&c, "    ///", &format!("    pub {name}: "));
+            assert!(
+                member.starts_with(&doc),
+                "C member docs of `{name}`: {member:?}"
+            );
+
+            let option = format!("func ListWith{}(", super::super::to_pascal(name));
+            let option_doc = doc_above(&go, "//", &option);
+            assert!(
+                option_doc.windows(doc.len()).any(|lines| lines == doc),
+                "Go docs of `{name}`: {option_doc:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_plain_doc_strips_rustdoc_links() {
+        let lines = [
+            "Requires [`Capability::list_with_limit`](crate::Capability::list_with_limit).",
+            "Rely on [`crate::layers::SimulateLayer`] and [`Self::recursive`].",
+            "A [plain](https://opendal.apache.org) link and `code` stay.",
+        ]
+        .map(String::from);
+        assert_eq!(
+            plain_doc(&lines),
+            [
+                "Requires `Capability::list_with_limit`.",
+                "Rely on `crate::layers::SimulateLayer` and `Self::recursive`.",
+                "A [plain](https://opendal.apache.org) link and `code` stay.",
+            ]
+        );
+    }
+
+    #[test]
+    fn test_conversion_defaults_unreleased_list_fields() {
+        let rendered = render_rs(&core_options());
+        let conversion = rendered
+            .split("impl From<&opendal_list_options> for options::ListOptions {")
+            .nth(1)
+            .and_then(|rest| rest.split("\n}\n").next())
+            .expect("the list conversion must be rendered");
+        let defaulted: Vec<&str> = conversion
+            .lines()
+            .filter_map(|line| line.trim().strip_suffix(','))
+            .filter_map(|field| field.split_once(": "))
+            .filter(|(_, value)| ["None", "false", "0", "Default::default()"].contains(value))
+            .map(|(name, _)| name)
+            .collect();
+        // `glob` is the only core list option that C and Go do not expose (#9323).
+        assert_eq!(defaulted, ["glob"]);
+    }
+
+    #[test]
+    fn test_released_fields_must_stay_in_core() {
+        let mut parsed = core_options();
+        let list = parsed.iter_mut().find(|o| o.name == "ListOptions").unwrap();
+        list.fields.retain(|f| f.name != "start_after");
+        let err = build(&parsed).err().unwrap().to_string();
+        assert!(
+            err.contains("missing released C field `start_after`"),
+            "{err}"
+        );
+
+        let mut parsed = core_options();
+        let list = parsed.iter_mut().find(|o| o.name == "ListOptions").unwrap();
+        let limit = list.fields.iter_mut().find(|f| f.name == "limit").unwrap();
+        limit.kind = OptionKind::Usize;
+        let err = build(&parsed).err().unwrap().to_string();
+        assert!(err.contains("`limit` has kind Usize"), "{err}");
+    }
+}

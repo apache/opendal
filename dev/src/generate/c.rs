@@ -21,6 +21,8 @@
 //! `opendal_capability` by memory layout, so both sides are rendered from the
 //! same ordered field list to keep the layouts in lockstep.
 
+mod options;
+
 use super::capability;
 use super::metadata::{self, MetadataKind};
 use anyhow::Result;
@@ -72,7 +74,8 @@ struct MetadataAccessor {
 
 pub fn generate(workspace_dir: &Path) -> Result<()> {
     generate_capability(workspace_dir)?;
-    generate_metadata(workspace_dir)
+    generate_metadata(workspace_dir)?;
+    options::generate(workspace_dir)
 }
 
 fn generate_capability(workspace_dir: &Path) -> Result<()> {

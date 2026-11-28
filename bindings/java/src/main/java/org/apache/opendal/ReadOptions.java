@@ -37,7 +37,7 @@ import lombok.Builder;
  *
  * <p>Optional reference fields default to {@code null}.
  */
-@Builder
+@Builder(toBuilder = true)
 public class ReadOptions {
 
     /**
@@ -174,4 +174,16 @@ public class ReadOptions {
      * <p>This option is only meaningful when used along with presign.
      */
     public final String overrideContentDisposition;
+
+    /**
+     * Return at most this many bytes from the start of the selected range, accepting EOF after a valid starting byte.
+     *
+     * <p>The default of {@code -1L} leaves the limit unset. Without a limit, bounded forward ranges require the full requested length. Values below {@code -1L} fail with {@link OpenDALException.Code#ConfigInvalid}.
+     *
+     * <p>On direct whole-buffer reads, {@code 0L} validates options and capabilities, then returns an empty result without accessing storage or evaluating conditions against the file. With a positive limit, a nonempty forward selection starting at or beyond EOF fails with {@link OpenDALException.Code#RangeNotSatisfied}.
+     *
+     * <p>Setting a limit ({@code limit != -1L}) with a positive {@link #chunk}, with {@link #concurrent} greater than {@code 1}, with {@link OperatorInputStream}, or with presigned read requests fails with {@link OpenDALException.Code#ConfigInvalid}.
+     */
+    @Builder.Default
+    public final long limit = -1L;
 }

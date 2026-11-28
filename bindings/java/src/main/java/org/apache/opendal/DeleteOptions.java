@@ -30,7 +30,7 @@ import lombok.Builder;
  *
  * <p>Optional reference fields default to {@code null}.
  */
-@Builder
+@Builder(toBuilder = true)
 public class DeleteOptions {
 
     /**

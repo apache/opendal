@@ -21,7 +21,7 @@ use crate::Result;
 use crate::convert;
 use jni::Env;
 use jni::objects::JObject;
-use opendal::{Error, ErrorKind};
+use opendal::ErrorKind;
 {%- for class in classes %}
 
 pub(crate) fn make_{{ class.rs_name }}(
@@ -29,30 +29,21 @@ pub(crate) fn make_{{ class.rs_name }}(
     options: &JObject,
 ) -> Result<opendal::options::{{ class.name }}> {
 {%- if class.name == "ReadOptions" or class.name == "ReaderOptions" %}
-    let concurrent = convert::read_int_field(env, options, "concurrent")?;
-    let chunk = convert::read_int64_field(env, options, "chunk")?;
+    let concurrent =
+        convert::read_positive_jint_to_usize(env, options, "concurrent", ErrorKind::ConfigInvalid)?;
+    let chunk =
+        convert::read_jlong_field_to_usize(env, options, "chunk", ErrorKind::ConfigInvalid)?;
+    let content_length_hint =
+        convert::read_non_negative_jlong_to_u64(env, options, "contentLengthHint")?;
 {%- if class.name == "ReaderOptions" %}
-    let prefetch = convert::read_int_field(env, options, "prefetch")?;
-{%- endif %}
-    let content_length_hint = convert::read_int64_field(env, options, "contentLengthHint")?;
-    let (concurrent, chunk, content_length_hint) =
-        convert::validate_read_execution_options(concurrent, chunk, content_length_hint)?;
-{%- if class.name == "ReaderOptions" %}
-    let prefetch = usize::try_from(prefetch)
-        .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "prefetch must be non-negative"))?;
+    let prefetch = convert::read_non_negative_jint_to_usize(env, options, "prefetch")?;
+{%- else %}
+    let limit = convert::read_non_negative_jlong_to_u64(env, options, "limit")?;
 {%- endif %}
 
 {%- elif class.name == "WriteOptions" %}
-    let value = convert::read_int_field(env, options, "concurrent")?;
-    let concurrent = usize::try_from(value)
-        .ok()
-        .filter(|&value| value > 0)
-        .ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                format!("Concurrent must be positive, instead got: {value}"),
-            )
-        })?;
+    let concurrent =
+        convert::read_positive_jint_to_usize(env, options, "concurrent", ErrorKind::Unexpected)?;
 
 {%- elif class.name == "DeleteOptions" %}
     let if_not_changed = convert::read_metadata_condition_field(env, options, "ifNotChanged")?;

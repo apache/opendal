@@ -536,6 +536,13 @@ impl Service for GcsBackend {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        if args.if_not_exists() && args.if_version_match().is_some() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "GCS writes do not support combining if_not_exists with if_version_match",
+            ));
+        }
+
         let conditional = args.if_not_exists()
             || args.if_version_match().is_some()
             || args.if_version_not_match().is_some();

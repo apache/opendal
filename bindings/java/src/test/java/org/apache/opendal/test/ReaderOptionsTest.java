@@ -217,4 +217,14 @@ public class ReaderOptionsTest {
             }
         }
     }
+
+    @Test
+    void testToBuilder() {
+        ReaderOptions original = ReaderOptions.builder().concurrent(2).build();
+        ReaderOptions updated = original.toBuilder().chunk(4).build();
+        assertThat(updated.chunk).isEqualTo(4);
+        assertThat(updated.concurrent).isEqualTo(2);
+        assertThat(original.chunk).isEqualTo(-1);
+        assertThat(original).isNotEqualTo(original.toBuilder().build());
+    }
 }

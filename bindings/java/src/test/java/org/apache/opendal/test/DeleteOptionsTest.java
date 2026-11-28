@@ -22,6 +22,7 @@ package org.apache.opendal.test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.stream.Stream;
 import org.apache.opendal.AsyncOperator;
@@ -93,6 +94,14 @@ public class DeleteOptionsTest {
                         "ifVersionNotMatch",
                         DeleteOptions.builder().ifVersionNotMatch("v1").build()),
                 Arguments.of("ifNotChanged with an ETag", deleteIfNotChanged("\"etag\"", null)),
+                Arguments.of(
+                        "ifNotChanged ignores timestamps outside the native range",
+                        DeleteOptions.builder()
+                                .ifNotChanged(Metadata.builder()
+                                        .etag("\"etag\"")
+                                        .lastModified(Instant.MAX)
+                                        .build())
+                                .build()),
                 Arguments.of("ifNotChanged with a version", deleteIfNotChanged(null, "v1")));
     }
 

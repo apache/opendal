@@ -21,17 +21,18 @@
 
 package org.apache.opendal;
 
+import java.time.Duration;
 import java.util.Map;
 import lombok.Builder;
 
 /**
  * Options for write operations.
  *
- * <p>All supplied conditions must hold for the write to commit. Unsupported conditions or {@link #append} fail with {@link OpenDALException.Code#Unsupported}. Unsupported metadata options may be ignored. Failed conditions fail with {@link OpenDALException.Code#ConditionNotMatch}. Presigned write requests validate options and capabilities without executing against storage.
+ * <p>All supplied conditions must hold for the write to commit. Unsupported conditions, {@link #append}, or {@link #expires} fail with {@link OpenDALException.Code#Unsupported}. Unsupported metadata options may be ignored. Failed conditions fail with {@link OpenDALException.Code#ConditionNotMatch}. Invalid {@link #expires} or {@link #ifNotChanged} values fail with {@link OpenDALException.Code#ConfigInvalid}. Presigned write requests validate options and capabilities without executing against storage.
  *
  * <p>Optional reference fields default to {@code null}.
  */
-@Builder
+@Builder(toBuilder = true)
 public class WriteOptions {
 
     /**
@@ -121,4 +122,51 @@ public class WriteOptions {
      */
     @Builder.Default
     public final long chunk = -1L;
+
+    /**
+     * Sets Content-Language system metadata on the object being written.
+     *
+     * <p>Use a language tag or a comma-separated list of tags, such as {@code fr-CA, en}. Check {@link Capability#writeWithContentLanguage} for support. A subsequent stat can retrieve the stored value with {@link Metadata#contentLanguage}. Services without support may ignore this option.
+     *
+     * @see Capability#writeWithContentLanguage
+     */
+    public final String contentLanguage;
+
+    /**
+     * Sets how long the new file lives after the write commits.
+     *
+     * <p>A supplied duration overrides the service's default TTL. When unset, the service uses its usual expiration policy. Services round positive durations up to their supported precision.
+     *
+     * <p>Supply a positive {@link Duration}. Zero, negative, or unrepresentable durations fail with {@link OpenDALException.Code#ConfigInvalid}. The write fails with {@link OpenDALException.Code#Unsupported} when the service does not advertise {@link Capability#writeWithExpires}.
+     *
+     * @see Capability#writeWithExpires
+     */
+    public final Duration expires;
+
+    /**
+     * Write only when the file at the write path has this exact version.
+     *
+     * <p>The condition succeeds when the file exists and its version equals this value. A file with a different version, or a missing file, fails the write with {@link OpenDALException.Code#ConditionNotMatch}.
+     *
+     * @see Capability#writeWithIfVersionMatch
+     */
+    public final String ifVersionMatch;
+
+    /**
+     * Write only when the file at the write path does not have this version.
+     *
+     * <p>The condition succeeds when the file exists with a different version. A file whose version equals this value fails the write with {@link OpenDALException.Code#ConditionNotMatch}. When no file exists at the write path, no portable behavior is defined.
+     *
+     * @see Capability#writeWithIfVersionNotMatch
+     */
+    public final String ifVersionNotMatch;
+
+    /**
+     * Write only when the file at the write path still has the identity recorded in this metadata.
+     *
+     * <p>Pass metadata previously returned by OpenDAL for the same path. OpenDAL derives a version match when the service supports version conditions and the metadata contains a version. Otherwise it uses a non-weak ETag if present. A changed or missing file fails the write with {@link OpenDALException.Code#ConditionNotMatch}, as does combining this option with a conflicting {@link #ifMatch} or {@link #ifVersionMatch} value.
+     *
+     * <p>The operation returns {@link OpenDALException.Code#Unsupported} when the service does not support the derived primitive condition, and {@link OpenDALException.Code#ConfigInvalid} when the metadata contains neither a version nor a non-weak ETag.
+     */
+    public final Metadata ifNotChanged;
 }

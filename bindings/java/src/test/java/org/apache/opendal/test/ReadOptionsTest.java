@@ -27,6 +27,7 @@ import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -255,6 +256,7 @@ public class ReadOptionsTest {
         assertThat(defaults.length).isEqualTo(-1);
         assertThat(defaults.concurrent).isEqualTo(1);
         assertThat(defaults.chunk).isEqualTo(-1);
+        assertThat(defaults.limit).isEqualTo(-1);
         assertThat(defaults.contentLengthHint).isEqualTo(-1);
         try (AsyncOperator async =
                         AsyncOperator.of(ServiceConfig.Memory.builder().build());
@@ -273,13 +275,64 @@ public class ReadOptionsTest {
         }
     }
 
+    @Test
+    void testReadLimit() {
+        try (AsyncOperator async =
+                        AsyncOperator.of(ServiceConfig.Memory.builder().build());
+                Operator op = async.blocking()) {
+            op.write("file", CONTENT);
+            ReadOptions limited = ReadOptions.builder().limit(4).build();
+            assertThat(op.read("file", limited)).containsExactly('0', '1', '2', '3');
+            assertThat(async.read("file", limited).join()).containsExactly('0', '1', '2', '3');
+
+            ReadOptions ranged = limited.toBuilder().offset(6).length(8).build();
+            assertThat(ranged.limit).isEqualTo(4);
+            assertThat(limited.offset).isZero();
+            assertThat(op.read("file", ranged)).containsExactly('6', '7', '8', '9');
+            assertThat(async.read("file", ranged).join()).containsExactly('6', '7', '8', '9');
+            assertThatThrownBy(
+                            () -> op.read("file", ranged.toBuilder().limit(-1).build()))
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.Unexpected));
+            assertThatThrownBy(() -> op.read(
+                            "file", limited.toBuilder().offset(CONTENT.length).build()))
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RangeNotSatisfied));
+
+            assertThatThrownBy(
+                            () -> op.read("file", limited.toBuilder().chunk(2).build()))
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.ConfigInvalid));
+            assertThatThrownBy(() ->
+                            op.read("file", limited.toBuilder().concurrent(2).build()))
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.ConfigInvalid));
+
+            ReadOptions empty = limited.toBuilder().limit(0).build();
+            assertThat(op.read("missing", empty)).isEmpty();
+            assertThat(async.read("missing", empty).join()).isEmpty();
+            assertThatThrownBy(() ->
+                            op.read("missing", empty.toBuilder().ifMatch("etag").build()))
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.Unsupported));
+        }
+    }
+
+    @Test
+    void testPresignReadRejectsLimit() {
+        try (AsyncOperator async =
+                AsyncOperator.of(ServiceConfig.Memory.builder().build())) {
+            ReadOptions options = ReadOptions.builder().limit(4).build();
+            assertThatThrownBy(async.presignRead("file", Duration.ofMinutes(1), options)::join)
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.ConfigInvalid));
+        }
+    }
+
     static Stream<Arguments> invalidOptions() {
         return Stream.of(
                 Arguments.of(ReadOptions.builder().concurrent(0).build(), OpenDALException.Code.ConfigInvalid),
                 Arguments.of(ReadOptions.builder().concurrent(-1).build(), OpenDALException.Code.ConfigInvalid),
                 Arguments.of(ReadOptions.builder().chunk(0).build(), OpenDALException.Code.ConfigInvalid),
                 Arguments.of(ReadOptions.builder().chunk(-2).build(), OpenDALException.Code.ConfigInvalid),
+                Arguments.of(ReadOptions.builder().limit(-2).build(), OpenDALException.Code.ConfigInvalid),
                 Arguments.of(ReadOptions.builder().contentLengthHint(-2).build(), OpenDALException.Code.ConfigInvalid),
+                Arguments.of(ReadOptions.builder().chunk(0).offset(-1).build(), OpenDALException.Code.ConfigInvalid),
+                Arguments.of(ReadOptions.builder().limit(-2).offset(-1).build(), OpenDALException.Code.ConfigInvalid),
                 Arguments.of(ReadOptions.builder().offset(-1).build(), OpenDALException.Code.RangeNotSatisfied),
                 Arguments.of(ReadOptions.builder().length(-2).build(), OpenDALException.Code.RangeNotSatisfied),
                 Arguments.of(

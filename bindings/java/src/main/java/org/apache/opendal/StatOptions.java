@@ -35,7 +35,7 @@ import lombok.Data;
  * <p>Optional reference fields default to {@code null}.
  */
 @Data
-@Builder
+@Builder(toBuilder = true)
 public class StatOptions {
 
     /**

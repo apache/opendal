@@ -342,7 +342,9 @@ def vote_start_instructions(candidate, atr_version, revision):
             f"Start this vote using the [ATR form]({ATR}/voting/opendal/{atr_version}). "
             f"Set **Publish location** to `{candidate.version}` for this existing RC-named release."
         )
-    return f"""After verification, start the vote (do not repeat this if voting is already open):
+    return f"""Before starting the vote, check **Publish location** on the [ATR vote form]({ATR}/voting/opendal/{atr_version}).
+If it differs from `{candidate.version}`, set it to `{candidate.version}` and start the verified revision `{revision}` in the form.
+If it already matches, you can start the vote with the command below. Run it only once.
 
 ```bash
 uv run --python 3.13 --with "apache-trusted-releases @ git+https://github.com/apache/tooling-releases-client" python - <<'PYTHON'

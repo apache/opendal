@@ -158,9 +158,9 @@ class Capability {
   /// metadata. Stat and read responses may include that metadata when
   /// requested.
   bool read_with_checksum{false};
-  /// Indicates if a non-append writer can natively copy source ranges into an
-  /// in-progress write. `Writer::copy_from` remains available through streaming
-  /// fallback when false or when appending.
+  /// Indicates if an open, non-append writer can copy eligible byte ranges from
+  /// existing objects without transferring the copied bytes through the client.
+  /// Whole-object copy is a separate capability.
   bool write_can_copy_from{false};
   /// Indicates if Content-Encoding can be specified during write operations.
   bool write_with_content_encoding{false};
@@ -184,10 +184,12 @@ class Capability {
   bool write_with_user_metadata{false};
   /// Indicates if writes can set a lifetime for the new file.
   bool write_with_expires{false};
-  /// Indicates if non-append writes support native checksum verification. A
-  /// service with this capability supports at least
-  /// [`crate::WriteChecksum::Any`] and validates each requested intent before
-  /// performing I/O.
+  /// Indicates if non-append writes support native verification with a checksum
+  /// algorithm selected by the service. Verification may cover only individual
+  /// upload requests, parts, or blocks. Support for caller-selected algorithms
+  /// and full-object verification depends on the service and write mode.
+  /// OpenDAL rejects unsupported explicit checksum requests before performing
+  /// I/O.
   bool write_with_checksum{false};
   /// Indicates if versions delete operations are supported.
   bool delete_with_version{false};

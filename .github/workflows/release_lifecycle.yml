@@ -39,6 +39,7 @@ jobs:
     permissions:
       discussions: write
       contents: read
+      statuses: read
     outputs:
       candidates: ${{ steps.sync.outputs.candidates }}
     steps:
@@ -68,6 +69,7 @@ jobs:
       discussions: write
       pull-requests: write
       id-token: write
+      statuses: read
     # A reusable workflow preserves the caller's ASF-linked actor for ATR OIDC.
     uses: ./.github/workflows/release_publish.yml
     with:

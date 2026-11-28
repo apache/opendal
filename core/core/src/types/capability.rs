@@ -125,8 +125,8 @@ pub struct Capability {
     pub write_can_empty: bool,
     /// Indicates if append operations are supported.
     pub write_can_append: bool,
-    /// Indicates if an open, non-append writer can copy byte ranges from existing
-    /// objects without transferring the copied bytes through the client.
+    /// Indicates if an open, non-append writer can copy eligible byte ranges from
+    /// existing objects without transferring the copied bytes through the client.
     /// Whole-object copy is a separate capability.
     pub write_can_copy_from: bool,
     /// Indicates if Content-Type can be specified during write operations.
@@ -157,6 +157,7 @@ pub struct Capability {
     /// algorithm selected by the service. Verification may cover only individual
     /// upload requests, parts, or blocks. Support for caller-selected algorithms
     /// and full-object verification depends on the service and write mode.
+    /// OpenDAL rejects unsupported explicit checksum requests before performing I/O.
     #[serde(default)]
     pub write_with_checksum: bool,
     /// Maximum size supported for multipart uploads.

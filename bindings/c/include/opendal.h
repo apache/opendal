@@ -942,7 +942,7 @@ typedef struct opendal_capability {
    */
   bool write_can_append;
   /**
-   * Indicates if an open, non-append writer can copy byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability.
+   * Indicates if an open, non-append writer can copy eligible byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability.
    */
   bool write_can_copy_from;
   /**
@@ -994,7 +994,7 @@ typedef struct opendal_capability {
    */
   bool write_with_expires;
   /**
-   * Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode.
+   * Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode. OpenDAL rejects unsupported explicit checksum requests before performing I/O.
    */
   bool write_with_checksum;
   /**

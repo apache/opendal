@@ -153,7 +153,7 @@ export declare class Capability {
   get writeCanEmpty(): boolean
   /** Indicates if append operations are supported. */
   get writeCanAppend(): boolean
-  /** Indicates if an open, non-append writer can copy byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability. */
+  /** Indicates if an open, non-append writer can copy eligible byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability. */
   get writeCanCopyFrom(): boolean
   /** Indicates if Content-Type can be specified during write operations. */
   get writeWithContentType(): boolean
@@ -179,7 +179,7 @@ export declare class Capability {
   get writeWithUserMetadata(): boolean
   /** Indicates if writes can set a lifetime for the new file. */
   get writeWithExpires(): boolean
-  /** Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode. */
+  /** Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode. OpenDAL rejects unsupported explicit checksum requests before performing I/O. */
   get writeWithChecksum(): boolean
   /** Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads. */
   get writeMultiMaxSize(): bigint | null

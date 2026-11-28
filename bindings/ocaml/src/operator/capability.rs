@@ -215,7 +215,7 @@ pub fn capability_write_can_append(cap: &Capability) -> bool {
     cap.0.write_can_append
 }
 
-/// Indicates if an open, non-append writer can copy byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability.
+/// Indicates if an open, non-append writer can copy eligible byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability.
 #[ocaml::func]
 #[ocaml::sig("capability -> bool ")]
 pub fn capability_write_can_copy_from(cap: &Capability) -> bool {
@@ -306,7 +306,7 @@ pub fn capability_write_with_expires(cap: &Capability) -> bool {
     cap.0.write_with_expires
 }
 
-/// Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode.
+/// Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode. OpenDAL rejects unsupported explicit checksum requests before performing I/O.
 #[ocaml::func]
 #[ocaml::sig("capability -> bool ")]
 pub fn capability_write_with_checksum(cap: &Capability) -> bool {

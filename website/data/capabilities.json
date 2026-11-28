@@ -256,7 +256,7 @@
       "short": "can_copy_from",
       "group": "write",
       "kind": "bool",
-      "doc": "Indicates if an open, non-append writer can copy byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability."
+      "doc": "Indicates if an open, non-append writer can copy eligible byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability."
     },
     {
       "name": "write_with_content_type",
@@ -347,7 +347,7 @@
       "short": "with_checksum",
       "group": "write",
       "kind": "bool",
-      "doc": "Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode."
+      "doc": "Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode. OpenDAL rejects unsupported explicit checksum requests before performing I/O."
     },
     {
       "name": "write_multi_max_size",

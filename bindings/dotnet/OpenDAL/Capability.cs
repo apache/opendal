@@ -276,7 +276,7 @@ public struct Capability
     public bool WriteCanAppend { get; private set; }
 
     /// <summary>
-    /// Indicates if an open, non-append writer can copy byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability.
+    /// Indicates if an open, non-append writer can copy eligible byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability.
     /// </summary>
     public bool WriteCanCopyFrom { get; private set; }
 
@@ -341,7 +341,7 @@ public struct Capability
     public bool WriteWithExpires { get; private set; }
 
     /// <summary>
-    /// Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode.
+    /// Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode. OpenDAL rejects unsupported explicit checksum requests before performing I/O.
     /// </summary>
     public bool WriteWithChecksum { get; private set; }
 

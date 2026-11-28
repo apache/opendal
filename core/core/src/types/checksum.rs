@@ -146,7 +146,7 @@ pub enum WriteChecksum {
     /// Use any native write checksum, preferring CRC-family algorithms.
     ///
     /// A service that advertises [`crate::Capability::write_with_checksum`]
-    /// supports this intent on non-append writes. The service may verify
+    /// supports this intent on supported non-append writes. The service may verify
     /// individual parts or blocks without producing a full-file checksum.
     Any,
     /// Use a native CRC-family checksum.

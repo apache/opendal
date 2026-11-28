@@ -30,7 +30,10 @@ export default function DownloadLink() {
     );
   }
 
-  const artifact = `opendal/apache-opendal-core-${version}-src.tar.gz`;
+  // These releases published their archives directly in the project directory.
+  const flatRelease = ["0.59.2", "0.59.3", "0.59.4", "0.59.5"].includes(version);
+  const directory = flatRelease ? "opendal" : `opendal/${version}`;
+  const artifact = `${directory}/apache-opendal-core-${version}-src.tar.gz`;
   const source = `https://www.apache.org/dyn/closer.lua/${artifact}?action=download`;
   const download = `https://downloads.apache.org/${artifact}`;
   return (

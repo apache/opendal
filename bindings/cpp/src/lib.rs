@@ -21,12 +21,16 @@ mod capability;
 mod layer;
 mod lister;
 mod metadata;
+mod options;
 mod reader;
 mod types;
 mod writer;
 
 #[cfg(feature = "testing")]
 mod test_support;
+
+#[cfg(test)]
+mod options_test;
 
 pub use layer::LayerBuilder;
 
@@ -149,14 +153,6 @@ mod ffi {
         recursive: bool,
     }
 
-    struct FfiListOptions {
-        limit: OptionalUsize,
-        start_after: OptionalString,
-        recursive: bool,
-        versions: bool,
-        deleted: bool,
-    }
-
     #[cxx_name = "SeekDir"]
     enum SeekFrom {
         Start = 0,
@@ -189,6 +185,13 @@ mod ffi {
         include!("opendal-cpp/src/metadata.rs.h");
         #[namespace = "opendal::ffi::metadata"]
         type Metadata = crate::metadata::ffi::Metadata;
+    }
+
+    // Generated from core by `dev/src/generate/cpp.rs`; see src/options.rs.
+    unsafe extern "C++" {
+        include!("opendal-cpp/src/options.rs.h");
+        #[namespace = "opendal::ffi::options"]
+        type FfiListOptions = crate::options::ffi::FfiListOptions;
     }
 
     extern "Rust" {
@@ -508,17 +511,6 @@ fn delete_options(opts: ffi::FfiDeleteOptions) -> od::options::DeleteOptions {
     }
 }
 
-fn list_options(opts: ffi::FfiListOptions) -> od::options::ListOptions {
-    od::options::ListOptions {
-        limit: optional_usize(opts.limit),
-        start_after: optional_string(opts.start_after),
-        recursive: opts.recursive,
-        versions: opts.versions,
-        deleted: opts.deleted,
-        glob: None,
-    }
-}
-
 impl Operator {
     fn read(&self, path: &str) -> Result<Vec<u8>> {
         Ok(self.0.read(path)?.to_vec())
@@ -593,7 +585,7 @@ impl Operator {
     fn list_options(&self, path: &str, opts: ffi::FfiListOptions) -> Result<Vec<ffi::Entry>> {
         Ok(self
             .0
-            .list_options(path, list_options(opts))?
+            .list_options(path, opts.into())?
             .into_iter()
             .map(Into::into)
             .collect())
@@ -637,9 +629,7 @@ impl Operator {
     }
 
     fn lister_options(&self, path: &str, opts: ffi::FfiListOptions) -> Result<*mut Lister> {
-        let lister = Box::into_raw(Box::new(Lister(
-            self.0.lister_options(path, list_options(opts))?,
-        )));
+        let lister = Box::into_raw(Box::new(Lister(self.0.lister_options(path, opts.into())?)));
         Ok(lister)
     }
 

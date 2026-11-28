@@ -22,8 +22,13 @@
 //! copy between them. All three are rendered from the same field list.
 //! `opendal::Metadata` crosses the same three layers and is rendered from the
 //! core accessor list.
+//!
+//! Operation options cross four layers: the public struct, the cxx shared
+//! struct, the C++ `ToFfiOptions` conversion, and the Rust conversion into
+//! core. All four are rendered from `OPTIONS`.
 
 use super::capability;
+use super::core_options::{self, OptionKind};
 use super::metadata::{self, MetadataKind};
 use anyhow::{Context, Result, bail};
 use minijinja::value::Serde;
@@ -183,7 +188,8 @@ const FROZEN_PUBLIC_ORDER: &[&str] = &[
 
 pub fn generate(workspace_dir: &Path) -> Result<()> {
     generate_capability(workspace_dir)?;
-    generate_metadata(workspace_dir)
+    generate_metadata(workspace_dir)?;
+    generate_options(workspace_dir)
 }
 
 /// Order core names for a public C++ class by its append-only `frozen` list,
@@ -509,6 +515,312 @@ fn render_metadata(workspace_dir: &Path) -> Result<Vec<(&'static str, String)>> 
     Ok(rendered)
 }
 
+/// One core options struct that crosses into C++, and the fields it carries.
+struct OptionsSpec {
+    /// Core struct name, also the name of the public C++ struct.
+    name: &'static str,
+    /// `@brief` of the public C++ struct.
+    brief: &'static str,
+    /// Carried core fields and their kinds, in the declaration order of the
+    /// public C++ struct.
+    ///
+    /// Callers may brace-initialize the public struct by position or with
+    /// designated initializers, so this order is append-only. A core field
+    /// that is not listed is not exposed in C++ and keeps its core default.
+    fields: &'static [(&'static str, OptionKind)],
+}
+
+/// Options structs generated into `include/options.hpp`. The other options
+/// structs are still hand-written in `include/data_structure.hpp`.
+const OPTIONS: &[OptionsSpec] = {
+    use OptionKind::*;
+
+    &[OptionsSpec {
+        name: "ListOptions",
+        brief: "Options for list and lister operations.",
+        fields: &[
+            ("limit", OptionUsize),
+            ("start_after", OptionString),
+            ("recursive", Bool),
+            ("versions", Bool),
+            ("deleted", Bool),
+        ],
+    }]
+};
+
+/// Render model of one options struct. Every per-kind decision is made in
+/// `option_member`, so the templates stay structural.
+#[derive(Debug, Serialize)]
+struct OptionsModel {
+    /// Core struct name, also the public C++ struct name.
+    name: &'static str,
+    /// Name of the cxx bridge struct.
+    bridge_name: String,
+    /// `@brief` of the public C++ struct.
+    brief: &'static str,
+    /// Carried fields, in `OptionsSpec::fields` order.
+    members: Vec<OptionMember>,
+    /// Core fields that C++ does not expose, in core order.
+    unexposed: Vec<String>,
+    /// Whether the Rust conversion leaves core fields to `Default::default()`.
+    fills_defaults: bool,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+struct OptionMember {
+    /// Field name in core, the bridge struct, and the public C++ struct.
+    name: String,
+    /// Core field doc with rustdoc links rendered as code spans, each
+    /// paragraph wrapped for the header's `///` comments. An empty line
+    /// separates paragraphs.
+    hpp_doc_lines: Vec<String>,
+    /// Declaration of the public C++ member.
+    hpp_member: String,
+    /// Field type in the cxx bridge struct.
+    bridge_type: &'static str,
+    /// Expression converting the public C++ member into the bridge field.
+    cpp_value: String,
+    /// Expression converting the bridge field into the core field.
+    rust_value: String,
+}
+
+/// Map one core option field to its public C++ member, bridge field, and
+/// conversions.
+///
+/// Fails for a kind the bridge cannot carry yet, so such a field cannot be
+/// listed in `OPTIONS` by mistake.
+fn option_member(
+    options: &str,
+    field: &core_options::OptionField,
+    kind: OptionKind,
+    capabilities: &[capability::CapabilityField],
+) -> Result<OptionMember> {
+    let name = field.name.as_str();
+    let member = format!("options.{name}");
+    let bridge_field = format!("opts.{name}");
+    // (public type, member initializer, bridge type, C++ conversion, Rust
+    // conversion)
+    let (cpp_type, cpp_init, bridge_type, cpp_value, rust_value) = match kind {
+        OptionKind::Bool => ("bool", "{false}", "bool", member, bridge_field),
+        OptionKind::OptionUsize => (
+            "std::optional<std::size_t>",
+            "",
+            "OptionalUsize",
+            format!("ToFfiOptionalUsize({member})"),
+            format!("optional_usize({bridge_field})"),
+        ),
+        OptionKind::OptionString => (
+            "std::optional<std::string>",
+            "",
+            "OptionalString",
+            format!("ToFfiOptionalString({member})"),
+            format!("optional_string({bridge_field})"),
+        ),
+        _ => bail!("the C++ bridge cannot carry `{options}::{name}` of kind {kind:?} yet"),
+    };
+    Ok(OptionMember {
+        name: name.to_string(),
+        hpp_doc_lines: option_doc_lines(&field.doc, capabilities),
+        hpp_member: format!("{cpp_type} {name}{cpp_init};"),
+        bridge_type,
+        cpp_value,
+        rust_value,
+    })
+}
+
+/// The core doc comment of an option field as it reads in the C++ header.
+///
+/// Each paragraph is wrapped to fit the header's `///` comments, and an empty
+/// line separates paragraphs. Rustdoc links become plain code spans, because
+/// Doxygen cannot resolve Rust paths:
+/// ``[`Capability::list_with_limit`](crate::Capability::list_with_limit)``
+/// and ``[`crate::layers::SimulateLayer`]`` keep only their code span. Code
+/// spans that name a C++ member then use its C++ name (see `cpp_code_span`);
+/// other code spans stay as written.
+fn option_doc_lines(doc: &[String], capabilities: &[capability::CapabilityField]) -> Vec<String> {
+    let mut lines = Vec::new();
+    for paragraph in doc.split(|line| line.trim().is_empty()) {
+        if paragraph.is_empty() {
+            continue;
+        }
+        if !lines.is_empty() {
+            lines.push(String::new());
+        }
+        let text = paragraph
+            .iter()
+            .map(|line| cpp_code_spans(&strip_rustdoc_links(line.trim()), capabilities))
+            .collect::<Vec<_>>()
+            .join(" ");
+        lines.extend(wrap_doc(&text, HPP_DOC_PREFIX, HPP_COLUMN_LIMIT));
+    }
+    lines
+}
+
+/// Replace each rustdoc intra-doc link in `line` with its code span.
+fn strip_rustdoc_links(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(start) = rest.find("[`") {
+        let Some(len) = rest[start + 1..].find("`]") else {
+            break;
+        };
+        out.push_str(&rest[..start]);
+        out.push_str(&rest[start + 1..start + len + 2]);
+        rest = &rest[start + len + 3..];
+        if let Some(target) = rest.strip_prefix('(')
+            && let Some(end) = target.find(')')
+        {
+            rest = &target[end + 1..];
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Replace each code span in `line` that names a C++ member with its C++ name.
+fn cpp_code_spans(line: &str, capabilities: &[capability::CapabilityField]) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(start) = rest.find('`') {
+        let Some(len) = rest[start + 1..].find('`') else {
+            break;
+        };
+        let code = &rest[start + 1..start + 1 + len];
+        out.push_str(&rest[..=start]);
+        out.push_str(&cpp_code_span(code, capabilities).unwrap_or_else(|| code.to_string()));
+        out.push('`');
+        rest = &rest[start + len + 2..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// The C++ name of a code span that names a member of the C++ surface, or
+/// `None` to keep the code span as written.
+///
+/// A core capability such as `Capability::list_with_start_after` reads
+/// `opendal::Capability::list_with_start_after`, the member of the
+/// `opendal::Capability` that `Operator::Info()` returns, spelled by
+/// `cpp_name`. Option members keep their core names in C++, so a span such as
+/// `start_after` stays as written.
+fn cpp_code_span(code: &str, capabilities: &[capability::CapabilityField]) -> Option<String> {
+    let name = code
+        .strip_prefix("crate::")
+        .unwrap_or(code)
+        .strip_prefix("Capability::")?;
+    capabilities
+        .iter()
+        .any(|f| f.name == name)
+        .then(|| format!("opendal::Capability::{}", cpp_name(name)))
+}
+
+/// Check `specs` against the parsed core structs and build their render
+/// models.
+///
+/// Fails if a listed struct or field is missing from core, because dropping it
+/// would silently break source compatibility, if a field is listed twice, or
+/// if a field's kind in core differs from its listed kind, because that would
+/// change the public C++ member type.
+fn options_models(
+    parsed: &[core_options::OptionsStruct],
+    specs: &[OptionsSpec],
+    capabilities: &[capability::CapabilityField],
+) -> Result<Vec<OptionsModel>> {
+    let mut models = Vec::with_capacity(specs.len());
+    for spec in specs {
+        let core = parsed
+            .iter()
+            .find(|s| s.name == spec.name)
+            .with_context(|| format!("OPTIONS struct `{}` is missing from core", spec.name))?;
+        let mut members = Vec::with_capacity(spec.fields.len());
+        for (i, &(name, kind)) in spec.fields.iter().enumerate() {
+            if spec.fields[..i].iter().any(|(listed, _)| *listed == name) {
+                bail!("OPTIONS lists `{}::{name}` twice", spec.name);
+            }
+            let field = core
+                .fields
+                .iter()
+                .find(|f| f.name == name)
+                .with_context(|| {
+                    format!(
+                        "OPTIONS member `{}::{name}` is missing from core",
+                        spec.name
+                    )
+                })?;
+            if field.kind != kind {
+                bail!(
+                    "core `{}::{name}` has kind {:?}, but OPTIONS lists {kind:?}",
+                    spec.name,
+                    field.kind
+                );
+            }
+            members.push(option_member(spec.name, field, kind, capabilities)?);
+        }
+        let unexposed: Vec<String> = core
+            .fields
+            .iter()
+            .filter(|f| !spec.fields.iter().any(|(listed, _)| *listed == f.name))
+            .map(|f| f.name.clone())
+            .collect();
+        models.push(OptionsModel {
+            name: spec.name,
+            bridge_name: format!("Ffi{}", spec.name),
+            brief: spec.brief,
+            fills_defaults: !unexposed.is_empty() || core.has_unmirrored_fields,
+            members,
+            unexposed,
+        });
+    }
+    Ok(models)
+}
+
+fn generate_options(workspace_dir: &Path) -> Result<()> {
+    for (relative, rendered) in render_options(workspace_dir)? {
+        fs::write(workspace_dir.join(relative), format!("{rendered}\n"))?;
+    }
+    Ok(())
+}
+
+/// Render every options output as `(path relative to workspace, content)`.
+fn render_options(workspace_dir: &Path) -> Result<Vec<(&'static str, String)>> {
+    let parsed = core_options::parse(&workspace_dir.join("core/core/src/types/options.rs"))?;
+    let capabilities = capability::parse(&workspace_dir.join("core/core/src/types/capability.rs"))?;
+    let options = options_models(&parsed, OPTIONS, &capabilities)?;
+
+    let mut env = Environment::new();
+    env.add_template("options_hpp", include_str!("cpp/options_hpp.j2"))?;
+    env.add_template("options_rs", include_str!("cpp/options_rs.j2"))?;
+    env.add_template(
+        "options_converter_hpp",
+        include_str!("cpp/options_converter_hpp.j2"),
+    )?;
+    env.add_template(
+        "options_converter_cpp",
+        include_str!("cpp/options_converter_cpp.j2"),
+    )?;
+
+    let outputs = [
+        ("options_hpp", "bindings/cpp/include/options.hpp"),
+        ("options_rs", "bindings/cpp/src/options.rs"),
+        (
+            "options_converter_hpp",
+            "bindings/cpp/src/utils/options_converter.hpp",
+        ),
+        (
+            "options_converter_cpp",
+            "bindings/cpp/src/utils/options_converter.cpp",
+        ),
+    ];
+    let mut rendered = Vec::with_capacity(outputs.len());
+    for (template, relative) in outputs {
+        let content = env
+            .get_template(template)?
+            .render(context! { options => Serde(&options) })?;
+        rendered.push((relative, content));
+    }
+    Ok(rendered)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -635,6 +947,276 @@ mod tests {
         .unwrap_err()
         .to_string();
         assert!(err.contains("`cache_control` is missing from core"));
+    }
+
+    /// `ListOptions` as `bindings/cpp/include/data_structure.hpp` declared it on
+    /// `main` before it was generated, copied verbatim. Callers depend on each
+    /// member's name, type, default member initializer, and position. The
+    /// generated header adds member doc comments, which this text omits.
+    const MAIN_LIST_OPTIONS: &str = r#"/**
+ * @struct ListOptions
+ * @brief Options for list and lister operations.
+ */
+struct ListOptions {
+  std::optional<std::size_t> limit;
+  std::optional<std::string> start_after;
+  bool recursive{false};
+  bool versions{false};
+  bool deleted{false};
+};"#;
+
+    fn parsed_options() -> Vec<core_options::OptionsStruct> {
+        core_options::parse(&workspace_dir().join("core/core/src/types/options.rs"))
+            .expect("parse core options")
+    }
+
+    fn rendered_options(path: &str) -> String {
+        render_options(&workspace_dir())
+            .unwrap()
+            .into_iter()
+            .find(|(relative, _)| *relative == path)
+            .map(|(_, content)| content)
+            .expect("rendered output")
+    }
+
+    #[test]
+    fn test_rendered_options_header_keeps_main_list_options() {
+        let header = rendered_options("bindings/cpp/include/options.hpp");
+        let declarations: String = header
+            .lines()
+            .filter(|line| !line.starts_with("  ///"))
+            .map(|line| format!("{line}\n"))
+            .collect();
+        assert!(
+            declarations.contains(MAIN_LIST_OPTIONS),
+            "header no longer declares:\n{MAIN_LIST_OPTIONS}\n\nheader:\n{header}"
+        );
+        assert_eq!(header.matches("\nstruct ").count(), 1);
+    }
+
+    /// Split doc text into paragraphs, each joined into one line of words.
+    fn paragraphs<'a>(lines: impl IntoIterator<Item = &'a str>) -> Vec<String> {
+        let mut paragraphs = vec![Vec::new()];
+        for line in lines {
+            match line.trim() {
+                "" => paragraphs.push(Vec::new()),
+                text => paragraphs.last_mut().unwrap().push(text),
+            }
+        }
+        paragraphs
+            .into_iter()
+            .filter(|words| !words.is_empty())
+            .map(|words| words.join(" "))
+            .collect()
+    }
+
+    #[test]
+    fn test_rendered_options_header_documents_members_with_core_docs() {
+        let header = rendered_options("bindings/cpp/include/options.hpp");
+        let lines: Vec<&str> = header.lines().collect();
+        let list = parsed_options()
+            .into_iter()
+            .find(|s| s.name == "ListOptions")
+            .unwrap();
+        for (name, _) in OPTIONS[0].fields {
+            // Core's full doc, with `[`code`](target)` and `[`code`]` links
+            // reduced to their code span.
+            let core_doc = list
+                .fields
+                .iter()
+                .find(|f| f.name == *name)
+                .unwrap()
+                .doc
+                .join("\n");
+            let mut plain = String::new();
+            let mut rest = core_doc.as_str();
+            while let Some(at) = rest.find("](") {
+                let close = rest[at..].find(')').unwrap();
+                plain.push_str(&rest[..at + 1]);
+                rest = &rest[at + close + 1..];
+            }
+            plain.push_str(rest);
+            // C++ callers read capabilities from the `opendal::Capability`
+            // that `Operator::Info()` returns.
+            let plain = plain
+                .replace("[`", "`")
+                .replace("`]", "`")
+                .replace("`Capability::", "`opendal::Capability::");
+            let expected = paragraphs(plain.lines());
+            assert!(
+                !expected.is_empty(),
+                "core `ListOptions::{name}` has no doc"
+            );
+
+            let decl = lines
+                .iter()
+                .position(|line| {
+                    !line.starts_with("  ///")
+                        && (line.ends_with(&format!(" {name};"))
+                            || line.ends_with(&format!(" {name}{{false}};")))
+                })
+                .unwrap_or_else(|| panic!("header lacks `{name}`"));
+            let mut comment: Vec<&str> = lines[..decl]
+                .iter()
+                .rev()
+                .map_while(|line| line.strip_prefix("  ///"))
+                .collect();
+            comment.reverse();
+            assert_eq!(
+                paragraphs(comment),
+                expected,
+                "doc of `ListOptions::{name}`"
+            );
+        }
+        // A rendered intra-doc link, copied from core's `start_after` doc.
+        assert!(header.contains(
+            "  ///\n  /// Setting this requires `opendal::Capability::list_with_start_after`.\n"
+        ));
+        assert!(!header.contains("[`"));
+        assert!(!header.contains("](crate::"));
+        assert!(!header.contains(" `Capability::"));
+
+        // Each referenced capability is a member of the generated C++ class.
+        let capability_header = rendered("bindings/cpp/include/capability.hpp");
+        let mut referenced = 0;
+        for reference in header.split("`opendal::Capability::").skip(1) {
+            let member = &reference[..reference.find('`').unwrap()];
+            assert!(
+                capability_header.contains(&format!("  bool {member}{{false}};\n")),
+                "capability.hpp lacks `{member}`"
+            );
+            referenced += 1;
+        }
+        assert_eq!(referenced, 4);
+    }
+
+    #[test]
+    fn test_option_doc_lines_render_rustdoc_links_as_code() {
+        let doc = [
+            "Requires [`Capability::list_with_limit`](crate::Capability::list_with_limit).",
+            "",
+            "Rely on [`crate::layers::SimulateLayer`] and [`Self::recursive`].",
+            "A [plain](https://opendal.apache.org) link and `code` stay.",
+        ]
+        .map(String::from);
+        assert_eq!(
+            option_doc_lines(&doc, &core_fields()),
+            [
+                "Requires `opendal::Capability::list_with_limit`.",
+                "",
+                "Rely on `crate::layers::SimulateLayer` and `Self::recursive`. A",
+                "[plain](https://opendal.apache.org) link and `code` stay.",
+            ]
+        );
+    }
+
+    #[test]
+    fn test_option_doc_lines_use_cpp_names() {
+        let doc = [
+            "- Pagination: `limit`, `start_after`.",
+            "",
+            "Requires [`Capability::list_with_start_after`](crate::Capability::list_with_start_after).",
+            "",
+            "Requires [`crate::Capability::list_with_versions`] and `Capability::delete`.",
+            "",
+            "Unknown `Capability::no_such_flag`, [`crate::ErrorKind::Unsupported`], `glob`, and prose Capability::list stay.",
+        ]
+        .map(String::from);
+        assert_eq!(
+            option_doc_lines(&doc, &core_fields()),
+            [
+                "- Pagination: `limit`, `start_after`.",
+                "",
+                "Requires `opendal::Capability::list_with_start_after`.",
+                "",
+                "Requires `opendal::Capability::list_with_versions` and",
+                "`opendal::Capability::delete_feature`.",
+                "",
+                "Unknown `Capability::no_such_flag`, `crate::ErrorKind::Unsupported`,",
+                "`glob`, and prose Capability::list stay.",
+            ]
+        );
+    }
+
+    #[test]
+    fn test_new_core_field_stays_unexposed() {
+        let mut parsed = parsed_options();
+        let before = options_models(&parsed, OPTIONS, &core_fields()).unwrap();
+        let list = parsed.iter_mut().find(|s| s.name == "ListOptions").unwrap();
+        list.fields.insert(
+            1,
+            core_options::OptionField {
+                name: "new_mid".to_string(),
+                kind: OptionKind::OptionString,
+                doc: Vec::new(),
+            },
+        );
+
+        let after = options_models(&parsed, OPTIONS, &core_fields()).unwrap();
+
+        assert_eq!(before[0].members, after[0].members);
+        assert_eq!(after[0].unexposed[0], "new_mid");
+        assert_eq!(after[0].unexposed[1..], before[0].unexposed[..]);
+        assert!(after[0].fills_defaults);
+    }
+
+    #[test]
+    fn test_options_models_reject_incompatible_specs() {
+        use OptionKind::*;
+
+        let parsed = parsed_options();
+        let error = |name: &'static str, fields: &'static [(&'static str, OptionKind)]| {
+            let spec = OptionsSpec {
+                name,
+                brief: "",
+                fields,
+            };
+            options_models(&parsed, &[spec], &core_fields())
+                .unwrap_err()
+                .to_string()
+        };
+
+        assert_eq!(
+            error("MissingOptions", &[]),
+            "OPTIONS struct `MissingOptions` is missing from core"
+        );
+        assert_eq!(
+            error("ListOptions", &[("missing", OptionString)]),
+            "OPTIONS member `ListOptions::missing` is missing from core"
+        );
+        assert_eq!(
+            error(
+                "ListOptions",
+                &[("limit", OptionUsize), ("limit", OptionUsize)]
+            ),
+            "OPTIONS lists `ListOptions::limit` twice"
+        );
+        assert_eq!(
+            error("ListOptions", &[("limit", OptionU64)]),
+            "core `ListOptions::limit` has kind OptionUsize, but OPTIONS lists OptionU64"
+        );
+        // Core changing a listed field to another kind the bridge carries must
+        // fail too, instead of silently turning `start_after` into a `bool`.
+        let mut changed = parsed.clone();
+        let list = changed
+            .iter_mut()
+            .find(|s| s.name == "ListOptions")
+            .unwrap();
+        list.fields
+            .iter_mut()
+            .find(|f| f.name == "start_after")
+            .unwrap()
+            .kind = Bool;
+        assert_eq!(
+            options_models(&changed, OPTIONS, &core_fields())
+                .unwrap_err()
+                .to_string(),
+            "core `ListOptions::start_after` has kind Bool, but OPTIONS lists OptionString"
+        );
+        assert_eq!(
+            error("ReadOptions", &[("if_modified_since", OptionTimestamp)]),
+            "the C++ bridge cannot carry `ReadOptions::if_modified_since` of kind OptionTimestamp yet"
+        );
     }
 
     #[test]

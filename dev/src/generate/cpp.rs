@@ -570,8 +570,9 @@ struct OptionsModel {
 struct OptionMember {
     /// Field name in core, the bridge struct, and the public C++ struct.
     name: String,
-    /// First paragraph of the core field doc, wrapped for the header's `///`
-    /// comments.
+    /// Core field doc with rustdoc links rendered as code spans, each
+    /// paragraph wrapped for the header's `///` comments. An empty line
+    /// separates paragraphs.
     hpp_doc_lines: Vec<String>,
     /// Declaration of the public C++ member.
     hpp_member: String,
@@ -594,7 +595,6 @@ fn option_member(
     kind: OptionKind,
 ) -> Result<OptionMember> {
     let name = field.name.as_str();
-    let doc = metadata::first_paragraph(&field.doc);
     let member = format!("options.{name}");
     let bridge_field = format!("opts.{name}");
     // (public type, member initializer, bridge type, C++ conversion, Rust
@@ -619,12 +619,59 @@ fn option_member(
     };
     Ok(OptionMember {
         name: name.to_string(),
-        hpp_doc_lines: wrap_doc(&doc, HPP_DOC_PREFIX, HPP_COLUMN_LIMIT),
+        hpp_doc_lines: option_doc_lines(&field.doc),
         hpp_member: format!("{cpp_type} {name}{cpp_init};"),
         bridge_type,
         cpp_value,
         rust_value,
     })
+}
+
+/// The core doc comment of an option field as it reads in the C++ header.
+///
+/// Each paragraph is wrapped to fit the header's `///` comments, and an empty
+/// line separates paragraphs. Rustdoc links become plain code spans, because
+/// Doxygen cannot resolve Rust paths:
+/// ``[`Capability::list_with_limit`](crate::Capability::list_with_limit)``
+/// and ``[`crate::layers::SimulateLayer`]`` keep only their code span.
+fn option_doc_lines(doc: &[String]) -> Vec<String> {
+    let mut lines = Vec::new();
+    for paragraph in doc.split(|line| line.trim().is_empty()) {
+        if paragraph.is_empty() {
+            continue;
+        }
+        if !lines.is_empty() {
+            lines.push(String::new());
+        }
+        let text = paragraph
+            .iter()
+            .map(|line| strip_rustdoc_links(line.trim()))
+            .collect::<Vec<_>>()
+            .join(" ");
+        lines.extend(wrap_doc(&text, HPP_DOC_PREFIX, HPP_COLUMN_LIMIT));
+    }
+    lines
+}
+
+/// Replace each rustdoc intra-doc link in `line` with its code span.
+fn strip_rustdoc_links(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(start) = rest.find("[`") {
+        let Some(len) = rest[start + 1..].find("`]") else {
+            break;
+        };
+        out.push_str(&rest[..start]);
+        out.push_str(&rest[start + 1..start + len + 2]);
+        rest = &rest[start + len + 3..];
+        if let Some(target) = rest.strip_prefix('(')
+            && let Some(end) = target.find(')')
+        {
+            rest = &target[end + 1..];
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 /// Check `specs` against the parsed core structs and build their render
@@ -895,7 +942,7 @@ struct ListOptions {
         let header = rendered_options("bindings/cpp/include/options.hpp");
         let declarations: String = header
             .lines()
-            .filter(|line| !line.starts_with("  /// "))
+            .filter(|line| !line.starts_with("  ///"))
             .map(|line| format!("{line}\n"))
             .collect();
         assert!(
@@ -903,6 +950,22 @@ struct ListOptions {
             "header no longer declares:\n{MAIN_LIST_OPTIONS}\n\nheader:\n{header}"
         );
         assert_eq!(header.matches("\nstruct ").count(), 1);
+    }
+
+    /// Split doc text into paragraphs, each joined into one line of words.
+    fn paragraphs<'a>(lines: impl IntoIterator<Item = &'a str>) -> Vec<String> {
+        let mut paragraphs = vec![Vec::new()];
+        for line in lines {
+            match line.trim() {
+                "" => paragraphs.push(Vec::new()),
+                text => paragraphs.last_mut().unwrap().push(text),
+            }
+        }
+        paragraphs
+            .into_iter()
+            .filter(|words| !words.is_empty())
+            .map(|words| words.join(" "))
+            .collect()
     }
 
     #[test]
@@ -914,37 +977,78 @@ struct ListOptions {
             .find(|s| s.name == "ListOptions")
             .unwrap();
         for (name, _) in OPTIONS[0].fields {
-            let expected = list
+            // Core's full doc, with `[`code`](target)` and `[`code`]` links
+            // reduced to their code span.
+            let core_doc = list
                 .fields
                 .iter()
                 .find(|f| f.name == *name)
                 .unwrap()
                 .doc
-                .iter()
-                .map(|line| line.trim())
-                .take_while(|line| !line.is_empty())
-                .collect::<Vec<_>>()
-                .join(" ");
+                .join("\n");
+            let mut plain = String::new();
+            let mut rest = core_doc.as_str();
+            while let Some(at) = rest.find("](") {
+                let close = rest[at..].find(')').unwrap();
+                plain.push_str(&rest[..at + 1]);
+                rest = &rest[at + close + 1..];
+            }
+            plain.push_str(rest);
+            let plain = plain.replace("[`", "`").replace("`]", "`");
+            let expected = paragraphs(plain.lines());
             assert!(
                 !expected.is_empty(),
                 "core `ListOptions::{name}` has no doc"
             );
+
             let decl = lines
                 .iter()
                 .position(|line| {
-                    !line.starts_with("  /// ")
+                    !line.starts_with("  ///")
                         && (line.ends_with(&format!(" {name};"))
                             || line.ends_with(&format!(" {name}{{false}};")))
                 })
                 .unwrap_or_else(|| panic!("header lacks `{name}`"));
-            let comment: Vec<&str> = lines[..decl]
+            let mut comment: Vec<&str> = lines[..decl]
                 .iter()
                 .rev()
-                .map_while(|line| line.strip_prefix("  /// "))
+                .map_while(|line| line.strip_prefix("  ///"))
                 .collect();
-            let actual = comment.into_iter().rev().collect::<Vec<_>>().join(" ");
-            assert_eq!(actual, expected, "doc of `ListOptions::{name}`");
+            comment.reverse();
+            assert_eq!(
+                paragraphs(comment),
+                expected,
+                "doc of `ListOptions::{name}`"
+            );
         }
+        // A rendered intra-doc link, copied from core's `start_after` doc.
+        assert!(
+            header.contains(
+                "  ///\n  /// Setting this requires `Capability::list_with_start_after`.\n"
+            )
+        );
+        assert!(!header.contains("[`"));
+        assert!(!header.contains("](crate::"));
+    }
+
+    #[test]
+    fn test_option_doc_lines_render_rustdoc_links_as_code() {
+        let doc = [
+            "Requires [`Capability::list_with_limit`](crate::Capability::list_with_limit).",
+            "",
+            "Rely on [`crate::layers::SimulateLayer`] and [`Self::recursive`].",
+            "A [plain](https://opendal.apache.org) link and `code` stay.",
+        ]
+        .map(String::from);
+        assert_eq!(
+            option_doc_lines(&doc),
+            [
+                "Requires `Capability::list_with_limit`.",
+                "",
+                "Rely on `crate::layers::SimulateLayer` and `Self::recursive`. A",
+                "[plain](https://opendal.apache.org) link and `code` stay.",
+            ]
+        );
     }
 
     #[test]

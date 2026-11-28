@@ -250,7 +250,7 @@ fn classify(output: &ReturnType) -> Option<MetadataKind> {
 }
 
 /// Join the doc lines up to the first blank line into a single line.
-pub(super) fn first_paragraph(lines: &[String]) -> String {
+fn first_paragraph(lines: &[String]) -> String {
     lines
         .iter()
         .map(|line| line.trim())

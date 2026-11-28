@@ -147,7 +147,7 @@ def test_from_config_stringifies_flat_list_and_tuple():
 
 
 def _s3_with_tags(tags: object) -> S3Config:
-    """Build an offline S3 config whose map option `assume_role_session_tags` is `tags`."""
+    """Build an offline S3 config with `tags` as `assume_role_session_tags`."""
     return {
         "scheme": "s3",
         "bucket": "b",

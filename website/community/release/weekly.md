@@ -150,6 +150,10 @@ checks passed. The RM independently verifies the candidate before opening voting
 
 ## Vote and community notification
 
+Compose uploads the signed source archives, signatures and checksums in a directory named for the final version. For example, a candidate named `0.60.0-rc.2` contains `0.60.0/apache-opendal-core-0.60.0-src.tar.gz`. Leave the ATR **Publish location** at the project root so that archive is published under `downloads.apache.org/opendal/0.60.0/`.
+
+For a draft already composed with files at its top level, enter the final version in **Publish location** on ATR's **Start voting** form. When the vote passes, automatic publication places the existing revision in that directory.
+
 Use the [official ATR CLI](https://github.com/apache/tooling-releases-client/blob/main/RELEASE-PROCESS.md)
 or ATR's browser controls. The candidate Discussion substitutes the real RC and
 revision into these commands:

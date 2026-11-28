@@ -17,6 +17,14 @@
 
 # All configurations could be found here: https://github.com/apache/infrastructure-asfyaml/
 
+project:
+  metadata:
+    key: opendal
+    committee: opendal
+  policy:
+    # Compose supplies the final-version directory. ATR's version includes the RC number.
+    download_path_suffix: ""
+
 github:
   description: "Apache OpenDAL: One Layer, All Storage."
   homepage: https://opendal.apache.org

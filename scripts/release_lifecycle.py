@@ -818,8 +818,7 @@ def publish(candidate):
                 "revision": release["latest_revision_number"],
                 "email_to": "announce@apache.org",
                 "body": body,
-                "path_suffix": release.get("download_path_suffix")
-                or f"opendal-{candidate.version}",
+                "path_suffix": release.get("download_path_suffix") or None,
             },
         )
         release = candidate.atr()

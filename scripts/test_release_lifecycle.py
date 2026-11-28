@@ -37,6 +37,7 @@ class LifecycleTests(unittest.TestCase):
             "phase": "release_preview",
             "vote_resolved": "2026-09-14T00:00:00",
             "latest_revision_number": "00003",
+            "download_path_suffix": "",
             "current_vote_seq": 1,
         }
 
@@ -393,6 +394,7 @@ class LifecycleTests(unittest.TestCase):
             self.assertEqual(payload["version"], self.candidate.rc)
             self.assertEqual(payload["revision"], "00003")
             self.assertEqual(payload["email_to"], "announce@apache.org")
+            self.assertIsNone(payload["path_suffix"])
             self.assertNotIn("commit_hash", payload)
             cleanup.assert_called_once()
 

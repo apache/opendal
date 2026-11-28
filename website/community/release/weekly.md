@@ -150,7 +150,9 @@ checks passed. The RM independently verifies the candidate before opening voting
 
 ## Vote and community notification
 
-ATR uses the final version, such as `0.60.0`, as the release name. Each Git RC keeps its own tag and commit. After a vote is withdrawn, the next compose replaces the entire draft with the next signed bundle, including signatures and checksums. Compose verifies the paths and digests in ATR's accepted revision and records that revision on the Git RC commit. The project publish location is `{{VERSION}}`, so the approved files land directly under `downloads.apache.org/opendal/0.60.0/`.
+ATR uses the final version, such as `0.60.0`, as the release name. Each Git RC keeps its own tag and commit. After a vote is withdrawn, the next compose replaces the entire draft with the next signed bundle, including signatures and checksums. Compose verifies the paths and digests in ATR's accepted revision and records that revision on the Git RC commit.
+
+Before starting the vote, check **Publish location** on the ATR vote form. The vote API uses the configured location. If the field differs from the final version, enter the final version and start the vote in the form. For example, `0.60.0` publishes to `downloads.apache.org/opendal/0.60.0/`.
 
 For an existing ATR draft registered as `X.Y.Z-rc.N`, continue using its full ATR name. When starting its vote in the ATR web form, set **Publish location** to `X.Y.Z`. To replace an older candidate with a new Git RC, withdraw any active vote first. Once the final-version ATR record exists, the lifecycle follows its revisions for that version.
 

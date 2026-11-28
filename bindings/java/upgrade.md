@@ -1,3 +1,21 @@
+# Unreleased
+
+## Map-valued `ServiceConfig` fields
+
+`ServiceConfig.configMap()` now passes `ServiceConfig.S3.assumeRoleSessionTags` and
+`ServiceConfig.HdfsNative.options` as one option each, whose value is a JSON object string,
+such as `assume_role_session_tags` = `{"Team":"data"}`. Earlier versions merged the map's
+entries into the top-level options. The service ignored most entries, and an entry whose key
+matched another option after lowercasing, such as `Region`, could replace that option.
+
+- S3 session tags now reach STS `AssumeRole` when `roleArn` is set. The role's trust policy
+  must allow `sts:TagSession`, or `AssumeRole` fails. If it does not, leave
+  `assumeRoleSessionTags` unset.
+- If you relied on a merged entry to set a service option, set that option directly.
+- Code that reads `configMap()` directly no longer finds the map's entries as top-level
+  entries. It finds one entry per map field, under `assume_role_session_tags` or `options`,
+  and must decode that JSON object string to read the map.
+
 # Upgrade to v0.50
 
 ## Moka and MiniMoka configuration durations

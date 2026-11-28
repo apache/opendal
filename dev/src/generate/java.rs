@@ -1070,29 +1070,26 @@ fn make_populate_map(field: Serde<Config>) -> Result<String, minijinja::Error> {
         | ConfigType::I64
         | ConfigType::Bool
         | ConfigType::U32
-        | ConfigType::U16 => Some(format!("String.valueOf({name})")),
-        ConfigType::String => Some(name.clone()),
-        ConfigType::Duration => Some(format!("{name}.toString()")),
-        ConfigType::Vec => Some(format!("String.join(\",\", {name})")),
-        ConfigType::HashMap => None,
+        | ConfigType::U16 => format!("String.valueOf({name})"),
+        ConfigType::String => name.clone(),
+        ConfigType::Duration => format!("{name}.toString()"),
+        ConfigType::Vec => format!("String.join(\",\", {name})"),
+        // Core reads a map-valued option from one JSON object string.
+        ConfigType::HashMap => format!("ConfigJson.encodeObject({name})"),
     };
 
     let indent = if field.optional { "    " } else { "" };
     if field.optional {
         writeln!(w, "if ({name} != null) {{")?;
     }
-    if let Some(value) = value {
-        let populate = format!("map.put(\"{}\", {value});", field.name);
-        // java.j2 adds 12 columns; keep calls within the formatter's 120-column layout.
-        if 12 + indent.len() + populate.len() > 120 {
-            writeln!(w, "{indent}map.put(")?;
-            writeln!(w, "{indent}        \"{}\",", field.name)?;
-            writeln!(w, "{indent}        {value});")?;
-        } else {
-            writeln!(w, "{indent}{populate}")?;
-        }
+    let populate = format!("map.put(\"{}\", {value});", field.name);
+    // java.j2 adds 12 columns; keep calls within the formatter's 120-column layout.
+    if 12 + indent.len() + populate.len() > 120 {
+        writeln!(w, "{indent}map.put(")?;
+        writeln!(w, "{indent}        \"{}\",", field.name)?;
+        writeln!(w, "{indent}        {value});")?;
     } else {
-        writeln!(w, "{indent}map.putAll({name});")?;
+        writeln!(w, "{indent}{populate}")?;
     }
     if field.optional {
         writeln!(w, "}}")?;

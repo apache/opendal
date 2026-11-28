@@ -1133,16 +1133,14 @@ method's keyword arguments.
 
 /// Render a class or field docstring as a `"""..."""` block in a class body,
 /// one line per source line. Python reads the block back as `doc`, whatever
-/// quotes or backslashes it holds.
+/// quotes or backslashes it holds, and `just fmt` leaves it unchanged.
 fn push_docstring(out: &mut String, doc: &str) {
-    let (prefix, doc) = docstring_source(doc, !doc.contains('\n'));
+    let doc = docstring_source(doc, !doc.contains('\n'));
     let lines: Vec<&str> = doc.lines().collect();
     if lines.is_empty() {
         return;
     }
-    out.push_str("    ");
-    out.push_str(prefix);
-    out.push_str("\"\"\"");
+    out.push_str("    \"\"\"");
     out.push_str(lines[0]);
     if lines.len() == 1 {
         out.push_str("\"\"\"\n");
@@ -1158,44 +1156,43 @@ fn push_docstring(out: &mut String, doc: &str) {
     }
 }
 
-/// The string prefix and the text between the `"""` quotes of a docstring
-/// that Python reads back as `doc`. `closes_inline` says the closing quotes
-/// follow the text on the same line.
+/// The text between the `"""` quotes of a docstring that Python reads back as
+/// `doc`. `closes_inline` says the closing quotes follow the text on the same
+/// line.
 ///
-/// Text with a backslash becomes a raw docstring when a raw string can hold
-/// it, because ruff's D301 rejects backslash escapes in docstrings and its
-/// fix, which `just stub-gen` applies, turns them into raw strings that read
-/// back differently. Other text escapes each backslash, every third `"` in a
-/// row, and the quotes right before inline closing quotes.
-fn docstring_source(doc: &str, closes_inline: bool) -> (&'static str, String) {
+/// A backslash becomes `\u005c`. A `"` becomes `\u0022` when it would join
+/// the quotes around it: a leading `"`, every third `"` in a row, and the
+/// quotes right before inline closing quotes. `just fmt` keeps these escapes:
+/// ruff's D301 accepts `\u` escapes, but its fix for any other escape adds an
+/// `r` prefix that changes the value, and `ruff format` puts a space after
+/// opening quotes that a `"` follows, which D210 then rejects.
+/// `scripts/postprocess_stubs.py` applies the same escapes to the stubs.
+fn docstring_source(doc: &str, closes_inline: bool) -> String {
+    const BACKSLASH: &str = r"\u005c";
+    const QUOTE: &str = r"\u0022";
     let trailing = if closes_inline {
         doc.len() - doc.trim_end_matches('"').len()
     } else {
         0
     };
-    if doc.contains('\\')
-        && !doc.contains(r#"""""#)
-        && trailing == 0
-        && !(closes_inline && doc.ends_with('\\'))
-    {
-        return ("r", doc.to_string());
-    }
-
     let (body, quotes) = doc.split_at(doc.len() - trailing);
     let mut out = String::with_capacity(doc.len());
     let mut run = 0;
-    for c in body.chars() {
+    for (at, c) in body.char_indices() {
         match c {
-            '\\' => out.push_str(r"\\"),
-            '"' if run == 2 => out.push_str(r#"\""#),
+            '\\' => out.push_str(BACKSLASH),
+            '"' if at == 0 || run == 2 => out.push_str(QUOTE),
             c => out.push(c),
         }
-        run = if c == '"' && run < 2 { run + 1 } else { 0 };
+        run = match c {
+            '"' if at > 0 && run < 2 => run + 1,
+            _ => 0,
+        };
     }
     for _ in quotes.chars() {
-        out.push_str(r#"\""#);
+        out.push_str(QUOTE);
     }
-    ("", out)
+    out
 }
 
 #[cfg(test)]
@@ -1807,6 +1804,12 @@ print(json.dumps(docs))
     #[test]
     fn test_list_options_survive_any_core_doc() {
         let mut parsed = core_options();
+        // The capability each field names, whatever markup core uses for it.
+        let capabilities: BTreeMap<&str, String> = list_class(&parsed)
+            .fields
+            .iter()
+            .map(|f| (f.name, spans(&f.doc, "op.capability().").join(" ")))
+            .collect();
         let list = parsed.iter_mut().find(|o| o.name == "ListOptions").unwrap();
         list.doc = [
             r#""Options" for list operations, with \d, \\ and """ inside."#,
@@ -1817,15 +1820,12 @@ print(json.dumps(docs))
         .map(String::from)
         .to_vec();
         for field in &mut list.fields {
-            let capability = field
-                .doc
-                .iter()
-                .find_map(|line| {
-                    let (_, rest) = line.split_once("[`Capability::")?;
-                    Some(rest.split('`').next()?.to_string())
-                })
-                .map(|name| format!(" Needs [`Capability::{name}`](crate::Capability::{name})."))
-                .unwrap_or_default();
+            let capability = match capabilities.get(field.name.as_str()) {
+                Some(name) if !name.is_empty() => {
+                    format!(" Needs [`Capability::{name}`](crate::Capability::{name}).")
+                }
+                _ => String::new(),
+            };
             field.doc = vec![format!(r#"Reworded "{}" doc.{capability}"#, field.name)];
         }
         fn field<'a>(list: &'a mut OptionsStruct, name: &str) -> &'a mut Vec<String> {
@@ -1851,15 +1851,23 @@ print(json.dumps(docs))
         );
 
         let py = render_options_py(&crate::workspace_dir(), &generated).unwrap();
-        // A backslash without `"""` makes a raw docstring, which ruff accepts.
-        assert!(
-            py.contains(r#"    r"""Reworded "start_after" doc."#),
-            "{py}"
-        );
-        assert!(
-            py.contains(r#"    """Maximum results "per request\""""#),
-            "{py}"
-        );
+        // `bindings/python/tests/test_stub_docstrings.py` checks that
+        // `just fmt` keeps the first of these lines.
+        for line in [
+            r#"    """\u0022Options" for list operations, with \u005cd, \u005c\u005c and ""\u0022 inside."#,
+            r#"    needs a missing capability, a "quoted" ending""#,
+            r#"    """Maximum results "per request\u0022""""#,
+            r#"    """Reworded "start_after" doc. Needs `op.capability().list_with_start_after`. Keys match \u005cd+.""""#,
+        ] {
+            assert!(py.lines().any(|l| l == line), "{line}\n{py}");
+        }
+        // Ruff's D301 fix rewrites any other escape, and `ruff format`
+        // separates a `"` from the opening quotes.
+        for (at, _) in py.match_indices('\\') {
+            assert!(py[at + 1..].starts_with('u'), "{}", &py[at..]);
+        }
+        assert!(!py.contains("\"\"\"\""), "{py}");
+
         let docs = python_docstrings(&py);
         assert_eq!(
             docs["ListKwargs"],
@@ -1876,10 +1884,15 @@ print(json.dumps(docs))
             );
         }
 
+        // The pyclass doc, which pyo3-introspection writes into
+        // `_opendal.pyi`, is core's text unescaped.
         let rs = render_options_rs(&generated).unwrap();
-        assert!(
-            rs.contains("    /// Maximum results \"per request\"\n    pub limit: Option<usize>,\n")
-        );
+        for line in [
+            r#"/// "Options" for list operations, with \d, \\ and """ inside."#,
+            "    /// Maximum results \"per request\"\n    pub limit: Option<usize>,",
+        ] {
+            assert!(rs.contains(line), "{line}\n{rs}");
+        }
     }
 
     /// Every capability and exception the generated docstrings name exists

@@ -114,7 +114,7 @@ val write_can_append : Opendal_core.Operator.capability -> bool
 (** Indicates if append operations are supported. *)
 
 val write_can_copy_from : Opendal_core.Operator.capability -> bool
-(** Indicates if a non-append writer can natively copy source ranges into an in-progress write. `Writer::copy_from` remains available through streaming fallback when false or when appending. *)
+(** Indicates if an open, non-append writer can copy eligible byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability. *)
 
 val write_with_content_type : Opendal_core.Operator.capability -> bool
 (** Indicates if Content-Type can be specified during write operations. *)
@@ -153,7 +153,7 @@ val write_with_expires : Opendal_core.Operator.capability -> bool
 (** Indicates if writes can set a lifetime for the new file. *)
 
 val write_with_checksum : Opendal_core.Operator.capability -> bool
-(** Indicates if non-append writes support native checksum verification. A service with this capability supports at least \[`crate::WriteChecksum::Any`\] and validates each requested intent before performing I/O. *)
+(** Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode. OpenDAL rejects unsupported explicit checksum requests before performing I/O. *)
 
 val write_multi_max_size : Opendal_core.Operator.capability -> int64 option
 (** Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads. *)

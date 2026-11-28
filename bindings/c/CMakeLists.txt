@@ -93,6 +93,7 @@ target_link_libraries(getting_started opendal_c_shared)
 set(GTEST_SRCS
     tests/bdd.cpp
     tests/cancel.cpp
+    tests/capability.cpp
     tests/error_msg.cpp
     tests/list.cpp
     tests/logging.cpp

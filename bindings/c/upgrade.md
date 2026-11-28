@@ -2,12 +2,35 @@
 
 ## `opendal_capability` ABI change
 
-`opendal_capability` now exposes every core capability. On Linux x86-64,
-the struct grew from 104 to 152 bytes and field offsets changed.
+`opendal_capability` now exposes every core capability. The 57 fields
+released in C binding 0.47.8 (OpenDAL v0.59.5) keep their names, types, and
+order, so their offsets are unchanged, and the new fields follow them. On
+Linux x86-64, the struct grew from 104 to 152 bytes.
 
-Rebuild C and Zig consumers using `opendal.h` and `libopendal_c` from the
-same OpenDAL source version. Mixing binaries built against the old layout
-with the new library is unsupported.
+`opendal_operator_info_get_capability` now writes the capability into
+caller-provided storage instead of returning it by value, like the other
+functions described in [Output parameters](README.md#output-parameters):
+
+```c
+// Before
+opendal_capability cap = opendal_operator_info_get_capability(info);
+
+// After
+opendal_capability cap;
+opendal_operator_info_get_capability(info, &cap);
+```
+
+New fields are only appended to `opendal_capability`, so source that
+initializes it by position keeps its meaning when rebuilt. Prefer designated
+initializers, which do not depend on field order:
+
+```c
+opendal_capability cap = { .stat = true, .read = true };
+```
+
+These changes break binary compatibility. Rebuild C and Zig consumers using
+`opendal.h` and `libopendal_c` from the same OpenDAL source version. Mixing
+binaries built against an older header with the new library is unsupported.
 
 # Upgrade to v0.45
 

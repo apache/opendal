@@ -6,10 +6,13 @@
 
 #### `opendal_capability` layout and `opendal-go-services` companions
 
-The Go binding mirrors the native `opendal_capability` struct, whose layout
-changed in this release. Existing `Capability` methods keep their names and
-signatures. See the [C upgrade guide](../c/upgrade.md#opendal_capability-abi-change)
-for the layout change.
+The Go binding mirrors the native `opendal_capability` struct and reads it
+through `opendal_operator_info_get_capability`. In this release the struct
+appends new fields after the released ones and grows in size, and the function
+writes it into caller-provided storage instead of returning it by value.
+Existing `Capability` methods keep their names and signatures. See the
+[C upgrade guide](../c/upgrade.md#opendal_capability-abi-change) for the
+layout change.
 
 **Migration:**
 

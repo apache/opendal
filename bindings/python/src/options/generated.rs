@@ -46,7 +46,8 @@ pub struct ListOptions {
     pub start_after: Option<String>,
     /// Whether to list recursively under the prefix; default `false`.
     ///
-    /// Requires `op.capability().list_with_recursive`.
+    /// Setting this option to `true` requires the operator's effective
+    /// `op.capability().list_with_recursive` capability.
     pub recursive: Option<bool>,
     /// Include object versions; default `false`.
     ///

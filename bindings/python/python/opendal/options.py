@@ -137,7 +137,8 @@ class ListKwargs(TypedDict, total=False):
     recursive: bool
     """Whether to list recursively under the prefix; default `false`.
 
-    Requires `op.capability().list_with_recursive`.
+    Setting this option to `true` requires the operator's effective
+    `op.capability().list_with_recursive` capability.
     """
     versions: bool
     """Include object versions; default `false`.

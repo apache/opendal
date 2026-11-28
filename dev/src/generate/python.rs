@@ -630,47 +630,27 @@ const PYTHON_LICENSE_HEADER: &str = "\
 ";
 
 /// A Python options class generated from the core options struct of the
-/// same name.
+/// same name. The class and field docstrings come from the core doc comments.
 struct PyOptions {
     /// The class name, e.g. `ListOptions`.
     name: &'static str,
-    /// The class docstring.
-    doc: &'static str,
     /// The keyword arguments in their Python order: the name, which is also
-    /// the core field and the Rust field it sets; the kind that core field
-    /// must have; and the docstring of the Rust field and the `options.py`
-    /// key. A core field that no keyword argument sets is not exposed and
-    /// keeps its default.
-    options: &'static [(&'static str, OptionKind, &'static str)],
+    /// the core field and the Rust field it sets, and the kind that core
+    /// field must have. A core field that no keyword argument sets is not
+    /// exposed and keeps its default.
+    options: &'static [(&'static str, OptionKind)],
 }
 
 /// The Python options classes generated from `core/core/src/types/options.rs`.
 /// The other classes in `bindings/python/src/options.rs` are hand-written.
 const GENERATED_OPTIONS: &[PyOptions] = &[PyOptions {
     name: "ListOptions",
-    doc: "Options for `list` operations.",
     options: &[
-        (
-            "limit",
-            OptionKind::OptionUsize,
-            "The maximum number of entries to return.",
-        ),
-        (
-            "start_after",
-            OptionKind::OptionString,
-            "The entry to start after.",
-        ),
-        (
-            "recursive",
-            OptionKind::Bool,
-            "Whether to list recursively.",
-        ),
-        ("versions", OptionKind::Bool, "Whether to list versions."),
-        (
-            "deleted",
-            OptionKind::Bool,
-            "Whether to list deleted entries.",
-        ),
+        ("limit", OptionKind::OptionUsize),
+        ("start_after", OptionKind::OptionString),
+        ("recursive", OptionKind::Bool),
+        ("versions", OptionKind::Bool),
+        ("deleted", OptionKind::Bool),
     ],
 }];
 
@@ -690,7 +670,8 @@ const OPTIONS_PY_ORDER: &[&str] = &[
 #[derive(Debug, Serialize)]
 struct PyClass {
     name: &'static str,
-    doc: &'static str,
+    /// The core doc comment, one entry per line.
+    doc: Vec<String>,
     fields: Vec<PyField>,
     /// Every field of the core struct in core order, with the expression
     /// that sets it.
@@ -701,7 +682,8 @@ struct PyClass {
 struct PyField {
     name: &'static str,
     kind: OptionKind,
-    doc: &'static str,
+    /// The core doc comment, one entry per line.
+    doc: Vec<String>,
     rust_type: &'static str,
 }
 
@@ -733,6 +715,45 @@ fn default_expr(kind: OptionKind) -> &'static str {
     }
 }
 
+/// The docstring of a generated class or field: the core doc comment, one
+/// entry per line.
+///
+/// Rustdoc links become plain code spans, because Python documentation
+/// cannot resolve Rust paths: ``[`Capability::list_with_limit`](crate::Capability::list_with_limit)``
+/// and ``[`crate::layers::SimulateLayer`]`` keep only their code span.
+fn py_doc(core_doc: &[String], item: &str) -> Result<Vec<String>> {
+    if core_doc.iter().all(|line| line.is_empty()) {
+        bail!("core {item} has no doc comment");
+    }
+    let mut lines = Vec::with_capacity(core_doc.len());
+    for line in core_doc {
+        let mut out = String::with_capacity(line.len());
+        let mut rest = line.as_str();
+        while let Some(start) = rest.find("[`") {
+            let Some(len) = rest[start + 1..].find("`]") else {
+                break;
+            };
+            out.push_str(&rest[..start]);
+            out.push_str(&rest[start + 1..start + len + 2]);
+            rest = &rest[start + len + 3..];
+            if let Some(target) = rest.strip_prefix('(')
+                && let Some(end) = target.find(')')
+            {
+                rest = &target[end + 1..];
+            }
+        }
+        out.push_str(rest);
+        if out.contains('"') || out.contains('\\') {
+            bail!(
+                "core {item} doc line `{out}` has a character docstrings must escape; \
+                 teach dev/src/generate/python.rs about it"
+            );
+        }
+        lines.push(out);
+    }
+    Ok(lines)
+}
+
 /// Build the render model of one generated class, checking the table against
 /// the parsed core struct.
 fn py_class(spec: &PyOptions, parsed: &[OptionsStruct]) -> Result<PyClass> {
@@ -751,7 +772,7 @@ fn py_class(spec: &PyOptions, parsed: &[OptionsStruct]) -> Result<PyClass> {
     }
 
     let mut fields = Vec::with_capacity(spec.options.len());
-    for &(name, kind, doc) in spec.options {
+    for &(name, kind) in spec.options {
         if fields.iter().any(|field: &PyField| field.name == name) {
             bail!("Python {class} lists `{name}` twice");
         }
@@ -773,7 +794,7 @@ fn py_class(spec: &PyOptions, parsed: &[OptionsStruct]) -> Result<PyClass> {
         fields.push(PyField {
             name,
             kind,
-            doc,
+            doc: py_doc(&field.doc, &format!("{class}::{name}"))?,
             rust_type,
         });
     }
@@ -797,7 +818,7 @@ fn py_class(spec: &PyOptions, parsed: &[OptionsStruct]) -> Result<PyClass> {
 
     Ok(PyClass {
         name: class,
-        doc: spec.doc,
+        doc: py_doc(&core.doc, class)?,
         fields,
         conversion,
     })
@@ -864,7 +885,7 @@ fn render_options_py(workspace_dir: &Path, generated: &[PyClass]) -> Result<Stri
     for class in generated {
         options.push(options::Options {
             name: class.name.to_string(),
-            doc: class.doc.to_string(),
+            doc: class.doc.join("\n"),
             fields: class
                 .fields
                 .iter()
@@ -873,7 +894,7 @@ fn render_options_py(workspace_dir: &Path, generated: &[PyClass]) -> Result<Stri
                     ty: option_types(field.kind)
                         .expect("generated fields have a Python type")
                         .1,
-                    doc: field.doc.to_string(),
+                    doc: field.doc.join("\n"),
                 })
                 .collect(),
         });
@@ -915,16 +936,16 @@ fn render_options_py(workspace_dir: &Path, generated: &[PyClass]) -> Result<Stri
         } else {
             opts.doc.clone()
         };
-        out.push_str(&format!(
-            "\n\nclass {kwargs}(TypedDict, total=False):\n    \"\"\"{doc}\"\"\"\n\n"
-        ));
+        out.push_str(&format!("\n\nclass {kwargs}(TypedDict, total=False):\n"));
+        push_docstring(&mut out, &doc);
+        out.push('\n');
         for field in &opts.fields {
             out.push_str(&format!(
                 "    {}: {}\n",
                 field.name,
                 make_option_type(field.ty)
             ));
-            push_field_doc(&mut out, &field.doc);
+            push_docstring(&mut out, &field.doc);
         }
     }
 
@@ -969,8 +990,9 @@ method's keyword arguments.
 \"\"\"
 ";
 
-/// Render a field docstring as a `"""..."""` block, one line per source line.
-fn push_field_doc(out: &mut String, doc: &str) {
+/// Render a class or field docstring as a `"""..."""` block in a class body,
+/// one line per source line.
+fn push_docstring(out: &mut String, doc: &str) {
     let lines: Vec<&str> = doc.lines().collect();
     if lines.is_empty() {
         return;
@@ -1067,25 +1089,67 @@ mod tests {
         methods
     }
 
-    /// `ListOptions` on main (4ae8e6122), copied from
-    /// `bindings/python/src/options.rs`.
+    /// The `ListOptions` API on main (4ae8e6122), copied from
+    /// `bindings/python/src/options.rs`, with the docstrings that core's doc
+    /// comments give it.
     #[test]
     fn test_list_options_match_main() {
         let class = list_class(&core_options());
-        assert_eq!(class.doc, "Options for `list` operations.");
         let fields: Vec<String> = class
             .fields
             .iter()
-            .map(|f| format!("{}: {} // {}", f.name, f.rust_type, f.doc))
+            .map(|f| format!("{}: {}", f.name, f.rust_type))
             .collect();
         assert_eq!(
             fields,
             [
-                "limit: Option<usize> // The maximum number of entries to return.",
-                "start_after: Option<String> // The entry to start after.",
-                "recursive: Option<bool> // Whether to list recursively.",
-                "versions: Option<bool> // Whether to list versions.",
-                "deleted: Option<bool> // Whether to list deleted entries.",
+                "limit: Option<usize>",
+                "start_after: Option<String>",
+                "recursive: Option<bool>",
+                "versions: Option<bool>",
+                "deleted: Option<bool>",
+            ]
+        );
+
+        // Copied from `core/core/src/types/options.rs`, with rustdoc links
+        // as plain code spans.
+        assert_eq!(
+            class.doc,
+            [
+                "Options for list operations.",
+                "",
+                "# Groups",
+                "- Traversal: `recursive`.",
+                "- Pagination: `limit`, `start_after`.",
+                "- Versioning: `versions`, `deleted`.",
+                "",
+                "The operation fails with `crate::ErrorKind::Unsupported` when an option",
+                "requires a capability that the operator lacks.",
+            ]
+        );
+        let docs: Vec<String> = class
+            .fields
+            .iter()
+            .map(|f| format!("{}: {}", f.name, f.doc.join("\n")))
+            .collect();
+        assert_eq!(
+            docs,
+            [
+                "limit: Maximum results per request (backend hint) to control memory and throttling.",
+                "start_after: Start listing after this key, excluding the key itself.\n\
+                 \n\
+                 Setting this requires `Capability::list_with_start_after`.",
+                "recursive: Whether to list recursively under the prefix; default `false`.\n\
+                 \n\
+                 Requires `Capability::list_with_recursive`.\n\
+                 Services without native recursive listing rely on `crate::layers::SimulateLayer`\n\
+                 (installed automatically by the default `auto-simulate` feature).",
+                "versions: Include object versions; default `false`.\n\
+                 \n\
+                 Requires `Capability::list_with_versions`.",
+                "deleted: Include delete markers; default `false`.\n\
+                 \n\
+                 Requires `Capability::list_with_deleted`.",
             ]
         );
 
@@ -1142,11 +1206,22 @@ mod tests {
         );
         assert!(!extract.contains("reject_unknown_kwargs"));
         assert!(rs.contains(
-            "#[pyclass(module = \"opendal\")]\n#[derive(Default, Debug)]\npub struct ListOptions {"
+            "/// requires a capability that the operator lacks.\n\
+             #[pyclass(module = \"opendal\")]\n\
+             #[derive(Default, Debug)]\n\
+             pub struct ListOptions {\n    \
+             /// Maximum results per request (backend hint) to control memory and throttling.\n    \
+             pub limit: Option<usize>,\n    \
+             /// Start listing after this key, excluding the key itself.\n    \
+             ///\n    \
+             /// Setting this requires `Capability::list_with_start_after`.\n    \
+             pub start_after: Option<String>,\n"
         ));
     }
 
-    /// The `options.py` TypedDicts on main (4ae8e6122).
+    /// The `options.py` TypedDicts on main (4ae8e6122): the class order and
+    /// the `ListKwargs` keys and types, with the docstrings that core's doc
+    /// comments give them.
     #[test]
     fn test_options_py_matches_main() {
         let generated = generated_classes(&core_options()).unwrap();
@@ -1169,26 +1244,72 @@ mod tests {
                 "OpenKwargs",
             ]
         );
-        assert!(py.contains(
-            r#"
 
-class ListKwargs(TypedDict, total=False):
-    """Options for `list` operations."""
+        let list = py
+            .split_once("\n\nclass ListKwargs(TypedDict, total=False):\n")
+            .unwrap()
+            .1
+            .split_once("\n\n\nclass StatKwargs(")
+            .unwrap()
+            .0;
+        // A key is an `identifier: type` line; docstring lines are not.
+        let keys: Vec<&str> = list
+            .lines()
+            .filter_map(|line| line.strip_prefix("    "))
+            .filter(|line| {
+                line.split_once(": ").is_some_and(|(key, _)| {
+                    !key.is_empty() && key.chars().all(|c| c.is_ascii_lowercase() || c == '_')
+                })
+            })
+            .collect();
+        assert_eq!(
+            keys,
+            [
+                "limit: int",
+                "start_after: str",
+                "recursive: bool",
+                "versions: bool",
+                "deleted: bool",
+            ]
+        );
+        assert_eq!(
+            list,
+            r#"    """Options for list operations.
+
+    # Groups
+    - Traversal: `recursive`.
+    - Pagination: `limit`, `start_after`.
+    - Versioning: `versions`, `deleted`.
+
+    The operation fails with `crate::ErrorKind::Unsupported` when an option
+    requires a capability that the operator lacks.
+    """
 
     limit: int
-    """The maximum number of entries to return."""
+    """Maximum results per request (backend hint) to control memory and throttling."""
     start_after: str
-    """The entry to start after."""
+    """Start listing after this key, excluding the key itself.
+
+    Setting this requires `Capability::list_with_start_after`.
+    """
     recursive: bool
-    """Whether to list recursively."""
+    """Whether to list recursively under the prefix; default `false`.
+
+    Requires `Capability::list_with_recursive`.
+    Services without native recursive listing rely on `crate::layers::SimulateLayer`
+    (installed automatically by the default `auto-simulate` feature).
+    """
     versions: bool
-    """Whether to list versions."""
+    """Include object versions; default `false`.
+
+    Requires `Capability::list_with_versions`.
+    """
     deleted: bool
-    """Whether to list deleted entries."""
+    """Include delete markers; default `false`.
 
-
-class StatKwargs("#
-        ));
+    Requires `Capability::list_with_deleted`.
+    """"#
+        );
     }
 
     /// The `list` and `scan` keyword arguments on main (4ae8e6122), copied
@@ -1297,7 +1418,7 @@ class StatKwargs("#
             options.fields.iter().position(|f| f.name == name).unwrap()
         }
         type Mutation = fn(&mut OptionsStruct);
-        let cases: [(Mutation, &str); 4] = [
+        let cases: [(Mutation, &str); 6] = [
             (
                 |list| {
                     list.fields.remove(position(list, "limit"));
@@ -1320,6 +1441,21 @@ class StatKwargs("#
                 "core ListOptions contains duplicate field `glob`",
             ),
             (
+                |list| {
+                    let i = position(list, "limit");
+                    list.fields[i].doc.clear();
+                },
+                "core ListOptions::limit has no doc comment",
+            ),
+            (
+                |list| {
+                    let i = position(list, "limit");
+                    list.fields[i].doc = vec!["See [`Capability`] and \\d.".to_string()];
+                },
+                "core ListOptions::limit doc line `See `Capability` and \\d.` has a character \
+                 docstrings must escape; teach dev/src/generate/python.rs about it",
+            ),
+            (
                 |list| list.has_unmirrored_fields = true,
                 "core ListOptions has fields the core options parser skips; Python cannot set them",
             ),
@@ -1336,5 +1472,25 @@ class StatKwargs("#
             );
             assert_eq!(generated_classes(&mutated).unwrap_err().to_string(), error);
         }
+    }
+
+    #[test]
+    fn test_py_doc_strips_rustdoc_links() {
+        let lines = [
+            "Requires [`Capability::list_with_limit`](crate::Capability::list_with_limit).",
+            "Rely on [`crate::layers::SimulateLayer`] and [`Self::recursive`].",
+            "",
+            "A [plain](https://opendal.apache.org) link and `code` stay.",
+        ]
+        .map(String::from);
+        assert_eq!(
+            py_doc(&lines, "Test").unwrap(),
+            [
+                "Requires `Capability::list_with_limit`.",
+                "Rely on `crate::layers::SimulateLayer` and `Self::recursive`.",
+                "",
+                "A [plain](https://opendal.apache.org) link and `code` stay.",
+            ]
+        );
     }
 }

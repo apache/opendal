@@ -50,7 +50,17 @@ class DeleteOptions:
 
 @final
 class ListOptions:
-    """Options for `list` operations."""
+    """
+    Options for list operations.
+
+    # Groups
+    - Traversal: `recursive`.
+    - Pagination: `limit`, `start_after`.
+    - Versioning: `versions`, `deleted`.
+
+    The operation fails with `crate::ErrorKind::Unsupported` when an option
+    requires a capability that the operator lacks.
+    """
 
 @final
 class ReadOptions:

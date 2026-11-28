@@ -26,13 +26,16 @@ use pyo3::PyAny;
 use pyo3::PyErr;
 use pyo3::pyclass;
 {%- for class in classes %}
-
-/// {{ class.doc }}
+{% for line in class.doc %}
+///{{ " " ~ line if line }}
+{%- endfor %}
 #[pyclass(module = "opendal")]
 #[derive(Default, Debug)]
 pub struct {{ class.name }} {
 {%- for f in class.fields %}
-    /// {{ f.doc }}
+{%- for line in f.doc %}
+    ///{{ " " ~ line if line }}
+{%- endfor %}
     pub {{ f.name }}: {{ f.rust_type }},
 {%- endfor %}
 }

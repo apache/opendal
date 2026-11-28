@@ -26,19 +26,37 @@ use pyo3::PyAny;
 use pyo3::PyErr;
 use pyo3::pyclass;
 
-/// Options for `list` operations.
+/// Options for list operations.
+///
+/// # Groups
+/// - Traversal: `recursive`.
+/// - Pagination: `limit`, `start_after`.
+/// - Versioning: `versions`, `deleted`.
+///
+/// The operation fails with `crate::ErrorKind::Unsupported` when an option
+/// requires a capability that the operator lacks.
 #[pyclass(module = "opendal")]
 #[derive(Default, Debug)]
 pub struct ListOptions {
-    /// The maximum number of entries to return.
+    /// Maximum results per request (backend hint) to control memory and throttling.
     pub limit: Option<usize>,
-    /// The entry to start after.
+    /// Start listing after this key, excluding the key itself.
+    ///
+    /// Setting this requires `Capability::list_with_start_after`.
     pub start_after: Option<String>,
-    /// Whether to list recursively.
+    /// Whether to list recursively under the prefix; default `false`.
+    ///
+    /// Requires `Capability::list_with_recursive`.
+    /// Services without native recursive listing rely on `crate::layers::SimulateLayer`
+    /// (installed automatically by the default `auto-simulate` feature).
     pub recursive: Option<bool>,
-    /// Whether to list versions.
+    /// Include object versions; default `false`.
+    ///
+    /// Requires `Capability::list_with_versions`.
     pub versions: Option<bool>,
-    /// Whether to list deleted entries.
+    /// Include delete markers; default `false`.
+    ///
+    /// Requires `Capability::list_with_deleted`.
     pub deleted: Option<bool>,
 }
 

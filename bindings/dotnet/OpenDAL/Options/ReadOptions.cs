@@ -108,7 +108,7 @@ public sealed class ReadOptions : IOptions<OpenDALReadOptions>
     public long? Chunk { get; init; }
 
     /// <summary>
-    /// Controls the optimization strategy for range reads in <c>Reader::fetch</c>.
+    /// If specified, the value must be positive. It has no effect on single-range reads through the <see cref="Operator.Read(string, ReadOptions)"/> and <see cref="Operator.ReadAsync(string, ReadOptions, CancellationToken)"/> overloads or on sequential reads from <see cref="Operator.OpenReadStream"/>.
     /// </summary>
     public long? Gap { get; init; }
 

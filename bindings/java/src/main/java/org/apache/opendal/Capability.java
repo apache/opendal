@@ -177,7 +177,7 @@ public class Capability {
     public final boolean writeCanAppend;
 
     /**
-     * Indicates if a non-append writer can natively copy source ranges into an in-progress write. `Writer::copy_from` remains available through streaming fallback when false or when appending.
+     * Indicates if an open, non-append writer can copy byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability.
      */
     public final boolean writeCanCopyFrom;
 
@@ -242,7 +242,7 @@ public class Capability {
     public final boolean writeWithExpires;
 
     /**
-     * Indicates if non-append writes support native checksum verification. A service with this capability supports at least [`crate::WriteChecksum::Any`] and validates each requested intent before performing I/O.
+     * Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode.
      */
     public final boolean writeWithChecksum;
 

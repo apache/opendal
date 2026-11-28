@@ -215,7 +215,7 @@ pub fn capability_write_can_append(cap: &Capability) -> bool {
     cap.0.write_can_append
 }
 
-/// Indicates if a non-append writer can natively copy source ranges into an in-progress write. `Writer::copy_from` remains available through streaming fallback when false or when appending.
+/// Indicates if an open, non-append writer can copy byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability.
 #[ocaml::func]
 #[ocaml::sig("capability -> bool ")]
 pub fn capability_write_can_copy_from(cap: &Capability) -> bool {
@@ -306,7 +306,7 @@ pub fn capability_write_with_expires(cap: &Capability) -> bool {
     cap.0.write_with_expires
 }
 
-/// Indicates if non-append writes support native checksum verification. A service with this capability supports at least [`crate::WriteChecksum::Any`] and validates each requested intent before performing I/O.
+/// Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode.
 #[ocaml::func]
 #[ocaml::sig("capability -> bool ")]
 pub fn capability_write_with_checksum(cap: &Capability) -> bool {

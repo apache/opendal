@@ -322,7 +322,10 @@ class AsyncOperator:
         path : str
             The path to the directory.
         limit : int, optional
-            The maximum number of entries to return.
+            The maximum number of entries the service returns per request, as
+            a hint. It does not cap the total: iteration continues across
+            pages until every entry is returned. Some services, such as fs
+            and memory, ignore it.
         start_after : str, optional
             The entry to start after.
         recursive : bool, optional
@@ -680,7 +683,10 @@ class AsyncOperator:
         path : str
             The path to the directory.
         limit : int, optional
-            The maximum number of entries to return.
+            The maximum number of entries the service returns per request, as
+            a hint. It does not cap the total: iteration continues across
+            pages until every entry is returned. Some services, such as fs
+            and memory, ignore it.
         start_after : str, optional
             The entry to start after.
         versions : bool, optional
@@ -1083,7 +1089,10 @@ class Operator:
         path : str
             The path to the directory.
         limit : int, optional
-            The maximum number of entries to return.
+            The maximum number of entries the service returns per request, as
+            a hint. It does not cap the total: iteration continues across
+            pages until every entry is returned. Some services, such as fs
+            and memory, ignore it.
         start_after : str, optional
             The entry to start after.
         recursive : bool, optional
@@ -1266,7 +1275,10 @@ class Operator:
         path : str
             The path to the directory.
         limit : int, optional
-            The maximum number of entries to return.
+            The maximum number of entries the service returns per request, as
+            a hint. It does not cap the total: iteration continues across
+            pages until every entry is returned. Some services, such as fs
+            and memory, ignore it.
         start_after : str, optional
             The entry to start after.
         versions : bool, optional

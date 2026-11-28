@@ -116,18 +116,40 @@ class WriteKwargs(TypedDict, total=False):
 
 
 class ListKwargs(TypedDict, total=False):
-    """Options for `list` operations."""
+    """Options for list operations.
+
+    # Groups
+    - Traversal: `recursive`.
+    - Pagination: `limit`, `start_after`.
+    - Versioning: `versions`, `deleted`.
+
+    The operation fails with `opendal.exceptions.Unsupported` when an option
+    requires a capability that the operator lacks.
+    """
 
     limit: int
-    """The maximum number of entries to return."""
+    """Maximum results per request (backend hint) to control memory and throttling."""
     start_after: str
-    """The entry to start after."""
+    """Start listing after this key, excluding the key itself.
+
+    Setting this requires `op.capability().list_with_start_after`.
+    """
     recursive: bool
-    """Whether to list recursively."""
+    """Whether to list recursively under the prefix; default `false`.
+
+    Setting this option to `true` requires the operator's effective
+    `op.capability().list_with_recursive` capability.
+    """
     versions: bool
-    """Whether to list versions."""
+    """Include object versions; default `false`.
+
+    Requires `op.capability().list_with_versions`.
+    """
     deleted: bool
-    """Whether to list deleted entries."""
+    """Include delete markers; default `false`.
+
+    Requires `op.capability().list_with_deleted`.
+    """
 
 
 class StatKwargs(TypedDict, total=False):

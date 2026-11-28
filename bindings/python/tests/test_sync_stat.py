@@ -20,6 +20,7 @@ from uuid import uuid4
 
 import pytest
 
+import opendal
 from opendal.exceptions import NotFound
 
 
@@ -43,6 +44,15 @@ def test_sync_stat_non_existent(service_name, operator, async_operator):
     path = f"test_sync_stat_non_existent_{uuid4()}.txt"
     with pytest.raises(NotFound):
         operator.stat(path)
+
+
+def test_sync_stat_checksum_hint_on_memory():
+    operator = opendal.Operator("memory")
+    operator.write("object", b"content")
+
+    assert operator.stat("object", checksum=True).checksum is None
+    with pytest.raises(NotFound):
+        operator.stat("missing", checksum=True)
 
 
 @pytest.mark.need_capability("read", "write", "delete", "stat", "create_dir")

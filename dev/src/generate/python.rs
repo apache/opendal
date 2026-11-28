@@ -247,15 +247,23 @@ struct MetadataField {
     /// Expression that produces the getter value from the core metadata.
     py_value: String,
     /// `format!` placeholder used for this accessor in `__repr__`.
-    repr_fmt: &'static str,
+    repr_fmt: Option<&'static str>,
 }
 
 /// Map one core accessor to its Python getter.
-///
-/// A new return type in core fails parsing in `metadata::parse`, and a new
-/// `MetadataKind` fails this exhaustive match, so an unsupported accessor
-/// never renders silently.
-fn metadata_field(f: metadata::MetadataField) -> MetadataField {
+fn metadata_field(accessor: metadata::MetadataAccessor) -> Result<MetadataField> {
+    if accessor.name == "checksum" && accessor.output == syn::parse_quote!(-> Option<Checksum>) {
+        return Ok(MetadataField {
+            name: accessor.name,
+            doc: "Return the full-object checksum as (algorithm, raw digest bytes), or None."
+                .to_string(),
+            py_type: "Option<(&'static str, Vec<u8>)>",
+            py_value: "self.0.checksum().and_then(options::checksum_into_python)".to_string(),
+            repr_fmt: None,
+        });
+    }
+
+    let f = accessor.into_field()?;
     let name = &f.name;
     let mut doc = f.doc;
     let (py_type, py_value, repr_fmt) = match f.kind {
@@ -290,27 +298,26 @@ fn metadata_field(f: metadata::MetadataField) -> MetadataField {
         }
     };
 
-    MetadataField {
+    Ok(MetadataField {
         name: f.name,
         doc,
         py_type,
         py_value,
-        repr_fmt,
-    }
+        repr_fmt: Some(repr_fmt),
+    })
 }
 
 /// Render `bindings/python/src/metadata.rs` from
-/// `core/core/src/types/metadata.rs`, so that every core metadata accessor is
-/// exposed as a getter with its core doc comment.
+/// `core/core/src/types/metadata.rs`, including the Python checksum mapping.
 ///
 /// The derived `is_file` and `is_dir` getters are part of the template, and
 /// the `.pyi` stub is derived from this pyclass by `just stub-gen`.
 fn generate_metadata(workspace_dir: &Path) -> Result<()> {
     let source = workspace_dir.join("core/core/src/types/metadata.rs");
-    let fields: Vec<MetadataField> = metadata::parse(&source)?
+    let fields: Vec<MetadataField> = metadata::parse_accessors(&source)?
         .into_iter()
         .map(metadata_field)
-        .collect();
+        .collect::<Result<_>>()?;
 
     let mut env = Environment::new();
     env.add_template("metadata_rs", include_str!("python/metadata_rs.j2"))?;

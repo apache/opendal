@@ -279,7 +279,7 @@ func (c *Capability) WriteCanAppend() bool {
 	return c.inner.writeCanAppend == 1
 }
 
-// WriteCanCopyFrom reports: Indicates if a non-append writer can natively copy source ranges into an in-progress write. `Writer::copy_from` remains available through streaming fallback when false or when appending.
+// WriteCanCopyFrom reports: Indicates if an open, non-append writer can copy eligible byte ranges from existing objects without transferring the copied bytes through the client. Whole-object copy is a separate capability.
 func (c *Capability) WriteCanCopyFrom() bool {
 	return c.inner.writeCanCopyFrom == 1
 }
@@ -344,7 +344,7 @@ func (c *Capability) WriteWithExpires() bool {
 	return c.inner.writeWithExpires == 1
 }
 
-// WriteWithChecksum reports: Indicates if non-append writes support native checksum verification. A service with this capability supports at least [`crate::WriteChecksum::Any`] and validates each requested intent before performing I/O.
+// WriteWithChecksum reports: Indicates if non-append writes support native verification with a checksum algorithm selected by the service. Verification may cover only individual upload requests, parts, or blocks. Support for caller-selected algorithms and full-object verification depends on the service and write mode. OpenDAL rejects unsupported explicit checksum requests before performing I/O.
 func (c *Capability) WriteWithChecksum() bool {
 	return c.inner.writeWithChecksum == 1
 }

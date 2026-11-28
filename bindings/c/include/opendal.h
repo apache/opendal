@@ -697,9 +697,8 @@ typedef struct opendal_list_options {
   /**
    * Whether to list recursively under the prefix; default `false`.
    *
-   * Requires `opendal_capability.list_with_recursive`.
-   * Services without native recursive listing rely on `crate::layers::SimulateLayer`
-   * (installed automatically by the default `auto-simulate` feature).
+   * Setting this option to `true` requires the operator's effective
+   * `opendal_capability.list_with_recursive` capability.
    */
   bool recursive;
   /**
@@ -2938,9 +2937,8 @@ struct opendal_list_options *opendal_list_options_new(void);
  *
  * Whether to list recursively under the prefix; default `false`.
  *
- * Requires `opendal_capability.list_with_recursive`.
- * Services without native recursive listing rely on `crate::layers::SimulateLayer`
- * (installed automatically by the default `auto-simulate` feature).
+ * Setting this option to `true` requires the operator's effective
+ * `opendal_capability.list_with_recursive` capability.
  *
  * @param opts The opendal_list_options to modify.
  * @param recursive The value to set.

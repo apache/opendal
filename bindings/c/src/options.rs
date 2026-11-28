@@ -46,9 +46,8 @@ use opendal::options;
 pub struct opendal_list_options {
     /// Whether to list recursively under the prefix; default `false`.
     ///
-    /// Requires `opendal_capability.list_with_recursive`.
-    /// Services without native recursive listing rely on `crate::layers::SimulateLayer`
-    /// (installed automatically by the default `auto-simulate` feature).
+    /// Setting this option to `true` requires the operator's effective
+    /// `opendal_capability.list_with_recursive` capability.
     pub recursive: bool,
     /// Maximum results per request (backend hint) to control memory and throttling.
     ///
@@ -85,9 +84,8 @@ impl opendal_list_options {
     ///
     /// Whether to list recursively under the prefix; default `false`.
     ///
-    /// Requires `opendal_capability.list_with_recursive`.
-    /// Services without native recursive listing rely on `crate::layers::SimulateLayer`
-    /// (installed automatically by the default `auto-simulate` feature).
+    /// Setting this option to `true` requires the operator's effective
+    /// `opendal_capability.list_with_recursive` capability.
     ///
     /// @param opts The opendal_list_options to modify.
     /// @param recursive The value to set.

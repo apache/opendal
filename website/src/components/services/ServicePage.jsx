@@ -356,9 +356,10 @@ export default function ServicePage({ data }) {
 
             <p className={styles.hint}>
               Every option is passed as a string key; OpenDAL parses it into the
-              right type. A <code>map</code> option takes a JSON object with
-              string values, such as <code>{'{"key":"value"}'}</code>. Some
-              services may require building the binding with the
+              right type. For a <code>map</code> option, pass a string
+              containing a JSON object whose values are strings, such
+              as <code>{'{"key":"value"}'}</code>. Some services may require
+              building the binding with the
               matching <code>services-*</code> feature enabled.
             </p>
           </section>

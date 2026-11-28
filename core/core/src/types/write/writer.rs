@@ -191,11 +191,10 @@ impl Writer {
     ///
     /// The source path is resolved by the same [`Operator`] that created this
     /// writer. Calls to `write` and `copy_from` may be interleaved, and their
-    /// call order defines the destination bytes. OpenDAL uses a native
-    /// writer-side copy when the composed service supports it and otherwise
-    /// streams the range through the client. Check
-    /// [`Capability::write_can_copy_from`] to determine whether eligible
-    /// non-append writes use the native path.
+    /// call order defines the destination bytes. OpenDAL copies eligible ranges
+    /// natively on non-append writes when the composed service advertises
+    /// [`Capability::write_can_copy_from`]. OpenDAL streams the range through
+    /// the client when appending or when native copy is unavailable.
     ///
     /// A writer created with [`options::WriteOptions::checksum`] always
     /// streams the range through the client, even when the service supports

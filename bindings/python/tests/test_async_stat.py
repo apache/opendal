@@ -20,6 +20,7 @@ from uuid import uuid4
 
 import pytest
 
+import opendal
 from opendal.exceptions import NotFound
 
 
@@ -45,6 +46,16 @@ async def test_async_stat_non_existent(service_name, operator, async_operator):
     path = f"test_async_stat_non_existent_{uuid4()}.txt"
     with pytest.raises(NotFound):
         await async_operator.stat(path)
+
+
+@pytest.mark.asyncio
+async def test_async_stat_checksum_hint_on_memory():
+    operator = opendal.AsyncOperator("memory")
+    await operator.write("object", b"content")
+
+    assert (await operator.stat("object", checksum=True)).checksum is None
+    with pytest.raises(NotFound):
+        await operator.stat("missing", checksum=True)
 
 
 @pytest.mark.asyncio

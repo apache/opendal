@@ -30,7 +30,7 @@ pub enum OptionType {
     Str,
     /// `Option<usize>` or `Option<u64>`
     Int,
-    /// `Option<bool>`
+    /// `bool` or `Option<bool>`
     Bool,
     /// `Option<jiff::Timestamp>`
     DateTime,
@@ -125,7 +125,7 @@ fn parse_field(field: &Field) -> Result<OptionField> {
     Ok(OptionField { name, ty, doc })
 }
 
-/// Parse the type of an option field, which must be `Option<T>`.
+/// Parse an optional field or a boolean flag that defaults to false.
 fn parse_type(ty: &Type) -> Result<OptionType> {
     let Type::Path(TypePath { path, .. }) = ty else {
         bail!("unsupported option field type: {ty:?}");
@@ -134,8 +134,11 @@ fn parse_type(ty: &Type) -> Result<OptionType> {
         .segments
         .last()
         .ok_or_else(|| anyhow!("option type path is empty: {ty:?}"))?;
+    if segment.ident == "bool" {
+        return Ok(OptionType::Bool);
+    }
     if segment.ident != "Option" {
-        bail!("option field must be Option<T>, found {segment:?}");
+        bail!("option field must be Option<T> or bool, found {segment:?}");
     }
     let PathArguments::AngleBracketed(args) = &segment.arguments else {
         bail!("Option must have angle bracketed arguments");

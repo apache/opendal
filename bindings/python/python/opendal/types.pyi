@@ -18,6 +18,8 @@
 from datetime import datetime
 from typing import Final, final
 
+from .options import ChecksumAlgorithm
+
 __all__ = ["Entry", "EntryMode", "Metadata", "PresignedRequest"]
 
 @final
@@ -105,6 +107,9 @@ class Metadata:
     @property
     def cache_control(self, /) -> str | None:
         """Return this entry's Cache-Control value."""
+    @property
+    def checksum(self, /) -> tuple[ChecksumAlgorithm, bytes] | None:
+        """Return the full-object checksum as (algorithm, raw digest bytes), or None."""
     @property
     def content_disposition(self, /) -> str | None:
         """Return this entry's Content-Disposition value."""

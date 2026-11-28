@@ -130,6 +130,12 @@ impl Metadata {
         })
     }
 
+    /// Return the full-object checksum as (algorithm, raw digest bytes), or None.
+    #[getter]
+    pub fn checksum(&self) -> Option<(&'static str, Vec<u8>)> {
+        self.0.checksum().and_then(options::checksum_into_python)
+    }
+
     /// Whether this entry is a file.
     #[getter]
     pub fn is_file(&self) -> bool {

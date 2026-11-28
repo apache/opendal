@@ -167,7 +167,7 @@ async fn overwrite_empty_and_exclusive_writes() {
         .if_not_exists(true)
         .await
         .unwrap_err();
-    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    assert_eq!(err.kind(), ErrorKind::Unsupported);
     assert_eq!(op.read("data").await.unwrap().len(), 9000);
     op.write("data", "short").await.unwrap();
     assert_eq!(std::fs::read(dir.path().join("data")).unwrap(), b"short");

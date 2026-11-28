@@ -557,7 +557,15 @@ fn options_class(options: &OptionsStruct, operation: &str) -> OptionsClass {
             pascal: pascal.clone(),
             cs_type: cs_type.to_string(),
             initializer: initializer.to_string(),
-            summary: ctx.summary(&f.doc),
+            summary: if options.name == "ReadOptions" && key == "gap" {
+                "If specified, the value must be positive. It has no effect on single-range reads \
+                 through the <see cref=\"Operator.Read(string, ReadOptions)\"/> and \
+                 <see cref=\"Operator.ReadAsync(string, ReadOptions, CancellationToken)\"/> overloads \
+                 or on sequential reads from <see cref=\"Operator.OpenReadStream\"/>."
+                    .to_string()
+            } else {
+                ctx.summary(&f.doc)
+            },
             see_also: capability_refs(&f.doc),
         };
         let part = |name: &str, rs_type: &str, cs_type: &str| OptionPart {

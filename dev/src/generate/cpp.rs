@@ -22,8 +22,13 @@
 //! copy between them. All three are rendered from the same field list.
 //! `opendal::Metadata` crosses the same three layers and is rendered from the
 //! core accessor list.
+//!
+//! Operation options cross four layers: the public struct, the cxx shared
+//! struct, the C++ `ToFfiOptions` conversion, and the Rust conversion into
+//! core. All four are rendered from `OPTIONS`.
 
 use super::capability;
+use super::core_options::{self, OptionKind};
 use super::metadata::{self, MetadataKind};
 use anyhow::{Context, Result, bail};
 use minijinja::value::Serde;
@@ -183,7 +188,8 @@ const FROZEN_PUBLIC_ORDER: &[&str] = &[
 
 pub fn generate(workspace_dir: &Path) -> Result<()> {
     generate_capability(workspace_dir)?;
-    generate_metadata(workspace_dir)
+    generate_metadata(workspace_dir)?;
+    generate_options(workspace_dir)
 }
 
 /// Order core names for a public C++ class by its append-only `frozen` list,
@@ -509,6 +515,213 @@ fn render_metadata(workspace_dir: &Path) -> Result<Vec<(&'static str, String)>> 
     Ok(rendered)
 }
 
+/// One core options struct that crosses into C++, and the fields it carries.
+struct OptionsSpec {
+    /// Core struct name, also the name of the public C++ struct.
+    name: &'static str,
+    /// `@brief` of the public C++ struct.
+    brief: &'static str,
+    /// Carried core fields and their kinds, in the declaration order of the
+    /// public C++ struct.
+    ///
+    /// Callers may brace-initialize the public struct by position or with
+    /// designated initializers, so this order is append-only. A core field
+    /// that is not listed is not exposed in C++ and keeps its core default.
+    fields: &'static [(&'static str, OptionKind)],
+}
+
+/// Options structs generated into `include/options.hpp`. The other options
+/// structs are still hand-written in `include/data_structure.hpp`.
+const OPTIONS: &[OptionsSpec] = {
+    use OptionKind::*;
+
+    &[OptionsSpec {
+        name: "ListOptions",
+        brief: "Options for list and lister operations.",
+        fields: &[
+            ("limit", OptionUsize),
+            ("start_after", OptionString),
+            ("recursive", Bool),
+            ("versions", Bool),
+            ("deleted", Bool),
+        ],
+    }]
+};
+
+/// Render model of one options struct. Every per-kind decision is made in
+/// `option_member`, so the templates stay structural.
+#[derive(Debug, Serialize)]
+struct OptionsModel {
+    /// Core struct name, also the public C++ struct name.
+    name: &'static str,
+    /// Name of the cxx bridge struct.
+    bridge_name: String,
+    /// `@brief` of the public C++ struct.
+    brief: &'static str,
+    /// Carried fields, in `OptionsSpec::fields` order.
+    members: Vec<OptionMember>,
+    /// Core fields that C++ does not expose, in core order.
+    unexposed: Vec<String>,
+    /// Whether the Rust conversion leaves core fields to `Default::default()`.
+    fills_defaults: bool,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+struct OptionMember {
+    /// Field name in core, the bridge struct, and the public C++ struct.
+    name: String,
+    /// Declaration of the public C++ member.
+    hpp_member: String,
+    /// Field type in the cxx bridge struct.
+    bridge_type: &'static str,
+    /// Expression converting the public C++ member into the bridge field.
+    cpp_value: String,
+    /// Expression converting the bridge field into the core field.
+    rust_value: String,
+}
+
+/// Map one core option field to its public C++ member, bridge field, and
+/// conversions.
+///
+/// Fails for a kind the bridge cannot carry yet, so such a field cannot be
+/// listed in `OPTIONS` by mistake.
+fn option_member(options: &str, name: &str, kind: OptionKind) -> Result<OptionMember> {
+    let member = format!("options.{name}");
+    let field = format!("opts.{name}");
+    // (public type, member initializer, bridge type, C++ conversion, Rust
+    // conversion)
+    let (cpp_type, cpp_init, bridge_type, cpp_value, rust_value) = match kind {
+        OptionKind::Bool => ("bool", "{false}", "bool", member, field),
+        OptionKind::OptionUsize => (
+            "std::optional<std::size_t>",
+            "",
+            "OptionalUsize",
+            format!("ToFfiOptionalUsize({member})"),
+            format!("optional_usize({field})"),
+        ),
+        OptionKind::OptionString => (
+            "std::optional<std::string>",
+            "",
+            "OptionalString",
+            format!("ToFfiOptionalString({member})"),
+            format!("optional_string({field})"),
+        ),
+        _ => bail!("the C++ bridge cannot carry `{options}::{name}` of kind {kind:?} yet"),
+    };
+    Ok(OptionMember {
+        name: name.to_string(),
+        hpp_member: format!("{cpp_type} {name}{cpp_init};"),
+        bridge_type,
+        cpp_value,
+        rust_value,
+    })
+}
+
+/// Check `specs` against the parsed core structs and build their render
+/// models.
+///
+/// Fails if a listed struct or field is missing from core, because dropping it
+/// would silently break source compatibility, if a field is listed twice, or
+/// if a field's kind in core differs from its listed kind, because that would
+/// change the public C++ member type.
+fn options_models(
+    parsed: &[core_options::OptionsStruct],
+    specs: &[OptionsSpec],
+) -> Result<Vec<OptionsModel>> {
+    let mut models = Vec::with_capacity(specs.len());
+    for spec in specs {
+        let core = parsed
+            .iter()
+            .find(|s| s.name == spec.name)
+            .with_context(|| format!("OPTIONS struct `{}` is missing from core", spec.name))?;
+        let mut members = Vec::with_capacity(spec.fields.len());
+        for (i, &(name, kind)) in spec.fields.iter().enumerate() {
+            if spec.fields[..i].iter().any(|(listed, _)| *listed == name) {
+                bail!("OPTIONS lists `{}::{name}` twice", spec.name);
+            }
+            let field = core
+                .fields
+                .iter()
+                .find(|f| f.name == name)
+                .with_context(|| {
+                    format!(
+                        "OPTIONS member `{}::{name}` is missing from core",
+                        spec.name
+                    )
+                })?;
+            if field.kind != kind {
+                bail!(
+                    "core `{}::{name}` has kind {:?}, but OPTIONS lists {kind:?}",
+                    spec.name,
+                    field.kind
+                );
+            }
+            members.push(option_member(spec.name, name, kind)?);
+        }
+        let unexposed: Vec<String> = core
+            .fields
+            .iter()
+            .filter(|f| !spec.fields.iter().any(|(listed, _)| *listed == f.name))
+            .map(|f| f.name.clone())
+            .collect();
+        models.push(OptionsModel {
+            name: spec.name,
+            bridge_name: format!("Ffi{}", spec.name),
+            brief: spec.brief,
+            fills_defaults: !unexposed.is_empty() || core.has_unmirrored_fields,
+            members,
+            unexposed,
+        });
+    }
+    Ok(models)
+}
+
+fn generate_options(workspace_dir: &Path) -> Result<()> {
+    for (relative, rendered) in render_options(workspace_dir)? {
+        fs::write(workspace_dir.join(relative), format!("{rendered}\n"))?;
+    }
+    Ok(())
+}
+
+/// Render every options output as `(path relative to workspace, content)`.
+fn render_options(workspace_dir: &Path) -> Result<Vec<(&'static str, String)>> {
+    let parsed = core_options::parse(&workspace_dir.join("core/core/src/types/options.rs"))?;
+    let options = options_models(&parsed, OPTIONS)?;
+
+    let mut env = Environment::new();
+    env.add_template("options_hpp", include_str!("cpp/options_hpp.j2"))?;
+    env.add_template("options_rs", include_str!("cpp/options_rs.j2"))?;
+    env.add_template(
+        "options_converter_hpp",
+        include_str!("cpp/options_converter_hpp.j2"),
+    )?;
+    env.add_template(
+        "options_converter_cpp",
+        include_str!("cpp/options_converter_cpp.j2"),
+    )?;
+
+    let outputs = [
+        ("options_hpp", "bindings/cpp/include/options.hpp"),
+        ("options_rs", "bindings/cpp/src/options.rs"),
+        (
+            "options_converter_hpp",
+            "bindings/cpp/src/utils/options_converter.hpp",
+        ),
+        (
+            "options_converter_cpp",
+            "bindings/cpp/src/utils/options_converter.cpp",
+        ),
+    ];
+    let mut rendered = Vec::with_capacity(outputs.len());
+    for (template, relative) in outputs {
+        let content = env
+            .get_template(template)?
+            .render(context! { options => Serde(&options) })?;
+        rendered.push((relative, content));
+    }
+    Ok(rendered)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -635,6 +848,106 @@ mod tests {
         .unwrap_err()
         .to_string();
         assert!(err.contains("`cache_control` is missing from core"));
+    }
+
+    /// `ListOptions` as `bindings/cpp/include/data_structure.hpp` declared it on
+    /// `main` before it was generated, copied verbatim. Callers depend on each
+    /// member's name, type, default member initializer, and position.
+    const MAIN_LIST_OPTIONS: &str = r#"/**
+ * @struct ListOptions
+ * @brief Options for list and lister operations.
+ */
+struct ListOptions {
+  std::optional<std::size_t> limit;
+  std::optional<std::string> start_after;
+  bool recursive{false};
+  bool versions{false};
+  bool deleted{false};
+};"#;
+
+    fn parsed_options() -> Vec<core_options::OptionsStruct> {
+        core_options::parse(&workspace_dir().join("core/core/src/types/options.rs"))
+            .expect("parse core options")
+    }
+
+    fn rendered_options(path: &str) -> String {
+        render_options(&workspace_dir())
+            .unwrap()
+            .into_iter()
+            .find(|(relative, _)| *relative == path)
+            .map(|(_, content)| content)
+            .expect("rendered output")
+    }
+
+    #[test]
+    fn test_rendered_options_header_keeps_main_list_options() {
+        let header = rendered_options("bindings/cpp/include/options.hpp");
+        assert!(
+            header.contains(MAIN_LIST_OPTIONS),
+            "header no longer declares:\n{MAIN_LIST_OPTIONS}\n\nheader:\n{header}"
+        );
+        assert_eq!(header.matches("\nstruct ").count(), 1);
+    }
+
+    #[test]
+    fn test_new_core_field_stays_unexposed() {
+        let mut parsed = parsed_options();
+        let before = options_models(&parsed, OPTIONS).unwrap();
+        let list = parsed.iter_mut().find(|s| s.name == "ListOptions").unwrap();
+        list.fields.insert(
+            1,
+            core_options::OptionField {
+                name: "new_mid".to_string(),
+                kind: OptionKind::OptionString,
+                doc: Vec::new(),
+            },
+        );
+
+        let after = options_models(&parsed, OPTIONS).unwrap();
+
+        assert_eq!(before[0].members, after[0].members);
+        assert_eq!(after[0].unexposed[0], "new_mid");
+        assert_eq!(after[0].unexposed[1..], before[0].unexposed[..]);
+        assert!(after[0].fills_defaults);
+    }
+
+    #[test]
+    fn test_options_models_reject_incompatible_specs() {
+        use OptionKind::*;
+
+        let parsed = parsed_options();
+        let error = |name: &'static str, fields: &'static [(&'static str, OptionKind)]| {
+            let spec = OptionsSpec {
+                name,
+                brief: "",
+                fields,
+            };
+            options_models(&parsed, &[spec]).unwrap_err().to_string()
+        };
+
+        assert_eq!(
+            error("MissingOptions", &[]),
+            "OPTIONS struct `MissingOptions` is missing from core"
+        );
+        assert_eq!(
+            error("ListOptions", &[("missing", OptionString)]),
+            "OPTIONS member `ListOptions::missing` is missing from core"
+        );
+        assert_eq!(
+            error(
+                "ListOptions",
+                &[("limit", OptionUsize), ("limit", OptionUsize)]
+            ),
+            "OPTIONS lists `ListOptions::limit` twice"
+        );
+        assert_eq!(
+            error("ListOptions", &[("limit", OptionU64)]),
+            "core `ListOptions::limit` has kind OptionUsize, but OPTIONS lists OptionU64"
+        );
+        assert_eq!(
+            error("ReadOptions", &[("if_modified_since", OptionTimestamp)]),
+            "the C++ bridge cannot carry `ReadOptions::if_modified_since` of kind OptionTimestamp yet"
+        );
     }
 
     #[test]

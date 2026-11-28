@@ -46,6 +46,8 @@ fn export_bridge(out_dir: &Path, bridge_dir: &Path) -> io::Result<()> {
         ("sources", "opendal-cpp/src/lib.rs.cc"),
         ("include", "opendal-cpp/src/metadata.rs.h"),
         ("sources", "opendal-cpp/src/metadata.rs.cc"),
+        ("include", "opendal-cpp/src/options.rs.h"),
+        ("sources", "opendal-cpp/src/options.rs.cc"),
     ];
     if cfg!(feature = "async") {
         files.extend([
@@ -69,10 +71,16 @@ fn main() -> io::Result<()> {
             "src/capability.rs",
             "src/lib.rs",
             "src/metadata.rs",
+            "src/options.rs",
             "src/async.rs",
         ][..]
     } else {
-        &["src/capability.rs", "src/lib.rs", "src/metadata.rs"][..]
+        &[
+            "src/capability.rs",
+            "src/lib.rs",
+            "src/metadata.rs",
+            "src/options.rs",
+        ][..]
     };
     let _ = cxx_build::bridges(sources);
 

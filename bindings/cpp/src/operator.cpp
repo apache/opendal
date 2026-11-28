@@ -26,6 +26,7 @@
 #include "utils/capability_converter.hpp"
 #include "utils/ffi_converter.hpp"
 #include "utils/metadata_converter.hpp"
+#include "utils/options_converter.hpp"
 #include "utils/rust_converter.hpp"
 
 namespace opendal {
@@ -175,16 +176,6 @@ ffi::FfiRenameOptions ToFfiOptions(const RenameOptions &options) {
 ffi::FfiDeleteOptions ToFfiOptions(const DeleteOptions &options) {
   return ffi::FfiDeleteOptions{ToFfiOptionalString(options.version),
                                options.recursive};
-}
-
-ffi::FfiListOptions ToFfiOptions(const ListOptions &options) {
-  return ffi::FfiListOptions{
-      ToFfiOptionalUsize(options.limit),
-      ToFfiOptionalString(options.start_after),
-      options.recursive,
-      options.versions,
-      options.deleted,
-  };
 }
 
 const ffi::Operator &CheckedOperator(const ffi::Operator *op) {
@@ -346,7 +337,7 @@ std::vector<Entry> Operator::List(std::string_view path) {
 std::vector<Entry> Operator::List(std::string_view path,
                                   const ListOptions &options) {
   auto rust_vec = CheckedOperator(operator_).list_options(
-      utils::rust_str(path), ToFfiOptions(options));
+      utils::rust_str(path), utils::ToFfiOptions(options));
 
   std::vector<Entry> entries;
   entries.reserve(rust_vec.size());
@@ -362,8 +353,8 @@ Lister Operator::GetLister(std::string_view path) {
 }
 
 Lister Operator::GetLister(std::string_view path, const ListOptions &options) {
-  return CheckedOperator(operator_).lister_options(utils::rust_str(path),
-                                                   ToFfiOptions(options));
+  return CheckedOperator(operator_).lister_options(
+      utils::rust_str(path), utils::ToFfiOptions(options));
 }
 
 Reader Operator::GetReader(std::string_view path) {

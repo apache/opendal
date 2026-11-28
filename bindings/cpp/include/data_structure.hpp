@@ -28,6 +28,7 @@
 
 #include "capability.hpp"
 #include "metadata.hpp"
+#include "options.hpp"
 
 namespace opendal {
 
@@ -169,18 +170,6 @@ struct RenameOptions {
 struct DeleteOptions {
   std::optional<std::string> version;
   bool recursive{false};
-};
-
-/**
- * @struct ListOptions
- * @brief Options for list and lister operations.
- */
-struct ListOptions {
-  std::optional<std::size_t> limit;
-  std::optional<std::string> start_after;
-  bool recursive{false};
-  bool versions{false};
-  bool deleted{false};
 };
 
 }  // namespace opendal

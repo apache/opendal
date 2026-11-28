@@ -21,9 +21,6 @@ package org.apache.opendal.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.entry;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -69,16 +66,6 @@ public class ServiceConfigMapFieldTest {
         assertThat(map).containsEntry("region", "us-east-1");
         assertThat(map).containsEntry("assume_role_session_tags", "{\"Region\":\"eu-west-1\"}");
         assertThat(map).doesNotContainKey("Region");
-    }
-
-    @Test
-    void sessionTagsRoundTripAlongsideRegion() throws Exception {
-        final Map<String, String> map =
-                s3WithTags(Collections.singletonMap("Region", "eu-west-1")).configMap();
-        final Map<String, String> decoded = new ObjectMapper()
-                .readValue(map.get("assume_role_session_tags"), new TypeReference<Map<String, String>>() {});
-        assertThat(decoded).containsExactly(entry("Region", "eu-west-1"));
-        assertThat(map).containsEntry("region", "us-east-1");
     }
 
     @Test
@@ -138,10 +125,15 @@ public class ServiceConfigMapFieldTest {
     }
 
     @Test
-    void nullTagKeyIsRejected() {
+    void nullTagKeyFailsWithConfigInvalid() {
         final Map<String, String> tags = new HashMap<>();
         tags.put(null, "x");
         final ServiceConfig.S3 config = s3WithTags(tags);
-        assertThatThrownBy(config::configMap).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> Operator.of(config))
+                .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.ConfigInvalid))
+                .hasMessageContaining("assume_role_session_tags");
+        assertThatThrownBy(() -> AsyncOperator.of(config))
+                .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.ConfigInvalid))
+                .hasMessageContaining("assume_role_session_tags");
     }
 }

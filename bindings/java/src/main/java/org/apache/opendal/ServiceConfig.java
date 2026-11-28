@@ -2274,7 +2274,7 @@ public interface ServiceConfig {
                 map.put("name_node", nameNode);
             }
             if (options != null) {
-                map.put("options", ConfigJson.encodeObject(options));
+                map.put("options", ConfigJson.encodeObject("options", options));
             }
             if (root != null) {
                 map.put("root", root);
@@ -5051,7 +5051,9 @@ public interface ServiceConfig {
                 map.put("assume_role_duration_seconds", String.valueOf(assumeRoleDurationSeconds));
             }
             if (assumeRoleSessionTags != null) {
-                map.put("assume_role_session_tags", ConfigJson.encodeObject(assumeRoleSessionTags));
+                map.put(
+                        "assume_role_session_tags",
+                        ConfigJson.encodeObject("assume_role_session_tags", assumeRoleSessionTags));
             }
             if (batchMaxOperations != null) {
                 map.put("batch_max_operations", String.valueOf(batchMaxOperations));

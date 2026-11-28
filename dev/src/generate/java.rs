@@ -1074,8 +1074,9 @@ fn make_populate_map(field: Serde<Config>) -> Result<String, minijinja::Error> {
         ConfigType::String => name.clone(),
         ConfigType::Duration => format!("{name}.toString()"),
         ConfigType::Vec => format!("String.join(\",\", {name})"),
-        // Core reads a map-valued option from one JSON object string.
-        ConfigType::HashMap => format!("ConfigJson.encodeObject({name})"),
+        // Core reads a map-valued option from one JSON object string. The
+        // option name lets the encoder report a null key as `ConfigInvalid`.
+        ConfigType::HashMap => format!("ConfigJson.encodeObject(\"{}\", {name})", field.name),
     };
 
     let indent = if field.optional { "    " } else { "" };

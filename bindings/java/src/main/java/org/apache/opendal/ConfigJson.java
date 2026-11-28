@@ -35,9 +35,19 @@ final class ConfigJson {
      * Encode a string map as a JSON object with keys sorted by {@link String#compareTo}.
      *
      * <p>A null value becomes JSON {@code null}, which core rejects with {@code ConfigInvalid}. A
-     * null key throws {@link NullPointerException}, because JSON has no null key.
+     * null key has no JSON form, so it throws {@link OpenDALException} with {@code ConfigInvalid}
+     * here, as the native options map does for a null key.
+     *
+     * @param option the option name, used in the error for a null key
+     * @param map the map to encode
      */
-    static String encodeObject(Map<String, String> map) {
+    static String encodeObject(String option, Map<String, String> map) {
+        for (Map.Entry<String, String> entry : map.entrySet()) {
+            if (entry.getKey() == null) {
+                throw new OpenDALException(
+                        OpenDALException.Code.ConfigInvalid, "config '" + option + "' has a null map key");
+            }
+        }
         final StringBuilder sb = new StringBuilder("{");
         boolean first = true;
         for (Map.Entry<String, String> entry : new TreeMap<>(map).entrySet()) {

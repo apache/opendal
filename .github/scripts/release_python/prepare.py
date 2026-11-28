@@ -17,9 +17,11 @@
 # under the License.
 
 import argparse
+import datetime
 import os
 import re
 import tomllib
+import zoneinfo
 from pathlib import Path
 
 
@@ -114,14 +116,7 @@ def render_pyproject(content: str, version: str) -> str:
     )
 
 
-def prepare(
-    tag: str,
-    cargo_manifest: Path = DEFAULT_CARGO_MANIFEST,
-    pyproject: Path = DEFAULT_PYPROJECT,
-) -> str:
-    stable_version = load_stable_version(cargo_manifest)
-    version = release_candidate_version(stable_version, tag)
-
+def apply_version(version: str, pyproject: Path = DEFAULT_PYPROJECT) -> str:
     content = pyproject.read_text(encoding="utf-8")
     rendered = render_pyproject(content, version)
     if rendered != content:
@@ -130,14 +125,42 @@ def prepare(
     return version
 
 
+def prepare(
+    tag: str,
+    cargo_manifest: Path = DEFAULT_CARGO_MANIFEST,
+    pyproject: Path = DEFAULT_PYPROJECT,
+) -> str:
+    stable_version = load_stable_version(cargo_manifest)
+    return apply_version(release_candidate_version(stable_version, tag), pyproject)
+
+
+def dev_version(stable_version: str, date: datetime.date) -> str:
+    return f"{stable_version}.dev{date.strftime('%Y%m%d')}"
+
+
+def prepare_dev(
+    date: datetime.date,
+    cargo_manifest: Path = DEFAULT_CARGO_MANIFEST,
+    pyproject: Path = DEFAULT_PYPROJECT,
+) -> str:
+    stable_version = load_stable_version(cargo_manifest)
+    return apply_version(dev_version(stable_version, date), pyproject)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Prepare PEP 440 version metadata for a Python release candidate."
+        description="Prepare PEP 440 version metadata for a Python release."
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--tag",
         default=os.environ.get("GITHUB_REF_NAME"),
         help="Release candidate tag. Defaults to GITHUB_REF_NAME.",
+    )
+    mode.add_argument(
+        "--dev",
+        action="store_true",
+        help="Prepare a development version dated today in Asia/Shanghai.",
     )
     parser.add_argument(
         "--cargo-manifest",
@@ -153,15 +176,18 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if not args.tag:
-        parser.error("--tag is required when GITHUB_REF_NAME is not set")
-
     try:
-        version = prepare(args.tag, args.cargo_manifest, args.pyproject)
+        if args.dev:
+            today = datetime.datetime.now(zoneinfo.ZoneInfo("Asia/Shanghai")).date()
+            version = prepare_dev(today, args.cargo_manifest, args.pyproject)
+        else:
+            if not args.tag:
+                parser.error("--tag is required when GITHUB_REF_NAME is not set")
+            version = prepare(args.tag, args.cargo_manifest, args.pyproject)
     except (OSError, PreparationError, tomllib.TOMLDecodeError) as error:
         parser.error(str(error))
 
-    print(f"Prepared Python release candidate version {version}")
+    print(f"Prepared Python version {version}")
     return 0
 
 

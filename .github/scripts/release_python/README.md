@@ -1,7 +1,8 @@
 # Python Release Candidate Versions
 
 The Python release workflow publishes release candidate tags to TestPyPI and
-stable tags to PyPI.
+stable tags to PyPI. The weekly wheel workflow publishes development versions
+to TestPyPI.
 
 Each source release keeps a stable Python version in
 `bindings/python/Cargo.toml`. For a tag such as `v0.58.1-rc.5`, `prepare.py`
@@ -9,6 +10,11 @@ temporarily changes the PEP 621 metadata in `bindings/python/pyproject.toml`
 from a dynamic Cargo version to the PEP 440 version `0.47.5rc5`. The workflow
 runs this preparation independently before building the sdist and every wheel.
 It does not commit the generated metadata or change the stable release version.
+
+The weekly wheel workflow passes `--dev`, which renders the stable version plus
+a development release segment dated in `Asia/Shanghai`, for example
+`0.47.5.dev20261126`. Each date gets its own version so TestPyPI accepts one
+upload per day.
 
 Stable tags skip this preparation, so maturin continues to read the version
 from `bindings/python/Cargo.toml`.

@@ -19,11 +19,14 @@ import tempfile
 import textwrap
 import tomllib
 import unittest
+from datetime import date
 from pathlib import Path
 
 from prepare import (
     PreparationError,
+    dev_version,
     prepare,
+    prepare_dev,
     release_candidate_version,
     render_pyproject,
 )
@@ -78,6 +81,49 @@ class ReleasePythonPrepareTest(unittest.TestCase):
         self.assertEqual(first, "0.47.5rc1")
         self.assertEqual(second, "0.47.5rc2")
         self.assertNotEqual(first, second)
+
+    def test_dev_versions_map_to_pep_440_dev_releases(self):
+        self.assertEqual(dev_version("0.47.5", date(2026, 11, 26)), "0.47.5.dev20261126")
+        self.assertNotEqual(
+            dev_version("0.47.5", date(2026, 11, 26)),
+            dev_version("0.47.5", date(2026, 12, 3)),
+        )
+
+    def test_prepare_dev_renders_version_and_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            cargo_manifest = root / "Cargo.toml"
+            pyproject = root / "pyproject.toml"
+            write_fixture(
+                cargo_manifest,
+                """
+                [package]
+                name = "opendal-python"
+                version = "0.47.5"
+                """,
+            )
+            write_fixture(
+                pyproject,
+                """
+                [project]
+                name = "opendal"
+                dynamic = ['version']
+                """,
+            )
+
+            version = prepare_dev(date(2026, 11, 26), cargo_manifest, pyproject)
+            prepared = pyproject.read_text(encoding="utf-8")
+
+            self.assertEqual(version, "0.47.5.dev20261126")
+            with pyproject.open("rb") as fp:
+                project = tomllib.load(fp)["project"]
+            self.assertEqual(project["version"], "0.47.5.dev20261126")
+            self.assertNotIn("dynamic", project)
+
+            self.assertEqual(
+                prepare_dev(date(2026, 11, 26), cargo_manifest, pyproject), version
+            )
+            self.assertEqual(pyproject.read_text(encoding="utf-8"), prepared)
 
     def test_prepare_is_idempotent(self):
         with tempfile.TemporaryDirectory() as tmpdir:

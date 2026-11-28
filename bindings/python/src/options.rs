@@ -231,18 +231,27 @@ impl ReadOptions {
     }
 }
 
+const CHECKSUM_ALGORITHMS: &[(&str, ocore::ChecksumAlgo)] = &[
+    ("crc32c", ocore::ChecksumAlgo::Crc32c),
+    ("crc64nvme", ocore::ChecksumAlgo::Crc64Nvme),
+    ("crc64ecma", ocore::ChecksumAlgo::Crc64Ecma),
+    ("md5", ocore::ChecksumAlgo::Md5),
+    ("sha1", ocore::ChecksumAlgo::Sha1),
+    ("sha256", ocore::ChecksumAlgo::Sha256),
+];
+
 pub(crate) fn parse_checksum_algorithm(name: &str) -> PyResult<ocore::ChecksumAlgo> {
-    match name {
-        "crc32c" => Ok(ocore::ChecksumAlgo::Crc32c),
-        "crc64nvme" => Ok(ocore::ChecksumAlgo::Crc64Nvme),
-        "crc64ecma" => Ok(ocore::ChecksumAlgo::Crc64Ecma),
-        "md5" => Ok(ocore::ChecksumAlgo::Md5),
-        "sha1" => Ok(ocore::ChecksumAlgo::Sha1),
-        "sha256" => Ok(ocore::ChecksumAlgo::Sha256),
-        _ => Err(PyValueError::new_err(format!(
-            "unknown checksum algorithm {name:?}"
-        ))),
-    }
+    CHECKSUM_ALGORITHMS
+        .iter()
+        .find_map(|&(label, algo)| (label == name).then_some(algo))
+        .ok_or_else(|| PyValueError::new_err(format!("unknown checksum algorithm {name:?}")))
+}
+
+pub(crate) fn checksum_into_python(checksum: ocore::Checksum) -> Option<(&'static str, Vec<u8>)> {
+    let name = CHECKSUM_ALGORITHMS
+        .iter()
+        .find_map(|&(name, algo)| (algo == checksum.algo).then_some(name))?;
+    Some((name, checksum.value))
 }
 
 /// Options for `write` operations.
@@ -435,6 +444,8 @@ pub struct StatOptions {
     pub cache_control: Option<String>,
     /// The content disposition of the file.
     pub content_disposition: Option<String>,
+    /// Request the service's full-object checksum when available. Defaults to False.
+    pub checksum: bool,
 }
 
 impl<'a, 'py> FromPyObject<'a, 'py> for StatOptions {
@@ -452,6 +463,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for StatOptions {
             content_type: extract_optional(&dict, "content_type")?,
             cache_control: extract_optional(&dict, "cache_control")?,
             content_disposition: extract_optional(&dict, "content_disposition")?,
+            checksum: extract_optional(&dict, "checksum")?.unwrap_or_default(),
         })
     }
 }
@@ -471,6 +483,7 @@ impl From<StatOptions> for ocore::options::StatOptions {
             override_content_type: opts.content_type,
             override_cache_control: opts.cache_control,
             override_content_disposition: opts.content_disposition,
+            checksum: opts.checksum,
             ..Default::default()
         }
     }

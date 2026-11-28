@@ -200,6 +200,23 @@ separately when constructing a `MultipartCopier`.
 
 ## Services
 
+### 3FS conditional writes
+
+`Hf3fs` no longer advertises `Capability::write_with_if_not_exists`. Earlier
+revisions of `main` used `if_not_exists` to open the final path with exclusive
+creation. An existing file caused `ErrorKind::ConditionNotMatch`. A new file
+could become visible before the write finished, and a failed or aborted write
+could leave a partial file.
+
+`write_with(...).if_not_exists(true)` and `writer_with(...).if_not_exists(true)`
+now return `ErrorKind::Unsupported` before any service I/O, regardless of whether
+the target exists.
+
+To publish a complete file atomically only when the target is absent, switch to
+a service whose operator advertises `write_with_if_not_exists` and keep
+`if_not_exists(true)`. Use a plain 3FS write only if overwriting is acceptable.
+A separate existence check leaves a race between the check and the write.
+
 ### Redb requires `redb` 5
 
 `RedbBuilder::database` takes an `Arc<redb::Database>`, so the `redb` version OpenDAL builds

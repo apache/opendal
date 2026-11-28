@@ -55,11 +55,16 @@ attention and uphold project quality.
 - **Governance boundaries:** Maintenance agents may triage issues, check for
   duplicates and security boundaries (`SECURITY-THREAT-MODEL.md`), screen pull
   requests for evidence and scope, review code, assist with reproduction, and
-  prepare routine maintenance pull requests. Every pull request requires at
-  least one human OpenDAL committer to review, approve, and merge it; do not
-  approve or merge PRs, declare PMC consensus, issue official security
-  decisions, or cast Apache release votes without explicit human committer or
-  PMC review and action.
+  prepare routine maintenance pull requests. Escalate decisions about project
+  direction to human committers or the PMC as described in
+  [Reviews & Approvals](CONTRIBUTING.md#reviews--approvals). Within established
+  direction, a committer may explicitly delegate routine review, approval, and
+  merge to an agent acting from the committer's account. The committer remains
+  accountable for each approval and merge. Before merging, verify that an
+  independent review covers the exact head commit, substantive findings have
+  been addressed, and required CI checks pass on that commit. Agents must never
+  declare PMC consensus, cast Apache release votes, or issue official security
+  decisions.
 - **Fast-fail screening:** Screen incoming Issues and Pull Requests in order:
   duplicates, threat-model and project scope, linked issue or consensus, real
   reproduction and evidence, change scope and contract alignment, and CI

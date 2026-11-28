@@ -75,15 +75,64 @@ public class ServiceConfigMapTest
         Assert.Equal("{\"Fs\":\"x\",\"a\":\"1\",\"b\":\"2\"}", json);
     }
 
+    private static Dictionary<string, string?> DecodeJsonObject(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement
+            .EnumerateObject()
+            .ToDictionary(property => property.Name, property => property.Value.GetString());
+    }
+
+    [Fact]
+    public void S3SessionTags_ToOptions_RoundTripKeepsKeyCase()
+    {
+        var config = new S3ServiceConfig
+        {
+            Region = "us-east-1",
+            AssumeRoleSessionTags = new Dictionary<string, string>
+            {
+                ["Region"] = "eu-west-1",
+                ["CostCenter"] = "Data-Platform",
+            },
+        };
+
+        var options = config.ToOptions();
+
+        Assert.Equal(new Dictionary<string, string?>
+        {
+            ["Region"] = "eu-west-1",
+            ["CostCenter"] = "Data-Platform",
+        }, DecodeJsonObject(options["assume_role_session_tags"]));
+        Assert.Equal("us-east-1", options["region"]);
+        Assert.False(options.ContainsKey("Region"));
+    }
+
+    [Fact]
+    public void HdfsNativeOptions_ToOptions_RoundTripKeepsKeyCase()
+    {
+        var config = new HdfsNativeServiceConfig
+        {
+            Options = new Dictionary<string, string>
+            {
+                ["fs.defaultFS"] = "hdfs://ns",
+                ["dfs.ha.namenodes.ns"] = "nn1,nn2",
+            },
+        };
+
+        var options = config.ToOptions();
+
+        Assert.Equal(new Dictionary<string, string?>
+        {
+            ["fs.defaultFS"] = "hdfs://ns",
+            ["dfs.ha.namenodes.ns"] = "nn1,nn2",
+        }, DecodeJsonObject(options["options"]));
+        Assert.False(options.ContainsKey("fs.defaultFS"));
+    }
+
     [Fact]
     public void MapOption_SpecialCharacters_RoundTrip()
     {
         var json = Utilities.ToOptionJson(SpecialCharacters());
-
-        using var document = JsonDocument.Parse(json);
-        var decoded = document.RootElement
-            .EnumerateObject()
-            .ToDictionary(property => property.Name, property => property.Value.GetString());
 
         Assert.Equal(new Dictionary<string, string?>
         {
@@ -92,7 +141,7 @@ public class ServiceConfigMapTest
             ["ctl"] = "\u0001",
             ["ü"] = "ß",
             ["url"] = "hdfs://ns",
-        }, decoded);
+        }, DecodeJsonObject(json));
     }
 
     [Fact]

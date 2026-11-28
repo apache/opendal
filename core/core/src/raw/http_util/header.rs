@@ -209,7 +209,75 @@ pub fn parse_content_disposition(headers: &HeaderMap) -> Result<Option<&str>> {
 
 /// Parse multipart boundary from header map.
 pub fn parse_multipart_boundary(headers: &HeaderMap) -> Result<Option<&str>> {
-    parse_header_to_str(headers, CONTENT_TYPE).map(|v| v.and_then(|v| v.split("boundary=").nth(1)))
+    parse_header_to_str(headers, CONTENT_TYPE).map(|v| v.and_then(extract_multipart_boundary))
+}
+
+fn extract_multipart_boundary(content_type: &str) -> Option<&str> {
+    let (_, mut rest) = content_type.split_once(';')?;
+    while !rest.is_empty() {
+        rest = rest.trim_start();
+        if let Some(after) = rest.strip_prefix(';') {
+            rest = after;
+            continue;
+        }
+        let delim = rest.find(['=', ';']);
+        let Some(pos) = delim else {
+            break;
+        };
+        if rest.as_bytes()[pos] == b';' {
+            rest = &rest[pos + 1..];
+            continue;
+        }
+        let name = rest[..pos].trim_end();
+        let val = rest[pos + 1..].trim_start();
+        let is_boundary = name.eq_ignore_ascii_case("boundary");
+        if let Some(after_quote) = val.strip_prefix('"') {
+            let bytes = after_quote.as_bytes();
+            let mut i = 0;
+            let mut has_escape = false;
+            let mut close = None;
+            while i < bytes.len() {
+                match bytes[i] {
+                    b'\\' => {
+                        if i + 1 >= bytes.len() {
+                            return None;
+                        }
+                        has_escape = true;
+                        i += 2;
+                    }
+                    b'"' => {
+                        close = Some(i);
+                        break;
+                    }
+                    _ => i += 1,
+                }
+            }
+            let end = close?;
+            let after_closing = after_quote[end + 1..].trim_start_matches([' ', '\t']);
+            let next_rest = if after_closing.is_empty() {
+                ""
+            } else {
+                after_closing.strip_prefix(';')?
+            };
+            if is_boundary {
+                // Decoding backslash escapes would require owned storage, incompatible with `Result<Option<&str>>`.
+                if has_escape {
+                    return None;
+                }
+                let boundary = &after_quote[..end];
+                return (!boundary.is_empty()).then_some(boundary);
+            }
+            rest = next_rest;
+            continue;
+        }
+        let end = val.find(';').unwrap_or(val.len());
+        if is_boundary {
+            let boundary = val[..end].trim_end();
+            return (!boundary.is_empty()).then_some(boundary);
+        }
+        rest = &val[end..];
+    }
+    None
 }
 
 /// Parse header value to string according to name.
@@ -599,11 +667,56 @@ mod tests {
                 "multipart/mixed; boundary=gc0p4Jq0M2Yt08jU534c0p",
                 Some("gc0p4Jq0M2Yt08jU534c0p"),
             ),
+            (
+                "multipart/mixed; boundary=gc0p4Jq0M2Yt08jU534c0p; charset=utf-8",
+                Some("gc0p4Jq0M2Yt08jU534c0p"),
+            ),
+            (
+                "multipart/mixed; boundary=\"gc0p4Jq0M2Yt08jU534c0p\"",
+                Some("gc0p4Jq0M2Yt08jU534c0p"),
+            ),
+            (
+                "multipart/mixed; boundary=\"gc0p4Jq0M2Yt08jU534c0p\"; charset=utf-8",
+                Some("gc0p4Jq0M2Yt08jU534c0p"),
+            ),
+            (
+                "multipart/mixed; charset=utf-8; boundary=\"a;b\"",
+                Some("a;b"),
+            ),
+            ("multipart/mixed; x-boundary=ignored", None),
+            ("multipart/mixed; boundary=\"\"", None),
+            ("multipart/mixed; boundary=", None),
             ("multipart/mixed", None),
             // GCS returns unquoted boundaries that contain `=`.
             (
                 "multipart/mixed; boundary=batch_pK7JBAk73-E=_AA5eFwv4m2Q=",
                 Some("batch_pK7JBAk73-E=_AA5eFwv4m2Q="),
+            ),
+            // Empty intervening parameters and valueless tokens must be skipped.
+            (
+                "multipart/mixed; ; boundary=gc0p4Jq0M2Yt08jU534c0p",
+                Some("gc0p4Jq0M2Yt08jU534c0p"),
+            ),
+            (
+                "multipart/mixed; flag; boundary=gc0p4Jq0M2Yt08jU534c0p",
+                Some("gc0p4Jq0M2Yt08jU534c0p"),
+            ),
+            // Earlier quoted parameters with backslash quoted-pairs must not cut scanning short.
+            (
+                "multipart/mixed; param=\"a\\\"; boundary=fake\"; boundary=real",
+                Some("real"),
+            ),
+            (
+                "multipart/mixed; param=\"a\\\\\"; boundary=real",
+                Some("real"),
+            ),
+            // Quoted boundary containing backslash escapes cannot be returned losslessly as &str.
+            ("multipart/mixed; boundary=\"a\\\"b\"", None),
+            // Malformed trailing non-whitespace bytes after closing quote must be rejected.
+            ("multipart/mixed; boundary=\"Batch_Example\"suffix", None),
+            (
+                "multipart/mixed; boundary=\"Batch_Example\" \t; charset=utf-8",
+                Some("Batch_Example"),
             ),
         ];
 

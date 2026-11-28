@@ -1223,41 +1223,44 @@ export declare const enum EntryMode {
   Unknown = 2
 }
 
+/**
+ * Options for list operations.
+ *
+ * # Groups
+ * - Traversal: `recursive`.
+ * - Pagination: `limit`, `start_after`.
+ * - Versioning: `versions`, `deleted`.
+ *
+ * The operation fails with `crate::ErrorKind::Unsupported` when an option
+ * requires a capability that the operator lacks.
+ */
 export interface ListOptions {
-  /** * The limit passed to underlying service to specify the max results
-   * that could return per-request.
-   *
-   * Users could use this to control the memory usage of list operation.
-   */
+  /** Maximum results per request (backend hint) to control memory and throttling. */
   limit?: number
-  /** * The start_after passed to underlying service to specify the specified key
-   * to start listing from.
+  /**
+   * Start listing after this key, excluding the key itself.
+   *
+   * Setting this requires `Capability::list_with_start_after`.
    */
   startAfter?: string
-  /** * The recursive is used to control whether the list operation is recursive.
+  /**
+   * Whether to list recursively under the prefix; default `false`.
    *
-   * - If `false`, list operation will only list the entries under the given path.
-   * - If `true`, list operation will list all entries that starts with given path.
-   *
-   * Default to `false`.
+   * Requires `Capability::list_with_recursive`.
+   * Services without native recursive listing rely on `crate::layers::SimulateLayer`
+   * (installed automatically by the default `auto-simulate` feature).
    */
   recursive?: boolean
-  /** * The versions is used to control whether the object versions should be returned.
+  /**
+   * Include object versions; default `false`.
    *
-   * - If `false`, list operation will not return with object versions
-   * - If `true`, list operation will return with object versions if object versioning is supported
-   *   by the underlying service
-   *
-   * Default to `false`
+   * Requires `Capability::list_with_versions`.
    */
   versions?: boolean
-  /** * The deleted is used to control whether the deleted objects should be returned.
+  /**
+   * Include delete markers; default `false`.
    *
-   * - If `false`, list operation will not return with deleted objects
-   * - If `true`, list operation will return with deleted objects if object versioning is supported
-   *   by the underlying service
-   *
-   * Default to `false`
+   * Requires `Capability::list_with_deleted`.
    */
   deleted?: boolean
 }

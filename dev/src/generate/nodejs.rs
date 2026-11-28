@@ -18,8 +18,9 @@
 //! Generator for the Node.js binding.
 
 use super::capability;
+use super::core_options::{self, OptionField, OptionKind, OptionsStruct};
 use super::metadata::{self, MetadataKind};
-use anyhow::Result;
+use anyhow::{Result, bail};
 use minijinja::value::Serde;
 use minijinja::{Environment, context};
 use serde::Serialize;
@@ -28,7 +29,8 @@ use std::path::Path;
 
 pub fn generate(workspace_dir: &Path) -> Result<()> {
     generate_capability(workspace_dir)?;
-    generate_metadata(workspace_dir)
+    generate_metadata(workspace_dir)?;
+    generate_list_options(workspace_dir)
 }
 
 /// Render `bindings/nodejs/src/capability.rs` from
@@ -169,6 +171,135 @@ fn metadata_field(f: metadata::MetadataField) -> MetadataField {
     }
 }
 
+/// The core `ListOptions` fields that JS exposes, in declaration order.
+///
+/// A core field missing here is not exposed in JS, and the conversion sets it
+/// to its default.
+const LIST_OPTIONS_FIELDS: &[&str] = &["limit", "start_after", "recursive", "versions", "deleted"];
+
+/// Render model for one field of the napi `ListOptions` object.
+#[derive(Serialize)]
+struct ListOptionsField {
+    /// snake_case name, as in core. napi exposes it in camelCase.
+    name: String,
+    /// Rust type of the napi field. napi-rs derives the TS type from it.
+    rs_type: &'static str,
+    /// The core doc comment, one entry per line.
+    doc: Vec<String>,
+}
+
+/// One field of the core `ListOptions` literal that the conversion builds.
+#[derive(Serialize)]
+struct ListOptionsConversion {
+    name: String,
+    /// Expression that reads the JS value from `value`.
+    expr: String,
+}
+
+/// Render `bindings/nodejs/src/options/list.rs` from the core `ListOptions`
+/// in `core/core/src/types/options.rs`.
+///
+/// `generated.d.ts` is derived from this file by `napi build`.
+fn generate_list_options(workspace_dir: &Path) -> Result<()> {
+    let source = workspace_dir.join("core/core/src/types/options.rs");
+    let rendered = render_list_options(&core_options::parse(&source)?)?;
+
+    let output = workspace_dir.join("bindings/nodejs/src/options/list.rs");
+    fs::write(output, format!("{rendered}\n"))?;
+    Ok(())
+}
+
+fn render_list_options(parsed: &[OptionsStruct]) -> Result<String> {
+    let Some(core) = parsed.iter().find(|options| options.name == "ListOptions") else {
+        bail!("core has no options struct `ListOptions`");
+    };
+
+    let mut fields = Vec::with_capacity(LIST_OPTIONS_FIELDS.len());
+    for &name in LIST_OPTIONS_FIELDS {
+        let Some(field) = core.fields.iter().find(|field| field.name == name) else {
+            bail!("core ListOptions has no field `{name}`");
+        };
+        fields.push(ListOptionsField {
+            name: field.name.clone(),
+            rs_type: list_option_type(field)?.0,
+            doc: js_doc(&field.doc),
+        });
+    }
+
+    // List every core field instead of ending with `..Default::default()`, so
+    // a new core field fails to compile in the binding until this file is
+    // regenerated, and the regenerated conversion shows it as unexposed.
+    let mut conversions = Vec::with_capacity(core.fields.len());
+    for field in &core.fields {
+        let exposed = LIST_OPTIONS_FIELDS.contains(&field.name.as_str());
+        let expr = if exposed {
+            list_option_type(field)?.1
+        } else {
+            "Default::default()".to_string()
+        };
+        conversions.push(ListOptionsConversion {
+            name: field.name.clone(),
+            expr,
+        });
+    }
+
+    let mut env = Environment::new();
+    env.add_template("list_rs", include_str!("nodejs/list_options_rs.j2"))?;
+    Ok(env.get_template("list_rs")?.render(context! {
+        doc => js_doc(&core.doc),
+        fields => Serde(&fields),
+        conversions => Serde(&conversions),
+        has_unmirrored_fields => core.has_unmirrored_fields,
+    })?)
+}
+
+/// The napi type of an exposed core `ListOptions` field and the expression
+/// that converts it back.
+///
+/// These keep the types the binding used before codegen: `limit` is a
+/// `number` read as `u32`, so an explicit `0` reaches core as `Some(0)`, and
+/// an omitted boolean is `false`.
+fn list_option_type(field: &OptionField) -> Result<(&'static str, String)> {
+    let name = &field.name;
+    Ok(match field.kind {
+        OptionKind::OptionUsize => ("Option<u32>", format!("value.{name}.map(|v| v as usize)")),
+        OptionKind::OptionString => ("Option<String>", format!("value.{name}")),
+        OptionKind::Bool => ("Option<bool>", format!("value.{name}.unwrap_or_default()")),
+        kind => bail!("core ListOptions::{name} is {kind:?}, which has no JS type yet"),
+    })
+}
+
+/// The core doc comment as it reads in JS. napi-rs copies it into
+/// `generated.d.ts`.
+///
+/// Rustdoc links become plain code spans, because JS documentation cannot
+/// resolve Rust paths: ``[`Capability::list_with_limit`](crate::Capability::list_with_limit)``
+/// and ``[`crate::layers::SimulateLayer`]`` keep only their code span.
+fn js_doc(lines: &[String]) -> Vec<String> {
+    lines
+        .iter()
+        .map(|line| {
+            let mut out = String::with_capacity(line.len());
+            let mut rest = line.as_str();
+            while let Some(start) = rest.find("[`") {
+                let Some(len) = rest[start + 1..].find("`]") else {
+                    break;
+                };
+                out.push_str(&rest[..start]);
+                out.push_str(&rest[start + 1..start + len + 2]);
+                rest = &rest[start + len + 3..];
+                if let Some(target) = rest.strip_prefix('(')
+                    && let Some(end) = target.find(')')
+                {
+                    rest = &target[end + 1..];
+                }
+            }
+            out.push_str(rest);
+            out
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -239,5 +370,95 @@ mod tests {
         assert!(!rendered.contains("pub fn is_dir(&self)"));
         // JS receives a copy of user metadata, not core's borrowed view.
         assert!(!rendered.contains("borrowed"));
+    }
+
+    fn core_list_options() -> OptionsStruct {
+        let source = crate::workspace_dir().join("core/core/src/types/options.rs");
+        core_options::parse(&source)
+            .unwrap()
+            .into_iter()
+            .find(|options| options.name == "ListOptions")
+            .unwrap()
+    }
+
+    /// The napi struct, which napi-rs turns into `generated.d.ts`.
+    fn napi_struct(rendered: &str) -> &str {
+        let start = rendered.find("#[napi(object)]").unwrap();
+        let end = rendered[start..].find("\n}\n").unwrap();
+        &rendered[start..start + end]
+    }
+
+    #[test]
+    fn test_list_options_new_core_field_is_not_exposed() {
+        let core = core_list_options();
+        let mut mutated = core.clone();
+        mutated.fields.insert(
+            0,
+            core_options::OptionField {
+                name: "fake_option".to_string(),
+                kind: OptionKind::OptionString,
+                doc: vec!["A fake option.".to_string()],
+            },
+        );
+
+        let before = render_list_options(&[core]).unwrap();
+        let after = render_list_options(&[mutated]).unwrap();
+        assert_eq!(napi_struct(&before), napi_struct(&after));
+        assert!(!before.contains("fake_option"));
+        assert!(after.contains("fake_option: Default::default(),"));
+    }
+
+    #[test]
+    fn test_list_options_reject_unknown_shapes() {
+        let mut missing = core_list_options();
+        missing.fields.retain(|field| field.name != "limit");
+        let err = render_list_options(&[missing]).unwrap_err().to_string();
+        assert!(err.contains("has no field `limit`"), "{err}");
+
+        let mut changed = core_list_options();
+        let limit = changed
+            .fields
+            .iter_mut()
+            .find(|f| f.name == "limit")
+            .unwrap();
+        limit.kind = OptionKind::OptionU64;
+        let err = render_list_options(&[changed]).unwrap_err().to_string();
+        assert!(err.contains("ListOptions::limit is OptionU64"), "{err}");
+    }
+
+    #[test]
+    fn test_list_options_docs_come_from_core() {
+        let mut core = core_list_options();
+        core.doc = vec!["Struct doc from core.".to_string()];
+        let limit = core.fields.iter_mut().find(|f| f.name == "limit").unwrap();
+        limit.doc = vec![
+            "First line.".to_string(),
+            String::new(),
+            "Third line.".to_string(),
+        ];
+
+        let rendered = render_list_options(&[core]).unwrap();
+        assert!(rendered.contains("/// Struct doc from core.\n#[napi(object)]"));
+        assert!(rendered.contains(
+            "    /// First line.\n    ///\n    /// Third line.\n    pub limit: Option<u32>,"
+        ));
+    }
+
+    #[test]
+    fn test_js_doc_strips_rustdoc_links() {
+        let lines = [
+            "Requires [`Capability::list_with_limit`](crate::Capability::list_with_limit).",
+            "Rely on [`crate::layers::SimulateLayer`] and [`Self::recursive`].",
+            "A [plain](https://opendal.apache.org) link and `code` stay.",
+        ]
+        .map(String::from);
+        assert_eq!(
+            js_doc(&lines),
+            [
+                "Requires `Capability::list_with_limit`.",
+                "Rely on `crate::layers::SimulateLayer` and `Self::recursive`.",
+                "A [plain](https://opendal.apache.org) link and `code` stay.",
+            ]
+        );
     }
 }
